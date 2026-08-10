@@ -1,0 +1,12 @@
+bin/
+obj/
+.vs/
+.idea/
+.dotnet-home/
+.nuget-packages/
+.localappdata/
+*.user
+*.suo
+
+# Portable projects and media are user data, not source files.
+*.seedance-project/
