@@ -354,6 +354,13 @@ public partial class MainWindow : Window
         PreviewPlaceholder.Visibility = Visibility.Collapsed;
         PositionSlider.Value = 0;
 
+        if (asset.StorageKind == AssetStorageKind.Virtual)
+        {
+            PreviewPlaceholder.Text = "Virtual asset preview will be materialized on demand in a later Milestone 2 phase.";
+            PreviewPlaceholder.Visibility = Visibility.Visible;
+            return;
+        }
+
         var absolutePath = _workspace.GetAbsoluteAssetPath(asset);
         if (asset.MediaType == MediaType.Image)
         {
@@ -455,7 +462,9 @@ public partial class MainWindow : Window
 
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} assets";
         Title = $"{_workspace.Project.Name} — Seedance Wizard";
-        StatusText.Text = $"Opened {_workspace.Location!.ProjectFilePath}";
+        StatusText.Text = _workspace.Location!.Migration is { } migration
+            ? $"Upgraded schema {migration.FromVersion} to {migration.ToVersion}. Backup: {migration.BackupPath}"
+            : $"Opened {_workspace.Location.ProjectFilePath}";
     }
 
     private bool EnsureProjectOpen()
@@ -495,8 +504,17 @@ public partial class MainWindow : Window
         builder.AppendLine(asset.FileName);
         builder.AppendLine($"ID: {asset.Id}");
         builder.AppendLine($"Type: {asset.MediaType}");
+        builder.AppendLine($"Storage: {asset.StorageKind}");
         builder.AppendLine($"Origin: {asset.Origin}");
-        builder.AppendLine($"Path: {asset.RelativePath}");
+        builder.AppendLine($"Path: {asset.Physical?.RelativePath ?? "materialized on demand"}");
+        if (asset.Physical is { } physical)
+        {
+            builder.AppendLine($"Availability: {physical.Availability}");
+        }
+        if (asset.Physical?.ContentIdentity is { } identity)
+        {
+            builder.AppendLine($"SHA-256: {identity.Sha256 ?? identity.Status.ToString()}");
+        }
         builder.AppendLine($"Created: {asset.CreatedAt.LocalDateTime:g}");
 
         if (asset.DurationSeconds is not null)
@@ -548,21 +566,21 @@ public partial class MainWindow : Window
         var builder = new StringBuilder();
         builder.AppendLine($"Generation {generation.Id}");
         builder.AppendLine($"Status: {generation.Status}");
-        builder.AppendLine($"Provider: {generation.ProviderId}");
-        builder.AppendLine($"Model: {generation.ModelVersion}");
+        builder.AppendLine($"Provider: {generation.RequestSnapshot.ProviderId}");
+        builder.AppendLine($"Model: {generation.RequestSnapshot.ModelVersion}");
         builder.AppendLine($"Provider job: {generation.ProviderJobId ?? "—"}");
         builder.AppendLine($"Requested: {generation.RequestedAt.LocalDateTime:g}");
         builder.AppendLine($"Completed: {generation.CompletedAt?.LocalDateTime.ToString("g", CultureInfo.CurrentCulture) ?? "—"}");
         builder.AppendLine();
         builder.AppendLine("PROMPT");
-        builder.AppendLine(generation.Request.Prompt);
+        builder.AppendLine(generation.RequestSnapshot.Prompt);
         builder.AppendLine();
         builder.AppendLine("SETTINGS");
-        builder.AppendLine($"Mode: {generation.Request.Mode}");
-        builder.AppendLine($"Duration: {generation.Request.DurationSeconds}s");
-        builder.AppendLine($"Aspect ratio: {generation.Request.AspectRatio}");
-        builder.AppendLine($"Resolution: {generation.Request.Resolution}");
-        builder.AppendLine($"References: {generation.Request.ReferenceAssetIds.Count}");
+        builder.AppendLine($"Mode: {generation.RequestSnapshot.Mode}");
+        builder.AppendLine($"Duration: {generation.RequestSnapshot.DurationSeconds}s");
+        builder.AppendLine($"Aspect ratio: {generation.RequestSnapshot.AspectRatio}");
+        builder.AppendLine($"Resolution: {generation.RequestSnapshot.Resolution}");
+        builder.AppendLine($"References: {generation.RequestSnapshot.References.Count}");
 
         foreach (var pair in generation.ResponseMetadata)
         {

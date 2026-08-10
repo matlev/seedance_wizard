@@ -123,7 +123,10 @@ public sealed class AtlasCloudSeedance25ProviderTests
     private static ProjectAsset CreateAsset(MediaType type, string fileName, string providerReference)
     {
         var asset = new ProjectAsset { MediaType = type, FileName = fileName };
-        asset.ProviderReferences[AtlasCloudSeedance25Provider.ProviderId] = providerReference;
+        asset.ProviderReferences[AtlasCloudSeedance25Provider.ProviderId] = new ProviderAssetReference
+        {
+            Value = providerReference
+        };
         return asset;
     }
 

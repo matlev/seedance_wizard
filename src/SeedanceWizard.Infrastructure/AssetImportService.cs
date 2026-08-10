@@ -21,10 +21,12 @@ public sealed class AssetImportService : IAssetImportService
     };
 
     private readonly IMediaInspectionService _mediaInspector;
+    private readonly IContentHashService _contentHashService;
 
-    public AssetImportService(IMediaInspectionService mediaInspector)
+    public AssetImportService(IMediaInspectionService mediaInspector, IContentHashService? contentHashService = null)
     {
         _mediaInspector = mediaInspector;
+        _contentHashService = contentHashService ?? new Sha256ContentHashService();
     }
 
     public async Task<IReadOnlyList<ProjectAsset>> ImportAsync(
@@ -60,15 +62,37 @@ public sealed class AssetImportService : IAssetImportService
 
             await CopyFileAsync(fullSourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
 
+            ContentIdentity contentIdentity;
+            try
+            {
+                contentIdentity = await _contentHashService
+                    .ComputeAsync(destinationPath, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                File.Delete(destinationPath);
+                throw;
+            }
+
             var asset = new ProjectAsset
             {
                 FileName = Path.GetFileName(destinationPath),
-                RelativePath = Path
-                    .GetRelativePath(location.RootDirectory, destinationPath)
-                    .Replace(Path.DirectorySeparatorChar, '/'),
+                DisplayName = Path.GetFileName(destinationPath),
                 MediaType = mediaType,
+                StorageKind = AssetStorageKind.Physical,
                 Origin = AssetOrigin.Imported,
-                CreatedAt = DateTimeOffset.UtcNow
+                CreatedAt = DateTimeOffset.UtcNow,
+                Physical = new PhysicalAssetStorage
+                {
+                    RelativePath = Path
+                        .GetRelativePath(location.RootDirectory, destinationPath)
+                        .Replace(Path.DirectorySeparatorChar, '/'),
+                    Durability = PhysicalAssetDurability.Source,
+                    ContentIdentity = contentIdentity,
+                    Availability = PhysicalAssetAvailability.Available
+                },
+                Virtual = null
             };
 
             if (mediaType is MediaType.Video or MediaType.Audio)

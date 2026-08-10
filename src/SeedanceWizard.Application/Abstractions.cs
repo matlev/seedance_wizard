@@ -1,8 +1,14 @@
+using System.Collections.ObjectModel;
 using SeedanceWizard.Core;
 
 namespace SeedanceWizard.Application;
 
-public sealed record ProjectLocation(string RootDirectory, string ProjectFilePath);
+public sealed record ProjectMigrationNotice(int FromVersion, int ToVersion, string BackupPath);
+
+public sealed record ProjectLocation(
+    string RootDirectory,
+    string ProjectFilePath,
+    ProjectMigrationNotice? Migration = null);
 
 public interface IProjectStore
 {
@@ -33,6 +39,104 @@ public interface IMediaInspectionService
 {
     Task<MediaEncodingMetadata> InspectAsync(
         string mediaPath,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IContentHashService
+{
+    Task<ContentIdentity> ComputeAsync(string path, CancellationToken cancellationToken = default);
+    Task<ContentVerificationResult> VerifyAsync(
+        string path,
+        ContentIdentity expected,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed record ContentVerificationResult(bool MatchesExpected, ContentIdentity Observed);
+
+public enum MaterializationPurpose
+{
+    Preview,
+    ProviderUpload,
+    FinalExport,
+    FrameExtraction,
+    Thumbnail,
+    Waveform
+}
+
+public enum MaterializationRetentionPreference
+{
+    Unspecified,
+    Ephemeral,
+    NormalCache,
+    PreferRetained,
+    Persistent
+}
+
+public sealed record MaterializationRequest(
+    Guid AssetId,
+    Guid? RecipeRevisionId,
+    MaterializationPurpose Purpose,
+    MaterializationRetentionPreference RetentionPreference = MaterializationRetentionPreference.Unspecified);
+
+public sealed class MaterializedMediaLease : IAsyncDisposable
+{
+    private Func<ValueTask>? _release;
+
+    public MaterializedMediaLease(
+        string path,
+        ContentIdentity contentIdentity,
+        MediaEncodingMetadata? encoding,
+        bool isDurableSource,
+        Func<ValueTask>? release = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        Path = path;
+        ContentIdentity = contentIdentity;
+        Encoding = encoding;
+        IsDurableSource = isDurableSource;
+        _release = release;
+    }
+
+    public string Path { get; }
+    public ContentIdentity ContentIdentity { get; }
+    public MediaEncodingMetadata? Encoding { get; }
+    public bool IsDurableSource { get; }
+
+    public ValueTask DisposeAsync()
+    {
+        var release = Interlocked.Exchange(ref _release, null);
+        return release?.Invoke() ?? ValueTask.CompletedTask;
+    }
+}
+
+public interface IMediaMaterializer
+{
+    Task<MaterializedMediaLease> MaterializeAsync(
+        VideoProject project,
+        ProjectLocation location,
+        MaterializationRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IMaterializationRetentionPolicy
+{
+    MaterializationRetentionPreference Resolve(
+        MaterializationPurpose purpose,
+        Guid assetId,
+        MaterializationRetentionPreference requestedPreference);
+}
+
+public sealed record PreparedProviderReference(
+    GenerationReferenceSnapshot LogicalReference,
+    string ProviderRepresentation,
+    MaterializationReceipt? Receipt);
+
+public interface IProviderAssetPreparationService
+{
+    Task<PreparedProviderReference> PrepareAsync(
+        string providerId,
+        GenerationReferenceSnapshot logicalReference,
+        MaterializedMediaLease media,
         CancellationToken cancellationToken = default);
 }
 
@@ -168,9 +272,7 @@ public sealed class ProjectWorkspace
 
         var record = new GenerationRecord
         {
-            ProviderId = provider.Capabilities.ProviderId,
-            ModelVersion = provider.Capabilities.ModelVersion,
-            Request = request,
+            RequestSnapshot = CreateSnapshot(provider, request, Project.Assets),
             RequestedAt = DateTimeOffset.UtcNow,
             Status = GenerationStatus.Queued
         };
@@ -234,7 +336,47 @@ public sealed class ProjectWorkspace
     {
         EnsureProjectIsOpen();
         ArgumentNullException.ThrowIfNull(asset);
-        return Path.GetFullPath(Path.Combine(Location!.RootDirectory, asset.RelativePath));
+        if (asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
+        {
+            throw new InvalidOperationException($"Virtual asset '{asset.Id}' must be materialized before a path is requested.");
+        }
+
+        return Path.GetFullPath(Path.Combine(Location!.RootDirectory, asset.Physical.RelativePath));
+    }
+
+    private static GenerationRequestSnapshot CreateSnapshot(
+        IVideoGenerationProvider provider,
+        GenerationRequest request,
+        IReadOnlyCollection<ProjectAsset> assets)
+    {
+        var references = request.ReferenceAssetIds.Select(
+            (id, index) =>
+            {
+                var asset = assets.Single(candidate => candidate.Id == id);
+                return new GenerationReferenceSnapshot
+                {
+                    ObjectKind = GenerationReferenceObjectKind.Asset,
+                    LogicalObjectId = asset.Id,
+                    RecipeRevisionId = asset.Virtual?.CurrentRecipeRevisionId,
+                    ContentHash = asset.Physical?.ContentIdentity.Sha256,
+                    Role = GenerationReferenceRole.GeneralReference,
+                    Order = index
+                };
+            }).ToArray();
+
+        return new GenerationRequestSnapshot
+        {
+            ProviderId = provider.Capabilities.ProviderId,
+            ModelVersion = provider.Capabilities.ModelVersion,
+            Mode = request.Mode,
+            Prompt = request.Prompt,
+            DurationSeconds = request.DurationSeconds,
+            AspectRatio = request.AspectRatio,
+            Resolution = request.Resolution,
+            References = Array.AsReadOnly(references),
+            ProviderParameters = new ReadOnlyDictionary<string, string>(
+                new Dictionary<string, string>(request.ProviderParameters, StringComparer.Ordinal))
+        };
     }
 
     private void EnsureProjectIsOpen()

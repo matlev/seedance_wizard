@@ -15,8 +15,8 @@ public interface IProviderAssetReferenceResolver
 public sealed class ProjectAssetReferenceResolver : IProviderAssetReferenceResolver
 {
     public string? Resolve(string providerId, ProjectAsset asset) =>
-        asset.ProviderReferences.TryGetValue(providerId, out var reference) && !string.IsNullOrWhiteSpace(reference)
-            ? reference
+        asset.ProviderReferences.TryGetValue(providerId, out var reference) && !string.IsNullOrWhiteSpace(reference.Value)
+            ? reference.Value
             : null;
 }
 

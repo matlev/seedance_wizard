@@ -1,6 +1,6 @@
 # Architecture
 
-Status: proposed for approval before Milestone 2 implementation
+Status: accepted direction; Phase 2A foundation implemented
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 

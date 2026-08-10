@@ -1,6 +1,6 @@
 # Milestone plan
 
-Status: proposed; implementation requires explicit approval.
+Status: Milestone 1 and Milestone 2 Phase 2A complete; Phase 2B not started.
 
 ## Product priority
 
@@ -50,6 +50,8 @@ Architectural debt carried into Milestone 2:
 ## Milestone 2 — AI generation loop on logical media
 
 ### Phase 2A — foundation for logical media and generation history
+
+Implemented on the Milestone 2 branch. The materialization/provider-preparation items in this phase are contracts only; rendering, uploading, and paid submission remain later work.
 
 Complete this foundation before enabling paid submission:
 

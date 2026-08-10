@@ -56,22 +56,50 @@ public sealed class PortableProjectStore : IProjectStore
             throw new FileNotFoundException("Project file was not found.", fullPath);
         }
 
-        await using var stream = File.OpenRead(fullPath);
-        var project = await JsonSerializer
-            .DeserializeAsync<VideoProject>(stream, SerializerOptions, cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw new InvalidDataException("The project file did not contain a valid project.");
+        var json = await File.ReadAllBytesAsync(fullPath, cancellationToken).ConfigureAwait(false);
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("schemaVersion", out var schemaProperty) ||
+            !schemaProperty.TryGetInt32(out var schemaVersion))
+        {
+            throw new InvalidDataException("The project file does not declare a valid schemaVersion.");
+        }
 
-        if (project.SchemaVersion > VideoProject.CurrentSchemaVersion)
+        if (schemaVersion > VideoProject.CurrentSchemaVersion)
         {
             throw new InvalidDataException(
-                $"Project schema {project.SchemaVersion} is newer than this application supports ({VideoProject.CurrentSchemaVersion}).");
+                $"Project schema {schemaVersion} is newer than this application supports ({VideoProject.CurrentSchemaVersion}).");
         }
 
         var root = Path.GetDirectoryName(fullPath)
             ?? throw new InvalidDataException("The project file must have a parent directory.");
 
-        return (project, new ProjectLocation(root, fullPath));
+        if (schemaVersion == VideoProject.CurrentSchemaVersion)
+        {
+            var dto = JsonSerializer.Deserialize<ProjectV2Dto>(json, SerializerOptions)
+                ?? throw new InvalidDataException("The project file did not contain a valid schema-v2 project.");
+            var project = ProjectPersistenceMapper.FromDto(dto);
+            RefreshPhysicalAvailability(project, root);
+            ProjectInvariantValidator.ThrowIfInvalid(project);
+            return (project, new ProjectLocation(root, fullPath));
+        }
+
+        if (schemaVersion != 1)
+            throw new InvalidDataException($"Project schema {schemaVersion} is not supported.");
+
+        var legacy = JsonSerializer.Deserialize<ProjectV1Dto>(json, SerializerOptions)
+            ?? throw new InvalidDataException("The project file did not contain a valid schema-v1 project.");
+        var migrated = ProjectPersistenceMapper.Migrate(legacy);
+        RefreshPhysicalAvailability(migrated, root);
+        ProjectInvariantValidator.ThrowIfInvalid(migrated);
+
+        var backupPath = GetAvailableBackupPath(root, schemaVersion);
+        File.Copy(fullPath, backupPath, overwrite: false);
+        var migratedLocation = new ProjectLocation(
+            root,
+            fullPath,
+            new ProjectMigrationNotice(schemaVersion, VideoProject.CurrentSchemaVersion, backupPath));
+        await SaveAsync(migrated, migratedLocation, cancellationToken).ConfigureAwait(false);
+        return (migrated, migratedLocation);
     }
 
     public async Task SaveAsync(
@@ -81,6 +109,7 @@ public sealed class PortableProjectStore : IProjectStore
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(location);
+        ProjectInvariantValidator.ThrowIfInvalid(project);
 
         Directory.CreateDirectory(location.RootDirectory);
         var temporaryPath = $"{location.ProjectFilePath}.tmp-{Guid.NewGuid():N}";
@@ -95,7 +124,7 @@ public sealed class PortableProjectStore : IProjectStore
                 FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer
-                    .SerializeAsync(stream, project, SerializerOptions, cancellationToken)
+                    .SerializeAsync(stream, ProjectPersistenceMapper.ToDto(project), SerializerOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -107,6 +136,32 @@ public sealed class PortableProjectStore : IProjectStore
             {
                 File.Delete(temporaryPath);
             }
+        }
+    }
+
+    private static string GetAvailableBackupPath(string rootDirectory, int schemaVersion)
+    {
+        var baseName = $"project.backup-v{schemaVersion}";
+        var candidate = Path.Combine(rootDirectory, $"{baseName}.json");
+        var suffix = 2;
+        while (File.Exists(candidate))
+        {
+            candidate = Path.Combine(rootDirectory, $"{baseName}-{suffix}.json");
+            suffix++;
+        }
+
+        return candidate;
+    }
+
+    private static void RefreshPhysicalAvailability(VideoProject project, string rootDirectory)
+    {
+        foreach (var asset in project.Assets.Where(asset => asset.StorageKind == AssetStorageKind.Physical && asset.Physical is not null))
+        {
+            var candidate = Path.GetFullPath(Path.Combine(rootDirectory, asset.Physical!.RelativePath));
+            var root = Path.GetFullPath(rootDirectory + Path.DirectorySeparatorChar);
+            asset.Physical.Availability = candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(candidate)
+                ? PhysicalAssetAvailability.Available
+                : PhysicalAssetAvailability.Missing;
         }
     }
 }
