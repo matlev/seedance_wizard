@@ -15,9 +15,11 @@ public partial class SettingsWindow : Window
     private readonly ITemporaryAssetHost _temporaryAssetHost;
     private readonly Dictionary<string, string> _pendingValues = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextBox> _visibleEditors = new(StringComparer.Ordinal);
+    private Task<bool>? _activeCommit;
     private string? _activeSection;
     private bool _rendering;
-    private bool _closingAfterCommit;
+    private bool _allowClose;
+    private bool _closeCommitScheduled;
 
     public SettingsWindow(
         IApplicationSettingsStore settingsStore,
@@ -39,18 +41,41 @@ public partial class SettingsWindow : Window
 
     public ApplicationSettings Settings => _editor.Settings;
 
-    protected override async void OnClosing(CancelEventArgs e)
+    protected override void OnClosing(CancelEventArgs e)
     {
-        if (!_closingAfterCommit && (_editor.IsDirty || _visibleEditors.Count > 0))
+        if (!_allowClose && HasUncommittedValues())
         {
             e.Cancel = true;
-            if (!await CommitVisibleAsync().ConfigureAwait(true)) return;
-            _closingAfterCommit = true;
-            Close();
-            return;
+            if (!_closeCommitScheduled)
+            {
+                _closeCommitScheduled = true;
+                Dispatcher.BeginInvoke(new Action(() => _ = CommitAndCloseAsync()));
+            }
         }
 
         base.OnClosing(e);
+    }
+
+    private bool HasUncommittedValues() =>
+        _editor.IsDirty ||
+        _pendingValues.Count > 0 ||
+        _visibleEditors.Any(pair =>
+            !pair.Value.Text.Trim().Equals(
+                ApplicationSettingsAccessor.Get(_editor.Settings, pair.Key),
+                StringComparison.Ordinal));
+
+    private async Task CommitAndCloseAsync()
+    {
+        try
+        {
+            if (!await CommitVisibleAsync().ConfigureAwait(true)) return;
+            _allowClose = true;
+            Close();
+        }
+        finally
+        {
+            _closeCommitScheduled = false;
+        }
     }
 
     private async void CategoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -214,7 +239,14 @@ public partial class SettingsWindow : Window
     private async void ValueEditor_LostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) =>
         await CommitVisibleAsync().ConfigureAwait(true);
 
-    private async Task<bool> CommitVisibleAsync()
+    private Task<bool> CommitVisibleAsync()
+    {
+        if (_activeCommit is { IsCompleted: false }) return _activeCommit;
+        _activeCommit = CommitVisibleCoreAsync();
+        return _activeCommit;
+    }
+
+    private async Task<bool> CommitVisibleCoreAsync()
     {
         try
         {
@@ -331,6 +363,8 @@ public partial class SettingsWindow : Window
 
     private async void Close_Click(object sender, RoutedEventArgs e)
     {
-        if (await CommitVisibleAsync().ConfigureAwait(true)) Close();
+        if (!await CommitVisibleAsync().ConfigureAwait(true)) return;
+        _allowClose = true;
+        Close();
     }
 }
