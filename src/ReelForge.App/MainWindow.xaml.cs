@@ -20,13 +20,12 @@ public partial class MainWindow : Window, IDisposable
     private readonly ObservableCollection<ProjectAsset> _assets = [];
     private readonly ObservableCollection<GenerationRecord> _generations = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
-    private readonly IReadOnlyList<GenerationProviderChoice> _providerChoices;
+    private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
     private readonly ProjectWorkspace _workspace;
     private readonly FfprobeMediaInspectionService _mediaInspector;
-    private readonly GenerationWorkflow _generationWorkflow;
+    private GenerationWorkflow _generationWorkflow = null!;
     private readonly ISecretStore _secretStore;
-    private readonly HttpClient _atlasHttpClient;
-    private readonly HttpClient _bytePlusHttpClient;
+    private readonly List<HttpClient> _providerHttpClients = [];
     private readonly HttpClient _r2HttpClient;
     private readonly HttpClient _downloadHttpClient;
     private IVideoGenerationProvider _generationProvider;
@@ -56,62 +55,19 @@ public partial class MainWindow : Window, IDisposable
         var assetImporter = new AssetImportService(_mediaInspector);
         _workspace = new ProjectWorkspace(projectStore, assetImporter);
         _secretStore = new WindowsCredentialStore();
-        _atlasHttpClient = new HttpClient
-        {
-            BaseAddress = RequireHttpsBaseUri(
-                _applicationSettings.VideoGenerationProviders.AtlasCloud.ApiBaseUrl,
-                "AtlasCloud"),
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-        _bytePlusHttpClient = new HttpClient
-        {
-            BaseAddress = RequireHttpsBaseUri(
-                _applicationSettings.VideoGenerationProviders.BytePlus.ApiBaseUrl,
-                "BytePlus"),
-            Timeout = TimeSpan.FromMinutes(10)
-        };
         _r2HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _downloadHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _temporaryAssetHost = new CloudflareR2TemporaryAssetHost(
             _applicationSettingsStore,
             _secretStore,
             new CloudflareR2ClientFactory(_r2HttpClient));
-        var fakeProvider = new FakeVideoGenerationProvider();
-        var bytePlusProvider = new BytePlusModelArkSeedance25Provider(
-            _bytePlusHttpClient,
-            _secretStore,
-            new ProjectAssetReferenceResolver());
-        var atlasProvider = new AtlasCloudSeedance25Provider(
-            _atlasHttpClient,
-            _secretStore,
-            new ProjectAssetReferenceResolver());
-        var providerChoices = new List<GenerationProviderChoice> { new(fakeProvider) };
-        if (_applicationSettings.VideoGenerationProviders.BytePlus.Enabled)
-            providerChoices.Add(new GenerationProviderChoice(bytePlusProvider));
-        if (_applicationSettings.VideoGenerationProviders.AtlasCloud.Enabled)
-            providerChoices.Add(new GenerationProviderChoice(atlasProvider));
-        _providerChoices = providerChoices;
-        _generationProvider = fakeProvider;
-        _generationWorkflow = new GenerationWorkflow(
-            _workspace,
-            new PhysicalAssetMaterializer(),
-            new HttpGeneratedOutputIngestionService(_downloadHttpClient, _mediaInspector),
-            new ProviderAssetPreparationRouter(
-                new Dictionary<string, IProviderAssetPreparationService>(StringComparer.Ordinal)
-                {
-                    [BytePlusModelArkSeedance25Provider.ProviderId] =
-                        new BytePlusModelArkAssetPreparationService(_temporaryAssetHost),
-                    [AtlasCloudSeedance25Provider.ProviderId] =
-                        new AtlasCloudAssetPreparationService(_atlasHttpClient, _secretStore)
-                }));
+        _generationProvider = new FakeVideoGenerationProvider();
+        RefreshProviderRuntime(preferredProviderId: null);
 
         AssetsList.ItemsSource = _assets;
         GenerationsList.ItemsSource = _generations;
         ReferenceAssetsGrid.ItemsSource = _referenceChoices;
         ReferenceRoleColumn.ItemsSource = Enum.GetValues<GenerationReferenceRole>().Cast<GenerationReferenceRole?>().Prepend(null);
-        ProviderComboBox.ItemsSource = _providerChoices;
-        ProviderComboBox.SelectedItem = _providerChoices[0];
-        ConfigureGenerationPanel();
 
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _positionTimer.Tick += (_, _) => UpdatePlaybackPosition();
@@ -135,8 +91,7 @@ public partial class MainWindow : Window, IDisposable
         _disposed = true;
         _monitoringCancellation?.Cancel();
         _monitoringCancellation?.Dispose();
-        _atlasHttpClient.Dispose();
-        _bytePlusHttpClient.Dispose();
+        foreach (var client in _providerHttpClients) client.Dispose();
         _r2HttpClient.Dispose();
         _downloadHttpClient.Dispose();
         GC.SuppressFinalize(this);
@@ -161,8 +116,79 @@ public partial class MainWindow : Window, IDisposable
         return uri;
     }
 
+    private void RefreshProviderRuntime(string? preferredProviderId)
+    {
+        var choices = new List<GenerationProviderChoice>();
+        var preparationServices = new Dictionary<string, IProviderAssetPreparationService>(StringComparer.Ordinal);
+        var fakeProvider = new FakeVideoGenerationProvider();
+        choices.Add(new GenerationProviderChoice(fakeProvider));
+
+        if (_applicationSettings.VideoGenerationProviders.BytePlus.Enabled)
+        {
+            var client = CreateProviderHttpClient(
+                _applicationSettings.VideoGenerationProviders.BytePlus.ApiBaseUrl,
+                "BytePlus");
+            choices.Add(new GenerationProviderChoice(new BytePlusModelArkSeedance25Provider(
+                client,
+                _secretStore,
+                new ProjectAssetReferenceResolver())));
+            preparationServices[BytePlusModelArkSeedance25Provider.ProviderId] =
+                new BytePlusModelArkAssetPreparationService(_temporaryAssetHost);
+        }
+
+        if (_applicationSettings.VideoGenerationProviders.AtlasCloud.Enabled)
+        {
+            var client = CreateProviderHttpClient(
+                _applicationSettings.VideoGenerationProviders.AtlasCloud.ApiBaseUrl,
+                "AtlasCloud");
+            choices.Add(new GenerationProviderChoice(new AtlasCloudSeedance25Provider(
+                client,
+                _secretStore,
+                new ProjectAssetReferenceResolver())));
+            preparationServices[AtlasCloudSeedance25Provider.ProviderId] =
+                new AtlasCloudAssetPreparationService(client, _secretStore);
+        }
+
+        _providerChoices = choices;
+        _generationWorkflow = new GenerationWorkflow(
+            _workspace,
+            new PhysicalAssetMaterializer(),
+            new HttpGeneratedOutputIngestionService(_downloadHttpClient, _mediaInspector),
+            new ProviderAssetPreparationRouter(preparationServices));
+
+        var selected = choices.FirstOrDefault(choice =>
+                           choice.Provider.Capabilities.ProviderId.Equals(preferredProviderId, StringComparison.Ordinal))
+                       ?? choices[0];
+        _generationProvider = selected.Provider;
+        var suppressAutosave = _suppressDraftAutosave;
+        _suppressDraftAutosave = true;
+        try
+        {
+            ProviderComboBox.ItemsSource = null;
+            ProviderComboBox.ItemsSource = choices;
+            ProviderComboBox.SelectedItem = selected;
+            ConfigureGenerationPanel();
+        }
+        finally
+        {
+            _suppressDraftAutosave = suppressAutosave;
+        }
+    }
+
+    private HttpClient CreateProviderHttpClient(string baseUrl, string providerName)
+    {
+        var client = new HttpClient
+        {
+            BaseAddress = RequireHttpsBaseUri(baseUrl, providerName),
+            Timeout = TimeSpan.FromMinutes(10)
+        };
+        _providerHttpClients.Add(client);
+        return client;
+    }
+
     private async void Settings_Click(object sender, RoutedEventArgs e)
     {
+        var activeDraft = _workspace.Project is null ? null : CaptureDraftFromUi();
         var window = new SettingsWindow(
             _applicationSettingsStore,
             _applicationSettings.Clone(),
@@ -173,13 +199,21 @@ public partial class MainWindow : Window, IDisposable
             Owner = this
         };
         window.ShowDialog();
+        var selectedProviderId = _generationProvider.Capabilities.ProviderId;
         _applicationSettings = await _applicationSettingsStore.LoadAsync();
         _mediaTools = _mediaToolDiscovery.Discover(
             _applicationSettings.MediaTools.FfmpegPath,
             _applicationSettings.MediaTools.FfprobePath);
         _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
         MediaToolsText.Text = _mediaTools.Summary;
-        StatusText.Text = "Application settings applied. Provider enablement or base URL changes apply after restart.";
+        RefreshProviderRuntime(selectedProviderId);
+        if (activeDraft is not null && _generationProvider.Capabilities.ProviderId.Equals(
+                activeDraft.ProviderId,
+                StringComparison.Ordinal))
+        {
+            LoadDraftIntoUi(activeDraft);
+        }
+        StatusText.Text = "Application settings and provider availability applied.";
     }
 
     private void ConfigureGenerationPanel()

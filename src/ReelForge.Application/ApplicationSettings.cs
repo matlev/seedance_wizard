@@ -174,9 +174,13 @@ public static class ApplicationSettingsAccessor
                 settings.TemporaryAssetHosting.CloudflareR2.PresignedUrlLifetimeMinutes = minutes;
                 break;
             case "VideoGenerationProviders.BytePlus.Enabled": settings.VideoGenerationProviders.BytePlus.Enabled = ParseBoolean(value, key); break;
-            case "VideoGenerationProviders.BytePlus.ApiBaseUrl": settings.VideoGenerationProviders.BytePlus.ApiBaseUrl = value; break;
+            case "VideoGenerationProviders.BytePlus.ApiBaseUrl":
+                settings.VideoGenerationProviders.BytePlus.ApiBaseUrl = ValidateHttpsUrl(value, "BytePlus API base URL");
+                break;
             case "VideoGenerationProviders.AtlasCloud.Enabled": settings.VideoGenerationProviders.AtlasCloud.Enabled = ParseBoolean(value, key); break;
-            case "VideoGenerationProviders.AtlasCloud.ApiBaseUrl": settings.VideoGenerationProviders.AtlasCloud.ApiBaseUrl = value; break;
+            case "VideoGenerationProviders.AtlasCloud.ApiBaseUrl":
+                settings.VideoGenerationProviders.AtlasCloud.ApiBaseUrl = ValidateHttpsUrl(value, "AtlasCloud API base URL");
+                break;
             default: throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown non-secret application setting.");
         }
     }
@@ -185,6 +189,11 @@ public static class ApplicationSettingsAccessor
         bool.TryParse(value, out var parsed)
             ? parsed
             : throw new ArgumentException($"'{key}' must be true or false.");
+
+    private static string ValidateHttpsUrl(string value, string displayName) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps
+            ? uri.AbsoluteUri
+            : throw new ArgumentException($"{displayName} must be an absolute HTTPS URL.");
 
     private static string? EmptyToNull(string value) => value.Length == 0 ? null : value;
 }

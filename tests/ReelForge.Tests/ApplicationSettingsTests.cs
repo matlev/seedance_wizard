@@ -119,6 +119,24 @@ public sealed class ApplicationSettingsTests
         Assert.False(await service.IsConfiguredAsync(requirement));
     }
 
+    [Fact]
+    public void ProviderBaseUrlsMustBeAbsoluteHttpsAddresses()
+    {
+        var settings = new ApplicationSettings();
+
+        var exception = Assert.Throws<ArgumentException>(() => ApplicationSettingsAccessor.Set(
+            settings,
+            "VideoGenerationProviders.BytePlus.ApiBaseUrl",
+            "http://unsafe.example.test/api"));
+        ApplicationSettingsAccessor.Set(
+            settings,
+            "VideoGenerationProviders.BytePlus.ApiBaseUrl",
+            "https://safe.example.test/api");
+
+        Assert.Contains("HTTPS", exception.Message, StringComparison.Ordinal);
+        Assert.Equal("https://safe.example.test/api", settings.VideoGenerationProviders.BytePlus.ApiBaseUrl.TrimEnd('/'));
+    }
+
     private static ApplicationSettings ConfiguredR2Settings()
     {
         var settings = new ApplicationSettings();

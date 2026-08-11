@@ -20,7 +20,7 @@ Use **Settings** in the top application toolbar. Categories currently cover Gene
 
 Non-secret fields show their actual merged value. Edits are marked dirty and written only when an edit is committed: keyboard focus leaves the field, another category is selected, the window is minimized, or the window closes. ReelForge does not rewrite the file on every keystroke and skips writes when nothing changed. A failed write leaves the edited value in the open window and displays the error.
 
-FFmpeg and ffprobe may be discovered from `PATH` or selected explicitly. Provider enablement and provider base-URL changes require an application restart; media-tool and R2 values are reloaded after the Settings window closes.
+FFmpeg and ffprobe may be discovered from `PATH` or selected explicitly. Media-tool, R2, provider enablement, provider base-URL, and credential changes take effect after the Settings window closes. A newly configured provider runtime handles new submissions; an operation already in flight retains the provider instance and endpoint with which it started.
 
 ## Secrets and Windows Credential Manager
 
