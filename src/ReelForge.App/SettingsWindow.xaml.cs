@@ -34,8 +34,7 @@ public partial class SettingsWindow : Window
         _validator = new ApplicationConfigurationValidator(secretStore);
         _mediaToolDiscovery = mediaToolDiscovery;
         _temporaryAssetHost = temporaryAssetHost;
-        CategoryList.ItemsSource = ApplicationConfigurationCatalog.Sections;
-        CategoryList.SelectedIndex = 0;
+        GeneralCategory.IsSelected = true;
         StateChanged += SettingsWindow_StateChanged;
     }
 
@@ -78,9 +77,9 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async void CategoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void CategoryTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
-        if (_rendering || CategoryList.SelectedItem is not string selected) return;
+        if (_rendering || e.NewValue is not TreeViewItem { Tag: string selected }) return;
         if (_activeSection is not null && !await CommitVisibleAsync().ConfigureAwait(true))
         {
             PersistenceStatusText.Text = "Fix the current setting or close the window after resolving the error.";
@@ -158,6 +157,9 @@ public partial class SettingsWindow : Window
 
     private FrameworkElement CreateValueEditor(ConfigurationRequirement requirement)
     {
+        if (requirement.Key.EndsWith(".Enabled", StringComparison.Ordinal))
+            return CreateBooleanEditor(requirement);
+
         var panel = CreateFieldPanel(requirement);
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition());
@@ -187,6 +189,45 @@ public partial class SettingsWindow : Window
 
         panel.Children.Add(row);
         return panel;
+    }
+
+    private FrameworkElement CreateBooleanEditor(ConfigurationRequirement requirement)
+    {
+        var panel = CreateFieldPanel(requirement);
+        var currentValue = _pendingValues.TryGetValue(requirement.Key, out var pending)
+            ? pending
+            : ApplicationSettingsAccessor.Get(_editor.Settings, requirement.Key);
+        var isEnabled = bool.TryParse(currentValue, out var parsed) && parsed;
+        var group = new StackPanel { Orientation = Orientation.Horizontal };
+        var enabled = new RadioButton
+        {
+            Content = "Enabled",
+            IsChecked = isEnabled,
+            GroupName = requirement.Key,
+            Style = (Style)FindResource("SettingsBooleanChoiceStyle"),
+            Tag = new BooleanChoice(requirement, true)
+        };
+        var disabled = new RadioButton
+        {
+            Content = "Disabled",
+            IsChecked = !isEnabled,
+            GroupName = requirement.Key,
+            Style = (Style)FindResource("SettingsBooleanChoiceStyle"),
+            Tag = new BooleanChoice(requirement, false)
+        };
+        enabled.Checked += BooleanEditor_Checked;
+        disabled.Checked += BooleanEditor_Checked;
+        group.Children.Add(enabled);
+        group.Children.Add(disabled);
+        panel.Children.Add(group);
+        return panel;
+    }
+
+    private async void BooleanEditor_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_rendering || (sender as FrameworkElement)?.Tag is not BooleanChoice choice) return;
+        _pendingValues[choice.Requirement.Key] = choice.Enabled.ToString().ToLowerInvariant();
+        await CommitVisibleAsync().ConfigureAwait(true);
     }
 
     private async Task<FrameworkElement> CreateSecretEditorAsync(ConfigurationRequirement requirement)
@@ -251,15 +292,25 @@ public partial class SettingsWindow : Window
         try
         {
             foreach (var (key, textBox) in _visibleEditors)
-            {
                 _pendingValues[key] = textBox.Text;
-                _editor.Update(key, textBox.Text);
+
+            var savedAny = false;
+            while (_pendingValues.Count > 0)
+            {
+                var valuesBeingCommitted = _pendingValues.ToArray();
+                foreach (var (key, value) in valuesBeingCommitted)
+                    _editor.Update(key, value);
+
+                savedAny |= await _editor.CommitAsync().ConfigureAwait(true);
+                foreach (var (key, value) in valuesBeingCommitted)
+                {
+                    if (_pendingValues.TryGetValue(key, out var current) && current.Equals(value, StringComparison.Ordinal))
+                        _pendingValues.Remove(key);
+                }
             }
 
-            var saved = await _editor.CommitAsync().ConfigureAwait(true);
-            if (saved)
+            if (savedAny)
             {
-                foreach (var key in _visibleEditors.Keys) _pendingValues.Remove(key);
                 PersistenceStatusText.Text = "Changes saved to the local application settings file.";
             }
             return true;
@@ -361,10 +412,5 @@ public partial class SettingsWindow : Window
         if (WindowState == WindowState.Minimized) await CommitVisibleAsync().ConfigureAwait(true);
     }
 
-    private async void Close_Click(object sender, RoutedEventArgs e)
-    {
-        if (!await CommitVisibleAsync().ConfigureAwait(true)) return;
-        _allowClose = true;
-        Close();
-    }
+    private sealed record BooleanChoice(ConfigurationRequirement Requirement, bool Enabled);
 }
