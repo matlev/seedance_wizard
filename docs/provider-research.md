@@ -1,6 +1,6 @@
-# Seedance 2.5 provider research
+# Video generation provider research
 
-Research date: 2026-08-10. This supersedes the earlier conclusion based on stale "coming soon" material. Model contracts, pricing, quotas, and provider policies can change; re-verify them before production release.
+Research dates: Seedance 2.5 on 2026-08-10; AtlasCloud MiniMax H3 on 2026-08-11. This supersedes earlier conclusions based on stale "coming soon" material. Model contracts, pricing, quotas, and provider policies can change; re-verify them before production release.
 
 ## Current conclusion
 
@@ -8,7 +8,7 @@ BytePlus ModelArk is the official international ByteDance API route for Dreamina
 
 BytePlus documentation updated on August 7, 2026 identifies model `dreamina-seedance-2-5-260628` and documents text-to-video, first-frame/first-and-last-frame generation, multimodal reference-to-video, video editing, and video extension. The current ceiling is 30 generated seconds and 50 total multimodal references, subject to per-type and task-specific limits.
 
-Both real providers are selectable in ReelForge alongside the no-cost fake provider. Neither provider is project-global: every immutable generation snapshot records its selected provider and model.
+BytePlus Seedance 2.5, AtlasCloud Seedance 2.5, and AtlasCloud MiniMax H3 are selectable in ReelForge alongside the no-cost fake provider. No route is project-global: every immutable generation snapshot records its selected provider and model.
 
 ## BytePlus ModelArk contract
 
@@ -89,6 +89,24 @@ AtlasCloud submits to `POST https://api.atlascloud.ai/api/v1/model/generateVideo
 
 AtlasCloud's live schemas may wrap predictions in `data` while component examples show the prediction object directly; the adapter accepts both verified shapes. No verified AtlasCloud remote cancellation contract was found, so ReelForge exposes only local monitoring cancellation for that provider.
 
+## AtlasCloud MiniMax H3
+
+AtlasCloud's live model catalog and machine-readable model references currently expose three H3 routes:
+
+- `minimax/h3/text-to-video`
+- `minimax/h3/image-to-video`
+- `minimax/h3/reference-to-video`
+
+All three submit to the existing AtlasCloud `POST /api/v1/model/generateVideo` endpoint and use the same `GET /api/v1/model/prediction/{prediction_id}` lifecycle. They share the AtlasCloud account, API base URL, API key, and multipart `uploadMedia` preparation route with the Seedance adapter, but ReelForge gives H3 its own provider ID (`atlascloud.minimax-h3`) so drafts, immutable snapshots, polling, and provider selection remain unambiguous.
+
+The verified H3 schema supports integer durations from 4 through 15 seconds and resolutions `768P` and `2K`. Text-to-video requires a concrete ratio from `21:9`, `16:9`, `4:3`, `1:1`, `3:4`, or `9:16`. Image-to-video accepts one required first-frame image plus one optional end-frame image as a public URL or supported image Base64 data URL, and its ratio is always `adaptive`. Reference-to-video accepts an ordered `refers` array of HTTPS image, video, and audio URLs with an explicit or inferred type; at least one image or video is required, so audio alone is invalid. R2V accepts `adaptive` or any of the concrete ratios above.
+
+AtlasCloud's current H3 R2V schema specifies a minimum of one `refers` item but does not publish per-type or combined maximum reference counts. ReelForge therefore does not invent a smaller limit. Provider-side validation may still reject an undocumented excessive request, and this omission should be rechecked before production release.
+
+The catalog advertises pricing from USD 0.10 per generated second. The machine-readable page labels that starting rate authoritative, while lower-page vendor description material mentions resolution-specific figures. ReelForge does not hard-code an H3 estimate from the conflicting descriptive section; the human confirmation displays the selected model, resolution, duration, and reference count before every potentially billable request.
+
+`AtlasCloudMiniMaxH3Provider` serializes only the verified fields, shares the existing AtlasCloud credential and async transport, and uses the same human-only paid-submission authorization boundary. Automated H3 tests use in-memory secrets and custom `HttpMessageHandler` instances. They cannot contact AtlasCloud or incur charges, and no live generation request was made during implementation.
+
 ## Sources
 
 Official BytePlus sources are primary for the ModelArk implementation:
@@ -102,5 +120,9 @@ Official BytePlus sources are primary for the ModelArk implementation:
 - [AtlasCloud: Seedance 2.5 text-to-video API](https://www.atlascloud.ai/models/bytedance/seedance-2.5/text-to-video)
 - [AtlasCloud: Seedance 2.5 image-to-video API](https://www.atlascloud.ai/models/bytedance/seedance-2.5/image-to-video)
 - [AtlasCloud: Seedance 2.5 reference-to-video API](https://www.atlascloud.ai/models/bytedance/seedance-2.5/reference-to-video)
+- [AtlasCloud: MiniMax H3 text-to-video API](https://www.atlascloud.ai/models/minimax/h3/text-to-video)
+- [AtlasCloud: MiniMax H3 image-to-video API](https://www.atlascloud.ai/models/minimax/h3/image-to-video)
+- [AtlasCloud: MiniMax H3 reference-to-video API](https://www.atlascloud.ai/models/minimax/h3/reference-to-video)
+- [AtlasCloud: model catalog](https://www.atlascloud.ai/models)
 - [AtlasCloud: Predictions](https://www.atlascloud.ai/docs/en/predictions)
 - [AtlasCloud: Upload Files](https://www.atlascloud.ai/docs/en/upload-files)

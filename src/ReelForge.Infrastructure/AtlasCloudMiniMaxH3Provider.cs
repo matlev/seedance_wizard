@@ -1,0 +1,172 @@
+using ReelForge.Application;
+using ReelForge.Core;
+
+namespace ReelForge.Infrastructure;
+
+public sealed class AtlasCloudMiniMaxH3Provider : IAsyncVideoGenerationProvider, IApiKeyVideoGenerationProvider
+{
+    public const string ProviderId = "atlascloud.minimax-h3";
+    public const string CredentialKey = AtlasCloudVideoApiClient.CredentialKey;
+    public const string TextToVideoModel = "minimax/h3/text-to-video";
+    public const string ImageToVideoModel = "minimax/h3/image-to-video";
+    public const string ReferenceToVideoModel = "minimax/h3/reference-to-video";
+
+    private static readonly HashSet<string> SupportedParameterNames = new(StringComparer.Ordinal);
+    private readonly AtlasCloudVideoApiClient _apiClient;
+    private readonly IProviderAssetReferenceResolver _assetReferenceResolver;
+
+    public AtlasCloudMiniMaxH3Provider(
+        HttpClient httpClient,
+        ISecretStore secretStore,
+        IProviderAssetReferenceResolver assetReferenceResolver)
+    {
+        _apiClient = new AtlasCloudVideoApiClient(httpClient, secretStore);
+        _assetReferenceResolver = assetReferenceResolver;
+    }
+
+    public GenerationProviderCapabilities Capabilities { get; } = new(
+        ProviderId: ProviderId,
+        DisplayName: "AtlasCloud MiniMax H3",
+        ModelVersion: "minimax/h3",
+        Modes: [GenerationMode.TextToVideo, GenerationMode.ImageToVideo, GenerationMode.ReferenceToVideo],
+        MinimumDurationSeconds: 4,
+        MaximumDurationSeconds: 15,
+        AspectRatios: ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+        Resolutions: ["768P", "2K"],
+        // AtlasCloud's current H3 schema does not publish per-type or combined maximums.
+        MaximumImageReferences: int.MaxValue,
+        MaximumVideoReferences: int.MaxValue,
+        MaximumAudioReferences: int.MaxValue,
+        SupportedReferenceTypes: new HashSet<MediaType> { MediaType.Image, MediaType.Video, MediaType.Audio },
+        ProviderParameters: new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal));
+
+    public GenerationProviderCostBehavior CostBehavior => GenerationProviderCostBehavior.PotentiallyBillable;
+    public string ApiKeyCredentialKey => CredentialKey;
+
+    public Task<GenerationSubmission> SubmitAsync(
+        GenerationRequest request,
+        IReadOnlyCollection<ProjectAsset> projectAssets,
+        GenerationSubmissionAuthorization? authorization = null,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = BuildPayload(request, projectAssets);
+        return _apiClient.SubmitAsync(payload, authorization, ProviderId, cancellationToken);
+    }
+
+    public Task<ProviderGenerationJob> GetJobAsync(
+        string providerJobId,
+        CancellationToken cancellationToken = default) =>
+        _apiClient.GetJobAsync(providerJobId, cancellationToken);
+
+    public IReadOnlyDictionary<string, object?> BuildPayload(
+        GenerationRequest request,
+        IReadOnlyCollection<ProjectAsset> projectAssets)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(projectAssets);
+
+        var errors = Capabilities.Validate(request, projectAssets).ToList();
+        foreach (var parameter in request.ProviderParameters.Keys.Where(key => !SupportedParameterNames.Contains(key)))
+        {
+            errors.Add($"AtlasCloud MiniMax H3 parameter '{parameter}' is not supported by this adapter.");
+        }
+
+        var references = request.ReferenceAssetIds
+            .Select(id => projectAssets.FirstOrDefault(asset => asset.Id == id))
+            .OfType<ProjectAsset>()
+            .ToList();
+
+        switch (request.Mode)
+        {
+            case GenerationMode.TextToVideo when request.AspectRatio.Equals("adaptive", StringComparison.OrdinalIgnoreCase):
+                errors.Add("AtlasCloud MiniMax H3 text-to-video requires a concrete aspect ratio.");
+                break;
+            case GenerationMode.ImageToVideo:
+                if (!request.AspectRatio.Equals("adaptive", StringComparison.OrdinalIgnoreCase))
+                    errors.Add("AtlasCloud MiniMax H3 image-to-video requires the adaptive aspect ratio.");
+                if (references.Count is < 1 or > 2 || references.Any(asset => asset.MediaType != MediaType.Image))
+                    errors.Add("AtlasCloud MiniMax H3 image-to-video requires one or two image references.");
+                break;
+            case GenerationMode.ReferenceToVideo:
+                if (!references.Any(asset => asset.MediaType is MediaType.Image or MediaType.Video))
+                    errors.Add("AtlasCloud MiniMax H3 reference-to-video requires at least one image or video reference; audio alone is not allowed.");
+                break;
+        }
+
+        var resolvedReferences = new Dictionary<Guid, string>();
+        foreach (var asset in references)
+        {
+            var resolved = request.ProviderReferenceOverrides.TryGetValue(asset.Id, out var prepared)
+                ? prepared
+                : _assetReferenceResolver.Resolve(ProviderId, asset)
+                  ?? _assetReferenceResolver.Resolve(AtlasCloudSeedance25Provider.ProviderId, asset);
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                errors.Add($"{asset.FileName} has no prepared AtlasCloud reference.");
+                continue;
+            }
+
+            var valid = request.Mode == GenerationMode.ImageToVideo
+                ? IsHttpsUrl(resolved) || IsSupportedImageDataUrl(resolved)
+                : IsHttpsUrl(resolved);
+            if (!valid)
+            {
+                errors.Add(request.Mode == GenerationMode.ImageToVideo
+                    ? $"{asset.FileName} must use an HTTPS URL or supported image Base64 data URL for MiniMax H3 image-to-video."
+                    : $"{asset.FileName} must use an HTTPS URL for MiniMax H3 reference-to-video.");
+                continue;
+            }
+
+            resolvedReferences[asset.Id] = resolved;
+        }
+
+        if (errors.Count > 0)
+            throw new GenerationValidationException(errors.Distinct(StringComparer.Ordinal).ToList());
+
+        var payload = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["model"] = GetModelId(request.Mode),
+            ["prompt"] = request.Prompt,
+            ["resolution"] = CanonicalChoice(request.Resolution, Capabilities.Resolutions),
+            ["duration"] = request.DurationSeconds,
+            ["ratio"] = CanonicalChoice(request.AspectRatio, Capabilities.AspectRatios)
+        };
+
+        if (request.Mode == GenerationMode.ImageToVideo)
+        {
+            payload["image"] = resolvedReferences[references[0].Id];
+            if (references.Count == 2)
+                payload["end_image"] = resolvedReferences[references[1].Id];
+        }
+        else if (request.Mode == GenerationMode.ReferenceToVideo)
+        {
+            payload["refers"] = references.Select(asset => new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["url"] = resolvedReferences[asset.Id],
+                ["type"] = asset.MediaType.ToString().ToLowerInvariant()
+            }).ToArray();
+        }
+
+        return payload;
+    }
+
+    private static string GetModelId(GenerationMode mode) => mode switch
+    {
+        GenerationMode.TextToVideo => TextToVideoModel,
+        GenerationMode.ImageToVideo => ImageToVideoModel,
+        GenerationMode.ReferenceToVideo => ReferenceToVideoModel,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode))
+    };
+
+    private static string CanonicalChoice(string value, IReadOnlyList<string> choices) =>
+        choices.First(choice => choice.Equals(value, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsHttpsUrl(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps;
+
+    private static bool IsSupportedImageDataUrl(string value) =>
+        value.StartsWith("data:image/png;base64,", StringComparison.OrdinalIgnoreCase) ||
+        value.StartsWith("data:image/jpeg;base64,", StringComparison.OrdinalIgnoreCase) ||
+        value.StartsWith("data:image/jpg;base64,", StringComparison.OrdinalIgnoreCase) ||
+        value.StartsWith("data:image/webp;base64,", StringComparison.OrdinalIgnoreCase);
+}

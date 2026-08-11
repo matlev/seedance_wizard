@@ -1,6 +1,6 @@
 # MiniMax H3 local execution research
 
-Research date: 2026-08-10. Status: researched and architecturally planned; not scheduled for implementation. No ComfyUI installation was changed and no model weights were downloaded.
+Research date: 2026-08-10. Status: local ComfyUI execution researched and architecturally planned; not scheduled for implementation. AtlasCloud-hosted H3 is a separate implemented remote provider. No ComfyUI installation was changed and no model weights were downloaded.
 
 ## Recommendation
 

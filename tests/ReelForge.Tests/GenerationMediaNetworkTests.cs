@@ -13,8 +13,10 @@ public sealed class GenerationMediaNetworkTests : IDisposable
         "ReelForge media network tests",
         Guid.NewGuid().ToString("N"));
 
-    [Fact]
-    public async Task AtlasUploadUsesMultipartAndReturnsTemporaryHttpsReference()
+    [Theory]
+    [InlineData(AtlasCloudSeedance25Provider.ProviderId)]
+    [InlineData(AtlasCloudMiniMaxH3Provider.ProviderId)]
+    public async Task AtlasUploadUsesMultipartAndReturnsTemporaryHttpsReference(string providerId)
     {
         Directory.CreateDirectory(_temporaryRoot);
         var path = Path.Combine(_temporaryRoot, "reference image.png");
@@ -41,10 +43,10 @@ public sealed class GenerationMediaNetworkTests : IDisposable
         };
 
         var prepared = await service.PrepareAsync(
-            AtlasCloudSeedance25Provider.ProviderId,
+            providerId,
             logical,
             lease,
-            GenerationSubmissionAuthorization.ForNetworkIsolatedTest(AtlasCloudSeedance25Provider.ProviderId));
+            GenerationSubmissionAuthorization.ForNetworkIsolatedTest(providerId));
 
         Assert.Equal(HttpMethod.Post, handler.Method);
         Assert.Equal("https://api.atlascloud.ai/api/v1/model/uploadMedia", handler.Uri?.AbsoluteUri);

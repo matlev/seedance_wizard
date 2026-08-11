@@ -26,11 +26,12 @@ public sealed class AtlasCloudAssetPreparationService : IProviderAssetPreparatio
         GenerationSubmissionAuthorization authorization,
         CancellationToken cancellationToken = default)
     {
-        if (!providerId.Equals(AtlasCloudSeedance25Provider.ProviderId, StringComparison.Ordinal))
+        if (!providerId.Equals(AtlasCloudSeedance25Provider.ProviderId, StringComparison.Ordinal) &&
+            !providerId.Equals(AtlasCloudMiniMaxH3Provider.ProviderId, StringComparison.Ordinal))
             throw new NotSupportedException($"Provider '{providerId}' is not supported by this preparation service.");
 
         authorization.Demand(providerId, allowNetworkIsolatedTest: true);
-        var apiKey = await _secretStore.GetAsync(AtlasCloudSeedance25Provider.CredentialKey, cancellationToken)
+        var apiKey = await _secretStore.GetAsync(AtlasCloudVideoApiClient.CredentialKey, cancellationToken)
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new VideoGenerationProviderException("An AtlasCloud API key is required.", providerCode: "missing_api_key");

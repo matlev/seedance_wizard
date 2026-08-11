@@ -145,8 +145,13 @@ public partial class MainWindow : Window, IDisposable
                 client,
                 _secretStore,
                 new ProjectAssetReferenceResolver())));
-            preparationServices[AtlasCloudSeedance25Provider.ProviderId] =
-                new AtlasCloudAssetPreparationService(client, _secretStore);
+            choices.Add(new GenerationProviderChoice(new AtlasCloudMiniMaxH3Provider(
+                client,
+                _secretStore,
+                new ProjectAssetReferenceResolver())));
+            var atlasCloudPreparation = new AtlasCloudAssetPreparationService(client, _secretStore);
+            preparationServices[AtlasCloudSeedance25Provider.ProviderId] = atlasCloudPreparation;
+            preparationServices[AtlasCloudMiniMaxH3Provider.ProviderId] = atlasCloudPreparation;
         }
 
         _providerChoices = choices;
@@ -229,9 +234,19 @@ public partial class MainWindow : Window, IDisposable
             ? "Run fake generation"
             : "Review and submit paid generation…";
         var supportsWatermark = capabilities.ProviderParameters.ContainsKey("watermark");
+        var supportsAudioToggle = capabilities.ProviderParameters.ContainsKey("generate_audio") ||
+                                  capabilities.ProviderParameters.ContainsKey("generateAudio");
+        GenerateAudioCheckBox.Visibility = supportsAudioToggle ? Visibility.Visible : Visibility.Collapsed;
         WatermarkCheckBox.Visibility = supportsWatermark ? Visibility.Visible : Visibility.Collapsed;
         WatermarkHelpText.Visibility = supportsWatermark ? Visibility.Visible : Visibility.Collapsed;
-        OutputFormatPanel.Visibility = capabilities.ProviderParameters.ContainsKey("output_format")
+        var supportsOutputFormat = capabilities.ProviderParameters.ContainsKey("output_format");
+        OutputFormatPanel.Visibility = supportsOutputFormat
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        AudioAndWatermarkPanel.Visibility = supportsAudioToggle || supportsWatermark
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        OutputSettingsHeading.Visibility = supportsAudioToggle || supportsWatermark || supportsOutputFormat
             ? Visibility.Visible
             : Visibility.Collapsed;
 
@@ -276,11 +291,23 @@ public partial class MainWindow : Window, IDisposable
 
     private void GenerationMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        ReferenceAssetsGrid.IsEnabled = ModeComboBox.SelectedItem is not GenerationMode.TextToVideo;
-        if (ModeComboBox.SelectedItem is GenerationMode.ImageToVideo &&
+        var selectedMode = ModeComboBox.SelectedItem is GenerationMode mode
+            ? mode
+            : GenerationMode.TextToVideo;
+        ReferenceAssetsGrid.IsEnabled = selectedMode is not GenerationMode.TextToVideo;
+        if (selectedMode is GenerationMode.ImageToVideo &&
             _generationProvider.Capabilities.AspectRatios.Contains("adaptive"))
         {
             AspectRatioComboBox.SelectedItem = "adaptive";
+        }
+        else if (selectedMode is GenerationMode.TextToVideo &&
+                 string.Equals(AspectRatioComboBox.SelectedItem as string, "adaptive", StringComparison.OrdinalIgnoreCase))
+        {
+            var concreteRatio = _generationProvider.Capabilities.AspectRatios.Contains("16:9")
+                ? "16:9"
+                : _generationProvider.Capabilities.AspectRatios.FirstOrDefault(ratio =>
+                    !string.Equals(ratio, "adaptive", StringComparison.OrdinalIgnoreCase));
+            if (concreteRatio is not null) AspectRatioComboBox.SelectedItem = concreteRatio;
         }
         ScheduleDraftAutosave();
     }
@@ -658,7 +685,7 @@ public partial class MainWindow : Window, IDisposable
         {
             parameters["generate_audio"] = (GenerateAudioCheckBox.IsChecked == true).ToString().ToLowerInvariant();
         }
-        else
+        else if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("generateAudio"))
         {
             parameters["generateAudio"] = (GenerateAudioCheckBox.IsChecked == true).ToString().ToLowerInvariant();
         }

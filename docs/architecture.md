@@ -4,7 +4,7 @@ Status: accepted direction; Phase 2A complete; Phase 2B implementation complete 
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 
-This document records the accepted target architecture. Schema-v2 logical assets, immutable recipe revisions and generation snapshots, migration, SHA-256 identity, provider-specific physical-reference preparation, BytePlus ModelArk and AtlasCloud submission/polling, durable output ingestion, and their application boundaries are implemented. Virtual-recipe rendering, frame-anchor materialization, and general cache planning remain later Milestone 2 phases.
+This document records the accepted target architecture. Schema-v2 logical assets, immutable recipe revisions and generation snapshots, migration, SHA-256 identity, provider-specific physical-reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, and their application boundaries are implemented. Virtual-recipe rendering, frame-anchor materialization, and general cache planning remain later Milestone 2 phases.
 
 ## Architectural direction
 
@@ -55,9 +55,9 @@ BytePlus and AtlasCloud credentials are stored under separate keys through `ISec
 
 ### Multi-provider boundary
 
-`IVideoGenerationProvider` remains the provider-neutral submission boundary. `IAsyncVideoGenerationProvider` adds task retrieval, while `ProviderAssetPreparationRouter` dispatches reference preparation by provider ID. BytePlus ModelArk and AtlasCloud therefore coexist as independent adapters rather than one wrapping or replacing the other. Provider and model are frozen per submitted generation.
+`IVideoGenerationProvider` remains the provider-neutral submission boundary. `IAsyncVideoGenerationProvider` adds task retrieval, while `ProviderAssetPreparationRouter` dispatches reference preparation by provider ID. BytePlus ModelArk, AtlasCloud Seedance 2.5, and AtlasCloud MiniMax H3 therefore coexist as independently selectable adapters. Provider and model are frozen per submitted generation.
 
-The official BytePlus adapter targets `dreamina-seedance-2-5-260628` at ModelArk's documented Video Generation API. It serializes typed text/image/video/audio content, polls documented task states, and accepts the provider's HTTPS or `asset://` references. In the desktop composition, its preparation service sends materialized local references through provider-neutral private R2 hosting and receives only a short-lived HTTPS URL; it does not invent a ModelArk Files API bridge. The no-host constructor retained for isolated tests can still inline documented image/audio data URLs and explicitly rejects local video. AtlasCloud retains its documented multipart media-upload path.
+The official BytePlus adapter targets `dreamina-seedance-2-5-260628` at ModelArk's documented Video Generation API. It serializes typed text/image/video/audio content, polls documented task states, and accepts the provider's HTTPS or `asset://` references. In the desktop composition, its preparation service sends materialized local references through provider-neutral private R2 hosting and receives only a short-lived HTTPS URL; it does not invent a ModelArk Files API bridge. The no-host constructor retained for isolated tests can still inline documented image/audio data URLs and explicitly rejects local video. AtlasCloud retains its documented multipart media-upload path, shared credential, and async task transport while each model family keeps a distinct provider ID and serializer.
 
 ### Future local execution boundary
 
@@ -69,7 +69,7 @@ The output boundary must eventually accept a provider-neutral stream or verified
 
 Local-provider readiness is an application concern. A future environment probe should inspect ComfyUI version, node schemas, installed models, workflow digest, GPU/backend and VRAM, RAM, disk capacity, loopback binding, and an explicit benchmark result. Input staging and output acquisition remain provider services. ReelForge should attach only to loopback by default and should never expose an unauthenticated ComfyUI server on all interfaces automatically.
 
-See [MiniMax H3 local execution research](minimax-h3-local-research.md) for the official native workflows, dependencies, limits, hardware gate, Server API mapping, and license restrictions. H3 is researched but not scheduled or implemented.
+See [MiniMax H3 local execution research](minimax-h3-local-research.md) for the official native workflows, dependencies, limits, hardware gate, Server API mapping, and license restrictions. AtlasCloud-hosted H3 is implemented; local ComfyUI H3 remains researched but not scheduled or implemented.
 
 ## Current architecture assessment
 

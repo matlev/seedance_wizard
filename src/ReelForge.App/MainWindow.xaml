@@ -171,8 +171,9 @@
                                 <TextBlock Text="Resolution" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
                                 <ComboBox x:Name="ResolutionComboBox" SelectionChanged="GenerationDraftChanged" />
 
-                                <TextBlock Text="Output settings" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
-                                <WrapPanel>
+                                <TextBlock x:Name="OutputSettingsHeading" Text="Output settings"
+                                           Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
+                                <WrapPanel x:Name="AudioAndWatermarkPanel">
                                     <CheckBox x:Name="GenerateAudioCheckBox" Content="Generate audio" IsChecked="True"
                                               Checked="GenerationDraftChanged" Unchecked="GenerationDraftChanged" Margin="0,0,12,0" />
                                     <CheckBox x:Name="WatermarkCheckBox" Content="Add provider watermark"

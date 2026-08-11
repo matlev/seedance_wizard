@@ -16,7 +16,7 @@ The old `%LOCALAPPDATA%\ReelForge\settings.json` FFmpeg/ffprobe file is read as 
 
 ## Settings window and auto-save
 
-Use **Settings** in the top application toolbar. Categories currently cover General, Media Tools, Cloudflare R2 temporary hosting, BytePlus, and AtlasCloud.
+Use **Settings** in the top application toolbar. Categories currently cover General, Media Tools, Cloudflare R2 temporary hosting, BytePlus, and AtlasCloud. Enabling AtlasCloud exposes both its Seedance 2.5 and MiniMax H3 routes; they share one AtlasCloud endpoint and credential.
 
 Non-secret fields show their actual merged value. Edits are marked dirty and written only when an edit is committed: keyboard focus leaves the field, another category is selected, the window is minimized, or the window closes. ReelForge does not rewrite the file on every keystroke and skips writes when nothing changed. A failed write leaves the edited value in the open window and displays the error.
 
@@ -77,7 +77,7 @@ The current materializer can execute this flow for physical project assets. The 
 ## Provider requirements
 
 - **BytePlus:** enabled flag, HTTPS API base URL, and ModelArk API key. Local references are sent through R2 when configured; the adapter remains independent of Cloudflare and receives only the temporary HTTPS representation.
-- **AtlasCloud:** enabled flag, HTTPS API base URL, and API key. Its existing multipart asset preparation remains independent of R2.
+- **AtlasCloud:** enabled flag, HTTPS API base URL, and API key shared by the selectable Seedance 2.5 and MiniMax H3 routes. Both use AtlasCloud's multipart asset preparation independently of R2.
 
 Configuration status means required values exist, not that they are valid. Only explicit test or generation actions may make external calls. Every real video generation still requires the human to click Generate and accept a fresh potentially-billable confirmation.
 

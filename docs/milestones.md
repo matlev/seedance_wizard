@@ -88,7 +88,7 @@ Phase acceptance checks:
 
 ### Phase 2B — complete the generation loop
 
-Implemented on the `milestone-2` branch. All automated verification is network-isolated and no paid request was made. The desktop defaults to the fake provider; official BytePlus ModelArk and AtlasCloud are independently selectable and either real submission is reachable only from an explicit button click followed by a per-request human charge confirmation. BytePlus is the preferred route for the first human acceptance test; AtlasCloud remains an alternate provider. Virtual recipe and frame-anchor representations remain deliberately rejected until their materializers arrive in Phases 2D and 2C respectively.
+Implemented on the `milestone-2` branch. All automated verification is network-isolated and no paid request was made. The desktop defaults to the fake provider; official BytePlus ModelArk, AtlasCloud Seedance 2.5, and AtlasCloud MiniMax H3 are independently selectable, and every real submission is reachable only from an explicit button click followed by a per-request human charge confirmation. BytePlus remains the official Seedance route; AtlasCloud supplies alternate Seedance and H3 routes. Virtual recipe and frame-anchor representations remain deliberately rejected until their materializers arrive in Phases 2D and 2C respectively.
 
 Build the real provider lifecycle before general-purpose editing:
 
@@ -121,6 +121,7 @@ Implemented vertical order within Phase 2B:
 8. Consolidate machine configuration into a discoverable Settings window and layered JSON settings model; keep every credential behind `ISecretStore` and out of projects.
 9. Add provider-neutral temporary asset hosting and a private Cloudflare R2 implementation with content-addressed SHA-256 keys, deduplicating `HEAD`/`PUT`, and transient presigned GET URLs.
 10. Route BytePlus materialized references through `ITemporaryAssetHost` without placing Cloudflare details or signed URLs in domain history.
+11. Add AtlasCloud MiniMax H3 T2V, first/end-frame I2V, and multimodal R2V as a distinct provider route sharing the verified AtlasCloud transport, credential, and upload preparation.
 
 Phase acceptance checks:
 

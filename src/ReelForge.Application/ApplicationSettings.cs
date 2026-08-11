@@ -127,7 +127,7 @@ public static class ApplicationConfigurationCatalog
             "https://ark.ap-southeast.bytepluses.com/api/v3/", BytePlusSection),
         new("VideoGenerationProviders.BytePlus.Credentials.ApiKey", "BytePlus API key", "Bearer credential for ModelArk.", true, true,
             "Enter BytePlus API key", BytePlusSection, "byteplus.modelark.api-key"),
-        new("VideoGenerationProviders.AtlasCloud.Enabled", "Enabled", "Show AtlasCloud as an available generation route.", false, false,
+        new("VideoGenerationProviders.AtlasCloud.Enabled", "Enabled", "Show AtlasCloud models as available generation routes.", false, false,
             "true", AtlasCloudSection),
         new("VideoGenerationProviders.AtlasCloud.ApiBaseUrl", "API base URL", "AtlasCloud API base URL.", true, false,
             "https://api.atlascloud.ai/", AtlasCloudSection),
