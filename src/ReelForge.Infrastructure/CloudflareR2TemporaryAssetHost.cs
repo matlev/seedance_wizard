@@ -126,7 +126,7 @@ public sealed class CloudflareR2TemporaryAssetHost : ITemporaryAssetHost
             await client.ProbeBucketAsync(settings.BucketName, cancellationToken).ConfigureAwait(false);
             return new ConnectionTestResult(
                 true,
-                $"Connected to private R2 bucket '{settings.BucketName}'. No object was written.");
+                $"Successfully connected to R2 bucket '{settings.BucketName}'.");
         }
         catch (TemporaryAssetHostException exception)
         {
