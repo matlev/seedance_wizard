@@ -11,8 +11,8 @@
         <Style x:Key="DialogActionButtonStyle" TargetType="Button"
                BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="MinWidth" Value="84" />
-            <Setter Property="MinHeight" Value="34" />
-            <Setter Property="Padding" Value="16,7" />
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Padding" Value="16,7,16,11" />
             <Setter Property="Margin" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
