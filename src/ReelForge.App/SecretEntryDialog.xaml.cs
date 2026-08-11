@@ -8,7 +8,7 @@ public partial class SecretEntryDialog : Window
     public SecretEntryDialog(ConfigurationRequirement requirement)
     {
         InitializeComponent();
-        HeadingText.Text = $"Replace {requirement.DisplayName}";
+        HeadingText.Text = $"Update {requirement.DisplayName}";
         SecretPasswordBox.Focus();
     }
 
@@ -19,11 +19,11 @@ public partial class SecretEntryDialog : Window
         return value;
     }
 
-    private void Store_Click(object sender, RoutedEventArgs e)
+    private void Update_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(SecretPasswordBox.Password))
         {
-            ValidationText.Text = "Enter the complete replacement credential.";
+            ValidationText.Text = "Enter the complete updated credential.";
             return;
         }
 

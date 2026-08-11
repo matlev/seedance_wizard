@@ -236,10 +236,16 @@ public partial class SettingsWindow : Window
         var configured = await _secrets.IsConfiguredAsync(requirement).ConfigureAwait(true);
         var row = new DockPanel();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal };
-        var replace = new Button { Content = configured ? "Replace" : "Configure", Tag = requirement };
-        replace.Click += ReplaceSecret_Click;
-        buttons.Children.Add(replace);
-        var remove = new Button { Content = "Remove", Tag = requirement, IsEnabled = configured };
+        var update = new Button { Content = configured ? "Update" : "Configure", Tag = requirement };
+        update.Click += UpdateSecret_Click;
+        buttons.Children.Add(update);
+        var remove = new Button
+        {
+            Content = "Remove",
+            Tag = requirement,
+            IsEnabled = configured,
+            Style = (Style)FindResource("DangerButtonStyle")
+        };
         remove.Click += RemoveSecret_Click;
         buttons.Children.Add(remove);
         DockPanel.SetDock(buttons, Dock.Right);
@@ -322,7 +328,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async void ReplaceSecret_Click(object sender, RoutedEventArgs e)
+    private async void UpdateSecret_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not ConfigurationRequirement requirement) return;
         var dialog = new SecretEntryDialog(requirement) { Owner = this };
