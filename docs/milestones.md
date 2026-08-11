@@ -1,10 +1,10 @@
-# Milestone plan
+﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phase 2A complete; Phase 2B not started.
+Status: Milestone 1 and Milestone 2 Phase 2A complete; Phase 2B implementation complete with human live acceptance pending.
 
 ## Product priority
 
-Seedance Wizard is primarily an AI-video-generation workbench. Editing exists to prepare references, inspect results, create continuations, and assemble useful outputs. The highest-priority loop is:
+ReelForge is primarily an AI-video-generation workbench. Editing exists to prepare references, inspect results, create continuations, and assemble useful outputs. The highest-priority loop is:
 
 ```text
 prompt
@@ -19,7 +19,7 @@ prompt
 
 A sophisticated timeline follows this loop rather than delaying it.
 
-## Milestone 1 — project and media foundation
+## Milestone 1 â€” project and media foundation
 
 Delivered:
 
@@ -29,7 +29,7 @@ Delivered:
 - FFmpeg/ffprobe PATH discovery, explicit saved paths, executable browsing, cancellation, output capture, and safe argument construction
 - project, physical-asset, generation, frame-anchor type, and preliminary timeline models
 - provider abstraction, capability validation, fake provider, and persisted generation history
-- schema-verified AtlasCloud Seedance 2.5 submission adapter covered by mocked HTTP tests and not enabled in the UI
+- schema-verified AtlasCloud Seedance 2.5 submission adapter covered by mocked HTTP tests
 - Windows Credential Manager secret-storage boundary
 - automated tests with no paid generation calls
 
@@ -47,9 +47,9 @@ Architectural debt carried into Milestone 2:
 - schema migration is not implemented;
 - timeline types are placeholders rather than a renderable composition model.
 
-## Milestone 2 — AI generation loop on logical media
+## Milestone 2 â€” AI generation loop on logical media
 
-### Phase 2A — foundation for logical media and generation history
+### Phase 2A â€” foundation for logical media and generation history
 
 Implemented on the Milestone 2 branch. The materialization/provider-preparation items in this phase are contracts only; rendering, uploading, and paid submission remain later work.
 
@@ -86,11 +86,13 @@ Phase acceptance checks:
 - a main video cannot depend on cache storage;
 - deleting the entire cache does not invalidate generation history.
 
-### Phase 2B — complete the generation loop
+### Phase 2B â€” complete the generation loop
+
+Implemented on the `milestone-2` branch. All automated verification is network-isolated and no paid request was made. The desktop defaults to the fake provider; official BytePlus ModelArk and AtlasCloud are independently selectable and either real submission is reachable only from an explicit button click followed by a per-request human charge confirmation. BytePlus is the preferred route for the first human acceptance test; AtlasCloud remains an alternate provider. Virtual recipe and frame-anchor representations remain deliberately rejected until their materializers arrive in Phases 2D and 2C respectively.
 
 Build the real provider lifecycle before general-purpose editing:
 
-1. Add AtlasCloud credential configuration backed by Windows Credential Manager.
+1. Add per-provider BytePlus ModelArk and AtlasCloud credential configuration backed by Windows Credential Manager.
 2. Add per-draft/provider selection and capability-driven Seedance 2.5 mode/settings UI; never bind one provider/model to the project.
 3. Add logical project-reference selection with optional settled role, order, and user label/notes.
 4. Freeze the immutable request snapshot before materialization or network work.
@@ -107,27 +109,28 @@ Build the real provider lifecycle before general-purpose editing:
 15. Preserve every submitted attempt, including failed and cancelled attempts, as immutable history.
 16. When deleting the main video, require replacement selection or an explicit no-main-video state; demotion never removes or caches the durable asset.
 
-Recommended vertical order within Phase 2B:
+Implemented vertical order within Phase 2B:
 
-1. Start with AtlasCloud text-to-video because it needs no local-reference upload contract.
-2. Add polling, download, inspection, durable ingestion, and provenance end to end.
-3. Add credential/provider/settings UI around that proven lifecycle.
-4. Add physical reference media only after provider-side preparation is verified.
-5. Add virtual/anchor reference preparation once materialization is available.
-6. Add retry/duplicate/branch/continuation actions after immutable snapshots and output links are proven.
+1. Implement AtlasCloud text-to-video, polling, download, inspection, durable ingestion, and provenance end to end.
+2. Add credential/provider/settings UI and documented AtlasCloud multipart reference preparation.
+3. Add official BytePlus ModelArk Seedance 2.5 as a peer adapter using model `dreamina-seedance-2-5-260628`.
+4. Route provider-specific preparation: BytePlus local image/audio data URLs, BytePlus existing HTTPS/`asset://` video references, and AtlasCloud multipart upload.
+5. Keep all contract tests network-isolated and retain the same human-only paid-submission authorization boundary.
+6. Add virtual/anchor reference preparation once materialization is available.
+7. Add retry/duplicate/branch/continuation actions after immutable snapshots and output links are proven.
 
 Phase acceptance checks:
 
-- one explicitly confirmed live submission can proceed through job polling to a durable generated asset, while automated tests remain network-isolated;
+- one explicitly confirmed live submission through the selected real provider can proceed through job polling to a durable generated asset, while automated tests remain network-isolated;
 - normal application startup and unit/integration tests cannot accidentally make paid requests;
 - remote completion without a valid local download is not reported as a successfully ingested project asset;
 - a downloaded output answers which generation, prompt, model, settings, references, and lineage produced it;
 - retry creates a distinct potentially billable job and never overwrites the original failure;
 - clearing materialization cache does not affect job history, output assets, or logical references.
 
-### Phase 2C — frame and continuation workflow
+### Phase 2C â€” frame and continuation workflow
 
-Enable the core generate → inspect → anchor → continue loop:
+Enable the core generate â†’ inspect â†’ anchor â†’ continue loop:
 
 1. Add frame-range inspection/contact browsing without retaining every review frame.
 2. Create, label, edit, and delete persistent frame anchors.
@@ -145,9 +148,9 @@ Phase acceptance checks:
 - cache deletion removes no continuation provenance;
 - a provider-incompatible anchor representation is converted by materialization/provider preparation rather than by the UI.
 
-### Phase 2D — basic recipe-based media operations
+### Phase 2D â€” basic recipe-based media operations
 
-1. Add virtual trims for source-start → anchor, anchor → source-end, and anchor → anchor.
+1. Add virtual trims for source-start â†’ anchor, anchor â†’ source-end, and anchor â†’ anchor.
 2. Persist trims as recipes without eagerly retaining MP4s.
 3. Reuse and expand existing media encoding inspection.
 4. Add compatibility analysis as data/planning, not an eager normalization side effect.
@@ -166,7 +169,7 @@ Phase acceptance checks:
 - clearing all materializations leaves recipes openable and reproducible;
 - a promoted rendition becomes a physical asset while its virtual source remains intact.
 
-### Phase 2E — timeline
+### Phase 2E â€” timeline
 
 Only after the generation, anchor, and recipe foundations are stable:
 
@@ -176,7 +179,32 @@ Only after the generation, anchor, and recipe foundations are stable:
 4. Capture immutable composition snapshots for provider requests and historical exports.
 5. Add render progress, cancellation, and purpose-specific preview/export profiles.
 
-Timeline editing must compose the same recipe graph and must not introduce authoritative intermediate paths into `project.json`.
+Timeline editing must compose the same recipe graph and must not introduce authoritative intermediate paths into the `.rfp` project file.
+
+## Unscheduled exploration — local ComfyUI / MiniMax H3
+
+This is intentionally outside the committed Milestone 2 implementation path. MiniMax H3 now has official native ComfyUI workflows, but its weight footprint, runtime performance, incomplete local 2K stack, and territory-restricted license make it inappropriate to schedule before hardware and distribution feasibility are known. No model download or implementation is approved by this roadmap entry.
+
+Potential staged work, only after explicit approval:
+
+1. Add a read-only local-execution environment probe for an existing user-managed ComfyUI installation: version, device/backend, VRAM/RAM, disk, installed node schemas, official workflow compatibility, model files, and license eligibility.
+2. Generalize provider output acquisition to accept verified streams/local-file leases as well as remote HTTPS outputs, and generalize execution authorization beyond paid-network confirmation.
+3. Pin a reviewed API-format derivative of the official native H3 T2V workflow and validate its semantic binding map against `/object_info`; keep all ComfyUI graph details out of Core.
+4. Require a user-started benchmark on the target machine before marking the provider ready. Record resolution, frame count/duration, steps, elapsed time, and memory/resource observations.
+5. If acceptable, implement FL2VA T2V first using the approximately 42.5 GB recommended minimal weight set, local queue submission, WebSocket/history recovery, careful interrupt semantics, and durable output ingestion.
+6. Add first/last-frame FL2VA using logical image/anchor roles without changing the domain vocabulary.
+7. Treat Ref2VA as a separate approximately 21 GB diffusion-model download; then add verified ordered image/video/audio staging and its 9-image, 3-video, 3-audio, 12-file combined limits.
+8. Keep hosted H3-Context-IR and H3-Regenerate-2K outside the offline-local profile. Any hybrid 2K workflow is a separate credentialed, potentially paid execution route.
+
+Go/no-go gates:
+
+- MiniMax H3 license eligibility and distribution strategy are reviewed. The August 2, 2026 community license excludes the EU, UK, Republic of Korea, and United States.
+- The target machine completes the explicit local benchmark at acceptable quality, latency, stability, power use, and foreground responsiveness.
+- Model and temporary-file disk requirements are acceptable; ReelForge never downloads the complete multi-precision repository by default.
+- ComfyUI remains loopback-only unless the user separately configures and secures a remote server.
+- Native video/audio input staging and H3 video output-history shapes are verified from the running ComfyUI version before implementation.
+
+Detailed findings: [MiniMax H3 local execution research](minimax-h3-local-research.md).
 
 ## Future generation graph
 

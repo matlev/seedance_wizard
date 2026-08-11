@@ -1,0 +1,1237 @@
+﻿using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Net.Http;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using Microsoft.Win32;
+using ReelForge.Application;
+using ReelForge.Core;
+using ReelForge.Infrastructure;
+
+namespace ReelForge.App;
+
+public partial class MainWindow : Window, IDisposable
+{
+    private readonly ObservableCollection<ProjectAsset> _assets = [];
+    private readonly ObservableCollection<GenerationRecord> _generations = [];
+    private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
+    private readonly IReadOnlyList<GenerationProviderChoice> _providerChoices;
+    private readonly ProjectWorkspace _workspace;
+    private readonly FfprobeMediaInspectionService _mediaInspector;
+    private readonly GenerationWorkflow _generationWorkflow;
+    private readonly ISecretStore _secretStore;
+    private readonly HttpClient _atlasHttpClient;
+    private readonly HttpClient _bytePlusHttpClient;
+    private readonly HttpClient _downloadHttpClient;
+    private IVideoGenerationProvider _generationProvider;
+    private readonly IMediaToolDiscovery _mediaToolDiscovery;
+    private readonly IMediaToolSettingsStore _mediaToolSettingsStore;
+    private MediaToolAvailability _mediaTools;
+    private readonly DispatcherTimer _positionTimer;
+    private readonly DispatcherTimer _draftAutosaveTimer;
+    private CancellationTokenSource? _monitoringCancellation;
+    private bool _suppressDraftAutosave;
+    private bool _disposed;
+
+    public MainWindow()
+    {
+        InitializeComponent();
+
+        _mediaToolDiscovery = new MediaToolDiscovery();
+        _mediaToolSettingsStore = new JsonMediaToolSettingsStore();
+        var configuredTools = LoadMediaToolConfiguration();
+        _mediaTools = _mediaToolDiscovery.Discover(configuredTools.FfmpegPath, configuredTools.FfprobePath);
+        var processRunner = new ExternalProcessRunner();
+        _mediaInspector = new FfprobeMediaInspectionService(_mediaTools.FfprobePath, processRunner);
+        var projectStore = new PortableProjectStore();
+        var assetImporter = new AssetImportService(_mediaInspector);
+        _workspace = new ProjectWorkspace(projectStore, assetImporter);
+        _secretStore = new WindowsCredentialStore();
+        _atlasHttpClient = new HttpClient
+        {
+            BaseAddress = new Uri("https://api.atlascloud.ai/"),
+            Timeout = TimeSpan.FromMinutes(10)
+        };
+        _bytePlusHttpClient = new HttpClient
+        {
+            BaseAddress = new Uri("https://ark.ap-southeast.bytepluses.com/api/v3/"),
+            Timeout = TimeSpan.FromMinutes(10)
+        };
+        _downloadHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        var fakeProvider = new FakeVideoGenerationProvider();
+        var bytePlusProvider = new BytePlusModelArkSeedance25Provider(
+            _bytePlusHttpClient,
+            _secretStore,
+            new ProjectAssetReferenceResolver());
+        var atlasProvider = new AtlasCloudSeedance25Provider(
+            _atlasHttpClient,
+            _secretStore,
+            new ProjectAssetReferenceResolver());
+        _providerChoices =
+        [
+            new GenerationProviderChoice(fakeProvider),
+            new GenerationProviderChoice(bytePlusProvider),
+            new GenerationProviderChoice(atlasProvider)
+        ];
+        _generationProvider = fakeProvider;
+        _generationWorkflow = new GenerationWorkflow(
+            _workspace,
+            new PhysicalAssetMaterializer(),
+            new HttpGeneratedOutputIngestionService(_downloadHttpClient, _mediaInspector),
+            new ProviderAssetPreparationRouter(
+                new Dictionary<string, IProviderAssetPreparationService>(StringComparer.Ordinal)
+                {
+                    [BytePlusModelArkSeedance25Provider.ProviderId] = new BytePlusModelArkAssetPreparationService(),
+                    [AtlasCloudSeedance25Provider.ProviderId] =
+                        new AtlasCloudAssetPreparationService(_atlasHttpClient, _secretStore)
+                }));
+
+        AssetsList.ItemsSource = _assets;
+        GenerationsList.ItemsSource = _generations;
+        ReferenceAssetsGrid.ItemsSource = _referenceChoices;
+        ReferenceRoleColumn.ItemsSource = Enum.GetValues<GenerationReferenceRole>().Cast<GenerationReferenceRole?>().Prepend(null);
+        ProviderComboBox.ItemsSource = _providerChoices;
+        ProviderComboBox.SelectedItem = _providerChoices[0];
+        ConfigureGenerationPanel();
+
+        _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _positionTimer.Tick += (_, _) => UpdatePlaybackPosition();
+        _positionTimer.Start();
+
+        _draftAutosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+        _draftAutosaveTimer.Tick += DraftAutosaveTimer_Tick;
+
+        MediaToolsText.Text = _mediaTools.Summary;
+        FfmpegPathTextBox.Text = _mediaTools.FfmpegPath ?? configuredTools.FfmpegPath ?? string.Empty;
+        FfprobePathTextBox.Text = _mediaTools.FfprobePath ?? configuredTools.FfprobePath ?? string.Empty;
+        MediaToolSettingsStatusText.Text = _mediaTools.Summary;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        Dispose();
+        base.OnClosed(e);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _monitoringCancellation?.Cancel();
+        _monitoringCancellation?.Dispose();
+        _atlasHttpClient.Dispose();
+        _bytePlusHttpClient.Dispose();
+        _downloadHttpClient.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    private MediaToolConfiguration LoadMediaToolConfiguration()
+    {
+        try
+        {
+            return _mediaToolSettingsStore.LoadAsync().GetAwaiter().GetResult();
+        }
+        catch
+        {
+            return new MediaToolConfiguration();
+        }
+    }
+
+    private void BrowseFfmpeg_Click(object sender, RoutedEventArgs e) =>
+        BrowseForMediaTool("Select ffmpeg.exe", "ffmpeg.exe", FfmpegPathTextBox);
+
+    private void BrowseFfprobe_Click(object sender, RoutedEventArgs e) =>
+        BrowseForMediaTool("Select ffprobe.exe", "ffprobe.exe", FfprobePathTextBox);
+
+    private void BrowseForMediaTool(string title, string expectedFileName, TextBox target)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = title,
+            Filter = $"{expectedFileName}|{expectedFileName}|Executables (*.exe)|*.exe|All files|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            target.Text = dialog.FileName;
+        }
+    }
+
+    private void AutoDetectTools_Click(object sender, RoutedEventArgs e)
+    {
+        var detected = _mediaToolDiscovery.Discover();
+        FfmpegPathTextBox.Text = detected.FfmpegPath ?? string.Empty;
+        FfprobePathTextBox.Text = detected.FfprobePath ?? string.Empty;
+        MediaToolSettingsStatusText.Text = detected.Summary;
+    }
+
+    private async void SaveTools_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Saving media tool settingsâ€¦",
+            async () =>
+            {
+                var configuration = new MediaToolConfiguration
+                {
+                    FfmpegPath = ValidateExecutablePath(FfmpegPathTextBox.Text, "ffmpeg.exe"),
+                    FfprobePath = ValidateExecutablePath(FfprobePathTextBox.Text, "ffprobe.exe")
+                };
+
+                await _mediaToolSettingsStore.SaveAsync(configuration);
+                _mediaTools = _mediaToolDiscovery.Discover(configuration.FfmpegPath, configuration.FfprobePath);
+                _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
+                MediaToolsText.Text = _mediaTools.Summary;
+                MediaToolSettingsStatusText.Text = _mediaTools.Summary;
+                StatusText.Text = "Media tool settings saved and applied.";
+            });
+    }
+
+    private static string? ValidateExecutablePath(string value, string expectedFileName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var fullPath = Path.GetFullPath(value.Trim());
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException($"The selected {expectedFileName} does not exist.", fullPath);
+        }
+
+        if (!Path.GetFileName(fullPath).Equals(expectedFileName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Select {expectedFileName}, not {Path.GetFileName(fullPath)}.");
+        }
+
+        return fullPath;
+    }
+
+    private void ConfigureGenerationPanel()
+    {
+        var capabilities = _generationProvider.Capabilities;
+        ProviderText.Text = $"{capabilities.DisplayName}\n{capabilities.ModelVersion} â€¢ no paid API calls";
+
+        var costText = _generationProvider.CostBehavior == GenerationProviderCostBehavior.NoCharge
+            ? "No network or billing"
+            : "Potentially billable; explicit confirmation required for every submission";
+        ProviderText.Text = $"{capabilities.ModelVersion}\n{costText}";
+        AtlasCredentialPanel.Visibility = capabilities.ProviderId == AtlasCloudSeedance25Provider.ProviderId
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        BytePlusCredentialPanel.Visibility = capabilities.ProviderId == BytePlusModelArkSeedance25Provider.ProviderId
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        GenerateButton.Content = _generationProvider.CostBehavior == GenerationProviderCostBehavior.NoCharge
+            ? "Run fake generation"
+            : "Review and submit paid generationâ€¦";
+        var supportsWatermark = capabilities.ProviderParameters.ContainsKey("watermark");
+        WatermarkCheckBox.Visibility = supportsWatermark ? Visibility.Visible : Visibility.Collapsed;
+        WatermarkHelpText.Visibility = supportsWatermark ? Visibility.Visible : Visibility.Collapsed;
+        OutputFormatPanel.Visibility = capabilities.ProviderParameters.ContainsKey("output_format")
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        ModeComboBox.ItemsSource = capabilities.Modes;
+        ModeComboBox.SelectedItem = capabilities.Modes.Contains(GenerationMode.ReferenceToVideo)
+            ? GenerationMode.ReferenceToVideo
+            : capabilities.Modes[0];
+
+        DurationSlider.Minimum = capabilities.MinimumDurationSeconds;
+        DurationSlider.Maximum = capabilities.MaximumDurationSeconds;
+        DurationSlider.Value = Math.Clamp(15, capabilities.MinimumDurationSeconds, capabilities.MaximumDurationSeconds);
+
+        AspectRatioComboBox.ItemsSource = capabilities.AspectRatios;
+        AspectRatioComboBox.SelectedItem = capabilities.AspectRatios.Contains("16:9")
+            ? "16:9"
+            : capabilities.AspectRatios[0];
+
+        ResolutionComboBox.ItemsSource = capabilities.Resolutions;
+        ResolutionComboBox.SelectedItem = capabilities.Resolutions.Contains("720p")
+            ? "720p"
+            : capabilities.Resolutions[0];
+    }
+
+    private async void ProviderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ProviderComboBox.SelectedItem is not GenerationProviderChoice choice) return;
+        _generationProvider = choice.Provider;
+        _suppressDraftAutosave = true;
+        try
+        {
+            ConfigureGenerationPanel();
+        }
+        finally
+        {
+            _suppressDraftAutosave = false;
+        }
+
+        if (_generationProvider.Capabilities.ProviderId == AtlasCloudSeedance25Provider.ProviderId)
+            await RefreshAtlasCredentialStatusAsync();
+        else if (_generationProvider.Capabilities.ProviderId == BytePlusModelArkSeedance25Provider.ProviderId)
+            await RefreshBytePlusCredentialStatusAsync();
+        ScheduleDraftAutosave();
+    }
+
+    private async void SaveAtlasCredential_Click(object sender, RoutedEventArgs e)
+    {
+        var value = AtlasApiKeyPasswordBox.Password;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            AtlasCredentialStatusText.Text = "Enter an API key before saving.";
+            return;
+        }
+
+        try
+        {
+            await _secretStore.SetAsync(AtlasCloudSeedance25Provider.CredentialKey, value.Trim());
+            AtlasApiKeyPasswordBox.Clear();
+            AtlasCredentialStatusText.Text = "API key stored in Windows Credential Manager.";
+        }
+        catch (Exception exception)
+        {
+            ShowError("Credential storage failed", exception);
+        }
+    }
+
+    private async void RemoveAtlasCredential_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _secretStore.DeleteAsync(AtlasCloudSeedance25Provider.CredentialKey);
+            AtlasApiKeyPasswordBox.Clear();
+            AtlasCredentialStatusText.Text = "AtlasCloud API key removed.";
+        }
+        catch (Exception exception)
+        {
+            ShowError("Credential removal failed", exception);
+        }
+    }
+
+    private async Task RefreshAtlasCredentialStatusAsync()
+    {
+        try
+        {
+            var value = await _secretStore.GetAsync(AtlasCloudSeedance25Provider.CredentialKey);
+            AtlasCredentialStatusText.Text = string.IsNullOrWhiteSpace(value)
+                ? "No API key is stored. Live submission is unavailable."
+                : "An API key is stored. Its value is never displayed.";
+        }
+        catch (Exception exception)
+        {
+            AtlasCredentialStatusText.Text = $"Credential status unavailable: {exception.Message}";
+        }
+    }
+
+    private async void SaveBytePlusCredential_Click(object sender, RoutedEventArgs e)
+    {
+        var value = BytePlusApiKeyPasswordBox.Password;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            BytePlusCredentialStatusText.Text = "Enter an API key before saving.";
+            return;
+        }
+
+        try
+        {
+            await _secretStore.SetAsync(BytePlusModelArkSeedance25Provider.CredentialKey, value.Trim());
+            BytePlusApiKeyPasswordBox.Clear();
+            BytePlusCredentialStatusText.Text = "API key stored in Windows Credential Manager.";
+        }
+        catch (Exception exception)
+        {
+            ShowError("Credential storage failed", exception);
+        }
+    }
+
+    private async void RemoveBytePlusCredential_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _secretStore.DeleteAsync(BytePlusModelArkSeedance25Provider.CredentialKey);
+            BytePlusApiKeyPasswordBox.Clear();
+            BytePlusCredentialStatusText.Text = "BytePlus ModelArk API key removed.";
+        }
+        catch (Exception exception)
+        {
+            ShowError("Credential removal failed", exception);
+        }
+    }
+
+    private async Task RefreshBytePlusCredentialStatusAsync()
+    {
+        try
+        {
+            var value = await _secretStore.GetAsync(BytePlusModelArkSeedance25Provider.CredentialKey);
+            BytePlusCredentialStatusText.Text = string.IsNullOrWhiteSpace(value)
+                ? "No API key is stored. Live submission is unavailable."
+                : "An API key is stored. Its value is never displayed.";
+        }
+        catch (Exception exception)
+        {
+            BytePlusCredentialStatusText.Text = $"Credential status unavailable: {exception.Message}";
+        }
+    }
+
+    private void GenerationDraftChanged(object sender, EventArgs e) => ScheduleDraftAutosave();
+
+    private void GenerationMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        ReferenceAssetsGrid.IsEnabled = ModeComboBox.SelectedItem is not GenerationMode.TextToVideo;
+        if (ModeComboBox.SelectedItem is GenerationMode.ImageToVideo &&
+            _generationProvider.Capabilities.AspectRatios.Contains("adaptive"))
+        {
+            AspectRatioComboBox.SelectedItem = "adaptive";
+        }
+        ScheduleDraftAutosave();
+    }
+
+    private void ReferenceAssetsGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) =>
+        Dispatcher.BeginInvoke(ScheduleDraftAutosave, DispatcherPriority.Background);
+
+    private void ScheduleDraftAutosave()
+    {
+        if (_suppressDraftAutosave || _workspace is null || _workspace.Project is null || _draftAutosaveTimer is null) return;
+        _draftAutosaveTimer.Stop();
+        _draftAutosaveTimer.Start();
+    }
+
+    private async void DraftAutosaveTimer_Tick(object? sender, EventArgs e)
+    {
+        _draftAutosaveTimer.Stop();
+        if (_suppressDraftAutosave || _workspace.Project is null) return;
+        try
+        {
+            await _generationWorkflow.SaveDraftAsync(CaptureDraftFromUi());
+            GenerationStatusText.Text = "Draft autosaved.";
+        }
+        catch (Exception exception)
+        {
+            GenerationStatusText.Text = $"Draft autosave failed: {exception.Message}";
+        }
+    }
+
+    private async void NewProject_Click(object sender, RoutedEventArgs e)
+    {
+        var projectsLocation = GetDefaultProjectsDirectory();
+        if (!Directory.Exists(projectsLocation))
+        {
+            var choice = MessageBox.Show(
+                this,
+                $"ReelForge's recommended projects folder does not exist yet:\n\n{projectsLocation}\n\nCreate it now?",
+                "Create projects folder",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question,
+                MessageBoxResult.Yes);
+            if (choice == MessageBoxResult.Cancel) return;
+            if (choice == MessageBoxResult.Yes)
+            {
+                Directory.CreateDirectory(projectsLocation);
+            }
+            else
+            {
+                var locationDialog = new OpenFolderDialog
+                {
+                    Title = "Choose the folder that will contain ReelForge projects",
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    Multiselect = false
+                };
+                if (locationDialog.ShowDialog(this) != true) return;
+                projectsLocation = Path.GetFullPath(locationDialog.FolderName);
+            }
+        }
+
+        var dialog = new NewProjectDialog(projectsLocation) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+
+        await RunUiActionAsync(
+            "Creating projectâ€¦",
+            async () =>
+            {
+                await _workspace.CreateAsync(dialog.ProjectDirectory, dialog.ProjectName);
+                RefreshProjectUi();
+            });
+    }
+
+    private static string GetDefaultProjectsDirectory()
+    {
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        if (string.IsNullOrWhiteSpace(documents))
+            documents = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents");
+        return Path.Combine(documents, "ReelForge", "Projects");
+    }
+
+    private async void OpenProject_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenProjectDialog(GetDefaultProjectsDirectory()) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+
+        await RunUiActionAsync(
+            "Opening projectâ€¦",
+            async () =>
+            {
+                await _workspace.OpenAsync(dialog.ProjectFilePath);
+                RefreshProjectUi();
+            });
+    }
+
+    private async void SaveProject_Click(object sender, RoutedEventArgs e)
+    {
+        await RunUiActionAsync(
+            "Saving projectâ€¦",
+            async () =>
+            {
+                await _workspace.SaveAsync();
+                StatusText.Text = "Project saved.";
+            });
+    }
+
+    private async void ImportAssets_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureProjectOpen())
+        {
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import image, video, or audio assets",
+            Filter = "Supported media|*.bmp;*.gif;*.heic;*.heif;*.jpeg;*.jpg;*.png;*.tif;*.tiff;*.webp;*.avi;*.m4v;*.mkv;*.mov;*.mp4;*.webm;*.wmv;*.aac;*.flac;*.m4a;*.mp3;*.ogg;*.wav;*.wma|All files|*.*",
+            CheckFileExists = true,
+            Multiselect = true
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        await RunUiActionAsync(
+            $"Importing {dialog.FileNames.Length} asset(s)â€¦",
+            async () =>
+            {
+                var imported = await _workspace.ImportAssetsAsync(dialog.FileNames);
+                RefreshProjectCollections();
+                StatusText.Text = $"Imported {imported.Count} asset(s).";
+            });
+    }
+
+    private async void AssetsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (AssetsList.SelectedItem is not ProjectAsset asset)
+        {
+            return;
+        }
+
+        var selectedProjectId = _workspace.Project?.Id;
+        GenerationsList.SelectedItem = null;
+
+        await RunUiActionAsync(
+            $"Inspecting {asset.FileName}â€¦",
+            async () =>
+            {
+                if (asset.MediaType is MediaType.Video or MediaType.Audio &&
+                    asset.Encoding is null &&
+                    _mediaTools.FfprobePath is not null)
+                {
+                    var encoding = await _mediaInspector.InspectAsync(_workspace.GetAbsoluteAssetPath(asset));
+                    if (_workspace.Project?.Id != selectedProjectId) return;
+                    asset.Encoding = encoding;
+                    asset.DurationSeconds = asset.Encoding.DurationSeconds;
+                    asset.Width = asset.Encoding.Video?.Width;
+                    asset.Height = asset.Encoding.Video?.Height;
+                    await _workspace.SaveAsync();
+                }
+
+                if (_workspace.Project?.Id != selectedProjectId) return;
+                InspectorText.Text = FormatAssetInspector(asset);
+                ShowAssetPreview(asset);
+                StatusText.Text = $"Selected {asset.FileName}.";
+            });
+    }
+
+    private void GenerationsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (GenerationsList.SelectedItem is not GenerationRecord generation)
+        {
+            return;
+        }
+
+        AssetsList.SelectedItem = null;
+        InspectorText.Text = FormatGenerationInspector(generation);
+        StatusText.Text = $"Selected generation {generation.Id}.";
+    }
+
+    private async void Generate_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureProjectOpen())
+        {
+            return;
+        }
+
+        GenerationSubmissionAuthorization? authorization = null;
+        if (_generationProvider.CostBehavior == GenerationProviderCostBehavior.PotentiallyBillable)
+        {
+            if (_generationProvider is not IApiKeyVideoGenerationProvider apiKeyProvider)
+                throw new InvalidOperationException("This paid provider has no configured credential contract.");
+            var apiKey = await _secretStore.GetAsync(apiKeyProvider.ApiKeyCredentialKey);
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                GenerationStatusText.Text = $"Store a {_generationProvider.Capabilities.DisplayName} API key before live submission.";
+                return;
+            }
+
+            var draftSummary = CaptureDraftFromUi();
+            var confirmation = MessageBox.Show(
+                this,
+                $"This will submit a potentially billable {_generationProvider.Capabilities.DisplayName} request now.\n\n" +
+                $"Model: {_generationProvider.Capabilities.ModelVersion}\n" +
+                $"Mode: {draftSummary.Mode}\nDuration: {draftSummary.DurationSeconds}s\n" +
+                $"Resolution: {draftSummary.Resolution}\nReferences: {draftSummary.References.Count}\n\n" +
+                "Proceed and potentially incur charges?",
+                "Confirm paid generation",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                GenerationStatusText.Text = "Submission cancelled. No API request was made.";
+                return;
+            }
+
+            authorization = GenerationSubmissionAuthorization.FromInteractiveUserConfirmation(
+                _generationProvider.Capabilities.ProviderId,
+                userConfirmedPotentialCharges: true);
+        }
+
+        await RunGenerationWorkflowAsync(CaptureDraftFromUi(), authorization);
+    }
+
+    private async Task RunGenerationWorkflowAsync(
+        GenerationDraft draft,
+        GenerationSubmissionAuthorization? authorization)
+    {
+        GenerateButton.IsEnabled = false;
+        ResumeMonitoringButton.IsEnabled = false;
+        StopMonitoringButton.IsEnabled = false;
+        _monitoringCancellation?.Dispose();
+        _monitoringCancellation = new CancellationTokenSource();
+        var progress = new Progress<GenerationWorkflowProgress>(update =>
+        {
+            GenerationStatusText.Text = $"{update.Message}\nRemote: {update.RemoteStatus} â€¢ Ingestion: {update.IngestionStatus}";
+            if (update.Message.StartsWith("Remote job:", StringComparison.Ordinal))
+                StopMonitoringButton.IsEnabled = true;
+        });
+
+        try
+        {
+            var generation = await _generationWorkflow.RunAsync(
+                _generationProvider,
+                draft,
+                authorization,
+                progress: progress,
+                cancellationToken: _monitoringCancellation.Token);
+            RefreshProjectCollections();
+            GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+            GenerationStatusText.Text = FormatGenerationOutcome(generation);
+            StatusText.Text = generation.IngestionStatus == OutputIngestionStatus.Succeeded
+                ? "Generated output added as durable project media."
+                : $"Generation state: {generation.Status}; ingestion: {generation.IngestionStatus}.";
+        }
+        catch (GenerationValidationException exception)
+        {
+            GenerationStatusText.Text = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            ShowError("Generation workflow failed", exception);
+        }
+        finally
+        {
+            GenerateButton.IsEnabled = true;
+            ResumeMonitoringButton.IsEnabled = true;
+            StopMonitoringButton.IsEnabled = false;
+        }
+    }
+
+    private void StopMonitoring_Click(object sender, RoutedEventArgs e)
+    {
+        StopMonitoringButton.IsEnabled = false;
+        _monitoringCancellation?.Cancel();
+        GenerationStatusText.Text = "Stopping local monitoring. No remote cancellation request will be sent.";
+    }
+
+    private async void ResumeMonitoring_Click(object sender, RoutedEventArgs e)
+    {
+        if (GenerationsList.SelectedItem is not GenerationRecord generation)
+        {
+            GenerationStatusText.Text = "Select a generation with a remote job ID first.";
+            return;
+        }
+        if (_providerChoices.FirstOrDefault(choice =>
+                choice.Provider.Capabilities.ProviderId == generation.RequestSnapshot.ProviderId)?.Provider
+            is not IAsyncVideoGenerationProvider provider)
+        {
+            GenerationStatusText.Text = "The selected generation does not have a resumable asynchronous provider.";
+            return;
+        }
+
+        _monitoringCancellation?.Dispose();
+        _monitoringCancellation = new CancellationTokenSource();
+        GenerateButton.IsEnabled = false;
+        ResumeMonitoringButton.IsEnabled = false;
+        StopMonitoringButton.IsEnabled = true;
+        var progress = new Progress<GenerationWorkflowProgress>(update =>
+            GenerationStatusText.Text = $"{update.Message}\nRemote: {update.RemoteStatus} â€¢ Ingestion: {update.IngestionStatus}");
+        try
+        {
+            await _generationWorkflow.ResumeMonitoringAsync(
+                provider,
+                generation,
+                progress: progress,
+                cancellationToken: _monitoringCancellation.Token);
+            RefreshProjectCollections();
+            GenerationStatusText.Text = FormatGenerationOutcome(generation);
+        }
+        catch (Exception exception)
+        {
+            ShowError("Monitoring failed", exception);
+        }
+        finally
+        {
+            GenerateButton.IsEnabled = true;
+            ResumeMonitoringButton.IsEnabled = true;
+            StopMonitoringButton.IsEnabled = false;
+        }
+    }
+
+    private async void PrepareDerivedDraft_Click(object sender, RoutedEventArgs e)
+    {
+        if (GenerationsList.SelectedItem is not GenerationRecord source)
+        {
+            GenerationStatusText.Text = "Select a generation in history before creating a derived draft.";
+            return;
+        }
+        if (sender is not Button { Tag: string relationshipName } ||
+            !Enum.TryParse<GenerationRelationshipType>(relationshipName, out var relationship))
+            return;
+
+        var draft = GenerationWorkflow.CreateDerivedDraft(source, relationship);
+        LoadDraftIntoUi(draft);
+        await _generationWorkflow.SaveDraftAsync(draft);
+        GenerationStatusText.Text =
+            $"Drafted {relationship} from generation {source.Id}. Review it, then use the submission button.";
+    }
+
+    private async void ClearLineage_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureProjectOpen()) return;
+        var draft = CaptureDraftFromUi();
+        draft.ParentGenerationId = null;
+        draft.RelationshipType = null;
+        LoadDraftIntoUi(draft);
+        await _generationWorkflow.SaveDraftAsync(draft);
+        GenerationStatusText.Text = "Started a new root generation draft.";
+    }
+
+    private GenerationDraft CaptureDraftFromUi()
+    {
+        var mode = (GenerationMode)(ModeComboBox.SelectedItem ?? GenerationMode.TextToVideo);
+        List<GenerationReferenceDraft> selectedReferences = mode == GenerationMode.TextToVideo
+            ? []
+            : _referenceChoices
+                .Where(choice => choice.IsSelected)
+                .OrderBy(choice => choice.Order)
+                .Select(choice => new GenerationReferenceDraft
+                {
+                    ObjectKind = GenerationReferenceObjectKind.Asset,
+                    LogicalObjectId = choice.Asset.Id,
+                    Role = choice.Role,
+                    Order = choice.Order,
+                    Label = NullIfWhiteSpace(choice.Label),
+                    Notes = NullIfWhiteSpace(choice.Notes)
+                })
+                .ToList();
+        var parameters = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("generate_audio"))
+        {
+            parameters["generate_audio"] = (GenerateAudioCheckBox.IsChecked == true).ToString().ToLowerInvariant();
+        }
+        else
+        {
+            parameters["generateAudio"] = (GenerateAudioCheckBox.IsChecked == true).ToString().ToLowerInvariant();
+        }
+        if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("watermark"))
+            parameters["watermark"] = (WatermarkCheckBox.IsChecked == true).ToString().ToLowerInvariant();
+        if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("output_format"))
+            parameters["output_format"] = GetSelectedOutputFormat();
+
+        var current = _workspace.Project?.CurrentGenerationDraft;
+        return new GenerationDraft
+        {
+            ProviderId = _generationProvider.Capabilities.ProviderId,
+            ModelVersion = _generationProvider.Capabilities.ModelVersion,
+            Prompt = PromptTextBox.Text,
+            Mode = mode,
+            DurationSeconds = (int)DurationSlider.Value,
+            AspectRatio = (string)(AspectRatioComboBox.SelectedItem ?? "16:9"),
+            Resolution = (string)(ResolutionComboBox.SelectedItem ?? "720p"),
+            References = selectedReferences,
+            ProviderParameters = parameters,
+            ParentGenerationId = current?.ParentGenerationId,
+            RelationshipType = current?.RelationshipType,
+            ModifiedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    private void LoadDraftIntoUi(GenerationDraft draft)
+    {
+        _suppressDraftAutosave = true;
+        try
+        {
+            var providerChoice = _providerChoices.FirstOrDefault(choice =>
+                choice.Provider.Capabilities.ProviderId == draft.ProviderId);
+            if (providerChoice is not null) ProviderComboBox.SelectedItem = providerChoice;
+            PromptTextBox.Text = draft.Prompt;
+            ModeComboBox.SelectedItem = draft.Mode;
+            DurationSlider.Value = Math.Clamp(
+                draft.DurationSeconds,
+                _generationProvider.Capabilities.MinimumDurationSeconds,
+                _generationProvider.Capabilities.MaximumDurationSeconds);
+            if (_generationProvider.Capabilities.AspectRatios.Contains(draft.AspectRatio))
+                AspectRatioComboBox.SelectedItem = draft.AspectRatio;
+            if (_generationProvider.Capabilities.Resolutions.Contains(draft.Resolution))
+                ResolutionComboBox.SelectedItem = draft.Resolution;
+            GenerateAudioCheckBox.IsChecked = ReadDraftBoolean(draft, "generate_audio", "generateAudio", true);
+            WatermarkCheckBox.IsChecked = ReadDraftBoolean(draft, "watermark", null, false);
+            SelectOutputFormat(draft.ProviderParameters.GetValueOrDefault("output_format", "mp4"));
+
+            foreach (var choice in _referenceChoices)
+            {
+                var reference = draft.References.FirstOrDefault(item =>
+                    item.ObjectKind == GenerationReferenceObjectKind.Asset && item.LogicalObjectId == choice.Asset.Id);
+                choice.IsSelected = reference is not null;
+                choice.Role = reference?.Role;
+                choice.Order = reference?.Order ?? choice.Order;
+                choice.Label = reference?.Label;
+                choice.Notes = reference?.Notes;
+            }
+            ReferenceAssetsGrid.Items.Refresh();
+            LineageText.Text = draft.ParentGenerationId is { } parent
+                ? $"{draft.RelationshipType} â€¢ parent {parent}"
+                : "New root generation";
+        }
+        finally
+        {
+            _suppressDraftAutosave = false;
+        }
+    }
+
+    private void ShowAssetPreview(ProjectAsset asset)
+    {
+        ClearMediaPreview();
+        PreviewPlaceholder.Visibility = Visibility.Collapsed;
+
+        if (asset.StorageKind == AssetStorageKind.Virtual)
+        {
+            PreviewPlaceholder.Text = "Virtual asset preview will be materialized on demand in a later Milestone 2 phase.";
+            PreviewPlaceholder.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var absolutePath = _workspace.GetAbsoluteAssetPath(asset);
+        if (asset.MediaType == MediaType.Image)
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri(absolutePath, UriKind.Absolute);
+            bitmap.EndInit();
+            bitmap.Freeze();
+            ImagePreview.Source = bitmap;
+            ImagePreview.Visibility = Visibility.Visible;
+            return;
+        }
+
+        VideoPreview.Source = new Uri(absolutePath, UriKind.Absolute);
+        VideoPreview.Visibility = Visibility.Visible;
+    }
+
+    private void ClearMediaPreview()
+    {
+        VideoPreview.Stop();
+        VideoPreview.Source = null;
+        VideoPreview.Visibility = Visibility.Collapsed;
+        ImagePreview.Source = null;
+        ImagePreview.Visibility = Visibility.Collapsed;
+        PreviewPlaceholder.Text = "Select a video or image asset to preview";
+        PreviewPlaceholder.Visibility = Visibility.Visible;
+        PositionSlider.Maximum = 1;
+        PositionSlider.Value = 0;
+        TimeText.Text = "00:00 / 00:00";
+    }
+
+    private void VideoPreview_MediaOpened(object sender, RoutedEventArgs e)
+    {
+        if (VideoPreview.NaturalDuration.HasTimeSpan)
+        {
+            PositionSlider.Maximum = VideoPreview.NaturalDuration.TimeSpan.TotalSeconds;
+        }
+
+        VideoPreview.Pause();
+        UpdatePlaybackPosition();
+    }
+
+    private void VideoPreview_MediaEnded(object sender, RoutedEventArgs e)
+    {
+        VideoPreview.Position = TimeSpan.Zero;
+        VideoPreview.Pause();
+        UpdatePlaybackPosition();
+    }
+
+    private void Play_Click(object sender, RoutedEventArgs e)
+    {
+        if (VideoPreview.Source is not null)
+        {
+            VideoPreview.Play();
+        }
+    }
+
+    private void Pause_Click(object sender, RoutedEventArgs e) => VideoPreview.Pause();
+
+    private void PositionSlider_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (VideoPreview.Source is not null)
+        {
+            VideoPreview.Position = TimeSpan.FromSeconds(PositionSlider.Value);
+        }
+    }
+
+    private void DurationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (DurationText is not null)
+        {
+            DurationText.Text = $"{(int)e.NewValue}s";
+        }
+
+        ScheduleDraftAutosave();
+    }
+
+    private void UpdatePlaybackPosition()
+    {
+        if (VideoPreview.Source is null)
+        {
+            TimeText.Text = "00:00 / 00:00";
+            return;
+        }
+
+        var current = VideoPreview.Position;
+        var duration = VideoPreview.NaturalDuration.HasTimeSpan
+            ? VideoPreview.NaturalDuration.TimeSpan
+            : TimeSpan.Zero;
+
+        PositionSlider.Value = current.TotalSeconds;
+        TimeText.Text = $"{FormatTime(current)} / {FormatTime(duration)}";
+    }
+
+    private void RefreshProjectUi()
+    {
+        if (_workspace.Project is null)
+        {
+            return;
+        }
+
+        _suppressDraftAutosave = true;
+        ResetProjectSpecificUi();
+        RefreshProjectCollections();
+        if (_workspace.Project.CurrentGenerationDraft is { } draft)
+            LoadDraftIntoUi(draft);
+        _suppressDraftAutosave = false;
+
+        ProjectTitleText.Text = $"{_workspace.Project.Name}  â€¢  {_assets.Count} assets";
+        Title = $"{_workspace.Project.Name} â€” ReelForge";
+        StatusText.Text = _workspace.Location!.Migration is { } migration
+            ? $"Upgraded schema {migration.FromVersion} to {migration.ToVersion}. Backup: {migration.BackupPath}"
+            : $"Opened {_workspace.Location.ProjectFilePath}";
+    }
+
+    private void ResetProjectSpecificUi()
+    {
+        AssetsList.SelectedItem = null;
+        GenerationsList.SelectedItem = null;
+        _referenceChoices.Clear();
+
+        InspectorText.Text = "Select an asset or generation to inspect its details and history.";
+        PromptTextBox.Text = string.Empty;
+        GenerationStatusText.Text = string.Empty;
+        LineageText.Text = "New root generation";
+        ClearMediaPreview();
+    }
+
+    private void RefreshProjectCollections()
+    {
+        if (_workspace.Project is null) return;
+        var existingChoices = _referenceChoices.ToDictionary(choice => choice.Asset.Id);
+        _assets.Clear();
+        _generations.Clear();
+        _referenceChoices.Clear();
+
+        foreach (var asset in _workspace.Project.Assets)
+        {
+            _assets.Add(asset);
+            if (existingChoices.TryGetValue(asset.Id, out var existing))
+            {
+                existing.Asset = asset;
+                _referenceChoices.Add(existing);
+            }
+            else
+            {
+                _referenceChoices.Add(new GenerationReferenceChoice(asset, _referenceChoices.Count));
+            }
+        }
+
+        foreach (var generation in _workspace.Project.Generations.OrderByDescending(item => item.RequestedAt))
+            _generations.Add(generation);
+
+        ProjectTitleText.Text = $"{_workspace.Project.Name}  â€¢  {_assets.Count} assets";
+    }
+
+    private string GetSelectedOutputFormat() =>
+        (OutputFormatComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "mp4";
+
+    private void SelectOutputFormat(string value)
+    {
+        OutputFormatComboBox.SelectedItem = OutputFormatComboBox.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => string.Equals(item.Content?.ToString(), value, StringComparison.OrdinalIgnoreCase))
+            ?? OutputFormatComboBox.Items[0];
+    }
+
+    private static bool ReadDraftBoolean(
+        GenerationDraft draft,
+        string primaryName,
+        string? fallbackName,
+        bool defaultValue)
+    {
+        if (draft.ProviderParameters.TryGetValue(primaryName, out var value) && bool.TryParse(value, out var parsed))
+            return parsed;
+        if (fallbackName is not null &&
+            draft.ProviderParameters.TryGetValue(fallbackName, out value) &&
+            bool.TryParse(value, out parsed))
+            return parsed;
+        return defaultValue;
+    }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string FormatGenerationOutcome(GenerationRecord generation)
+    {
+        var message = $"Remote: {generation.Status} â€¢ Ingestion: {generation.IngestionStatus}";
+        if (!string.IsNullOrWhiteSpace(generation.ProviderJobId))
+            message += $"\nJob: {generation.ProviderJobId}";
+        if (generation.Error is not null)
+            message += $"\n{generation.Error.Message}";
+        if (generation.ResponseMetadata.GetValueOrDefault("localMonitoring") is { } monitoring)
+            message += $"\nLocal monitoring: {monitoring}";
+        return message;
+    }
+
+    private bool EnsureProjectOpen()
+    {
+        if (_workspace.Project is not null)
+        {
+            return true;
+        }
+
+        MessageBox.Show(this, "Create or open a project first.", "ReelForge", MessageBoxButton.OK, MessageBoxImage.Information);
+        return false;
+    }
+
+    private async Task RunUiActionAsync(string status, Func<Task> action)
+    {
+        StatusText.Text = status;
+        try
+        {
+            await action();
+        }
+        catch (Exception exception)
+        {
+            ShowError("Operation failed", exception);
+        }
+    }
+
+    private void ShowError(string title, Exception exception)
+    {
+        StatusText.Text = exception.Message;
+        InspectorText.Text = $"{title}\n\n{exception}";
+        MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private static string FormatAssetInspector(ProjectAsset asset)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine(asset.FileName);
+        builder.AppendLine($"ID: {asset.Id}");
+        builder.AppendLine($"Type: {asset.MediaType}");
+        builder.AppendLine($"Storage: {asset.StorageKind}");
+        builder.AppendLine($"Created from: {asset.Origin}");
+        builder.AppendLine($"Path: {asset.Physical?.RelativePath ?? "materialized on demand"}");
+        if (asset.Physical is { } physical)
+        {
+            builder.AppendLine($"Availability: {physical.Availability}");
+        }
+        if (asset.Physical?.ContentIdentity is { } identity)
+        {
+            builder.AppendLine($"SHA-256: {identity.Sha256 ?? identity.Status.ToString()}");
+        }
+        builder.AppendLine($"Created: {asset.CreatedAt.LocalDateTime:g}");
+
+        if (asset.DurationSeconds is not null)
+        {
+            builder.AppendLine($"Duration: {asset.DurationSeconds:0.###} seconds");
+        }
+
+        var encoding = asset.Encoding;
+        if (encoding is null)
+        {
+            builder.AppendLine();
+            builder.AppendLine("Encoding metadata unavailable. Install/configure ffprobe, then reselect the asset.");
+            return builder.ToString();
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("CONTAINER");
+        builder.AppendLine($"Format: {encoding.ContainerFormat ?? "â€”"}");
+        builder.AppendLine($"Size: {FormatBytes(encoding.SizeBytes)}");
+        builder.AppendLine($"Bit rate: {encoding.BitRate?.ToString("N0", CultureInfo.InvariantCulture) ?? "â€”"} bps");
+
+        if (encoding.Video is { } video)
+        {
+            builder.AppendLine();
+            builder.AppendLine("VIDEO");
+            builder.AppendLine($"Codec: {video.Codec ?? "â€”"} / {video.CodecProfile ?? "â€”"}");
+            builder.AppendLine($"Dimensions: {video.Width?.ToString(CultureInfo.InvariantCulture) ?? "â€”"} Ã— {video.Height?.ToString(CultureInfo.InvariantCulture) ?? "â€”"}");
+            builder.AppendLine($"Pixel format: {video.PixelFormat ?? "â€”"}");
+            builder.AppendLine($"Frame rate: {video.FrameRate ?? "â€”"}");
+            builder.AppendLine($"Time base: {video.TimeBase ?? "â€”"}");
+            builder.AppendLine($"Codec level: {video.CodecLevel?.ToString(CultureInfo.InvariantCulture) ?? "â€”"}");
+        }
+
+        if (encoding.Audio is { } audio)
+        {
+            builder.AppendLine();
+            builder.AppendLine("AUDIO");
+            builder.AppendLine($"Codec: {audio.Codec ?? "â€”"}");
+            builder.AppendLine($"Sample rate: {audio.SampleRate?.ToString(CultureInfo.InvariantCulture) ?? "â€”"} Hz");
+            builder.AppendLine($"Channels: {audio.Channels?.ToString(CultureInfo.InvariantCulture) ?? "â€”"}");
+            builder.AppendLine($"Layout: {audio.ChannelLayout ?? "â€”"}");
+        }
+
+        return builder.ToString();
+    }
+
+    private static string FormatGenerationInspector(GenerationRecord generation)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"Generation {generation.Id}");
+        builder.AppendLine($"Status: {generation.Status}");
+        builder.AppendLine($"Output ingestion: {generation.IngestionStatus}");
+        builder.AppendLine($"Provider: {generation.RequestSnapshot.ProviderId}");
+        builder.AppendLine($"Model: {generation.RequestSnapshot.ModelVersion}");
+        builder.AppendLine($"Provider job: {generation.ProviderJobId ?? "â€”"}");
+        builder.AppendLine($"Requested: {generation.RequestedAt.LocalDateTime:g}");
+        builder.AppendLine($"Completed: {generation.CompletedAt?.LocalDateTime.ToString("g", CultureInfo.CurrentCulture) ?? "â€”"}");
+        builder.AppendLine();
+        builder.AppendLine("PROMPT");
+        builder.AppendLine(generation.RequestSnapshot.Prompt);
+        builder.AppendLine();
+        builder.AppendLine("SETTINGS");
+        builder.AppendLine($"Mode: {generation.RequestSnapshot.Mode}");
+        builder.AppendLine($"Duration: {generation.RequestSnapshot.DurationSeconds}s");
+        builder.AppendLine($"Aspect ratio: {generation.RequestSnapshot.AspectRatio}");
+        builder.AppendLine($"Resolution: {generation.RequestSnapshot.Resolution}");
+        builder.AppendLine($"References: {generation.RequestSnapshot.References.Count}");
+        builder.AppendLine($"Lineage: {generation.RelationshipType?.ToString() ?? "root"}");
+        builder.AppendLine($"Parent: {generation.ParentGenerationId?.ToString() ?? "â€”"}");
+        builder.AppendLine($"Output assets: {generation.OutputAssetIds.Count}");
+
+        foreach (var reference in generation.RequestSnapshot.References.OrderBy(item => item.Order))
+        {
+            builder.AppendLine(
+                $"  [{reference.Order}] {reference.ObjectKind} {reference.LogicalObjectId} â€¢ {reference.Role?.ToString() ?? "general"}" +
+                (string.IsNullOrWhiteSpace(reference.Label) ? string.Empty : $" â€¢ {reference.Label}"));
+        }
+
+        foreach (var pair in generation.ResponseMetadata)
+        {
+            builder.AppendLine($"{pair.Key}: {pair.Value}");
+        }
+
+        if (generation.Error is not null)
+        {
+            builder.AppendLine();
+            builder.AppendLine("ERROR");
+            builder.AppendLine(generation.Error.Message);
+            builder.AppendLine(generation.Error.TechnicalDetails);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string FormatTime(TimeSpan time) =>
+        time.TotalHours >= 1 ? time.ToString(@"hh\:mm\:ss") : time.ToString(@"mm\:ss");
+
+    private static string FormatBytes(long? bytes)
+    {
+        if (bytes is null)
+        {
+            return "â€”";
+        }
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var value = (double)bytes.Value;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return $"{value:0.##} {units[unit]}";
+    }
+}
+
+public sealed class GenerationProviderChoice
+{
+    public GenerationProviderChoice(IVideoGenerationProvider provider)
+    {
+        Provider = provider;
+    }
+
+    public IVideoGenerationProvider Provider { get; }
+    public string DisplayName => Provider.Capabilities.DisplayName;
+}
+
+public sealed class GenerationReferenceChoice
+{
+    public GenerationReferenceChoice(ProjectAsset asset, int order)
+    {
+        Asset = asset;
+        Order = order;
+    }
+
+    public ProjectAsset Asset { get; set; }
+    public bool IsSelected { get; set; }
+    public GenerationReferenceRole? Role { get; set; }
+    public int Order { get; set; }
+    public string? Label { get; set; }
+    public string? Notes { get; set; }
+}

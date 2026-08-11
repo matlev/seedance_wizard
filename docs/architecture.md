@@ -1,10 +1,10 @@
-# Architecture
+﻿# Architecture
 
-Status: accepted direction; Phase 2A foundation implemented
+Status: accepted direction; Phase 2A complete; Phase 2B implementation complete with human live acceptance pending
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 
-This document describes a proposed architecture. The recipe, virtual-asset, materialization, cache, and migration types named below are conceptual only and are not implemented yet.
+This document records the accepted target architecture. Schema-v2 logical assets, immutable recipe revisions and generation snapshots, migration, SHA-256 identity, provider-specific physical-reference preparation, BytePlus ModelArk and AtlasCloud submission/polling, durable output ingestion, and their application boundaries are implemented. Virtual-recipe rendering, frame-anchor materialization, and general cache planning remain later Milestone 2 phases.
 
 ## Architectural direction
 
@@ -31,14 +31,14 @@ The project is authoritative; the cache is not. Deleting the entire `cache/` dir
 ## Dependency direction
 
 ```text
-SeedanceWizard.App (WPF composition and interaction)
+ReelForge.App (WPF composition and interaction)
         |                 |
         v                 v
-SeedanceWizard.Application  <---  SeedanceWizard.Infrastructure
+ReelForge.Application  <---  ReelForge.Infrastructure
         |                             |
         +-------------+---------------+
                       v
-             SeedanceWizard.Core
+             ReelForge.Core
 ```
 
 - **Core** owns project state, physical and virtual asset definitions, typed recipes, anchors, timelines, generation provenance, and graph invariants. It has no file-system, FFmpeg, HTTP, or WPF dependencies.
@@ -46,6 +46,30 @@ SeedanceWizard.Application  <---  SeedanceWizard.Infrastructure
 - **Infrastructure** implements JSON migration/persistence, durable-file import, content identity, cache storage, FFmpeg planning/rendering, provider upload integration, and Windows services.
 - **App** treats physical and virtual assets uniformly in selection and editing UI. It requests previews, provider inputs, and exports through application services rather than resolving paths or launching FFmpeg itself.
 - **Tests** verify recipes, migrations, graph validity, deterministic cache keys, render plans, cleanup, and provider payloads without making paid provider calls.
+
+### Paid-network execution boundary
+
+The application defaults to `FakeVideoGenerationProvider`. Constructing the window, opening a project, autosaving a draft, validating settings, polling local state, and running tests cannot submit a BytePlus or AtlasCloud generation. A potentially billable submission requires a short-lived `GenerationSubmissionAuthorization`; its interactive factory is visible only to the desktop and test assemblies. The desktop creates a production authorization only inside the generation-button event after the human accepts a per-request charge warning. Tests use a separate internal network-isolated authorization with custom `HttpMessageHandler` instances, never the public internet.
+
+BytePlus and AtlasCloud credentials are stored under separate keys through `ISecretStore` in Windows Credential Manager and are never persisted in project JSON. `IApiKeyVideoGenerationProvider` supplies the provider-specific credential key without making the workflow depend on a particular vendor. Temporary upload/data URLs and completed output URLs remain transport representations. Logical reference IDs/revisions/hashes and sanitized preparation scope are the durable history.
+
+### Multi-provider boundary
+
+`IVideoGenerationProvider` remains the provider-neutral submission boundary. `IAsyncVideoGenerationProvider` adds task retrieval, while `ProviderAssetPreparationRouter` dispatches reference preparation by provider ID. BytePlus ModelArk and AtlasCloud therefore coexist as independent adapters rather than one wrapping or replacing the other. Provider and model are frozen per submitted generation.
+
+The official BytePlus adapter targets `dreamina-seedance-2-5-260628` at ModelArk's documented Video Generation API. It serializes typed text/image/video/audio content, polls documented task states, and accepts the provider's HTTPS or `asset://` references. Its preparation service can inline documented local image/audio formats as Base64 data URLs. It does not invent a Files API bridge for local video: MP4/MOV preparation remains blocked until a separate ModelArk asset-ingestion contract is verified. AtlasCloud retains its documented multipart media-upload path.
+
+### Future local execution boundary
+
+`IVideoGenerationProvider` is an execution abstraction, not a synonym for a paid remote HTTP API. A future local ComfyUI provider can implement the same semantic submission/status lifecycle by translating an immutable generation snapshot into a pinned API-format workflow, submitting it to ComfyUI's local queue, and mapping the returned prompt ID and progress/history back into provider-neutral job state.
+
+Remote/local differences remain in Application and Infrastructure. Core continues to know only provider/model identity, normalized intent, ordered logical references and roles, lineage, and durable output provenance. It must not contain ComfyUI endpoints, workflow JSON, node IDs, model filenames, GPU types, staging paths, or WebSocket messages. Exact local reproducibility can be supplementary execution evidence—workflow digest, model/component hashes, engine versions, realized dimensions/frame count, seed/steps/sampler, and compute backend—without making those provider details domain invariants.
+
+The output boundary must eventually accept a provider-neutral stream or verified local-file lease in addition to HTTPS results. Forcing a localhost-generated MP4 through a public-URL abstraction would leak transport assumptions and weaken local-file verification. Likewise, execution authorization should evolve from paid-only confirmation to a provider-neutral policy: remote providers can require a fresh charge confirmation, while local H3 can require license/territory acknowledgement and a hardware/resource warning.
+
+Local-provider readiness is an application concern. A future environment probe should inspect ComfyUI version, node schemas, installed models, workflow digest, GPU/backend and VRAM, RAM, disk capacity, loopback binding, and an explicit benchmark result. Input staging and output acquisition remain provider services. ReelForge should attach only to loopback by default and should never expose an unauthenticated ComfyUI server on all interfaces automatically.
+
+See [MiniMax H3 local execution research](minimax-h3-local-research.md) for the official native workflows, dependencies, limits, hardware gate, Server API mapping, and license restrictions. H3 is researched but not scheduled or implemented.
 
 ## Current architecture assessment
 
@@ -56,7 +80,7 @@ SeedanceWizard.Application  <---  SeedanceWizard.Infrastructure
 | `AssetProvenance` | Links source IDs, generation IDs, operation names, and parameters | Stringly typed provenance cannot safely serve as the recipe itself. Provenance should describe history; a typed recipe should define reproduction. |
 | `FrameAnchor` | Has an ID, source asset, timestamp, frame number, and label | `VideoProject` has no anchor collection, so anchors are not currently durable project state. Frame number is mandatory even when unreliable. Notes and time-basis semantics are absent. |
 | `Timeline` / `TimelineClip` | Already references assets by ID and stores non-destructive in/out positions | No tracks or recipe/render-plan boundary; current code assumes an asset can be resolved directly to a path. |
-| `PortableProjectStore` | Schema field, portable relative paths, atomic save | Supports only “reject newer schema”; it has no migration chain. It creates `cache/` but defines no deletion or reconstruction semantics. |
+| `PortableProjectStore` | Schema field, portable relative paths, atomic save | Supports only â€œreject newer schemaâ€; it has no migration chain. It creates `cache/` but defines no deletion or reconstruction semantics. |
 | `AssetImportService` | Copies user media into durable project storage and inspects it | Correct for physical imports, but it should not be reused for virtual outputs or cache promotion without explicit semantics. |
 | `ProjectWorkspace.GetAbsoluteAssetPath` | Centralizes relative-path resolution | Cannot represent a virtual asset. Consumers must request materialization rather than assume all assets have paths. |
 | `FfmpegCommandBuilder` / process runner | Pure arguments, safe process execution, cancellation, captured diagnostics | Commands operate on paths directly; there is no recipe compiler, dependency planner, cache key, or materialized-result lease. |
@@ -182,7 +206,7 @@ RecipeDraft                     mutable UI/application state
 
 An actively edited recipe draft may mutate freely and need not create permanent history for every control change. Committing creates a new immutable `RecipeRevision`, links it to the previous revision when present, and advances the virtual asset's current-revision pointer. A committed revision is never edited in place once authoritative or referenced by another recipe, generation, timeline operation, export, or other durable object.
 
-Durable references pin both the virtual asset ID and exact recipe revision ID. They never mean “whatever revision is current later.” References from one committed recipe to another likewise pin the dependency revision. Deleting or compacting a revision is prohibited while any authoritative project object references it. Cache/materialization keys include the committed revision identity and canonical payload, plus transitive content identities.
+Durable references pin both the virtual asset ID and exact recipe revision ID. They never mean â€œwhatever revision is current later.â€ References from one committed recipe to another likewise pin the dependency revision. Deleting or compacting a revision is prohibited while any authoritative project object references it. Cache/materialization keys include the committed revision identity and canonical payload, plus transitive content identities.
 
 ### Graph rules
 
@@ -263,7 +287,7 @@ The UI, provider adapters, and timeline must not decide whether FFmpeg is requir
 Recommended layout:
 
 ```text
-project.json
+ProjectName.rfp          JSON-formatted authoritative project file
 assets/
   images/
   videos/
@@ -279,7 +303,7 @@ cache/
   index.json              optional and disposable
 ```
 
-The subdivision is operational, not semantic. Every entry—including `index.json`—must be safe to delete while the app is closed. Startup should tolerate a missing or partially populated cache and remove abandoned temporary files safely.
+The subdivision is operational, not semantic. Every entryâ€”including `index.json`â€”must be safe to delete while the app is closed. Startup should tolerate a missing or partially populated cache and remove abandoned temporary files safely.
 
 A cache key should use canonical, culture-invariant serialization of:
 
@@ -308,7 +332,7 @@ The virtual source remains intact after promotion. Future recipe edits produce a
 
 ### Main-video durability
 
-`MainVideoAssetId` may point only to a durable physical video asset. Making a virtual asset or retained materialization the main video invokes durable promotion first; it cannot leave the project dependent on cache storage. Demoting a main video changes only the designation—the file remains an ordinary durable project asset. Deleting the main video requires the user to select another durable video or explicitly leave the project without one; the application must not silently promote or delete another asset.
+`MainVideoAssetId` may point only to a durable physical video asset. Making a virtual asset or retained materialization the main video invokes durable promotion first; it cannot leave the project dependent on cache storage. Demoting a main video changes only the designationâ€”the file remains an ordinary durable project asset. Deleting the main video requires the user to select another durable video or explicitly leave the project without one; the application must not silently promote or delete another asset.
 
 ## Timeline implications
 
@@ -446,7 +470,7 @@ Generation 31
       role: character reference
 ```
 
-The parent plus relationship type answers “why was 31 created?” The references answer “what did the provider receive?” Neither is inferred from the other. A continuation based on a non-generation clip has no lineage parent unless there is an actual earlier generation; the clip/anchor is represented through references.
+The parent plus relationship type answers â€œwhy was 31 created?â€ The references answer â€œwhat did the provider receive?â€ Neither is inferred from the other. A continuation based on a non-generation clip has no lineage parent unless there is an actual earlier generation; the clip/anchor is represented through references.
 
 ## Logical references, materialization, and providers
 
@@ -481,7 +505,7 @@ The UI selects logical project objects and never creates intermediate files manu
 
 A provider-side ID or URL is a representation of a project reference, not the reference itself. Reuse is permitted only when it is bound to the same source/materialization hash, provider account/region/model scope, and known lifetime. Expired or unqualified IDs are regenerated/reuploaded from the logical source.
 
-The current `GenerationRequest.ReferenceAssetIds` is path-free but cannot reference anchors or record role/order/revision. The current AtlasCloud adapter and `ProjectAssetReferenceResolver` also expect provider-ready values. They would remain low-level serializers/resolvers behind new orchestration; recipes and UI remain provider-neutral. No paid submission appears in materialization, orchestration, polling, or provider contract tests.
+The transient `GenerationRequest.ReferenceAssetIds` remains a low-level provider-input shape. `GenerationWorkflow` freezes the richer draft into a path-free immutable snapshot first, materializes and verifies physical references, uploads them through the documented provider-preparation boundary, and supplies temporary overrides only to the serializer. Recipes and UI remain provider-neutral. No paid submission appears in materialization, orchestration, polling, or provider contract tests.
 
 ## Project schema and migration
 
@@ -501,7 +525,7 @@ Conceptual version 2 changes:
 - pair the existing nullable `ParentGenerationId` with a nullable, cycle-checked `RelationshipType` from the settled five-value vocabulary;
 - support bidirectional generation/output provenance and multiple output asset IDs;
 - allow timeline references to target either asset kind;
-- formalize cache as non-authoritative and keep cache paths out of `project.json`;
+- formalize cache as non-authoritative and keep cache paths out of the `.rfp` project file;
 - enrich reusable provider references with source/materialization identity, provider scope, and expiry if they remain persisted;
 - allow retention preferences/receipts without making retained materializations authoritative project dependencies.
 
@@ -518,7 +542,7 @@ Migration strategy:
 9. Convert the singular output asset ID into a one-element output collection and preserve the asset's existing generation provenance where present.
 10. Add an empty anchor catalog because version 1 never persisted anchors at project level.
 11. Validate the migrated asset/recipe/generation graphs and referenced files, report missing durable files without deleting metadata, and save version 2 only through an explicit/transactional migration path.
-12. For this safe metadata-only version-1 to version-2 migration, create `project.backup-v1.json` first, migrate automatically, atomically save the new `project.json`, and report the upgrade. Never overwrite the known-good project if backup or migration fails.
+12. For this safe metadata-only version-1 to version-2 migration, create `project.backup-v1.json` first, migrate automatically, atomically save the selected project file, and report the upgrade. Never overwrite the known-good project if backup or migration fails. New projects use a project-named `.rfp` file; legacy `project.json` files remain supported and save in place.
 
 Migration policy beyond version 2 is hybrid: safe/reversible metadata migrations run automatically after a versioned backup; destructive, expensive, lossy, media-rewriting, or risky folder-layout migrations require an explanation and explicit user confirmation after backup.
 
@@ -532,7 +556,7 @@ Downgrading a version-2 project to version 1 is not generally possible because v
 - **Import/download:** record durable content identity and distinguish imported/generated/exported physical media.
 - **Media infrastructure:** add recipe planning/compilation, cache-key generation, atomic cache commits, active leases, cleanup, and operation-specific FFmpeg plans.
 - **Provider orchestration:** resolve asset/anchor references, materialize when needed, prepare uploads, qualify remote references by source fingerprint/scope/lifetime, poll jobs, and ingest successful downloads.
-- **AtlasCloud boundary:** retain verified request serialization, but move logical-reference resolution ahead of `ProjectAssetReferenceResolver`; add verified polling/cancellation/upload behavior only where documented.
+- **Provider boundaries:** retain independently verified BytePlus and AtlasCloud request serialization; keep logical-reference resolution ahead of provider preparation; add upload, polling, and cancellation behavior only where each provider documents it. BytePlus local image/audio preparation uses inline data URLs, BytePlus video currently requires HTTPS or `asset://`, and AtlasCloud retains multipart upload.
 - **WPF:** display virtual assets without requiring paths; add provider/credential/settings/reference selection and generation status/actions; keep preview/export/provider work asynchronous.
 - **Tests:** add migration fixtures, asset and generation graph/cycle tests, immutable snapshot tests, retry/branch semantics, cache deletion/reconstruction, deterministic-key fixtures, purpose-specific render plans, concurrent materialization, cancellation cleanup, output provenance, and paid-network isolation.
 
@@ -542,8 +566,8 @@ Downgrading a version-2 project to version 1 is not generally possible because v
 - **Reproducibility:** FFmpeg upgrades, hardware encoders, nondeterministic metadata, and replaced source files can change byte output. Reproducible intent is achievable; bit-identical output may require pinned software/settings and deterministic metadata.
 - **Hashing cost:** canonical SHA-256 improves correctness but can be expensive for large video. Compute it during durable copy/download where possible, permit an explicit pending state, and perform background completion when needed.
 - **Graph evolution:** immutable committed recipe revisions prevent downstream provenance drift but retain revision metadata over time. Cleanup may remove only unreferenced drafts/revisions under an explicit policy.
-- **Nested render cost:** naïvely materializing every node creates the very intermediate sprawl being avoided. The planner should fuse compatible operations and materialize only true boundaries.
-- **Frame accuracy:** timestamps, time bases, keyframes, and variable frame rate need explicit semantics. “Frame accurate” cannot rely only on UI milliseconds.
+- **Nested render cost:** naÃ¯vely materializing every node creates the very intermediate sprawl being avoided. The planner should fuse compatible operations and materialize only true boundaries.
+- **Frame accuracy:** timestamps, time bases, keyframes, and variable frame rate need explicit semantics. â€œFrame accurateâ€ cannot rely only on UI milliseconds.
 - **Disk pressure:** cache reuse improves speed but needs size/age policy, purge UX, failure handling, and active-lease protection.
 - **Source loss:** portable projects remain reconstructable only while durable sources exist and match their identities. Missing-file relinking is eventually required.
 - **Remote references:** provider asset IDs may expire or be account/region scoped. Persisting them without expiry/fingerprint can submit stale or wrong media.
@@ -552,6 +576,9 @@ Downgrading a version-2 project to version 1 is not generally possible because v
 - **Lineage taxonomy:** too few relationship types lose intent; too many provider-specific types make migrations and graph UI brittle. Relationships should remain high-level and references retain exact inputs.
 - **Partial generation completion:** provider completion, download, media verification, asset creation, and project save are separate failure points. State must distinguish a successful remote job from a successfully ingested durable output.
 - **Provider retry cost:** retry is a new paid submission unless a provider offers a verified idempotent recovery mechanism. UI must not label polling/download recovery as a new retry.
+- **Local resource cost:** a local run is not monetarily billed per request but can consume substantial GPU time, RAM, storage bandwidth, power, and foreground responsiveness. Cost behavior and confirmation policy must not assume that `Local` means free or harmless.
+- **Local engine drift:** ComfyUI nodes, API workflow formats, model quantizations, PyTorch/CUDA behavior, and official templates can change independently. Pin and validate workflow/node/model fingerprints instead of assuming an installed server is compatible.
+- **Territory restrictions:** MiniMax H3's current community license excludes the EU, UK, Republic of Korea, and United States and restricts use and distribution of outputs there. Technical availability cannot override license eligibility.
 
 ## Settled Phase 2A decisions
 
@@ -577,6 +604,6 @@ These are not blockers for documenting the settled generation model, but the rel
 4. **External exports:** default to export history without making reconstruction depend on an external path; decide catalog behavior with export UX.
 5. **Provider cancellation:** distinguish local polling cancellation from remote cancellation and expose the latter only when verified.
 
-## Approval gate
+## Phase gate
 
-No recipe, virtual-asset, anchor-persistence, generation-snapshot/relationship, materialization, retention, schema-v2, migration, timeline, or provider-preparation implementation should begin until this design and the staged milestone plan are explicitly approved.
+Phase 2A and the Phase 2B implementation were explicitly approved. BytePlus ModelArk is the preferred official provider for the first optional human-run paid acceptance test; AtlasCloud remains a selectable alternate route. Phase 2C frame/continuation UI and Phase 2D virtual-recipe rendering remain separate implementation gates.

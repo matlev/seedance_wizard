@@ -1,0 +1,420 @@
+﻿using System.Collections.ObjectModel;
+
+namespace ReelForge.Core;
+
+public enum MediaType { Image, Video, Audio }
+public enum AssetOrigin { Imported, Generated, EditorDerived, ExtractedFrame, Exported }
+public enum AssetStorageKind { Physical, Virtual }
+public enum PhysicalAssetDurability { Source, Generated, Exported, Promoted }
+public enum ContentHashStatus { Pending, Verified, Mismatch, Failed }
+public enum PhysicalAssetAvailability { Unknown, Available, Missing }
+public enum GenerationMode { TextToVideo, ImageToVideo, ReferenceToVideo }
+public enum GenerationStatus { Draft, Queued, Running, Succeeded, Failed, Cancelled }
+public enum OutputIngestionStatus { NotRequired, Pending, Running, Succeeded, Failed }
+public enum GenerationReferenceObjectKind { Asset, FrameAnchor }
+public enum GenerationReferenceRole { GeneralReference, StartFrame, EndFrame, Character, Style, Environment, Motion, Audio }
+public enum GenerationRelationshipType { RetryOf, VariantOf, ContinueAfter, ContinueBefore, BasedOn }
+public enum RecipeBoundaryKind { SourceStart, SourceEnd, Anchor, Timestamp }
+
+public sealed class VideoProject
+{
+    public const int CurrentSchemaVersion = 2;
+
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "Untitled project";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset ModifiedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? MainVideoAssetId { get; set; }
+    public List<ProjectAsset> Assets { get; set; } = [];
+    public List<RecipeRevision> RecipeRevisions { get; set; } = [];
+    public List<RecipeDraft> RecipeDrafts { get; set; } = [];
+    public List<FrameAnchor> Anchors { get; set; } = [];
+    public GenerationDraft? CurrentGenerationDraft { get; set; }
+    public List<GenerationRecord> Generations { get; set; } = [];
+    public Timeline Timeline { get; set; } = new();
+
+    public void Touch() => ModifiedAt = DateTimeOffset.UtcNow;
+
+    public void AddAsset(ProjectAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (Assets.Any(existing => existing.Id == asset.Id))
+        {
+            throw new InvalidOperationException($"Asset '{asset.Id}' already belongs to the project.");
+        }
+
+        Assets.Add(asset);
+        if (MainVideoAssetId is null &&
+            asset.MediaType == MediaType.Video &&
+            asset.Origin == AssetOrigin.Generated &&
+            asset.StorageKind == AssetStorageKind.Physical)
+        {
+            MainVideoAssetId = asset.Id;
+        }
+
+        Touch();
+    }
+
+    public RecipeRevision CommitRecipe(Guid virtualAssetId, AssetRecipe recipe)
+    {
+        ArgumentNullException.ThrowIfNull(recipe);
+        var asset = Assets.SingleOrDefault(candidate => candidate.Id == virtualAssetId)
+            ?? throw new InvalidOperationException($"Virtual asset '{virtualAssetId}' does not exist.");
+        if (asset.StorageKind != AssetStorageKind.Virtual || asset.Virtual is null)
+        {
+            throw new InvalidOperationException($"Asset '{virtualAssetId}' is not virtual.");
+        }
+
+        var previousId = asset.Virtual.CurrentRecipeRevisionId;
+        var previous = previousId is null
+            ? null
+            : RecipeRevisions.SingleOrDefault(candidate => candidate.Id == previousId.Value)
+                ?? throw new InvalidOperationException($"Current recipe revision '{previousId}' does not exist.");
+        var revision = new RecipeRevision
+        {
+            VirtualAssetId = virtualAssetId,
+            RevisionNumber = (previous?.RevisionNumber ?? 0) + 1,
+            PreviousRevisionId = previous?.Id,
+            Recipe = recipe,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        RecipeRevisions.Add(revision);
+        asset.Virtual.CurrentRecipeRevisionId = revision.Id;
+        Touch();
+        return revision;
+    }
+}
+
+public sealed class ProjectAsset
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string DisplayName { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public MediaType MediaType { get; set; }
+    public AssetStorageKind StorageKind { get; set; } = AssetStorageKind.Physical;
+    public AssetOrigin Origin { get; set; } = AssetOrigin.Imported;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public double? DurationSeconds { get; set; }
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public MediaEncodingMetadata? Encoding { get; set; }
+    public AssetProvenance? Provenance { get; set; }
+    public PhysicalAssetStorage? Physical { get; set; } = new();
+    public VirtualAssetState? Virtual { get; set; }
+    public Dictionary<string, ProviderAssetReference> ProviderReferences { get; set; } = new(StringComparer.Ordinal);
+
+    public string EffectiveDisplayName => string.IsNullOrWhiteSpace(DisplayName) ? FileName : DisplayName;
+}
+
+public sealed class PhysicalAssetStorage
+{
+    public string RelativePath { get; set; } = string.Empty;
+    public PhysicalAssetDurability Durability { get; set; } = PhysicalAssetDurability.Source;
+    public ContentIdentity ContentIdentity { get; set; } = new();
+    public PhysicalAssetAvailability Availability { get; set; } = PhysicalAssetAvailability.Unknown;
+}
+
+public sealed class VirtualAssetState
+{
+    public Guid? CurrentRecipeRevisionId { get; set; }
+    public MediaEncodingMetadata? ExpectedMediaProperties { get; set; }
+}
+
+public sealed class ContentIdentity
+{
+    public const string Sha256Algorithm = "SHA-256";
+
+    public string Algorithm { get; set; } = Sha256Algorithm;
+    public string? Sha256 { get; set; }
+    public ContentHashStatus Status { get; set; } = ContentHashStatus.Pending;
+    public long? LengthBytes { get; set; }
+    public DateTimeOffset? ObservedLastWriteTimeUtc { get; set; }
+}
+
+public sealed class ProviderAssetReference
+{
+    public string Value { get; set; } = string.Empty;
+    public string? SourceContentHash { get; set; }
+    public Guid? SourceRecipeRevisionId { get; set; }
+    public string? Scope { get; set; }
+    public DateTimeOffset? ExpiresAt { get; set; }
+}
+
+public sealed class AssetProvenance
+{
+    public string Operation { get; set; } = string.Empty;
+    public List<Guid> SourceAssetIds { get; set; } = [];
+    public Guid? GenerationId { get; set; }
+    public Guid? SourceRecipeRevisionId { get; set; }
+    public Dictionary<string, string> Parameters { get; set; } = new(StringComparer.Ordinal);
+}
+
+public sealed class RecipeRevision
+{
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid VirtualAssetId { get; init; }
+    public int RevisionNumber { get; init; }
+    public Guid? PreviousRevisionId { get; init; }
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    public AssetRecipe Recipe { get; init; } = new ExtractFrameRecipe();
+}
+
+public sealed class RecipeDraft
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? VirtualAssetId { get; set; }
+    public Guid? BasedOnRevisionId { get; set; }
+    public AssetRecipe EditableRecipe { get; set; } = new ExtractFrameRecipe();
+    public DateTimeOffset ModifiedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public abstract record AssetRecipe
+{
+    public int RecipeSchemaVersion { get; init; } = 1;
+}
+
+public sealed record TrimRecipe : AssetRecipe
+{
+    public AssetRevisionReference Source { get; init; } = new();
+    public RecipeBoundary Start { get; init; } = RecipeBoundary.SourceStart;
+    public RecipeBoundary End { get; init; } = RecipeBoundary.SourceEnd;
+    public string? RenderProfile { get; init; }
+}
+
+public sealed record ExtractFrameRecipe : AssetRecipe
+{
+    public AssetRevisionReference Source { get; init; } = new();
+    public Guid AnchorId { get; init; }
+    public string? ImageProfile { get; init; }
+}
+
+public sealed record AssetRevisionReference
+{
+    public Guid AssetId { get; init; }
+    public Guid? RecipeRevisionId { get; init; }
+}
+
+public sealed record RecipeBoundary
+{
+    public static RecipeBoundary SourceStart { get; } = new() { Kind = RecipeBoundaryKind.SourceStart };
+    public static RecipeBoundary SourceEnd { get; } = new() { Kind = RecipeBoundaryKind.SourceEnd };
+
+    public RecipeBoundaryKind Kind { get; init; }
+    public Guid? AnchorId { get; init; }
+    public double? TimestampSeconds { get; init; }
+}
+
+public sealed class MediaEncodingMetadata
+{
+    public string? ContainerFormat { get; set; }
+    public double? DurationSeconds { get; set; }
+    public long? SizeBytes { get; set; }
+    public long? BitRate { get; set; }
+    public VideoStreamMetadata? Video { get; set; }
+    public AudioStreamMetadata? Audio { get; set; }
+}
+
+public sealed class VideoStreamMetadata
+{
+    public string? Codec { get; set; }
+    public string? CodecProfile { get; set; }
+    public int? Width { get; set; }
+    public int? Height { get; set; }
+    public string? PixelFormat { get; set; }
+    public string? FrameRate { get; set; }
+    public string? TimeBase { get; set; }
+    public int? CodecLevel { get; set; }
+}
+
+public sealed class AudioStreamMetadata
+{
+    public string? Codec { get; set; }
+    public int? SampleRate { get; set; }
+    public int? Channels { get; set; }
+    public string? ChannelLayout { get; set; }
+}
+
+// Mutable provider-input object. It is never persisted as generation history directly.
+public sealed class GenerationRequest
+{
+    public string Prompt { get; set; } = string.Empty;
+    public GenerationMode Mode { get; set; } = GenerationMode.ReferenceToVideo;
+    public int DurationSeconds { get; set; } = 15;
+    public string AspectRatio { get; set; } = "16:9";
+    public string Resolution { get; set; } = "720p";
+    public List<Guid> ReferenceAssetIds { get; set; } = [];
+    public Dictionary<string, string> ProviderParameters { get; set; } = new(StringComparer.Ordinal);
+    // Transient provider-ready representations. These values are never persisted as logical history.
+    public Dictionary<Guid, string> ProviderReferenceOverrides { get; set; } = [];
+}
+
+public sealed class GenerationDraft
+{
+    public string? ProviderId { get; set; }
+    public string? ModelVersion { get; set; }
+    public string Prompt { get; set; } = string.Empty;
+    public GenerationMode Mode { get; set; } = GenerationMode.ReferenceToVideo;
+    public int DurationSeconds { get; set; } = 15;
+    public string AspectRatio { get; set; } = "16:9";
+    public string Resolution { get; set; } = "720p";
+    public List<GenerationReferenceDraft> References { get; set; } = [];
+    public Dictionary<string, string> ProviderParameters { get; set; } = new(StringComparer.Ordinal);
+    public Guid? ParentGenerationId { get; set; }
+    public GenerationRelationshipType? RelationshipType { get; set; }
+    public DateTimeOffset ModifiedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class GenerationReferenceDraft
+{
+    public GenerationReferenceObjectKind ObjectKind { get; set; } = GenerationReferenceObjectKind.Asset;
+    public Guid LogicalObjectId { get; set; }
+    public GenerationReferenceRole? Role { get; set; }
+    public int? Order { get; set; }
+    public string? Label { get; set; }
+    public string? Notes { get; set; }
+}
+
+public sealed class GenerationRequestSnapshot
+{
+    public string ProviderId { get; init; } = string.Empty;
+    public string ModelVersion { get; init; } = string.Empty;
+    public GenerationMode Mode { get; init; }
+    public string Prompt { get; init; } = string.Empty;
+    public int DurationSeconds { get; init; }
+    public string AspectRatio { get; init; } = string.Empty;
+    public string Resolution { get; init; } = string.Empty;
+    public IReadOnlyList<GenerationReferenceSnapshot> References { get; init; } = Array.Empty<GenerationReferenceSnapshot>();
+    public IReadOnlyDictionary<string, string> ProviderParameters { get; init; } =
+        new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(StringComparer.Ordinal));
+}
+
+public sealed class GenerationReferenceSnapshot
+{
+    public GenerationReferenceObjectKind ObjectKind { get; init; }
+    public Guid LogicalObjectId { get; init; }
+    public Guid? RecipeRevisionId { get; init; }
+    public string? ContentHash { get; init; }
+    public GenerationReferenceRole? Role { get; init; }
+    public int? Order { get; init; }
+    public string? Label { get; init; }
+    public string? Notes { get; init; }
+    public MaterializationReceipt? Materialization { get; init; }
+}
+
+public sealed class MaterializationReceipt
+{
+    public string? PlanHash { get; init; }
+    public string? SourceContentHash { get; init; }
+    public string? ProducedContentHash { get; init; }
+    public MediaEncodingMetadata? Encoding { get; init; }
+    public string? ProviderReferenceId { get; init; }
+    public string? ProviderScope { get; init; }
+    public DateTimeOffset? ProviderReferenceExpiresAt { get; init; }
+}
+
+public sealed class GenerationRecord
+{
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public GenerationRequestSnapshot RequestSnapshot { get; init; } = new();
+    public DateTimeOffset RequestedAt { get; init; } = DateTimeOffset.UtcNow;
+    public string? ProviderJobId { get; set; }
+    public GenerationStatus Status { get; set; } = GenerationStatus.Draft;
+    public OutputIngestionStatus IngestionStatus { get; set; } = OutputIngestionStatus.NotRequired;
+    public DateTimeOffset? CompletedAt { get; set; }
+    public List<Guid> OutputAssetIds { get; set; } = [];
+    public Dictionary<string, string> ResponseMetadata { get; set; } = new(StringComparer.Ordinal);
+    public GenerationError? Error { get; set; }
+    public Guid? ParentGenerationId { get; init; }
+    public GenerationRelationshipType? RelationshipType { get; init; }
+}
+
+public sealed class GenerationError
+{
+    public int? HttpStatus { get; set; }
+    public string? ProviderCode { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? TechnicalDetails { get; set; }
+}
+
+public sealed record GenerationProviderCapabilities(
+    string ProviderId,
+    string DisplayName,
+    string ModelVersion,
+    IReadOnlyList<GenerationMode> Modes,
+    int MinimumDurationSeconds,
+    int MaximumDurationSeconds,
+    IReadOnlyList<string> AspectRatios,
+    IReadOnlyList<string> Resolutions,
+    int MaximumImageReferences,
+    int MaximumVideoReferences,
+    int MaximumAudioReferences,
+    IReadOnlySet<MediaType> SupportedReferenceTypes,
+    IReadOnlyDictionary<string, IReadOnlyList<string>> ProviderParameters)
+{
+    public IReadOnlyList<string> Validate(GenerationRequest request, IReadOnlyCollection<ProjectAsset> assets)
+    {
+        var errors = new List<string>();
+        if (string.IsNullOrWhiteSpace(request.Prompt)) errors.Add("A prompt is required.");
+        if (!Modes.Contains(request.Mode)) errors.Add($"Mode '{request.Mode}' is not supported by {DisplayName}.");
+        if (request.DurationSeconds < MinimumDurationSeconds || request.DurationSeconds > MaximumDurationSeconds)
+            errors.Add($"Duration must be between {MinimumDurationSeconds} and {MaximumDurationSeconds} seconds.");
+        if (!AspectRatios.Contains(request.AspectRatio, StringComparer.OrdinalIgnoreCase))
+            errors.Add($"Aspect ratio '{request.AspectRatio}' is not supported.");
+        if (!Resolutions.Contains(request.Resolution, StringComparer.OrdinalIgnoreCase))
+            errors.Add($"Resolution '{request.Resolution}' is not supported.");
+
+        var selectedAssets = request.ReferenceAssetIds.Select(id => assets.FirstOrDefault(asset => asset.Id == id)).ToList();
+        if (selectedAssets.Any(asset => asset is null)) errors.Add("One or more reference assets no longer exist in the project.");
+        var references = selectedAssets.OfType<ProjectAsset>().ToList();
+        ValidateReferenceCount(references, MediaType.Image, MaximumImageReferences, errors);
+        ValidateReferenceCount(references, MediaType.Video, MaximumVideoReferences, errors);
+        ValidateReferenceCount(references, MediaType.Audio, MaximumAudioReferences, errors);
+        foreach (var unsupported in references.Where(asset => !SupportedReferenceTypes.Contains(asset.MediaType)))
+            errors.Add($"{unsupported.EffectiveDisplayName} cannot be used as a {unsupported.MediaType} reference.");
+        if (request.Mode == GenerationMode.TextToVideo && references.Count > 0)
+            errors.Add("Text-to-video requests cannot include reference assets.");
+        if (request.Mode != GenerationMode.TextToVideo && references.Count == 0)
+            errors.Add("This generation mode requires at least one reference asset.");
+        return errors;
+    }
+
+    private static void ValidateReferenceCount(IReadOnlyCollection<ProjectAsset> assets, MediaType type, int maximum, List<string> errors)
+    {
+        var count = assets.Count(asset => asset.MediaType == type);
+        if (count > maximum) errors.Add($"At most {maximum} {type.ToString().ToLowerInvariant()} reference(s) are supported.");
+    }
+}
+
+public sealed class GenerationSubmission
+{
+    public string ProviderJobId { get; init; } = string.Empty;
+    public GenerationStatus Status { get; init; } = GenerationStatus.Queued;
+    public Dictionary<string, string> ResponseMetadata { get; init; } = new(StringComparer.Ordinal);
+}
+
+public sealed class Timeline { public List<TimelineClip> Clips { get; set; } = []; }
+
+public sealed class TimelineClip
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid SourceAssetId { get; set; }
+    public Guid? SourceRecipeRevisionId { get; set; }
+    public double InPointSeconds { get; set; }
+    public double OutPointSeconds { get; set; }
+    public double TimelinePositionSeconds { get; set; }
+    public int Track { get; set; }
+    public bool AudioEnabled { get; set; } = true;
+}
+
+public sealed class FrameAnchor
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid AssetId { get; set; }
+    public long? FrameNumber { get; set; }
+    public double TimestampSeconds { get; set; }
+    public string? TimeBase { get; set; }
+    public string? Label { get; set; }
+    public string? Notes { get; set; }
+}

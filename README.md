@@ -1,20 +1,20 @@
-# Seedance Wizard
+﻿# ReelForge
 
-Seedance Wizard is a Windows desktop workspace for AI video-generation prompting, project provenance, and lightweight FFmpeg-based media workflows. It is intentionally not a full nonlinear editor.
+ReelForge is a Windows desktop workspace for AI video-generation prompting, project history, and lightweight FFmpeg-based media workflows. It is intentionally not a full nonlinear editor.
 
 Milestone 1 provides a working architectural slice:
 
 - resizable WPF editor shell with project explorer, preview, inspector, generation panel, and timeline placeholder
-- portable `project.json` projects with `assets/`, `generated/`, `exports/`, and `cache/`
+- portable, JSON-formatted `.rfp` projects with `assets/`, `generated/`, `exports/`, and `cache/`
 - image, video, and audio import with collision-safe filenames
 - video/image preview and basic playback controls
 - FFmpeg/ffprobe PATH discovery plus saved explicit paths and executable browsing, cancellable process execution, safe argument handling, and ffprobe metadata parsing
-- capability-driven `IVideoGenerationProvider` abstraction, a no-cost fake provider, and a schema-verified AtlasCloud Seedance 2.5 adapter
+- capability-driven `IVideoGenerationProvider` abstraction with a no-cost fake provider plus official BytePlus ModelArk and AtlasCloud Seedance 2.5 adapters
 - generation provenance stored with the project
-- Windows Credential Manager secret store for future provider API keys
-- automated tests for persistence, provider validation, media parsing, and command construction
+- Windows Credential Manager storage for BytePlus and AtlasCloud API keys
+- automated tests for persistence, provider contracts, paid-network isolation, media parsing, and command construction
 
-The desktop UI remains on the fake provider so development cannot incur generation charges. The AtlasCloud adapter is implemented and contract-tested with mocked HTTP, but needs credential setup, provider asset references, and job polling before it is enabled in the UI. See [provider research](docs/provider-research.md).
+The desktop defaults to the fake provider. BytePlus ModelArk and AtlasCloud are independently selectable, but a real submission requires a stored credential, an explicit click, and a fresh human-accepted charge warning. Provider tests use in-memory HTTP handlers and cannot make paid generation calls. See [provider research](docs/provider-research.md).
 
 ## Requirements
 
@@ -25,9 +25,9 @@ The desktop UI remains on the fake provider so development cannot incur generati
 ## Build and run
 
 ```powershell
-dotnet restore SeedanceWizard.sln
-dotnet test SeedanceWizard.sln
-dotnet run --project src/SeedanceWizard.App/SeedanceWizard.App.csproj
+dotnet restore ReelForge.sln
+dotnet test ReelForge.sln
+dotnet run --project src/ReelForge.App/ReelForge.App.csproj
 ```
 
 If this repository is running in a restricted agent environment, set `DOTNET_CLI_HOME`, `NUGET_PACKAGES`, `APPDATA`, and `LOCALAPPDATA` to writable task-specific directories before restoring.
@@ -36,7 +36,7 @@ If this repository is running in a restricted agent environment, set `DOTNET_CLI
 
 ```text
 MyProject/
-  project.json
+  MyProject.rfp
   assets/
     images/
     videos/
@@ -46,10 +46,11 @@ MyProject/
   cache/
 ```
 
-All paths stored in `project.json` are relative to the project root. Imported sources are copied; originals are never modified.
+All paths stored in the `.rfp` file are relative to the project root. The file remains ordinary, human-readable JSON despite its project-specific extension. Imported sources are copied; originals are never modified. Legacy `project.json` projects remain openable and are saved in place.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Milestone plan](docs/milestones.md)
 - [Seedance provider research](docs/provider-research.md)
+- [MiniMax H3 local execution research](docs/minimax-h3-local-research.md)
