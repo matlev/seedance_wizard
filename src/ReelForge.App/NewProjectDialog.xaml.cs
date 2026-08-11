@@ -46,7 +46,7 @@ public partial class NewProjectDialog : Window
         var validationError = ValidateProjectName(name);
         if (validationError is not null)
         {
-            ValidationErrorText.Text = validationError;
+            SetValidationError(validationError);
             ProjectNameTextBox.Focus();
             return;
         }
@@ -54,7 +54,7 @@ public partial class NewProjectDialog : Window
         var parentDirectory = Path.GetFullPath(ProjectsLocationTextBox.Text);
         if (!Directory.Exists(parentDirectory))
         {
-            ValidationErrorText.Text = "The projects location no longer exists. Choose another location.";
+            SetValidationError("The projects location no longer exists. Choose another location.");
             return;
         }
 
@@ -62,8 +62,8 @@ public partial class NewProjectDialog : Window
         if (File.Exists(targetDirectory) ||
             (Directory.Exists(targetDirectory) && Directory.EnumerateFileSystemEntries(targetDirectory).Any()))
         {
-            ValidationErrorText.Text =
-                $"A non-empty item named '{name}' already exists in this projects location. Choose another project name.";
+            SetValidationError(
+                $"A non-empty item named '{name}' already exists in this projects location. Choose another project name.");
             return;
         }
 
@@ -80,7 +80,15 @@ public partial class NewProjectDialog : Window
         ProjectFolderPreviewText.Text = string.IsNullOrWhiteSpace(name)
             ? Path.Combine(ProjectsLocationTextBox.Text, "Your project name")
             : Path.Combine(ProjectsLocationTextBox.Text, name);
-        ValidationErrorText.Text = string.Empty;
+        SetValidationError(null);
+    }
+
+    private void SetValidationError(string? message)
+    {
+        ValidationErrorText.Text = message ?? string.Empty;
+        ValidationErrorText.Visibility = string.IsNullOrEmpty(message)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
     }
 
     private static string? ValidateProjectName(string name)
