@@ -74,7 +74,7 @@ public sealed class GenerationWorkflow
         {
             await PrepareReferencesAsync(provider, request, snapshot, authorization, record, progress, cancellationToken)
                 .ConfigureAwait(false);
-            progress?.Report(new GenerationWorkflowProgress(record.Status, record.IngestionStatus, "Submitting generation jobâ€¦"));
+            progress?.Report(new GenerationWorkflowProgress(record.Status, record.IngestionStatus, "Submitting generation job…"));
             var submission = await provider
                 .SubmitAsync(request, _workspace.Project.Assets, authorization, cancellationToken)
                 .ConfigureAwait(false);
@@ -239,7 +239,7 @@ public sealed class GenerationWorkflow
             progress?.Report(new GenerationWorkflowProgress(
                 record.Status,
                 record.IngestionStatus,
-                "Verifying and preparing a logical referenceâ€¦"));
+                "Verifying and preparing a logical reference…"));
             await using var media = await _materializer.MaterializeAsync(
                     _workspace.Project!,
                     _workspace.Location!,
@@ -331,7 +331,7 @@ public sealed class GenerationWorkflow
                 progress?.Report(new GenerationWorkflowProgress(
                     record.Status,
                     record.IngestionStatus,
-                    "Remote generation completed. Downloading and verifying outputâ€¦"));
+                    "Remote generation completed. Downloading and verifying output…"));
                 try
                 {
                     record.IngestionStatus = OutputIngestionStatus.Running;

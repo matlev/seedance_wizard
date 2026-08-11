@@ -19,7 +19,7 @@ prompt
 
 A sophisticated timeline follows this loop rather than delaying it.
 
-## Milestone 1 â€” project and media foundation
+## Milestone 1 — project and media foundation
 
 Delivered:
 
@@ -47,9 +47,9 @@ Architectural debt carried into Milestone 2:
 - schema migration is not implemented;
 - timeline types are placeholders rather than a renderable composition model.
 
-## Milestone 2 â€” AI generation loop on logical media
+## Milestone 2 — AI generation loop on logical media
 
-### Phase 2A â€” foundation for logical media and generation history
+### Phase 2A — foundation for logical media and generation history
 
 Implemented on the Milestone 2 branch. The materialization/provider-preparation items in this phase are contracts only; rendering, uploading, and paid submission remain later work.
 
@@ -86,7 +86,7 @@ Phase acceptance checks:
 - a main video cannot depend on cache storage;
 - deleting the entire cache does not invalidate generation history.
 
-### Phase 2B â€” complete the generation loop
+### Phase 2B — complete the generation loop
 
 Implemented on the `milestone-2` branch. All automated verification is network-isolated and no paid request was made. The desktop defaults to the fake provider; official BytePlus ModelArk and AtlasCloud are independently selectable and either real submission is reachable only from an explicit button click followed by a per-request human charge confirmation. BytePlus is the preferred route for the first human acceptance test; AtlasCloud remains an alternate provider. Virtual recipe and frame-anchor representations remain deliberately rejected until their materializers arrive in Phases 2D and 2C respectively.
 
@@ -131,9 +131,9 @@ Phase acceptance checks:
 - retry creates a distinct potentially billable job and never overwrites the original failure;
 - clearing materialization cache does not affect job history, output assets, or logical references.
 
-### Phase 2C â€” frame and continuation workflow
+### Phase 2C — frame and continuation workflow
 
-Enable the core generate â†’ inspect â†’ anchor â†’ continue loop:
+Enable the core generate → inspect → anchor → continue loop:
 
 1. Add frame-range inspection/contact browsing without retaining every review frame.
 2. Create, label, edit, and delete persistent frame anchors.
@@ -151,9 +151,9 @@ Phase acceptance checks:
 - cache deletion removes no continuation provenance;
 - a provider-incompatible anchor representation is converted by materialization/provider preparation rather than by the UI.
 
-### Phase 2D â€” basic recipe-based media operations
+### Phase 2D — basic recipe-based media operations
 
-1. Add virtual trims for source-start â†’ anchor, anchor â†’ source-end, and anchor â†’ anchor.
+1. Add virtual trims for source-start → anchor, anchor → source-end, and anchor → anchor.
 2. Persist trims as recipes without eagerly retaining MP4s.
 3. Reuse and expand existing media encoding inspection.
 4. Add compatibility analysis as data/planning, not an eager normalization side effect.
@@ -172,7 +172,7 @@ Phase acceptance checks:
 - clearing all materializations leaves recipes openable and reproducible;
 - a promoted rendition becomes a physical asset while its virtual source remains intact.
 
-### Phase 2E â€” timeline
+### Phase 2E — timeline
 
 Only after the generation, anchor, and recipe foundations are stable:
 

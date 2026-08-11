@@ -219,7 +219,7 @@ public partial class MainWindow : Window, IDisposable
     private void ConfigureGenerationPanel()
     {
         var capabilities = _generationProvider.Capabilities;
-        ProviderText.Text = $"{capabilities.DisplayName}\n{capabilities.ModelVersion} â€¢ no paid API calls";
+        ProviderText.Text = $"{capabilities.DisplayName}\n{capabilities.ModelVersion} • no paid API calls";
 
         var costText = _generationProvider.CostBehavior == GenerationProviderCostBehavior.NoCharge
             ? "No network or billing"
@@ -227,7 +227,7 @@ public partial class MainWindow : Window, IDisposable
         ProviderText.Text = $"{capabilities.ModelVersion}\n{costText}";
         GenerateButton.Content = _generationProvider.CostBehavior == GenerationProviderCostBehavior.NoCharge
             ? "Run fake generation"
-            : "Review and submit paid generationâ€¦";
+            : "Review and submit paid generation…";
         var supportsWatermark = capabilities.ProviderParameters.ContainsKey("watermark");
         WatermarkCheckBox.Visibility = supportsWatermark ? Visibility.Visible : Visibility.Collapsed;
         WatermarkHelpText.Visibility = supportsWatermark ? Visibility.Visible : Visibility.Collapsed;
@@ -344,7 +344,7 @@ public partial class MainWindow : Window, IDisposable
         if (dialog.ShowDialog() != true) return;
 
         await RunUiActionAsync(
-            "Creating projectâ€¦",
+            "Creating project…",
             async () =>
             {
                 await _workspace.CreateAsync(dialog.ProjectDirectory, dialog.ProjectName);
@@ -368,7 +368,7 @@ public partial class MainWindow : Window, IDisposable
         if (dialog.ShowDialog() != true) return;
 
         await RunUiActionAsync(
-            "Opening projectâ€¦",
+            "Opening project…",
             async () =>
             {
                 await _workspace.OpenAsync(dialog.ProjectFilePath);
@@ -379,7 +379,7 @@ public partial class MainWindow : Window, IDisposable
     private async void SaveProject_Click(object sender, RoutedEventArgs e)
     {
         await RunUiActionAsync(
-            "Saving projectâ€¦",
+            "Saving project…",
             async () =>
             {
                 await _workspace.SaveAsync();
@@ -408,7 +408,7 @@ public partial class MainWindow : Window, IDisposable
         }
 
         await RunUiActionAsync(
-            $"Importing {dialog.FileNames.Length} asset(s)â€¦",
+            $"Importing {dialog.FileNames.Length} asset(s)…",
             async () =>
             {
                 var imported = await _workspace.ImportAssetsAsync(dialog.FileNames);
@@ -428,7 +428,7 @@ public partial class MainWindow : Window, IDisposable
         GenerationsList.SelectedItem = null;
 
         await RunUiActionAsync(
-            $"Inspecting {asset.FileName}â€¦",
+            $"Inspecting {asset.FileName}…",
             async () =>
             {
                 if (asset.MediaType is MediaType.Video or MediaType.Audio &&
@@ -519,7 +519,7 @@ public partial class MainWindow : Window, IDisposable
         _monitoringCancellation = new CancellationTokenSource();
         var progress = new Progress<GenerationWorkflowProgress>(update =>
         {
-            GenerationStatusText.Text = $"{update.Message}\nRemote: {update.RemoteStatus} â€¢ Ingestion: {update.IngestionStatus}";
+            GenerationStatusText.Text = $"{update.Message}\nRemote: {update.RemoteStatus} • Ingestion: {update.IngestionStatus}";
             if (update.Message.StartsWith("Remote job:", StringComparison.Ordinal))
                 StopMonitoringButton.IsEnabled = true;
         });
@@ -583,7 +583,7 @@ public partial class MainWindow : Window, IDisposable
         ResumeMonitoringButton.IsEnabled = false;
         StopMonitoringButton.IsEnabled = true;
         var progress = new Progress<GenerationWorkflowProgress>(update =>
-            GenerationStatusText.Text = $"{update.Message}\nRemote: {update.RemoteStatus} â€¢ Ingestion: {update.IngestionStatus}");
+            GenerationStatusText.Text = $"{update.Message}\nRemote: {update.RemoteStatus} • Ingestion: {update.IngestionStatus}");
         try
         {
             await _generationWorkflow.ResumeMonitoringAsync(
@@ -719,7 +719,7 @@ public partial class MainWindow : Window, IDisposable
             }
             ReferenceAssetsGrid.Items.Refresh();
             LineageText.Text = draft.ParentGenerationId is { } parent
-                ? $"{draft.RelationshipType} â€¢ parent {parent}"
+                ? $"{draft.RelationshipType} • parent {parent}"
                 : "New root generation";
         }
         finally
@@ -849,8 +849,8 @@ public partial class MainWindow : Window, IDisposable
             LoadDraftIntoUi(draft);
         _suppressDraftAutosave = false;
 
-        ProjectTitleText.Text = $"{_workspace.Project.Name}  â€¢  {_assets.Count} assets";
-        Title = $"{_workspace.Project.Name} â€” ReelForge";
+        ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} assets";
+        Title = $"{_workspace.Project.Name} — ReelForge";
         StatusText.Text = _workspace.Location!.Migration is { } migration
             ? $"Upgraded schema {migration.FromVersion} to {migration.ToVersion}. Backup: {migration.BackupPath}"
             : $"Opened {_workspace.Location.ProjectFilePath}";
@@ -894,7 +894,7 @@ public partial class MainWindow : Window, IDisposable
         foreach (var generation in _workspace.Project.Generations.OrderByDescending(item => item.RequestedAt))
             _generations.Add(generation);
 
-        ProjectTitleText.Text = $"{_workspace.Project.Name}  â€¢  {_assets.Count} assets";
+        ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} assets";
     }
 
     private string GetSelectedOutputFormat() =>
@@ -928,7 +928,7 @@ public partial class MainWindow : Window, IDisposable
 
     private static string FormatGenerationOutcome(GenerationRecord generation)
     {
-        var message = $"Remote: {generation.Status} â€¢ Ingestion: {generation.IngestionStatus}";
+        var message = $"Remote: {generation.Status} • Ingestion: {generation.IngestionStatus}";
         if (!string.IsNullOrWhiteSpace(generation.ProviderJobId))
             message += $"\nJob: {generation.ProviderJobId}";
         if (generation.Error is not null)
@@ -1003,30 +1003,30 @@ public partial class MainWindow : Window, IDisposable
 
         builder.AppendLine();
         builder.AppendLine("CONTAINER");
-        builder.AppendLine($"Format: {encoding.ContainerFormat ?? "â€”"}");
+        builder.AppendLine($"Format: {encoding.ContainerFormat ?? "—"}");
         builder.AppendLine($"Size: {FormatBytes(encoding.SizeBytes)}");
-        builder.AppendLine($"Bit rate: {encoding.BitRate?.ToString("N0", CultureInfo.InvariantCulture) ?? "â€”"} bps");
+        builder.AppendLine($"Bit rate: {encoding.BitRate?.ToString("N0", CultureInfo.InvariantCulture) ?? "—"} bps");
 
         if (encoding.Video is { } video)
         {
             builder.AppendLine();
             builder.AppendLine("VIDEO");
-            builder.AppendLine($"Codec: {video.Codec ?? "â€”"} / {video.CodecProfile ?? "â€”"}");
-            builder.AppendLine($"Dimensions: {video.Width?.ToString(CultureInfo.InvariantCulture) ?? "â€”"} Ã— {video.Height?.ToString(CultureInfo.InvariantCulture) ?? "â€”"}");
-            builder.AppendLine($"Pixel format: {video.PixelFormat ?? "â€”"}");
-            builder.AppendLine($"Frame rate: {video.FrameRate ?? "â€”"}");
-            builder.AppendLine($"Time base: {video.TimeBase ?? "â€”"}");
-            builder.AppendLine($"Codec level: {video.CodecLevel?.ToString(CultureInfo.InvariantCulture) ?? "â€”"}");
+            builder.AppendLine($"Codec: {video.Codec ?? "—"} / {video.CodecProfile ?? "—"}");
+            builder.AppendLine($"Dimensions: {video.Width?.ToString(CultureInfo.InvariantCulture) ?? "—"} × {video.Height?.ToString(CultureInfo.InvariantCulture) ?? "—"}");
+            builder.AppendLine($"Pixel format: {video.PixelFormat ?? "—"}");
+            builder.AppendLine($"Frame rate: {video.FrameRate ?? "—"}");
+            builder.AppendLine($"Time base: {video.TimeBase ?? "—"}");
+            builder.AppendLine($"Codec level: {video.CodecLevel?.ToString(CultureInfo.InvariantCulture) ?? "—"}");
         }
 
         if (encoding.Audio is { } audio)
         {
             builder.AppendLine();
             builder.AppendLine("AUDIO");
-            builder.AppendLine($"Codec: {audio.Codec ?? "â€”"}");
-            builder.AppendLine($"Sample rate: {audio.SampleRate?.ToString(CultureInfo.InvariantCulture) ?? "â€”"} Hz");
-            builder.AppendLine($"Channels: {audio.Channels?.ToString(CultureInfo.InvariantCulture) ?? "â€”"}");
-            builder.AppendLine($"Layout: {audio.ChannelLayout ?? "â€”"}");
+            builder.AppendLine($"Codec: {audio.Codec ?? "—"}");
+            builder.AppendLine($"Sample rate: {audio.SampleRate?.ToString(CultureInfo.InvariantCulture) ?? "—"} Hz");
+            builder.AppendLine($"Channels: {audio.Channels?.ToString(CultureInfo.InvariantCulture) ?? "—"}");
+            builder.AppendLine($"Layout: {audio.ChannelLayout ?? "—"}");
         }
 
         return builder.ToString();
@@ -1040,9 +1040,9 @@ public partial class MainWindow : Window, IDisposable
         builder.AppendLine($"Output ingestion: {generation.IngestionStatus}");
         builder.AppendLine($"Provider: {generation.RequestSnapshot.ProviderId}");
         builder.AppendLine($"Model: {generation.RequestSnapshot.ModelVersion}");
-        builder.AppendLine($"Provider job: {generation.ProviderJobId ?? "â€”"}");
+        builder.AppendLine($"Provider job: {generation.ProviderJobId ?? "—"}");
         builder.AppendLine($"Requested: {generation.RequestedAt.LocalDateTime:g}");
-        builder.AppendLine($"Completed: {generation.CompletedAt?.LocalDateTime.ToString("g", CultureInfo.CurrentCulture) ?? "â€”"}");
+        builder.AppendLine($"Completed: {generation.CompletedAt?.LocalDateTime.ToString("g", CultureInfo.CurrentCulture) ?? "—"}");
         builder.AppendLine();
         builder.AppendLine("PROMPT");
         builder.AppendLine(generation.RequestSnapshot.Prompt);
@@ -1054,14 +1054,14 @@ public partial class MainWindow : Window, IDisposable
         builder.AppendLine($"Resolution: {generation.RequestSnapshot.Resolution}");
         builder.AppendLine($"References: {generation.RequestSnapshot.References.Count}");
         builder.AppendLine($"Lineage: {generation.RelationshipType?.ToString() ?? "root"}");
-        builder.AppendLine($"Parent: {generation.ParentGenerationId?.ToString() ?? "â€”"}");
+        builder.AppendLine($"Parent: {generation.ParentGenerationId?.ToString() ?? "—"}");
         builder.AppendLine($"Output assets: {generation.OutputAssetIds.Count}");
 
         foreach (var reference in generation.RequestSnapshot.References.OrderBy(item => item.Order))
         {
             builder.AppendLine(
-                $"  [{reference.Order}] {reference.ObjectKind} {reference.LogicalObjectId} â€¢ {reference.Role?.ToString() ?? "general"}" +
-                (string.IsNullOrWhiteSpace(reference.Label) ? string.Empty : $" â€¢ {reference.Label}"));
+                $"  [{reference.Order}] {reference.ObjectKind} {reference.LogicalObjectId} • {reference.Role?.ToString() ?? "general"}" +
+                (string.IsNullOrWhiteSpace(reference.Label) ? string.Empty : $" • {reference.Label}"));
         }
 
         foreach (var pair in generation.ResponseMetadata)
@@ -1087,7 +1087,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (bytes is null)
         {
-            return "â€”";
+            return "—";
         }
 
         string[] units = ["B", "KB", "MB", "GB", "TB"];

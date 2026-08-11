@@ -38,7 +38,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBox x:Name="ProjectsLocationTextBox" IsReadOnly="True" />
-                <Button Grid.Column="1" Content="Browseâ€¦" Click="BrowseProjectsLocation_Click" Margin="7,0,0,0" />
+                <Button Grid.Column="1" Content="Browse…" Click="BrowseProjectsLocation_Click" Margin="7,0,0,0" />
             </Grid>
         </StackPanel>
 

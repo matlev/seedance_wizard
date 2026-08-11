@@ -80,7 +80,7 @@ See [MiniMax H3 local execution research](minimax-h3-local-research.md) for the 
 | `AssetProvenance` | Links source IDs, generation IDs, operation names, and parameters | Stringly typed provenance cannot safely serve as the recipe itself. Provenance should describe history; a typed recipe should define reproduction. |
 | `FrameAnchor` | Has an ID, source asset, timestamp, frame number, and label | `VideoProject` has no anchor collection, so anchors are not currently durable project state. Frame number is mandatory even when unreliable. Notes and time-basis semantics are absent. |
 | `Timeline` / `TimelineClip` | Already references assets by ID and stores non-destructive in/out positions | No tracks or recipe/render-plan boundary; current code assumes an asset can be resolved directly to a path. |
-| `PortableProjectStore` | Schema field, portable relative paths, atomic save | Supports only â€œreject newer schemaâ€; it has no migration chain. It creates `cache/` but defines no deletion or reconstruction semantics. |
+| `PortableProjectStore` | Schema field, portable relative paths, atomic save | Supports only “reject newer schema”; it has no migration chain. It creates `cache/` but defines no deletion or reconstruction semantics. |
 | `AssetImportService` | Copies user media into durable project storage and inspects it | Correct for physical imports, but it should not be reused for virtual outputs or cache promotion without explicit semantics. |
 | `ProjectWorkspace.GetAbsoluteAssetPath` | Centralizes relative-path resolution | Cannot represent a virtual asset. Consumers must request materialization rather than assume all assets have paths. |
 | `FfmpegCommandBuilder` / process runner | Pure arguments, safe process execution, cancellation, captured diagnostics | Commands operate on paths directly; there is no recipe compiler, dependency planner, cache key, or materialized-result lease. |
@@ -206,7 +206,7 @@ RecipeDraft                     mutable UI/application state
 
 An actively edited recipe draft may mutate freely and need not create permanent history for every control change. Committing creates a new immutable `RecipeRevision`, links it to the previous revision when present, and advances the virtual asset's current-revision pointer. A committed revision is never edited in place once authoritative or referenced by another recipe, generation, timeline operation, export, or other durable object.
 
-Durable references pin both the virtual asset ID and exact recipe revision ID. They never mean â€œwhatever revision is current later.â€ References from one committed recipe to another likewise pin the dependency revision. Deleting or compacting a revision is prohibited while any authoritative project object references it. Cache/materialization keys include the committed revision identity and canonical payload, plus transitive content identities.
+Durable references pin both the virtual asset ID and exact recipe revision ID. They never mean “whatever revision is current later.” References from one committed recipe to another likewise pin the dependency revision. Deleting or compacting a revision is prohibited while any authoritative project object references it. Cache/materialization keys include the committed revision identity and canonical payload, plus transitive content identities.
 
 ### Graph rules
 
@@ -303,7 +303,7 @@ cache/
   index.json              optional and disposable
 ```
 
-The subdivision is operational, not semantic. Every entryâ€”including `index.json`â€”must be safe to delete while the app is closed. Startup should tolerate a missing or partially populated cache and remove abandoned temporary files safely.
+The subdivision is operational, not semantic. Every entry—including `index.json`—must be safe to delete while the app is closed. Startup should tolerate a missing or partially populated cache and remove abandoned temporary files safely.
 
 A cache key should use canonical, culture-invariant serialization of:
 
@@ -332,7 +332,7 @@ The virtual source remains intact after promotion. Future recipe edits produce a
 
 ### Main-video durability
 
-`MainVideoAssetId` may point only to a durable physical video asset. Making a virtual asset or retained materialization the main video invokes durable promotion first; it cannot leave the project dependent on cache storage. Demoting a main video changes only the designationâ€”the file remains an ordinary durable project asset. Deleting the main video requires the user to select another durable video or explicitly leave the project without one; the application must not silently promote or delete another asset.
+`MainVideoAssetId` may point only to a durable physical video asset. Making a virtual asset or retained materialization the main video invokes durable promotion first; it cannot leave the project dependent on cache storage. Demoting a main video changes only the designation—the file remains an ordinary durable project asset. Deleting the main video requires the user to select another durable video or explicitly leave the project without one; the application must not silently promote or delete another asset.
 
 ## Timeline implications
 
@@ -470,7 +470,7 @@ Generation 31
       role: character reference
 ```
 
-The parent plus relationship type answers â€œwhy was 31 created?â€ The references answer â€œwhat did the provider receive?â€ Neither is inferred from the other. A continuation based on a non-generation clip has no lineage parent unless there is an actual earlier generation; the clip/anchor is represented through references.
+The parent plus relationship type answers “why was 31 created?” The references answer “what did the provider receive?” Neither is inferred from the other. A continuation based on a non-generation clip has no lineage parent unless there is an actual earlier generation; the clip/anchor is represented through references.
 
 ## Logical references, materialization, and providers
 
@@ -570,8 +570,8 @@ Downgrading a version-2 project to version 1 is not generally possible because v
 - **Reproducibility:** FFmpeg upgrades, hardware encoders, nondeterministic metadata, and replaced source files can change byte output. Reproducible intent is achievable; bit-identical output may require pinned software/settings and deterministic metadata.
 - **Hashing cost:** canonical SHA-256 improves correctness but can be expensive for large video. Compute it during durable copy/download where possible, permit an explicit pending state, and perform background completion when needed.
 - **Graph evolution:** immutable committed recipe revisions prevent downstream provenance drift but retain revision metadata over time. Cleanup may remove only unreferenced drafts/revisions under an explicit policy.
-- **Nested render cost:** naÃ¯vely materializing every node creates the very intermediate sprawl being avoided. The planner should fuse compatible operations and materialize only true boundaries.
-- **Frame accuracy:** timestamps, time bases, keyframes, and variable frame rate need explicit semantics. â€œFrame accurateâ€ cannot rely only on UI milliseconds.
+- **Nested render cost:** naïvely materializing every node creates the very intermediate sprawl being avoided. The planner should fuse compatible operations and materialize only true boundaries.
+- **Frame accuracy:** timestamps, time bases, keyframes, and variable frame rate need explicit semantics. “Frame accurate” cannot rely only on UI milliseconds.
 - **Disk pressure:** cache reuse improves speed but needs size/age policy, purge UX, failure handling, and active-lease protection.
 - **Source loss:** portable projects remain reconstructable only while durable sources exist and match their identities. Missing-file relinking is eventually required.
 - **Remote references:** provider asset IDs may expire or be account/region scoped. Persisting them without expiry/fingerprint can submit stale or wrong media.
