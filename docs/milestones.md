@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phase 2A complete; Phase 2B implementation complete with human live acceptance pending.
+Status: Milestone 1 and Milestone 2 Phase 2A complete; Phase 2B implementation includes application settings and private R2 reference hosting, with human live acceptance pending.
 
 ## Product priority
 
@@ -114,10 +114,13 @@ Implemented vertical order within Phase 2B:
 1. Implement AtlasCloud text-to-video, polling, download, inspection, durable ingestion, and provenance end to end.
 2. Add credential/provider/settings UI and documented AtlasCloud multipart reference preparation.
 3. Add official BytePlus ModelArk Seedance 2.5 as a peer adapter using model `dreamina-seedance-2-5-260628`.
-4. Route provider-specific preparation: BytePlus local image/audio data URLs, BytePlus existing HTTPS/`asset://` video references, and AtlasCloud multipart upload.
+4. Route provider-specific preparation: BytePlus local references through provider-neutral private R2 presigned HTTPS URLs (with inline image/audio as a no-host fallback), existing qualified HTTPS/`asset://` references, and AtlasCloud multipart upload.
 5. Keep all contract tests network-isolated and retain the same human-only paid-submission authorization boundary.
 6. Add virtual/anchor reference preparation once materialization is available.
 7. Add retry/duplicate/branch/continuation actions after immutable snapshots and output links are proven.
+8. Consolidate machine configuration into a discoverable Settings window and layered JSON settings model; keep every credential behind `ISecretStore` and out of projects.
+9. Add provider-neutral temporary asset hosting and a private Cloudflare R2 implementation with content-addressed SHA-256 keys, deduplicating `HEAD`/`PUT`, and transient presigned GET URLs.
+10. Route BytePlus materialized references through `ITemporaryAssetHost` without placing Cloudflare details or signed URLs in domain history.
 
 Phase acceptance checks:
 

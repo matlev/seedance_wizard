@@ -19,6 +19,7 @@
                     <Button Content="Open" Click="OpenProject_Click" />
                     <Button Content="Save" Click="SaveProject_Click" />
                     <Button Content="Import assets" Click="ImportAssets_Click" />
+                    <Button Content="Settings" Click="Settings_Click" />
                 </StackPanel>
                 <TextBlock x:Name="ProjectTitleText" Text="No project open" Foreground="{StaticResource MutedTextBrush}"
                            VerticalAlignment="Center" HorizontalAlignment="Right" Margin="12,0" />
@@ -151,38 +152,6 @@
                                           SelectionChanged="ProviderComboBox_SelectionChanged" />
                                 <TextBlock x:Name="ProviderText" Style="{StaticResource ApplicationTextBlockStyle}" TextWrapping="Wrap" Margin="0,5,0,12" />
 
-                                <Border x:Name="BytePlusCredentialPanel" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                        CornerRadius="4" Padding="9" Margin="0,0,0,12" Visibility="Collapsed">
-                                    <StackPanel>
-                                        <TextBlock Text="BYTEPLUS MODELARK CREDENTIAL" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
-                                        <TextBlock Text="Stored only in Windows Credential Manager. It is never written to the .rfp project file."
-                                                   TextWrapping="Wrap" FontSize="11" Margin="0,3,0,7" Foreground="{StaticResource MutedTextBrush}" />
-                                        <PasswordBox x:Name="BytePlusApiKeyPasswordBox" />
-                                        <WrapPanel Margin="0,7,0,0">
-                                            <Button Content="Save API key" Click="SaveBytePlusCredential_Click" Margin="0,0,6,0" />
-                                            <Button Content="Remove API key" Click="RemoveBytePlusCredential_Click" />
-                                        </WrapPanel>
-                                        <TextBlock x:Name="BytePlusCredentialStatusText" TextWrapping="Wrap" Margin="0,6,0,0"
-                                                   Foreground="{StaticResource MutedTextBrush}" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border x:Name="AtlasCredentialPanel" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                        CornerRadius="4" Padding="9" Margin="0,0,0,12" Visibility="Collapsed">
-                                    <StackPanel>
-                                        <TextBlock Text="ATLASCLOUD CREDENTIAL" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
-                                        <TextBlock Text="Stored only in Windows Credential Manager. It is never written to the .rfp project file."
-                                                   TextWrapping="Wrap" FontSize="11" Margin="0,3,0,7" Foreground="{StaticResource MutedTextBrush}" />
-                                        <PasswordBox x:Name="AtlasApiKeyPasswordBox" />
-                                        <WrapPanel Margin="0,7,0,0">
-                                            <Button Content="Save API key" Click="SaveAtlasCredential_Click" Margin="0,0,6,0" />
-                                            <Button Content="Remove API key" Click="RemoveAtlasCredential_Click" />
-                                        </WrapPanel>
-                                        <TextBlock x:Name="AtlasCredentialStatusText" TextWrapping="Wrap" Margin="0,6,0,0"
-                                                   Foreground="{StaticResource MutedTextBrush}" />
-                                    </StackPanel>
-                                </Border>
-
                                 <TextBlock Text="Prompt" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,0,0,4" />
                                 <TextBox x:Name="PromptTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="110"
                                          TextChanged="GenerationDraftChanged" />
@@ -258,42 +227,6 @@
                                     <Button x:Name="ResumeMonitoringButton" Content="Resume selected job" Click="ResumeMonitoring_Click" />
                                 </WrapPanel>
                                 <TextBlock x:Name="GenerationStatusText" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="3,8" />
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-                    <TabItem Header="Tools">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="12">
-                                <TextBlock Text="FFMPEG TOOLS" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
-                                <TextBlock Text="Use PATH auto-detection or browse to each executable explicitly. Paths are saved per Windows user."
-                                           TextWrapping="Wrap" Margin="0,4,0,14" Foreground="{StaticResource MutedTextBrush}" />
-
-                                <TextBlock Text="FFmpeg executable" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,0,0,4" />
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="FfmpegPathTextBox" VerticalContentAlignment="Center" />
-                                    <Button Grid.Column="1" Content="Browseâ€¦" Click="BrowseFfmpeg_Click" Margin="6,0,0,0" />
-                                </Grid>
-
-                                <TextBlock Text="ffprobe executable" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="FfprobePathTextBox" VerticalContentAlignment="Center" />
-                                    <Button Grid.Column="1" Content="Browseâ€¦" Click="BrowseFfprobe_Click" Margin="6,0,0,0" />
-                                </Grid>
-
-                                <WrapPanel Margin="0,14,0,0">
-                                    <Button Content="Auto-detect from PATH" Click="AutoDetectTools_Click" Margin="0,0,7,0" />
-                                    <Button Content="Save and apply" Click="SaveTools_Click" Background="{StaticResource AccentBrush}" Foreground="White" />
-                                </WrapPanel>
-                                <TextBlock x:Name="MediaToolSettingsStatusText" TextWrapping="Wrap" Margin="2,10,0,0"
-                                           Foreground="{StaticResource MutedTextBrush}" />
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>

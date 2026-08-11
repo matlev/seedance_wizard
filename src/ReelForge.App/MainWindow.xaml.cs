@@ -27,10 +27,13 @@ public partial class MainWindow : Window, IDisposable
     private readonly ISecretStore _secretStore;
     private readonly HttpClient _atlasHttpClient;
     private readonly HttpClient _bytePlusHttpClient;
+    private readonly HttpClient _r2HttpClient;
     private readonly HttpClient _downloadHttpClient;
     private IVideoGenerationProvider _generationProvider;
     private readonly IMediaToolDiscovery _mediaToolDiscovery;
-    private readonly IMediaToolSettingsStore _mediaToolSettingsStore;
+    private readonly IApplicationSettingsStore _applicationSettingsStore;
+    private readonly ITemporaryAssetHost _temporaryAssetHost;
+    private ApplicationSettings _applicationSettings;
     private MediaToolAvailability _mediaTools;
     private readonly DispatcherTimer _positionTimer;
     private readonly DispatcherTimer _draftAutosaveTimer;
@@ -43,8 +46,9 @@ public partial class MainWindow : Window, IDisposable
         InitializeComponent();
 
         _mediaToolDiscovery = new MediaToolDiscovery();
-        _mediaToolSettingsStore = new JsonMediaToolSettingsStore();
-        var configuredTools = LoadMediaToolConfiguration();
+        _applicationSettingsStore = new JsonApplicationSettingsStore();
+        _applicationSettings = LoadApplicationSettings();
+        var configuredTools = _applicationSettings.MediaTools;
         _mediaTools = _mediaToolDiscovery.Discover(configuredTools.FfmpegPath, configuredTools.FfprobePath);
         var processRunner = new ExternalProcessRunner();
         _mediaInspector = new FfprobeMediaInspectionService(_mediaTools.FfprobePath, processRunner);
@@ -54,15 +58,24 @@ public partial class MainWindow : Window, IDisposable
         _secretStore = new WindowsCredentialStore();
         _atlasHttpClient = new HttpClient
         {
-            BaseAddress = new Uri("https://api.atlascloud.ai/"),
+            BaseAddress = RequireHttpsBaseUri(
+                _applicationSettings.VideoGenerationProviders.AtlasCloud.ApiBaseUrl,
+                "AtlasCloud"),
             Timeout = TimeSpan.FromMinutes(10)
         };
         _bytePlusHttpClient = new HttpClient
         {
-            BaseAddress = new Uri("https://ark.ap-southeast.bytepluses.com/api/v3/"),
+            BaseAddress = RequireHttpsBaseUri(
+                _applicationSettings.VideoGenerationProviders.BytePlus.ApiBaseUrl,
+                "BytePlus"),
             Timeout = TimeSpan.FromMinutes(10)
         };
+        _r2HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _downloadHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        _temporaryAssetHost = new CloudflareR2TemporaryAssetHost(
+            _applicationSettingsStore,
+            _secretStore,
+            new CloudflareR2ClientFactory(_r2HttpClient));
         var fakeProvider = new FakeVideoGenerationProvider();
         var bytePlusProvider = new BytePlusModelArkSeedance25Provider(
             _bytePlusHttpClient,
@@ -72,12 +85,12 @@ public partial class MainWindow : Window, IDisposable
             _atlasHttpClient,
             _secretStore,
             new ProjectAssetReferenceResolver());
-        _providerChoices =
-        [
-            new GenerationProviderChoice(fakeProvider),
-            new GenerationProviderChoice(bytePlusProvider),
-            new GenerationProviderChoice(atlasProvider)
-        ];
+        var providerChoices = new List<GenerationProviderChoice> { new(fakeProvider) };
+        if (_applicationSettings.VideoGenerationProviders.BytePlus.Enabled)
+            providerChoices.Add(new GenerationProviderChoice(bytePlusProvider));
+        if (_applicationSettings.VideoGenerationProviders.AtlasCloud.Enabled)
+            providerChoices.Add(new GenerationProviderChoice(atlasProvider));
+        _providerChoices = providerChoices;
         _generationProvider = fakeProvider;
         _generationWorkflow = new GenerationWorkflow(
             _workspace,
@@ -86,7 +99,8 @@ public partial class MainWindow : Window, IDisposable
             new ProviderAssetPreparationRouter(
                 new Dictionary<string, IProviderAssetPreparationService>(StringComparer.Ordinal)
                 {
-                    [BytePlusModelArkSeedance25Provider.ProviderId] = new BytePlusModelArkAssetPreparationService(),
+                    [BytePlusModelArkSeedance25Provider.ProviderId] =
+                        new BytePlusModelArkAssetPreparationService(_temporaryAssetHost),
                     [AtlasCloudSeedance25Provider.ProviderId] =
                         new AtlasCloudAssetPreparationService(_atlasHttpClient, _secretStore)
                 }));
@@ -107,9 +121,6 @@ public partial class MainWindow : Window, IDisposable
         _draftAutosaveTimer.Tick += DraftAutosaveTimer_Tick;
 
         MediaToolsText.Text = _mediaTools.Summary;
-        FfmpegPathTextBox.Text = _mediaTools.FfmpegPath ?? configuredTools.FfmpegPath ?? string.Empty;
-        FfprobePathTextBox.Text = _mediaTools.FfprobePath ?? configuredTools.FfprobePath ?? string.Empty;
-        MediaToolSettingsStatusText.Text = _mediaTools.Summary;
     }
 
     protected override void OnClosed(EventArgs e)
@@ -126,92 +137,49 @@ public partial class MainWindow : Window, IDisposable
         _monitoringCancellation?.Dispose();
         _atlasHttpClient.Dispose();
         _bytePlusHttpClient.Dispose();
+        _r2HttpClient.Dispose();
         _downloadHttpClient.Dispose();
         GC.SuppressFinalize(this);
     }
 
-    private MediaToolConfiguration LoadMediaToolConfiguration()
+    private ApplicationSettings LoadApplicationSettings()
     {
         try
         {
-            return _mediaToolSettingsStore.LoadAsync().GetAwaiter().GetResult();
+            return _applicationSettingsStore.LoadAsync().GetAwaiter().GetResult();
         }
         catch
         {
-            return new MediaToolConfiguration();
+            return new ApplicationSettings();
         }
     }
 
-    private void BrowseFfmpeg_Click(object sender, RoutedEventArgs e) =>
-        BrowseForMediaTool("Select ffmpeg.exe", "ffmpeg.exe", FfmpegPathTextBox);
-
-    private void BrowseFfprobe_Click(object sender, RoutedEventArgs e) =>
-        BrowseForMediaTool("Select ffprobe.exe", "ffprobe.exe", FfprobePathTextBox);
-
-    private void BrowseForMediaTool(string title, string expectedFileName, TextBox target)
+    private static Uri RequireHttpsBaseUri(string value, string providerName)
     {
-        var dialog = new OpenFileDialog
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+            throw new InvalidOperationException($"{providerName} API base URL must be an absolute HTTPS URL.");
+        return uri;
+    }
+
+    private async void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new SettingsWindow(
+            _applicationSettingsStore,
+            _applicationSettings.Clone(),
+            _secretStore,
+            _mediaToolDiscovery,
+            _temporaryAssetHost)
         {
-            Title = title,
-            Filter = $"{expectedFileName}|{expectedFileName}|Executables (*.exe)|*.exe|All files|*.*",
-            CheckFileExists = true,
-            Multiselect = false
+            Owner = this
         };
-
-        if (dialog.ShowDialog(this) == true)
-        {
-            target.Text = dialog.FileName;
-        }
-    }
-
-    private void AutoDetectTools_Click(object sender, RoutedEventArgs e)
-    {
-        var detected = _mediaToolDiscovery.Discover();
-        FfmpegPathTextBox.Text = detected.FfmpegPath ?? string.Empty;
-        FfprobePathTextBox.Text = detected.FfprobePath ?? string.Empty;
-        MediaToolSettingsStatusText.Text = detected.Summary;
-    }
-
-    private async void SaveTools_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(
-            "Saving media tool settingsâ€¦",
-            async () =>
-            {
-                var configuration = new MediaToolConfiguration
-                {
-                    FfmpegPath = ValidateExecutablePath(FfmpegPathTextBox.Text, "ffmpeg.exe"),
-                    FfprobePath = ValidateExecutablePath(FfprobePathTextBox.Text, "ffprobe.exe")
-                };
-
-                await _mediaToolSettingsStore.SaveAsync(configuration);
-                _mediaTools = _mediaToolDiscovery.Discover(configuration.FfmpegPath, configuration.FfprobePath);
-                _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
-                MediaToolsText.Text = _mediaTools.Summary;
-                MediaToolSettingsStatusText.Text = _mediaTools.Summary;
-                StatusText.Text = "Media tool settings saved and applied.";
-            });
-    }
-
-    private static string? ValidateExecutablePath(string value, string expectedFileName)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var fullPath = Path.GetFullPath(value.Trim());
-        if (!File.Exists(fullPath))
-        {
-            throw new FileNotFoundException($"The selected {expectedFileName} does not exist.", fullPath);
-        }
-
-        if (!Path.GetFileName(fullPath).Equals(expectedFileName, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"Select {expectedFileName}, not {Path.GetFileName(fullPath)}.");
-        }
-
-        return fullPath;
+        window.ShowDialog();
+        _applicationSettings = await _applicationSettingsStore.LoadAsync();
+        _mediaTools = _mediaToolDiscovery.Discover(
+            _applicationSettings.MediaTools.FfmpegPath,
+            _applicationSettings.MediaTools.FfprobePath);
+        _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
+        MediaToolsText.Text = _mediaTools.Summary;
+        StatusText.Text = "Application settings applied. Provider enablement or base URL changes apply after restart.";
     }
 
     private void ConfigureGenerationPanel()
@@ -223,12 +191,6 @@ public partial class MainWindow : Window, IDisposable
             ? "No network or billing"
             : "Potentially billable; explicit confirmation required for every submission";
         ProviderText.Text = $"{capabilities.ModelVersion}\n{costText}";
-        AtlasCredentialPanel.Visibility = capabilities.ProviderId == AtlasCloudSeedance25Provider.ProviderId
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        BytePlusCredentialPanel.Visibility = capabilities.ProviderId == BytePlusModelArkSeedance25Provider.ProviderId
-            ? Visibility.Visible
-            : Visibility.Collapsed;
         GenerateButton.Content = _generationProvider.CostBehavior == GenerationProviderCostBehavior.NoCharge
             ? "Run fake generation"
             : "Review and submit paid generationâ€¦";
@@ -259,7 +221,7 @@ public partial class MainWindow : Window, IDisposable
             : capabilities.Resolutions[0];
     }
 
-    private async void ProviderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void ProviderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ProviderComboBox.SelectedItem is not GenerationProviderChoice choice) return;
         _generationProvider = choice.Provider;
@@ -273,111 +235,7 @@ public partial class MainWindow : Window, IDisposable
             _suppressDraftAutosave = false;
         }
 
-        if (_generationProvider.Capabilities.ProviderId == AtlasCloudSeedance25Provider.ProviderId)
-            await RefreshAtlasCredentialStatusAsync();
-        else if (_generationProvider.Capabilities.ProviderId == BytePlusModelArkSeedance25Provider.ProviderId)
-            await RefreshBytePlusCredentialStatusAsync();
         ScheduleDraftAutosave();
-    }
-
-    private async void SaveAtlasCredential_Click(object sender, RoutedEventArgs e)
-    {
-        var value = AtlasApiKeyPasswordBox.Password;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            AtlasCredentialStatusText.Text = "Enter an API key before saving.";
-            return;
-        }
-
-        try
-        {
-            await _secretStore.SetAsync(AtlasCloudSeedance25Provider.CredentialKey, value.Trim());
-            AtlasApiKeyPasswordBox.Clear();
-            AtlasCredentialStatusText.Text = "API key stored in Windows Credential Manager.";
-        }
-        catch (Exception exception)
-        {
-            ShowError("Credential storage failed", exception);
-        }
-    }
-
-    private async void RemoveAtlasCredential_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            await _secretStore.DeleteAsync(AtlasCloudSeedance25Provider.CredentialKey);
-            AtlasApiKeyPasswordBox.Clear();
-            AtlasCredentialStatusText.Text = "AtlasCloud API key removed.";
-        }
-        catch (Exception exception)
-        {
-            ShowError("Credential removal failed", exception);
-        }
-    }
-
-    private async Task RefreshAtlasCredentialStatusAsync()
-    {
-        try
-        {
-            var value = await _secretStore.GetAsync(AtlasCloudSeedance25Provider.CredentialKey);
-            AtlasCredentialStatusText.Text = string.IsNullOrWhiteSpace(value)
-                ? "No API key is stored. Live submission is unavailable."
-                : "An API key is stored. Its value is never displayed.";
-        }
-        catch (Exception exception)
-        {
-            AtlasCredentialStatusText.Text = $"Credential status unavailable: {exception.Message}";
-        }
-    }
-
-    private async void SaveBytePlusCredential_Click(object sender, RoutedEventArgs e)
-    {
-        var value = BytePlusApiKeyPasswordBox.Password;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            BytePlusCredentialStatusText.Text = "Enter an API key before saving.";
-            return;
-        }
-
-        try
-        {
-            await _secretStore.SetAsync(BytePlusModelArkSeedance25Provider.CredentialKey, value.Trim());
-            BytePlusApiKeyPasswordBox.Clear();
-            BytePlusCredentialStatusText.Text = "API key stored in Windows Credential Manager.";
-        }
-        catch (Exception exception)
-        {
-            ShowError("Credential storage failed", exception);
-        }
-    }
-
-    private async void RemoveBytePlusCredential_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            await _secretStore.DeleteAsync(BytePlusModelArkSeedance25Provider.CredentialKey);
-            BytePlusApiKeyPasswordBox.Clear();
-            BytePlusCredentialStatusText.Text = "BytePlus ModelArk API key removed.";
-        }
-        catch (Exception exception)
-        {
-            ShowError("Credential removal failed", exception);
-        }
-    }
-
-    private async Task RefreshBytePlusCredentialStatusAsync()
-    {
-        try
-        {
-            var value = await _secretStore.GetAsync(BytePlusModelArkSeedance25Provider.CredentialKey);
-            BytePlusCredentialStatusText.Text = string.IsNullOrWhiteSpace(value)
-                ? "No API key is stored. Live submission is unavailable."
-                : "An API key is stored. Its value is never displayed.";
-        }
-        catch (Exception exception)
-        {
-            BytePlusCredentialStatusText.Text = $"Credential status unavailable: {exception.Message}";
-        }
     }
 
     private void GenerationDraftChanged(object sender, EventArgs e) => ScheduleDraftAutosave();
@@ -460,8 +318,10 @@ public partial class MainWindow : Window, IDisposable
             });
     }
 
-    private static string GetDefaultProjectsDirectory()
+    private string GetDefaultProjectsDirectory()
     {
+        if (!string.IsNullOrWhiteSpace(_applicationSettings.General.ProjectsRoot))
+            return Environment.ExpandEnvironmentVariables(_applicationSettings.General.ProjectsRoot);
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         if (string.IsNullOrWhiteSpace(documents))
             documents = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents");

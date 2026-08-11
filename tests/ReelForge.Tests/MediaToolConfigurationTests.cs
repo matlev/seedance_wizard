@@ -29,19 +29,20 @@ public sealed class MediaToolConfigurationTests : IDisposable
     [Fact]
     public async Task SettingsRoundTripExplicitPaths()
     {
-        var settingsPath = Path.Combine(_temporaryRoot, "settings", "settings.json");
-        var store = new JsonMediaToolSettingsStore(settingsPath);
-        var configuration = new MediaToolConfiguration
-        {
-            FfmpegPath = @"C:\Tools With Spaces\ffmpeg.exe",
-            FfprobePath = @"D:\Video\ffprobe.exe"
-        };
+        var settingsPath = Path.Combine(_temporaryRoot, "settings", "appsettings.local.json");
+        var store = new JsonApplicationSettingsStore(
+            Path.Combine(_temporaryRoot, "missing-defaults.json"),
+            settingsPath,
+            legacyMediaSettingsPath: null);
+        var configuration = new ApplicationSettings();
+        configuration.MediaTools.FfmpegPath = @"C:\Tools With Spaces\ffmpeg.exe";
+        configuration.MediaTools.FfprobePath = @"D:\Video\ffprobe.exe";
 
         await store.SaveAsync(configuration);
         var loaded = await store.LoadAsync();
 
-        Assert.Equal(configuration.FfmpegPath, loaded.FfmpegPath);
-        Assert.Equal(configuration.FfprobePath, loaded.FfprobePath);
+        Assert.Equal(configuration.MediaTools.FfmpegPath, loaded.MediaTools.FfmpegPath);
+        Assert.Equal(configuration.MediaTools.FfprobePath, loaded.MediaTools.FfprobePath);
     }
 
     public void Dispose()

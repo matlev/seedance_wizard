@@ -7,6 +7,7 @@ obj/
 .localappdata/
 *.user
 *.suo
+appsettings.local.json
 
 # Portable projects and media are user data, not source files.
 *.seedance-project/

@@ -1,0 +1,191 @@
+using ReelForge.Application;
+using ReelForge.Infrastructure;
+
+namespace ReelForge.Tests;
+
+public sealed class ApplicationSettingsTests
+{
+    [Fact]
+    public async Task LocalSettingsOverrideDefaultsWithoutErasingOtherValues()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var defaultsPath = Path.Combine(directory, "appsettings.json");
+            var localPath = Path.Combine(directory, "appsettings.local.json");
+            await File.WriteAllTextAsync(defaultsPath, """
+                {
+                  "temporaryAssetHosting": {
+                    "cloudflareR2": {
+                      "bucketName": "default-bucket",
+                      "presignedUrlLifetimeMinutes": 60
+                    }
+                  }
+                }
+                """);
+            await File.WriteAllTextAsync(localPath, """
+                {
+                  "temporaryAssetHosting": {
+                    "cloudflareR2": {
+                      "accountId": "local-account",
+                      "presignedUrlLifetimeMinutes": 90
+                    }
+                  }
+                }
+                """);
+
+            var settings = await new JsonApplicationSettingsStore(defaultsPath, localPath, null).LoadAsync();
+
+            Assert.Equal("default-bucket", settings.TemporaryAssetHosting.CloudflareR2.BucketName);
+            Assert.Equal("local-account", settings.TemporaryAssetHosting.CloudflareR2.AccountId);
+            Assert.Equal(90, settings.TemporaryAssetHosting.CloudflareR2.PresignedUrlLifetimeMinutes);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SavingSettingsReplacesAnyCredentialValueWithManagedMarker()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var localPath = Path.Combine(directory, "appsettings.local.json");
+            var settings = new ApplicationSettings();
+            settings.TemporaryAssetHosting.CloudflareR2.Credentials.SecretAccessKey!.Value = "must-not-persist";
+            var store = new JsonApplicationSettingsStore(Path.Combine(directory, "missing.json"), localPath, null);
+
+            await store.SaveAsync(settings);
+            var json = await File.ReadAllTextAsync(localPath);
+
+            Assert.DoesNotContain("must-not-persist", json, StringComparison.Ordinal);
+            Assert.Contains(ManagedCredentialDeclaration.Marker, json, StringComparison.Ordinal);
+            Assert.Contains("cloudflare.r2.secret-access-key", json, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task EditorCommitsDirtyFieldsOnlyAtLifecycleBoundary()
+    {
+        var store = new CountingSettingsStore();
+        var editor = new ApplicationSettingsEditor(store, new ApplicationSettings());
+
+        editor.Update("TemporaryAssetHosting.CloudflareR2.BucketName", "new-bucket");
+        Assert.True(editor.IsDirty);
+        Assert.Equal(0, store.SaveCount);
+
+        Assert.True(await editor.CommitAsync());
+        Assert.Equal(1, store.SaveCount);
+        Assert.False(editor.IsDirty);
+        Assert.False(await editor.CommitAsync());
+        Assert.Equal(1, store.SaveCount);
+    }
+
+    [Fact]
+    public async Task ConfigurationStatusUsesExistenceCheckWithoutLoadingPlaintext()
+    {
+        var secrets = new ExistenceOnlySecretStore(
+            "cloudflare.r2.access-key-id",
+            "cloudflare.r2.secret-access-key");
+        var settings = ConfiguredR2Settings();
+
+        var status = await new ApplicationConfigurationValidator(secrets)
+            .ValidateSectionAsync(settings, ApplicationConfigurationCatalog.R2Section);
+
+        Assert.True(status.IsConfigured);
+        Assert.Equal(2, secrets.ExistsCalls);
+        Assert.Equal(0, secrets.GetCalls);
+    }
+
+    [Fact]
+    public async Task SecretReplacementAndRemovalStayBehindSecretStore()
+    {
+        var store = new InMemorySecretStore();
+        var service = new SecretConfigurationService(store);
+        var requirement = ApplicationConfigurationCatalog.Requirements.Single(item =>
+            item.CredentialManagerKey == "byteplus.modelark.api-key");
+
+        await service.ReplaceAsync(requirement, "replacement-value");
+        Assert.True(await service.IsConfiguredAsync(requirement));
+        Assert.Equal("replacement-value", await store.GetAsync(requirement.CredentialManagerKey!));
+
+        await service.RemoveAsync(requirement);
+        Assert.False(await service.IsConfiguredAsync(requirement));
+    }
+
+    private static ApplicationSettings ConfiguredR2Settings()
+    {
+        var settings = new ApplicationSettings();
+        settings.TemporaryAssetHosting.CloudflareR2.AccountId = "0123456789abcdef0123456789abcdef";
+        settings.TemporaryAssetHosting.CloudflareR2.BucketName = "private-bucket";
+        settings.TemporaryAssetHosting.CloudflareR2.Endpoint =
+            "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com";
+        return settings;
+    }
+
+    private static string CreateDirectory()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "ReelForge.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private sealed class CountingSettingsStore : IApplicationSettingsStore
+    {
+        public string LocalSettingsPath => "memory";
+        public int SaveCount { get; private set; }
+        public Task<ApplicationSettings> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ApplicationSettings());
+        public Task SaveAsync(ApplicationSettings settings, CancellationToken cancellationToken = default)
+        {
+            SaveCount++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ExistenceOnlySecretStore(params string[] configured) : ISecretStore
+    {
+        private readonly HashSet<string> _configured = new(configured, StringComparer.Ordinal);
+        public int ExistsCalls { get; private set; }
+        public int GetCalls { get; private set; }
+        public Task SetAsync(string key, string value, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task<string?> GetAsync(string key, CancellationToken cancellationToken = default)
+        {
+            GetCalls++;
+            throw new InvalidOperationException("Plaintext retrieval is forbidden for status checks.");
+        }
+        public Task<bool> ExistsAsync(string key, CancellationToken cancellationToken = default)
+        {
+            ExistsCalls++;
+            return Task.FromResult(_configured.Contains(key));
+        }
+        public Task DeleteAsync(string key, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class InMemorySecretStore : ISecretStore
+    {
+        private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
+        public Task SetAsync(string key, string value, CancellationToken cancellationToken = default)
+        {
+            _values[key] = value;
+            return Task.CompletedTask;
+        }
+        public Task<string?> GetAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_values.GetValueOrDefault(key));
+        public Task<bool> ExistsAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_values.ContainsKey(key));
+        public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _values.Remove(key);
+            return Task.CompletedTask;
+        }
+    }
+}

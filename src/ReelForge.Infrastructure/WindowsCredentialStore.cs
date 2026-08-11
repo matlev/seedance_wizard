@@ -79,6 +79,30 @@ public sealed class WindowsCredentialStore : ISecretStore
         return Task.FromResult<string?>(null);
     }
 
+    public Task<bool> ExistsAsync(string key, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidateKey(key);
+
+        if (CredentialExists(GetTargetName(_targetPrefix, key))) return Task.FromResult(true);
+        return Task.FromResult(
+            !string.IsNullOrWhiteSpace(_legacyTargetPrefix) &&
+            CredentialExists(GetTargetName(_legacyTargetPrefix, key)));
+    }
+
+    private static bool CredentialExists(string targetName)
+    {
+        if (!CredRead(targetName, CredentialTypeGeneric, 0, out var credentialPointer))
+        {
+            var error = Marshal.GetLastWin32Error();
+            if (error == ErrorNotFound) return false;
+            throw new Win32Exception(error, "Windows Credential Manager could not inspect the secret.");
+        }
+
+        CredFree(credentialPointer);
+        return true;
+    }
+
     private static (bool Found, string? Value) ReadCredential(string targetName)
     {
         if (!CredRead(targetName, CredentialTypeGeneric, 0, out var credentialPointer))

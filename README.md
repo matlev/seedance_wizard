@@ -11,7 +11,8 @@ Milestone 1 provides a working architectural slice:
 - FFmpeg/ffprobe PATH discovery plus saved explicit paths and executable browsing, cancellable process execution, safe argument handling, and ffprobe metadata parsing
 - capability-driven `IVideoGenerationProvider` abstraction with a no-cost fake provider plus official BytePlus ModelArk and AtlasCloud Seedance 2.5 adapters
 - generation provenance stored with the project
-- Windows Credential Manager storage for BytePlus and AtlasCloud API keys
+- application-level Settings with local JSON overrides and Windows Credential Manager storage for R2, BytePlus, and AtlasCloud secrets
+- private Cloudflare R2 temporary reference hosting with SHA-256 deduplication and short-lived presigned GET URLs
 - automated tests for persistence, provider contracts, paid-network isolation, media parsing, and command construction
 
 The desktop defaults to the fake provider. BytePlus ModelArk and AtlasCloud are independently selectable, but a real submission requires a stored credential, an explicit click, and a fresh human-accepted charge warning. Provider tests use in-memory HTTP handlers and cannot make paid generation calls. See [provider research](docs/provider-research.md).
@@ -20,7 +21,7 @@ The desktop defaults to the fake provider. BytePlus ModelArk and AtlasCloud are 
 
 - Windows 10 or newer
 - .NET 8 SDK
-- FFmpeg and ffprobe on `PATH`, or their executable paths selected in the app's **Tools** tab (the app still runs and imports files without them)
+- FFmpeg and ffprobe on `PATH`, or their executable paths selected in **Settings → Media Tools** (the app still runs and imports files without them)
 
 ## Build and run
 
@@ -54,3 +55,4 @@ All paths stored in the `.rfp` file are relative to the project root. The file r
 - [Milestone plan](docs/milestones.md)
 - [Seedance provider research](docs/provider-research.md)
 - [MiniMax H3 local execution research](docs/minimax-h3-local-research.md)
+- [Application configuration and Cloudflare R2](docs/configuration.md)

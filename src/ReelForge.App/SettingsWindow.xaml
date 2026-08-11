@@ -1,0 +1,38 @@
+<Window x:Class="ReelForge.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ReelForge Settings" Height="720" Width="960" MinHeight="560" MinWidth="760"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="42" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="265" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Row="0" Grid.Column="0" Background="{StaticResource PanelBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+            <StackPanel Margin="14">
+                <TextBlock Text="SETTINGS" Style="{StaticResource ApplicationTextBlockStyle}"
+                           FontSize="16" Margin="6,4,6,14" />
+                <ListBox x:Name="CategoryList" SelectionChanged="CategoryList_SelectionChanged" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="0" Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="SettingsPanel" Margin="28,22,32,30" />
+        </ScrollViewer>
+
+        <Border Grid.Row="1" Grid.ColumnSpan="2" Background="#0B0D12"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <DockPanel Margin="12,0">
+                <TextBlock x:Name="PersistenceStatusText" VerticalAlignment="Center"
+                           Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" />
+                <Button DockPanel.Dock="Right" Content="Close" Click="Close_Click" Padding="20,5" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -7,6 +7,12 @@ public sealed class BytePlusModelArkAssetPreparationService : IProviderAssetPrep
 {
     private const long MaximumImageBytes = 30L * 1024 * 1024;
     private const long MaximumAudioBytes = 15L * 1024 * 1024;
+    private readonly ITemporaryAssetHost? _temporaryAssetHost;
+
+    public BytePlusModelArkAssetPreparationService(ITemporaryAssetHost? temporaryAssetHost = null)
+    {
+        _temporaryAssetHost = temporaryAssetHost;
+    }
 
     public async Task<PreparedProviderReference> PrepareAsync(
         string providerId,
@@ -32,12 +38,40 @@ public sealed class BytePlusModelArkAssetPreparationService : IProviderAssetPrep
             ".heif" => ("image/heif", MaximumImageBytes),
             ".wav" => ("audio/wav", MaximumAudioBytes),
             ".mp3" => ("audio/mp3", MaximumAudioBytes),
-            ".mp4" or ".mov" => throw new GenerationValidationException(
-                ["BytePlus reference videos require a public HTTPS URL or asset:// reference. " +
-                 "The official Seedance video contract does not accept inline Base64 video or generic Files API IDs."]),
+            ".mp4" => ("video/mp4", long.MaxValue),
+            ".mov" => ("video/quicktime", long.MaxValue),
             _ => throw new GenerationValidationException(
                 [$"BytePlus cannot prepare the local reference format '{extension}'."])
         };
+
+        if (_temporaryAssetHost is not null)
+        {
+            var hosted = await _temporaryAssetHost.EnsureHostedAsync(
+                    new TemporaryAssetHostRequest(
+                        logicalReference,
+                        media,
+                        mimeType,
+                        TimeSpan.Zero),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return new PreparedProviderReference(
+                logicalReference,
+                hosted.ReadUrl.AbsoluteUri,
+                new MaterializationReceipt
+                {
+                    SourceContentHash = logicalReference.ContentHash,
+                    ProducedContentHash = media.ContentIdentity.Sha256,
+                    Encoding = media.Encoding,
+                    ProviderReferenceId = hosted.ObjectKey,
+                    ProviderScope = $"temporary-host:{hosted.HostingProvider}",
+                    ProviderReferenceExpiresAt = hosted.ReadUrlExpiresAt
+                });
+        }
+
+        if (extension is ".mp4" or ".mov")
+            throw new GenerationValidationException(
+                ["BytePlus reference videos require a public HTTPS URL from a configured temporary asset host or an asset:// reference. " +
+                 "The official Seedance video contract does not accept inline Base64 video."]);
 
         var fileInfo = new FileInfo(media.Path);
         if (fileInfo.Length >= maximumBytes)

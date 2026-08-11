@@ -60,7 +60,7 @@ Its no-input-video examples price a five-second 480p output at approximately USD
 - refuses any potentially billable submission without a fresh authorization created only by the desktop after a human accepts the per-request charge warning;
 - is independently selectable without replacing or changing the AtlasCloud adapter.
 
-`BytePlusModelArkAssetPreparationService` uses documented Base64 data URLs for eligible local image and audio references and makes no network request. It intentionally refuses to invent a generic ModelArk upload flow for local MP4/MOV files: the Seedance request contract accepts video by HTTPS URL or `asset://` reference, but the reviewed pages do not establish the separate account-scoped asset-ingestion lifecycle ReelForge would need. Existing qualified HTTPS or `asset://` video references can still be submitted.
+`BytePlusModelArkAssetPreparationService` does not invent a generic ModelArk upload flow. In the ReelForge desktop it hands materialized local image, video, and audio references to `ITemporaryAssetHost`; the Cloudflare R2 implementation uploads/reuses private content-addressed objects and returns short-lived presigned HTTPS GET URLs that satisfy the documented Seedance reference contract. BytePlus remains unaware of Cloudflare credentials and bucket details. The no-host constructor used by isolated tests retains documented Base64 data URLs for eligible image/audio references and refuses local MP4/MOV. Existing qualified HTTPS or `asset://` references can also be submitted.
 
 The output downloader remains provider-neutral: it downloads a successful HTTPS result, verifies and inspects it, atomically places it under `generated/`, and records the durable asset and generation links.
 
@@ -73,7 +73,7 @@ The API is broader than ReelForge's current generation panel. These are known ap
 - The UI currently exposes T2V, I2V, and R2V, but not distinct Edit or Extend task modes.
 - The duration control exposes explicit 4-30 second values, not provider-selected `-1`.
 - ReelForge currently requires prompt text even though BytePlus documents some audio-driven workflows where text is optional.
-- Local video reference preparation needs a verified ModelArk asset-ingestion contract before it can create `asset://` references; existing HTTPS/asset references work.
+- ReelForge does not create ModelArk `asset://` references because no separate ingestion lifecycle was verified; local references instead use private R2 presigned HTTPS URLs, while existing qualified HTTPS/`asset://` references continue to work.
 - Remote queued-task cancellation is documented but not yet surfaced in the application.
 - Resource packages, regional access, quotas, moderation policy, and account authorization still require human account setup.
 
