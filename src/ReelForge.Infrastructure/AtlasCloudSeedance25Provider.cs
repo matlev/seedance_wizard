@@ -165,10 +165,10 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
     }
 
     private static void AddReferenceArray(
-        IDictionary<string, object?> payload,
+        Dictionary<string, object?> payload,
         string fieldName,
         IEnumerable<ProjectAsset> references,
-        IReadOnlyDictionary<Guid, string> resolvedReferences,
+        Dictionary<Guid, string> resolvedReferences,
         MediaType mediaType)
     {
         var values = references

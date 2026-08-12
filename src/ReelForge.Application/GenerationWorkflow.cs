@@ -486,7 +486,7 @@ public sealed class GenerationWorkflow
     }
 
     private static void MergeMetadata(
-        IDictionary<string, string> destination,
+        Dictionary<string, string> destination,
         IReadOnlyDictionary<string, string> source)
     {
         foreach (var pair in source) destination[pair.Key] = pair.Value;

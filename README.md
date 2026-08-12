@@ -20,7 +20,7 @@ The desktop defaults to the fake provider. BytePlus ModelArk and AtlasCloud are 
 ## Requirements
 
 - Windows 10 or newer
-- .NET 8 SDK
+- .NET 9 SDK, feature band 9.0.3xx (the application continues to target .NET 8)
 - FFmpeg and ffprobe on `PATH`, or their executable paths selected in **Settings → Media Tools** (the app still runs and imports files without them)
 
 ## Build and run

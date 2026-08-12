@@ -245,7 +245,7 @@ public sealed class AtlasCloudMiniMaxH3ProviderTests
         ReferenceAssetIds = referenceIds
     };
 
-    private static void AssertReference(IReadOnlyDictionary<string, string> item, string url, string type)
+    private static void AssertReference(Dictionary<string, string> item, string url, string type)
     {
         Assert.Equal(url, item["url"]);
         Assert.Equal(type, item["type"]);
