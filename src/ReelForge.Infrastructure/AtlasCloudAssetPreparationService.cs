@@ -79,9 +79,13 @@ public sealed class AtlasCloudAssetPreparationService : IProviderAssetPreparatio
         try
         {
             using var document = JsonDocument.Parse(body);
-            url = document.RootElement.TryGetProperty("url", out var property) && property.ValueKind == JsonValueKind.String
-                ? property.GetString()
-                : null;
+            var root = document.RootElement;
+            url = root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object &&
+                  data.TryGetProperty("download_url", out var downloadUrl) && downloadUrl.ValueKind == JsonValueKind.String
+                ? downloadUrl.GetString()
+                : root.TryGetProperty("url", out var legacyUrl) && legacyUrl.ValueKind == JsonValueKind.String
+                    ? legacyUrl.GetString()
+                    : null;
         }
         catch (JsonException exception)
         {

@@ -16,7 +16,7 @@ public sealed class GenerationMediaNetworkTests : IDisposable
     [Theory]
     [InlineData(AtlasCloudSeedance25Provider.ProviderId)]
     [InlineData(AtlasCloudMiniMaxH3Provider.ProviderId)]
-    public async Task AtlasUploadUsesMultipartAndReturnsTemporaryHttpsReference(string providerId)
+    public async Task AtlasUploadUsesMultipartAndParsesCurrentNestedResponse(string providerId)
     {
         Directory.CreateDirectory(_temporaryRoot);
         var path = Path.Combine(_temporaryRoot, "reference image.png");
@@ -24,7 +24,10 @@ public sealed class GenerationMediaNetworkTests : IDisposable
         var handler = new RecordingHandler(
             _ => new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("""{"url":"https://uploads.example/temporary.png"}""", Encoding.UTF8, "application/json")
+                Content = new StringContent(
+                    """{"code":200,"message":"success","data":{"type":"image","download_url":"https://uploads.example/temporary.png","filename":"temporary.png","size":4}}""",
+                    Encoding.UTF8,
+                    "application/json")
             });
         var service = new AtlasCloudAssetPreparationService(
             new HttpClient(handler) { BaseAddress = new Uri("https://api.atlascloud.ai/") },
