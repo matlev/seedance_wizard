@@ -42,6 +42,10 @@ public partial class MainWindow : Window, IDisposable
     private CancellationTokenSource? _monitoringCancellation;
     private bool _suppressDraftAutosave;
     private bool _suppressPromptSynchronization;
+    private bool _isVideoPlaying;
+    private bool _isScrubbing;
+    private bool _wasPlayingBeforeScrub;
+    private double _volumeBeforeMute = 1;
     private bool _disposed;
 
     public MainWindow()
@@ -1073,6 +1077,8 @@ public partial class MainWindow : Window, IDisposable
     private void ClearMediaPreview()
     {
         VideoPreview.Stop();
+        _isVideoPlaying = false;
+        _isScrubbing = false;
         VideoPreview.Source = null;
         VideoPreview.Visibility = Visibility.Collapsed;
         ImagePreview.Source = null;
@@ -1084,14 +1090,22 @@ public partial class MainWindow : Window, IDisposable
         TimeText.Text = "00:00 / 00:00";
     }
 
-    private void VideoPreview_MediaOpened(object sender, RoutedEventArgs e)
+    private async void VideoPreview_MediaOpened(object sender, RoutedEventArgs e)
     {
         if (VideoPreview.NaturalDuration.HasTimeSpan)
         {
             PositionSlider.Maximum = VideoPreview.NaturalDuration.TimeSpan.TotalSeconds;
         }
 
-        VideoPreview.Pause();
+        var openedSource = VideoPreview.Source;
+        VideoPreview.Position = TimeSpan.Zero;
+        VideoPreview.Play();
+        await Task.Delay(100);
+        if (VideoPreview.Source == openedSource && !_isVideoPlaying)
+        {
+            VideoPreview.Pause();
+            VideoPreview.Position = TimeSpan.Zero;
+        }
         UpdatePlaybackPosition();
     }
 
@@ -1099,6 +1113,7 @@ public partial class MainWindow : Window, IDisposable
     {
         VideoPreview.Position = TimeSpan.Zero;
         VideoPreview.Pause();
+        _isVideoPlaying = false;
         UpdatePlaybackPosition();
     }
 
@@ -1107,17 +1122,73 @@ public partial class MainWindow : Window, IDisposable
         if (VideoPreview.Source is not null)
         {
             VideoPreview.Play();
+            _isVideoPlaying = true;
         }
     }
 
-    private void Pause_Click(object sender, RoutedEventArgs e) => VideoPreview.Pause();
-
-    private void PositionSlider_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    private void Pause_Click(object sender, RoutedEventArgs e)
     {
-        if (VideoPreview.Source is not null)
+        VideoPreview.Pause();
+        _isVideoPlaying = false;
+    }
+
+    private void PositionSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (VideoPreview.Source is null) return;
+        _isScrubbing = true;
+        _wasPlayingBeforeScrub = _isVideoPlaying;
+        VideoPreview.Pause();
+        var pointer = e.GetPosition(PositionSlider);
+        if (PositionSlider.ActualWidth > 0)
+            PositionSlider.Value = Math.Clamp(pointer.X / PositionSlider.ActualWidth, 0, 1) * PositionSlider.Maximum;
+    }
+
+    private void PositionSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (VideoPreview.Source is null) return;
+        SeekPreview(PositionSlider.Value);
+        _isScrubbing = false;
+        if (_wasPlayingBeforeScrub)
         {
-            VideoPreview.Position = TimeSpan.FromSeconds(PositionSlider.Value);
+            VideoPreview.Play();
+            _isVideoPlaying = true;
         }
+    }
+
+    private void PositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isScrubbing) SeekPreview(e.NewValue);
+    }
+
+    private void SeekPreview(double seconds)
+    {
+        if (VideoPreview.Source is null) return;
+        VideoPreview.Position = TimeSpan.FromSeconds(Math.Clamp(seconds, 0, PositionSlider.Maximum));
+        TimeText.Text = $"{FormatTime(VideoPreview.Position)} / {FormatTime(VideoPreview.NaturalDuration.HasTimeSpan ? VideoPreview.NaturalDuration.TimeSpan : TimeSpan.Zero)}";
+    }
+
+    private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (VideoPreview is null || MuteButton is null) return;
+        VideoPreview.Volume = e.NewValue;
+        VideoPreview.IsMuted = e.NewValue <= 0;
+        MuteButton.Content = VideoPreview.IsMuted ? "Unmute" : "Mute";
+        if (e.NewValue > 0) _volumeBeforeMute = e.NewValue;
+    }
+
+    private void Mute_Click(object sender, RoutedEventArgs e)
+    {
+        if (VideoPreview.IsMuted || VolumeSlider.Value <= 0)
+        {
+            VolumeSlider.Value = _volumeBeforeMute > 0 ? _volumeBeforeMute : 1;
+            VideoPreview.IsMuted = false;
+            MuteButton.Content = "Mute";
+            return;
+        }
+
+        _volumeBeforeMute = VolumeSlider.Value;
+        VideoPreview.IsMuted = true;
+        MuteButton.Content = "Unmute";
     }
 
     private void DurationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -1143,7 +1214,7 @@ public partial class MainWindow : Window, IDisposable
             ? VideoPreview.NaturalDuration.TimeSpan
             : TimeSpan.Zero;
 
-        PositionSlider.Value = current.TotalSeconds;
+        if (!_isScrubbing) PositionSlider.Value = current.TotalSeconds;
         TimeText.Text = $"{FormatTime(current)} / {FormatTime(duration)}";
     }
 

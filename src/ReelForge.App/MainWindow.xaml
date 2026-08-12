@@ -120,20 +120,37 @@
                             <TextBlock x:Name="PreviewPlaceholder" Text="Select a video or image asset to preview"
                                        Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             <MediaElement x:Name="VideoPreview" Visibility="Collapsed" LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                          ScrubbingEnabled="True" Volume="1"
                                           Stretch="Uniform" MediaOpened="VideoPreview_MediaOpened" MediaEnded="VideoPreview_MediaEnded" />
                             <Image x:Name="ImagePreview" Visibility="Collapsed" Stretch="Uniform" />
                         </Grid>
                     </Border>
                     <Border VerticalAlignment="Bottom" Margin="22" Padding="8" CornerRadius="4" Background="#CC191C25">
-                        <DockPanel>
-                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="90" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
                                 <Button Content="Play" Click="Play_Click" Padding="10,4" />
                                 <Button Content="Pause" Click="Pause_Click" Padding="10,4" />
                             </StackPanel>
-                            <TextBlock x:Name="TimeText" Style="{StaticResource ApplicationTextBlockStyle}" DockPanel.Dock="Right" Text="00:00 / 00:00" VerticalAlignment="Center" Margin="10,0" />
-                            <Slider x:Name="PositionSlider" Minimum="0" Maximum="1" Margin="10,0" VerticalAlignment="Center"
-                                    PreviewMouseUp="PositionSlider_PreviewMouseUp" />
-                        </DockPanel>
+                            <Slider x:Name="PositionSlider" Grid.Column="1" Minimum="0" Maximum="1" Margin="10,0"
+                                    VerticalAlignment="Center" IsMoveToPointEnabled="True"
+                                    ValueChanged="PositionSlider_ValueChanged"
+                                    PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
+                                    PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp" />
+                            <TextBlock x:Name="TimeText" Grid.Column="2" Style="{StaticResource ApplicationTextBlockStyle}"
+                                       Text="00:00 / 00:00" VerticalAlignment="Center" Margin="6,0,10,0" />
+                            <Button x:Name="MuteButton" Grid.Column="3" Content="Mute" Click="Mute_Click"
+                                    Padding="8,4" ToolTip="Mute or unmute preview audio" />
+                            <Slider x:Name="VolumeSlider" Grid.Column="4" Minimum="0" Maximum="1" Value="1"
+                                    SmallChange="0.05" LargeChange="0.1" Margin="6,0,2,0" VerticalAlignment="Center"
+                                    ValueChanged="VolumeSlider_ValueChanged" ToolTip="Preview volume" />
+                        </Grid>
                     </Border>
                 </Grid>
 
