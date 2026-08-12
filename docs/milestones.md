@@ -124,6 +124,7 @@ Implemented vertical order within Phase 2B:
 11. Add AtlasCloud MiniMax H3 T2V, first/end-frame I2V, and multimodal R2V as a distinct provider route sharing the verified AtlasCloud transport, credential, and upload preparation.
 12. Split human-authorized submission from application-scoped monitoring, persist unresolved jobs outside project files, restore them on startup, and reconcile terminal results into the owning project regardless of the currently open project.
 13. Add collision-safe cross-project physical-asset copy/move operations: copies receive a destination-local asset ID and source receipt, unreferenced moves remove the source, and referenced moves retain the source rather than breaking immutable history.
+14. Retain reconciled success/failure/cancellation entries in the Jobs pane across restarts until the user views Jobs and then leaves the tab; freeze displayed elapsed time at terminal status.
 
 Phase acceptance checks:
 

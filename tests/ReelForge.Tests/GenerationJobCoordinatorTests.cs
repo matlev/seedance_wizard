@@ -34,7 +34,7 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
             provider.Capabilities.DisplayName);
         var finalized = await finalizer.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
         var change = await statusChanged.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await WaitUntilAsync(() => coordinator.GetSnapshot().Count == 0);
+        await WaitUntilAsync(() => coordinator.GetSnapshot().SingleOrDefault()?.IsReconciled == true);
 
         Assert.Equal(generation.Id, finalized.GenerationId);
         Assert.Equal(GenerationStatus.Succeeded, finalized.Status);
@@ -43,6 +43,16 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
         Assert.Equal(GenerationStatus.Succeeded, change.CurrentStatus);
         Assert.Equal(0, provider.SubmitCalls);
         Assert.True(provider.StatusCalls >= 1);
+        var retained = Assert.Single(coordinator.GetSnapshot());
+        Assert.Equal(GenerationStatus.Succeeded, retained.Status);
+        Assert.True(retained.IsReconciled);
+        Assert.NotNull(retained.CompletedAt);
+        Assert.Single(await store.LoadAsync());
+
+        var dismissed = await coordinator.DismissAsync([generation.Id]);
+
+        Assert.Equal(generation.Id, Assert.Single(dismissed));
+        Assert.Empty(coordinator.GetSnapshot());
         Assert.Empty(await store.LoadAsync());
     }
 
@@ -77,6 +87,50 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
         var restored = Assert.Single(coordinator.GetSnapshot());
         Assert.Equal("Restored project", restored.ProjectName);
         Assert.Equal(generation.Id, restored.GenerationId);
+    }
+
+    [Fact]
+    public async Task ReconciledTerminalJobRestoresUntilExplicitlyDismissed()
+    {
+        var provider = new PollOnlyProvider();
+        var finalizer = new RecordingFinalizer();
+        var store = new JsonGenerationJobStore(Path.Combine(_temporaryRoot, "completed-jobs.json"));
+        var generation = CreateAcceptedGeneration(provider);
+        await store.SaveAsync([
+            new TrackedGenerationJob
+            {
+                GenerationId = generation.Id,
+                ProjectFilePath = Path.Combine(_temporaryRoot, "completed.rfp"),
+                ProjectName = "Completed project",
+                ProviderId = provider.Capabilities.ProviderId,
+                ProviderDisplayName = provider.Capabilities.DisplayName,
+                ModelVersion = provider.Capabilities.ModelVersion,
+                ProviderJobId = generation.ProviderJobId!,
+                RequestedAt = generation.RequestedAt,
+                CompletedAt = DateTimeOffset.UtcNow,
+                Status = GenerationStatus.Succeeded,
+                IngestionStatus = OutputIngestionStatus.Succeeded,
+                IsReconciled = true,
+                Message = "Generation completed and its output was added to the project."
+            }
+        ]);
+        await using var coordinator = new GenerationJobCoordinator(
+            store,
+            _ => provider,
+            finalizer,
+            TimeSpan.FromMilliseconds(5));
+
+        await coordinator.RestoreAsync();
+        await Task.Delay(30);
+
+        Assert.Single(coordinator.GetSnapshot());
+        Assert.Equal(0, provider.StatusCalls);
+        Assert.False(finalizer.Completed.Task.IsCompleted);
+
+        await coordinator.DismissAsync([generation.Id]);
+
+        Assert.Empty(coordinator.GetSnapshot());
+        Assert.Empty(await store.LoadAsync());
     }
 
     private static GenerationRecord CreateAcceptedGeneration(IVideoGenerationProvider provider) => new()

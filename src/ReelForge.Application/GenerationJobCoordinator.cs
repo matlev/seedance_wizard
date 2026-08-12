@@ -13,8 +13,10 @@ public sealed class TrackedGenerationJob
     public string ProviderJobId { get; set; } = string.Empty;
     public DateTimeOffset RequestedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedAt { get; set; }
     public GenerationStatus Status { get; set; } = GenerationStatus.Queued;
     public OutputIngestionStatus IngestionStatus { get; set; } = OutputIngestionStatus.NotRequired;
+    public bool IsReconciled { get; set; }
     public string Message { get; set; } = "Waiting to check provider status…";
     public List<ProviderGenerationOutput> Outputs { get; set; } = [];
     public GenerationError? Error { get; set; }
@@ -175,7 +177,8 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
 
                 if (current.Status is GenerationStatus.Succeeded or GenerationStatus.Failed or GenerationStatus.Cancelled)
                 {
-                    await FinalizeAndRemoveAsync(current, cancellationToken).ConfigureAwait(false);
+                    if (!current.IsReconciled)
+                        await FinalizeAndRetainAsync(current, cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
@@ -195,7 +198,7 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
                     if (remote.Status is GenerationStatus.Succeeded or GenerationStatus.Failed or GenerationStatus.Cancelled)
                     {
                         var terminal = GetSnapshot().SingleOrDefault(job => job.GenerationId == generationId);
-                        if (terminal is not null) await FinalizeAndRemoveAsync(terminal, cancellationToken).ConfigureAwait(false);
+                        if (terminal is not null) await FinalizeAndRetainAsync(terminal, cancellationToken).ConfigureAwait(false);
                         return;
                     }
                 }
@@ -240,6 +243,8 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
                     remote.Status);
             }
             job.Status = remote.Status;
+            if (remote.Status is GenerationStatus.Succeeded or GenerationStatus.Failed or GenerationStatus.Cancelled)
+                job.CompletedAt ??= DateTimeOffset.UtcNow;
             job.Error = remote.Error;
             job.Outputs = remote.Outputs.ToList();
             foreach (var pair in remote.ResponseMetadata) job.ResponseMetadata[pair.Key] = pair.Value;
@@ -262,7 +267,7 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
         RaiseJobsChanged();
     }
 
-    private async Task FinalizeAndRemoveAsync(TrackedGenerationJob job, CancellationToken cancellationToken)
+    private async Task FinalizeAndRetainAsync(TrackedGenerationJob job, CancellationToken cancellationToken)
     {
         try
         {
@@ -270,7 +275,23 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
             await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                _jobs.Remove(job.GenerationId);
+                if (!_jobs.TryGetValue(job.GenerationId, out var current)) return;
+                current.IsReconciled = true;
+                current.CompletedAt ??= DateTimeOffset.UtcNow;
+                current.UpdatedAt = DateTimeOffset.UtcNow;
+                if (current.Status == GenerationStatus.Succeeded)
+                {
+                    current.IngestionStatus = OutputIngestionStatus.Succeeded;
+                    current.Message = "Generation completed and its output was added to the project.";
+                }
+                else if (current.Status == GenerationStatus.Failed)
+                {
+                    current.Message = current.Error?.Message ?? "Generation failed.";
+                }
+                else
+                {
+                    current.Message = "Generation was cancelled by the provider.";
+                }
                 await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
@@ -287,6 +308,36 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
             await UpdateMessageAsync(job.GenerationId, $"Project update failed: {exception.Message}. It will retry next time ReelForge starts.", CancellationToken.None)
                 .ConfigureAwait(false);
         }
+    }
+
+    public async Task<IReadOnlyList<Guid>> DismissAsync(
+        IEnumerable<Guid> generationIds,
+        CancellationToken cancellationToken = default)
+    {
+        var requestedIds = generationIds.ToHashSet();
+        if (requestedIds.Count == 0) return [];
+        var removedIds = new List<Guid>();
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            foreach (var id in requestedIds)
+            {
+                if (_jobs.TryGetValue(id, out var job) && job.IsReconciled &&
+                    job.Status is GenerationStatus.Succeeded or GenerationStatus.Failed or GenerationStatus.Cancelled)
+                {
+                    _jobs.Remove(id);
+                    removedIds.Add(id);
+                }
+            }
+            if (removedIds.Count > 0) await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        if (removedIds.Count > 0) RaiseJobsChanged();
+        return removedIds;
     }
 
     private async Task UpdateMessageAsync(Guid generationId, string message, CancellationToken cancellationToken)
@@ -324,8 +375,10 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
         ProviderJobId = source.ProviderJobId,
         RequestedAt = source.RequestedAt,
         UpdatedAt = source.UpdatedAt,
+        CompletedAt = source.CompletedAt,
         Status = source.Status,
         IngestionStatus = source.IngestionStatus,
+        IsReconciled = source.IsReconciled,
         Message = source.Message,
         Outputs = source.Outputs.ToList(),
         Error = source.Error,

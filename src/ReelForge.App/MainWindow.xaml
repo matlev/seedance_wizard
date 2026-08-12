@@ -338,12 +338,12 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <StackPanel Margin="2,4,2,10">
-                                <TextBlock Text="ACTIVE GENERATION JOBS" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
-                                <TextBlock Text="Monitoring continues when you switch projects and resumes after ReelForge restarts."
+                                <TextBlock Text="GENERATION JOBS" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                                <TextBlock Text="Completed jobs clear from this pane after you view them and leave the Jobs tab."
                                            TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
                             </StackPanel>
                             <Grid Grid.Row="1">
-                                <TextBlock x:Name="JobsEmptyText" Text="No active generation jobs."
+                                <TextBlock x:Name="JobsEmptyText" Text="No generation jobs to review."
                                            Foreground="{StaticResource MutedTextBrush}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <ListBox x:Name="JobsList" ScrollViewer.HorizontalScrollBarVisibility="Disabled">

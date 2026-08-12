@@ -24,6 +24,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ObservableCollection<GenerationRecord> _generations = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
     private readonly ObservableCollection<GenerationJobListItem> _jobs = [];
+    private readonly HashSet<Guid> _viewedTerminalJobIds = [];
     private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
@@ -54,6 +55,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _isScrubbing;
     private bool _wasPlayingBeforeScrub;
     private double _volumeBeforeMute = 1;
+    private bool _jobsTabWasSelected;
+    private bool _dismissingViewedJobs;
     private bool _disposed;
 
     public MainWindow()
@@ -269,7 +272,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void JobCoordinator_JobsChanged(object? sender, EventArgs e)
     {
         if (_disposed || Dispatcher.HasShutdownStarted) return;
-        _ = Dispatcher.BeginInvoke(RefreshJobsUi, DispatcherPriority.Background);
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            RefreshJobsUi();
+            if (JobsTab is not null && !JobsTab.IsSelected && _viewedTerminalJobIds.Count > 0)
+                _ = DismissViewedTerminalJobsAsync();
+        }, DispatcherPriority.Background);
     }
 
     private void JobCoordinator_JobStatusChanged(object? sender, GenerationJobStatusChangedEventArgs e)
@@ -277,7 +285,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (_disposed || Dispatcher.HasShutdownStarted) return;
         _ = Dispatcher.BeginInvoke(() =>
         {
-            if (JobsTab is not null && JobsActivityIndicator is not null && !JobsTab.IsSelected)
+            if (JobsTab is not null && JobsActivityIndicator is not null && JobsTab.IsSelected)
+            {
+                if (IsTerminalStatus(e.CurrentStatus)) _viewedTerminalJobIds.Add(e.GenerationId);
+            }
+            else if (JobsActivityIndicator is not null)
             {
                 JobsActivityIndicator.Visibility = Visibility.Visible;
                 JobsActivityIndicator.ToolTip =
@@ -286,11 +298,20 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }, DispatcherPriority.Background);
     }
 
-    private void RightPanelTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void RightPanelTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (JobsTab is not null && JobsActivityIndicator is not null &&
-            e.Source == RightPanelTabs && JobsTab.IsSelected)
+        if (JobsTab is null || JobsActivityIndicator is null || e.Source != RightPanelTabs) return;
+        if (JobsTab.IsSelected)
+        {
             JobsActivityIndicator.Visibility = Visibility.Collapsed;
+            _jobsTabWasSelected = true;
+            MarkVisibleTerminalJobsViewed();
+        }
+        else if (_jobsTabWasSelected)
+        {
+            _jobsTabWasSelected = false;
+            await DismissViewedTerminalJobsAsync();
+        }
     }
 
     private void RefreshJobsUi()
@@ -311,8 +332,37 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         JobsEmptyText.Visibility = _jobs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         JobsList.Visibility = _jobs.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (JobsTab.IsSelected) MarkVisibleTerminalJobsViewed();
         RefreshJobElapsedTimes();
     }
+
+    private void MarkVisibleTerminalJobsViewed()
+    {
+        foreach (var job in _jobCoordinator.GetSnapshot().Where(job => IsTerminalStatus(job.Status)))
+            _viewedTerminalJobIds.Add(job.GenerationId);
+    }
+
+    private async Task DismissViewedTerminalJobsAsync()
+    {
+        if (_dismissingViewedJobs || _viewedTerminalJobIds.Count == 0) return;
+        _dismissingViewedJobs = true;
+        try
+        {
+            var dismissed = await _jobCoordinator.DismissAsync(_viewedTerminalJobIds.ToArray());
+            foreach (var id in dismissed) _viewedTerminalJobIds.Remove(id);
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"Completed jobs could not be cleared: {exception.Message}";
+        }
+        finally
+        {
+            _dismissingViewedJobs = false;
+        }
+    }
+
+    private static bool IsTerminalStatus(GenerationStatus status) =>
+        status is GenerationStatus.Succeeded or GenerationStatus.Failed or GenerationStatus.Cancelled;
 
     private void RefreshJobElapsedTimes()
     {
@@ -1759,7 +1809,8 @@ public sealed class GenerationJobListItem : INotifyPropertyChanged
 
     public void RefreshElapsed(DateTimeOffset now)
     {
-        var elapsed = now > _job.RequestedAt ? now - _job.RequestedAt : TimeSpan.Zero;
+        var elapsedUntil = _job.CompletedAt ?? now;
+        var elapsed = elapsedUntil > _job.RequestedAt ? elapsedUntil - _job.RequestedAt : TimeSpan.Zero;
         var text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
         if (text == _elapsedText) return;
         _elapsedText = text;
