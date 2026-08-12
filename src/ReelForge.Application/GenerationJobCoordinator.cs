@@ -32,6 +32,26 @@ public interface IGenerationJobFinalizer
     Task FinalizeAsync(TrackedGenerationJob job, CancellationToken cancellationToken = default);
 }
 
+public sealed class GenerationJobStatusChangedEventArgs : EventArgs
+{
+    public GenerationJobStatusChangedEventArgs(
+        Guid generationId,
+        string projectName,
+        GenerationStatus previousStatus,
+        GenerationStatus currentStatus)
+    {
+        GenerationId = generationId;
+        ProjectName = projectName;
+        PreviousStatus = previousStatus;
+        CurrentStatus = currentStatus;
+    }
+
+    public Guid GenerationId { get; }
+    public string ProjectName { get; }
+    public GenerationStatus PreviousStatus { get; }
+    public GenerationStatus CurrentStatus { get; }
+}
+
 public sealed class GenerationJobCoordinator : IAsyncDisposable
 {
     private readonly IGenerationJobStore _store;
@@ -57,6 +77,7 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
     }
 
     public event EventHandler? JobsChanged;
+    public event EventHandler<GenerationJobStatusChangedEventArgs>? JobStatusChanged;
 
     public IReadOnlyList<TrackedGenerationJob> GetSnapshot()
     {
@@ -205,10 +226,19 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
         ProviderGenerationJob remote,
         CancellationToken cancellationToken)
     {
+        GenerationJobStatusChangedEventArgs? statusChange = null;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (!_jobs.TryGetValue(generationId, out var job)) return;
+            if (job.Status != remote.Status)
+            {
+                statusChange = new GenerationJobStatusChangedEventArgs(
+                    generationId,
+                    job.ProjectName,
+                    job.Status,
+                    remote.Status);
+            }
             job.Status = remote.Status;
             job.Error = remote.Error;
             job.Outputs = remote.Outputs.ToList();
@@ -228,6 +258,7 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
             _gate.Release();
         }
 
+        if (statusChange is not null) JobStatusChanged?.Invoke(this, statusChange);
         RaiseJobsChanged();
     }
 

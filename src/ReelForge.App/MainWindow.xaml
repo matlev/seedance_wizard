@@ -181,7 +181,7 @@
             <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" />
 
             <Border Grid.Column="4" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
-                <TabControl Margin="8">
+                <TabControl x:Name="RightPanelTabs" Margin="8" SelectionChanged="RightPanelTabs_SelectionChanged">
                     <TabItem Header="Inspector">
                         <Grid Margin="10">
                             <Grid.RowDefinitions>
@@ -323,7 +323,15 @@
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
-                    <TabItem Header="Jobs">
+                    <TabItem x:Name="JobsTab">
+                        <TabItem.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Jobs" />
+                                <Ellipse x:Name="JobsActivityIndicator" Width="7" Height="7" Margin="5,1,0,0"
+                                         VerticalAlignment="Top" Fill="#FFD166" Visibility="Collapsed"
+                                         ToolTip="A generation job changed status" />
+                            </StackPanel>
+                        </TabItem.Header>
                         <Grid Margin="10">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />

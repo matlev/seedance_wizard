@@ -88,6 +88,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             ResolveAsyncProvider,
             this);
         _jobCoordinator.JobsChanged += JobCoordinator_JobsChanged;
+        _jobCoordinator.JobStatusChanged += JobCoordinator_JobStatusChanged;
 
         AssetsList.ItemsSource = _assets;
         GenerationsList.ItemsSource = _generations;
@@ -119,6 +120,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (_disposed) return;
         _disposed = true;
         _jobCoordinator.JobsChanged -= JobCoordinator_JobsChanged;
+        _jobCoordinator.JobStatusChanged -= JobCoordinator_JobStatusChanged;
         _jobCoordinator.Stop();
         _jobElapsedTimer.Stop();
         foreach (var client in _providerHttpClients) client.Dispose();
@@ -268,6 +270,27 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         if (_disposed || Dispatcher.HasShutdownStarted) return;
         _ = Dispatcher.BeginInvoke(RefreshJobsUi, DispatcherPriority.Background);
+    }
+
+    private void JobCoordinator_JobStatusChanged(object? sender, GenerationJobStatusChangedEventArgs e)
+    {
+        if (_disposed || Dispatcher.HasShutdownStarted) return;
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (JobsTab is not null && JobsActivityIndicator is not null && !JobsTab.IsSelected)
+            {
+                JobsActivityIndicator.Visibility = Visibility.Visible;
+                JobsActivityIndicator.ToolTip =
+                    $"{e.ProjectName}: job status changed from {e.PreviousStatus} to {e.CurrentStatus}.";
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    private void RightPanelTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (JobsTab is not null && JobsActivityIndicator is not null &&
+            e.Source == RightPanelTabs && JobsTab.IsSelected)
+            JobsActivityIndicator.Visibility = Visibility.Collapsed;
     }
 
     private void RefreshJobsUi()

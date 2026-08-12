@@ -22,6 +22,9 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
             providerId => providerId == provider.Capabilities.ProviderId ? provider : null,
             finalizer,
             TimeSpan.FromMilliseconds(5));
+        var statusChanged = new TaskCompletionSource<GenerationJobStatusChangedEventArgs>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.JobStatusChanged += (_, change) => statusChanged.TrySetResult(change);
         var generation = CreateAcceptedGeneration(provider);
 
         await coordinator.TrackAsync(
@@ -30,10 +33,14 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
             "Coordinator test",
             provider.Capabilities.DisplayName);
         var finalized = await finalizer.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var change = await statusChanged.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await WaitUntilAsync(() => coordinator.GetSnapshot().Count == 0);
 
         Assert.Equal(generation.Id, finalized.GenerationId);
         Assert.Equal(GenerationStatus.Succeeded, finalized.Status);
+        Assert.Equal(generation.Id, change.GenerationId);
+        Assert.Equal(GenerationStatus.Running, change.PreviousStatus);
+        Assert.Equal(GenerationStatus.Succeeded, change.CurrentStatus);
         Assert.Equal(0, provider.SubmitCalls);
         Assert.True(provider.StatusCalls >= 1);
         Assert.Empty(await store.LoadAsync());
