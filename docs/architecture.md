@@ -1,6 +1,6 @@
 ﻿# Architecture
 
-Status: accepted direction; Phase 2A complete; Phase 2B implementation complete with human live acceptance pending
+Status: accepted direction; Phase 2A complete; Phase 2B implementation complete with one successful human-run AtlasCloud MiniMax H3 generation and follow-up UX verification pending
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 
@@ -510,6 +510,10 @@ For providers that require HTTPS-accessible local references, `ITemporaryAssetHo
 Application settings are likewise outside the project domain. `IApplicationSettingsStore` merges checked-in defaults with `%LOCALAPPDATA%\ReelForge\appsettings.local.json`; `ISecretStore` keeps credential values in Windows Credential Manager. One requirement catalog drives Settings labels, required/secret status, placeholders, credential key discovery, and validation. The checked-in JSON declares secret names and target keys using a non-secret marker, while load/save normalization prevents that property from carrying plaintext.
 
 The transient `GenerationRequest.ReferenceAssetIds` remains a low-level provider-input shape. `GenerationWorkflow` freezes the richer draft into a path-free immutable snapshot first, materializes and verifies physical references, uploads them through the documented provider-preparation boundary, and supplies temporary overrides only to the serializer. Recipes and UI remain provider-neutral. No paid submission appears in materialization, orchestration, polling, or provider contract tests.
+
+Submission and monitoring are separate application responsibilities. `GenerationWorkflow.SubmitAsync` is reachable for a potentially billable provider only after the desktop creates a one-request authorization from a human confirmation. Once the provider returns a job ID, `GenerationJobCoordinator` records a provider-neutral active-job descriptor in `%LOCALAPPDATA%\ReelForge\active-jobs.json` and polls through `IAsyncVideoGenerationProvider`. The registry contains project identity, provider/model identity, elapsed-time origin, remote state, sanitized metadata, and any returned output URLs; it contains no API credentials or mutable generation inputs.
+
+The coordinator is application-scoped rather than project-view-scoped. It continues while the user switches projects or has no project open, restores unresolved entries after application restart, and never calls `SubmitAsync`. A terminal result is merged into its owning `.rfp` project and successful outputs pass through the same verified ingestion/provenance path whether or not that project is currently visible. The project remains authoritative generation history; the application registry is recoverable operational state and is removed after terminal state and project ingestion are durably reconciled.
 
 ## Project schema and migration
 

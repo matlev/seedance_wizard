@@ -19,11 +19,11 @@
             <DockPanel Margin="10,5">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <TextBlock Text="REELFORGE" Style="{StaticResource ApplicationTextBlockStyle}" FontSize="16" VerticalAlignment="Center" Margin="4,0,18,0" />
-                    <Button Content="New project" Click="NewProject_Click" />
-                    <Button Content="Open" Click="OpenProject_Click" />
-                    <Button Content="Save" Click="SaveProject_Click" />
-                    <Button Content="Import assets" Click="ImportAssets_Click" />
-                    <Button Content="Settings" Click="Settings_Click" />
+                    <Button x:Name="NewProjectButton" Content="New project" Click="NewProject_Click" />
+                    <Button x:Name="OpenProjectButton" Content="Open" Click="OpenProject_Click" />
+                    <Button x:Name="SaveProjectButton" Content="Save" Click="SaveProject_Click" />
+                    <Button x:Name="ImportAssetsButton" Content="Import assets" Click="ImportAssets_Click" />
+                    <Button x:Name="SettingsButton" Content="Settings" Click="Settings_Click" />
                 </StackPanel>
                 <TextBlock x:Name="ProjectTitleText" Text="No project open" Foreground="{StaticResource MutedTextBrush}"
                            VerticalAlignment="Center" HorizontalAlignment="Right" Margin="12,0" />
@@ -318,17 +318,50 @@
 
                                 <Button x:Name="GenerateButton" Content="Run fake generation" Click="Generate_Click"
                                         Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,14,0,0" />
-                                <WrapPanel Margin="0,7,0,0">
-                                    <Button x:Name="StopMonitoringButton" Content="Stop local monitoring" Click="StopMonitoring_Click"
-                                            IsEnabled="False" Height="34" Padding="12,5" Margin="0,3,6,3"
-                                            VerticalContentAlignment="Center" />
-                                    <Button x:Name="ResumeMonitoringButton" Content="Resume selected job" Click="ResumeMonitoring_Click"
-                                            Height="34" Padding="12,5" Margin="3"
-                                            VerticalContentAlignment="Center" />
-                                </WrapPanel>
                                 <TextBlock x:Name="GenerationStatusText" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="3,8" />
                             </StackPanel>
                         </ScrollViewer>
+                    </TabItem>
+                    <TabItem Header="Jobs">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Margin="2,4,2,10">
+                                <TextBlock Text="ACTIVE GENERATION JOBS" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                                <TextBlock Text="Monitoring continues when you switch projects and resumes after ReelForge restarts."
+                                           TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                            </StackPanel>
+                            <Grid Grid.Row="1">
+                                <TextBlock x:Name="JobsEmptyText" Text="No active generation jobs."
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <ListBox x:Name="JobsList" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                    Background="#10131A" CornerRadius="4" Padding="10" Margin="1,2">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding ProjectName}" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding ProviderAndModel}" Foreground="{StaticResource MutedTextBrush}"
+                                                               TextWrapping="Wrap" Margin="0,3,0,0" />
+                                                    <DockPanel Margin="0,7,0,0">
+                                                        <TextBlock Text="{Binding ElapsedText}" DockPanel.Dock="Right"
+                                                                   Style="{StaticResource ApplicationTextBlockStyle}" Margin="8,0,0,0" />
+                                                        <TextBlock Text="{Binding StatusText}" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </DockPanel>
+                                                    <TextBlock Text="{Binding Message}" Foreground="{StaticResource MutedTextBrush}"
+                                                               TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Grid>
                     </TabItem>
                 </TabControl>
             </Border>

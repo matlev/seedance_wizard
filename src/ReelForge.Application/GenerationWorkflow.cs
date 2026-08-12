@@ -39,10 +39,32 @@ public sealed class GenerationWorkflow
         IProgress<GenerationWorkflowProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var record = await SubmitAsync(provider, draft, authorization, progress, cancellationToken)
+            .ConfigureAwait(false);
+        if (provider is not IAsyncVideoGenerationProvider asyncProvider ||
+            string.IsNullOrWhiteSpace(record.ProviderJobId) ||
+            record.Status is GenerationStatus.Failed or GenerationStatus.Cancelled)
+            return record;
+
+        return await ResumeMonitoringAsync(
+                asyncProvider,
+                record,
+                options ?? new GenerationWorkflowOptions(),
+                progress,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<GenerationRecord> SubmitAsync(
+        IVideoGenerationProvider provider,
+        GenerationDraft draft,
+        GenerationSubmissionAuthorization? authorization,
+        IProgress<GenerationWorkflowProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
         EnsureProjectOpen();
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(draft);
-        options ??= new GenerationWorkflowOptions();
 
         if (provider.CostBehavior == GenerationProviderCostBehavior.PotentiallyBillable)
         {
@@ -83,12 +105,6 @@ public sealed class GenerationWorkflow
             MergeMetadata(record.ResponseMetadata, submission.ResponseMetadata);
             await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
 
-            if (provider is IAsyncVideoGenerationProvider asyncProvider)
-            {
-                return await MonitorAndIngestAsync(asyncProvider, record, options, progress, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
             if (record.Status is GenerationStatus.Succeeded or GenerationStatus.Failed or GenerationStatus.Cancelled)
                 record.CompletedAt = DateTimeOffset.UtcNow;
             await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
@@ -96,12 +112,8 @@ public sealed class GenerationWorkflow
         }
         catch (OperationCanceledException) when (record.ProviderJobId is not null)
         {
-            record.ResponseMetadata["localMonitoring"] = "stopped-by-user";
+            record.ResponseMetadata["submission"] = "accepted-before-local-cancellation";
             await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
-            progress?.Report(new GenerationWorkflowProgress(
-                record.Status,
-                record.IngestionStatus,
-                "Local monitoring stopped. The remote job was not cancelled."));
             return record;
         }
         catch (OperationCanceledException)
@@ -118,10 +130,10 @@ public sealed class GenerationWorkflow
         }
         catch (Exception exception) when (record.ProviderJobId is not null)
         {
-            record.ResponseMetadata["localMonitoring"] = "error";
+            record.ResponseMetadata["submissionPersistence"] = "error-after-acceptance";
             record.Error = new GenerationError
             {
-                ProviderCode = "local_monitoring_failed",
+                ProviderCode = "submission_persistence_failed",
                 Message = exception.Message,
                 TechnicalDetails = exception.GetType().FullName
             };

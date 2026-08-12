@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phase 2A complete; Phase 2B implementation includes application settings and private R2 reference hosting, with human live acceptance pending.
+Status: Milestone 1 and Milestone 2 Phase 2A complete; Phase 2B has completed one human-run AtlasCloud MiniMax H3 generation, with follow-up UX verification pending.
 
 ## Product priority
 
@@ -100,8 +100,8 @@ Build the real provider lifecycle before general-purpose editing:
 6. Materialize provider-compatible media only when required.
 7. Prepare/upload provider-side references using only verified API contracts; do not infer an asset-upload API.
 8. Submit generation jobs through the existing provider abstraction.
-9. Poll verified asynchronous job state and display queued, running, completed, failed, ingestion-pending/failed, and useful diagnostics.
-10. Distinguish stopping local polling from cancelling a remote job; expose remote cancellation only when verified and supported.
+9. Poll verified asynchronous job state in an application-scoped Jobs view and display project, provider/model, elapsed time, current state, and useful diagnostics across project switches and restarts.
+10. Keep monitoring automatic and separate from remote cancellation; expose remote cancellation only when a provider contract is verified and supported.
 11. Download completed output, verify/inspect it, atomically place it in `generated/`, and ingest it as a durable physical video asset.
 12. Link every returned output asset to its one originating generation in both directions and select the first successfully ingested generated video as main video when none exists.
 13. Persist sanitized provider/materialization receipts where useful, without depending on local temporary files or expiring secrets.
@@ -122,10 +122,11 @@ Implemented vertical order within Phase 2B:
 9. Add provider-neutral temporary asset hosting and a private Cloudflare R2 implementation with content-addressed SHA-256 keys, deduplicating `HEAD`/`PUT`, and transient presigned GET URLs.
 10. Route BytePlus materialized references through `ITemporaryAssetHost` without placing Cloudflare details or signed URLs in domain history.
 11. Add AtlasCloud MiniMax H3 T2V, first/end-frame I2V, and multimodal R2V as a distinct provider route sharing the verified AtlasCloud transport, credential, and upload preparation.
+12. Split human-authorized submission from application-scoped monitoring, persist unresolved jobs outside project files, restore them on startup, and reconcile terminal results into the owning project regardless of the currently open project.
 
 Phase acceptance checks:
 
-- one explicitly confirmed live submission through the selected real provider can proceed through job polling to a durable generated asset, while automated tests remain network-isolated;
+- one explicitly confirmed AtlasCloud MiniMax H3 live submission has proceeded through job polling to a durable generated asset; repeat acceptance for the final Jobs/reference/player UX remains human-run, while automated tests stay network-isolated;
 - normal application startup and unit/integration tests cannot accidentally make paid requests;
 - remote completion without a valid local download is not reported as a successfully ingested project asset;
 - a downloaded output answers which generation, prompt, model, settings, references, and lineage produced it;

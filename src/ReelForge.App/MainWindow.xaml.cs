@@ -1,7 +1,9 @@
 ﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,14 +18,18 @@ using ReelForge.Infrastructure;
 
 namespace ReelForge.App;
 
-public partial class MainWindow : Window, IDisposable
+public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 {
     private readonly ObservableCollection<ProjectAssetListItem> _assets = [];
     private readonly ObservableCollection<GenerationRecord> _generations = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
+    private readonly ObservableCollection<GenerationJobListItem> _jobs = [];
     private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
     private readonly ProjectWorkspace _workspace;
+    private readonly PortableProjectStore _projectStore;
+    private readonly AssetImportService _assetImporter;
     private readonly FfprobeMediaInspectionService _mediaInspector;
+    private readonly IGeneratedOutputIngestionService _outputIngestion;
     private GenerationWorkflow _generationWorkflow = null!;
     private readonly ISecretStore _secretStore;
     private readonly IApplicationDiagnosticLog _diagnosticLog;
@@ -39,7 +45,8 @@ public partial class MainWindow : Window, IDisposable
     private MediaToolAvailability _mediaTools;
     private readonly DispatcherTimer _positionTimer;
     private readonly DispatcherTimer _draftAutosaveTimer;
-    private CancellationTokenSource? _monitoringCancellation;
+    private readonly DispatcherTimer _jobElapsedTimer;
+    private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressDraftAutosave;
     private bool _suppressPromptSynchronization;
     private bool _isVideoPlaying;
@@ -60,29 +67,40 @@ public partial class MainWindow : Window, IDisposable
         _mediaTools = _mediaToolDiscovery.Discover(configuredTools.FfmpegPath, configuredTools.FfprobePath);
         var processRunner = new ExternalProcessRunner();
         _mediaInspector = new FfprobeMediaInspectionService(_mediaTools.FfprobePath, processRunner);
-        var projectStore = new PortableProjectStore();
-        var assetImporter = new AssetImportService(_mediaInspector);
-        _workspace = new ProjectWorkspace(projectStore, assetImporter);
+        _projectStore = new PortableProjectStore();
+        _assetImporter = new AssetImportService(_mediaInspector);
+        _workspace = new ProjectWorkspace(_projectStore, _assetImporter);
         _secretStore = new WindowsCredentialStore();
         _diagnosticLog = new FileApplicationDiagnosticLog();
         _r2HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _downloadHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        _outputIngestion = new HttpGeneratedOutputIngestionService(_downloadHttpClient, _mediaInspector);
         _temporaryAssetHost = new CloudflareR2TemporaryAssetHost(
             _applicationSettingsStore,
             _secretStore,
             new CloudflareR2ClientFactory(_r2HttpClient));
         _generationProvider = new FakeVideoGenerationProvider();
         RefreshProviderRuntime(preferredProviderId: null);
+        _jobCoordinator = new GenerationJobCoordinator(
+            new JsonGenerationJobStore(),
+            ResolveAsyncProvider,
+            this);
+        _jobCoordinator.JobsChanged += JobCoordinator_JobsChanged;
 
         AssetsList.ItemsSource = _assets;
         GenerationsList.ItemsSource = _generations;
         ReferenceAssetsGrid.ItemsSource = _referenceChoices;
+        JobsList.ItemsSource = _jobs;
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _positionTimer.Tick += (_, _) => UpdatePlaybackPosition();
         _positionTimer.Start();
 
         _draftAutosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
         _draftAutosaveTimer.Tick += DraftAutosaveTimer_Tick;
+
+        _jobElapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _jobElapsedTimer.Tick += (_, _) => RefreshJobElapsedTimes();
+        _jobElapsedTimer.Start();
 
         MediaToolsText.Text = _mediaTools.Summary;
         Loaded += MainWindow_Loaded;
@@ -98,8 +116,9 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _monitoringCancellation?.Cancel();
-        _monitoringCancellation?.Dispose();
+        _jobCoordinator.JobsChanged -= JobCoordinator_JobsChanged;
+        _jobCoordinator.Stop();
+        _jobElapsedTimer.Stop();
         foreach (var client in _providerHttpClients) client.Dispose();
         _r2HttpClient.Dispose();
         _downloadHttpClient.Dispose();
@@ -122,6 +141,16 @@ public partial class MainWindow : Window, IDisposable
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         Loaded -= MainWindow_Loaded;
+        try
+        {
+            await _jobCoordinator.RestoreAsync();
+            RefreshJobsUi();
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"Active generation jobs could not be restored: {exception.Message}";
+        }
+
         if (string.IsNullOrWhiteSpace(_applicationSettings.General.LastProjectFilePath)) return;
 
         var projectFilePath = RecentProjectTracker.GetExistingProjectFile(_applicationSettings);
@@ -195,7 +224,7 @@ public partial class MainWindow : Window, IDisposable
         _generationWorkflow = new GenerationWorkflow(
             _workspace,
             new PhysicalAssetMaterializer(),
-            new HttpGeneratedOutputIngestionService(_downloadHttpClient, _mediaInspector),
+            _outputIngestion,
             new ProviderAssetPreparationRouter(preparationServices));
 
         var selected = choices.FirstOrDefault(choice =>
@@ -226,6 +255,124 @@ public partial class MainWindow : Window, IDisposable
         };
         _providerHttpClients.Add(client);
         return client;
+    }
+
+    private IAsyncVideoGenerationProvider? ResolveAsyncProvider(string providerId) =>
+        _providerChoices.FirstOrDefault(choice =>
+            choice.Provider.Capabilities.ProviderId.Equals(providerId, StringComparison.Ordinal))?.Provider
+        as IAsyncVideoGenerationProvider;
+
+    private void JobCoordinator_JobsChanged(object? sender, EventArgs e)
+    {
+        if (_disposed || Dispatcher.HasShutdownStarted) return;
+        _ = Dispatcher.BeginInvoke(RefreshJobsUi, DispatcherPriority.Background);
+    }
+
+    private void RefreshJobsUi()
+    {
+        var snapshot = _jobCoordinator.GetSnapshot();
+        var activeIds = snapshot.Select(job => job.GenerationId).ToHashSet();
+        for (var index = _jobs.Count - 1; index >= 0; index--)
+        {
+            if (!activeIds.Contains(_jobs[index].GenerationId)) _jobs.RemoveAt(index);
+        }
+
+        foreach (var job in snapshot)
+        {
+            var existing = _jobs.FirstOrDefault(item => item.GenerationId == job.GenerationId);
+            if (existing is null) _jobs.Add(new GenerationJobListItem(job));
+            else existing.Update(job);
+        }
+
+        JobsEmptyText.Visibility = _jobs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        JobsList.Visibility = _jobs.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        RefreshJobElapsedTimes();
+    }
+
+    private void RefreshJobElapsedTimes()
+    {
+        var now = DateTimeOffset.UtcNow;
+        foreach (var job in _jobs) job.RefreshElapsed(now);
+    }
+
+    public Task FinalizeAsync(TrackedGenerationJob job, CancellationToken cancellationToken = default)
+    {
+        if (Dispatcher.CheckAccess()) return FinalizeJobOnUiAsync(job, cancellationToken);
+        return Dispatcher.InvokeAsync(() => FinalizeJobOnUiAsync(job, cancellationToken)).Task.Unwrap();
+    }
+
+    private async Task FinalizeJobOnUiAsync(TrackedGenerationJob job, CancellationToken cancellationToken)
+    {
+        var activeLocation = _workspace.Location;
+        var isActiveProject = activeLocation is not null &&
+                              Path.GetFullPath(activeLocation.ProjectFilePath)
+                                  .Equals(Path.GetFullPath(job.ProjectFilePath), StringComparison.OrdinalIgnoreCase);
+
+        VideoProject project;
+        ProjectLocation location;
+        if (isActiveProject)
+        {
+            project = _workspace.Project
+                ?? throw new InvalidOperationException("The active project could not be loaded for job completion.");
+            location = activeLocation!;
+        }
+        else
+        {
+            (project, location) = await _projectStore.OpenAsync(job.ProjectFilePath, cancellationToken);
+        }
+
+        var generation = project.Generations.SingleOrDefault(candidate => candidate.Id == job.GenerationId)
+            ?? throw new InvalidOperationException("The generation record no longer exists in its project.");
+        generation.Status = job.Status;
+        generation.Error = job.Error;
+        foreach (var pair in job.ResponseMetadata) generation.ResponseMetadata[pair.Key] = pair.Value;
+        generation.ResponseMetadata["localMonitoring"] = "application-job-coordinator";
+
+        if (job.Status is GenerationStatus.Failed or GenerationStatus.Cancelled)
+        {
+            generation.CompletedAt = DateTimeOffset.UtcNow;
+            await _projectStore.SaveAsync(project, location, CancellationToken.None);
+        }
+        else if (job.Status == GenerationStatus.Succeeded &&
+                 generation.IngestionStatus != OutputIngestionStatus.Succeeded)
+        {
+            generation.CompletedAt = DateTimeOffset.UtcNow;
+            generation.IngestionStatus = OutputIngestionStatus.Running;
+            await _projectStore.SaveAsync(project, location, CancellationToken.None);
+            try
+            {
+                var assets = await _outputIngestion
+                    .IngestAsync(location, generation.Id, job.Outputs, cancellationToken);
+                foreach (var asset in assets)
+                {
+                    project.AddAsset(asset);
+                    generation.OutputAssetIds.Add(asset.Id);
+                }
+                generation.IngestionStatus = OutputIngestionStatus.Succeeded;
+                generation.Error = null;
+                await _projectStore.SaveAsync(project, location, CancellationToken.None);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                generation.IngestionStatus = OutputIngestionStatus.Failed;
+                generation.Error = new GenerationError
+                {
+                    ProviderCode = "local_ingestion_failed",
+                    Message = exception.Message,
+                    TechnicalDetails = exception.ToString()
+                };
+                await _projectStore.SaveAsync(project, location, CancellationToken.None);
+                throw;
+            }
+        }
+
+        if (isActiveProject)
+        {
+            RefreshProjectCollections();
+            StatusText.Text = job.Status == GenerationStatus.Succeeded
+                ? "Generated output added as durable project media."
+                : $"Generation finished with status {job.Status}.";
+        }
     }
 
     private async void Settings_Click(object sender, RoutedEventArgs e)
@@ -829,31 +976,40 @@ public partial class MainWindow : Window, IDisposable
         GenerationSubmissionAuthorization? authorization)
     {
         GenerateButton.IsEnabled = false;
-        ResumeMonitoringButton.IsEnabled = false;
-        StopMonitoringButton.IsEnabled = false;
-        _monitoringCancellation?.Dispose();
-        _monitoringCancellation = new CancellationTokenSource();
-        var progress = new Progress<GenerationWorkflowProgress>(update =>
-        {
-            GenerationStatusText.Text = $"{update.Message}\nRemote: {update.RemoteStatus} • Ingestion: {update.IngestionStatus}";
-            if (update.Message.StartsWith("Remote job:", StringComparison.Ordinal))
-                StopMonitoringButton.IsEnabled = true;
-        });
+        SetProjectActionsEnabled(false);
+        var provider = _generationProvider;
+        var projectLocation = _workspace.Location;
+        var projectName = _workspace.Project?.Name;
+        var progress = new Progress<GenerationWorkflowProgress>(update => GenerationStatusText.Text = update.Message);
 
         try
         {
-            var generation = await _generationWorkflow.RunAsync(
-                _generationProvider,
+            var generation = await _generationWorkflow.SubmitAsync(
+                provider,
                 draft,
                 authorization,
-                progress: progress,
-                cancellationToken: _monitoringCancellation.Token);
+                progress);
             RefreshProjectCollections();
             GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
-            GenerationStatusText.Text = FormatGenerationOutcome(generation);
-            StatusText.Text = generation.IngestionStatus == OutputIngestionStatus.Succeeded
-                ? "Generated output added as durable project media."
-                : $"Generation state: {generation.Status}; ingestion: {generation.IngestionStatus}.";
+
+            if (provider is IAsyncVideoGenerationProvider &&
+                !string.IsNullOrWhiteSpace(generation.ProviderJobId) &&
+                projectLocation is not null &&
+                projectName is not null)
+            {
+                await _jobCoordinator.TrackAsync(
+                    generation,
+                    projectLocation,
+                    projectName,
+                    provider.Capabilities.DisplayName);
+                GenerationStatusText.Text = "Generation submitted. Follow its progress in the Jobs tab.";
+                StatusText.Text = $"Generation accepted by {provider.Capabilities.DisplayName}.";
+            }
+            else
+            {
+                GenerationStatusText.Text = FormatGenerationOutcome(generation);
+                StatusText.Text = $"Generation state: {generation.Status}; ingestion: {generation.IngestionStatus}.";
+            }
         }
         catch (GenerationValidationException exception)
         {
@@ -866,60 +1022,18 @@ public partial class MainWindow : Window, IDisposable
         finally
         {
             GenerateButton.IsEnabled = true;
-            ResumeMonitoringButton.IsEnabled = true;
-            StopMonitoringButton.IsEnabled = false;
+            SetProjectActionsEnabled(true);
         }
     }
 
-    private void StopMonitoring_Click(object sender, RoutedEventArgs e)
+    private void SetProjectActionsEnabled(bool isEnabled)
     {
-        StopMonitoringButton.IsEnabled = false;
-        _monitoringCancellation?.Cancel();
-        GenerationStatusText.Text = "Stopping local monitoring. No remote cancellation request will be sent.";
-    }
-
-    private async void ResumeMonitoring_Click(object sender, RoutedEventArgs e)
-    {
-        if (GenerationsList.SelectedItem is not GenerationRecord generation)
-        {
-            GenerationStatusText.Text = "Select a generation with a remote job ID first.";
-            return;
-        }
-        if (_providerChoices.FirstOrDefault(choice =>
-                choice.Provider.Capabilities.ProviderId == generation.RequestSnapshot.ProviderId)?.Provider
-            is not IAsyncVideoGenerationProvider provider)
-        {
-            GenerationStatusText.Text = "The selected generation does not have a resumable asynchronous provider.";
-            return;
-        }
-
-        _monitoringCancellation?.Dispose();
-        _monitoringCancellation = new CancellationTokenSource();
-        GenerateButton.IsEnabled = false;
-        ResumeMonitoringButton.IsEnabled = false;
-        StopMonitoringButton.IsEnabled = true;
-        var progress = new Progress<GenerationWorkflowProgress>(update =>
-            GenerationStatusText.Text = $"{update.Message}\nRemote: {update.RemoteStatus} • Ingestion: {update.IngestionStatus}");
-        try
-        {
-            await _generationWorkflow.ResumeMonitoringAsync(
-                provider,
-                generation,
-                progress: progress,
-                cancellationToken: _monitoringCancellation.Token);
-            RefreshProjectCollections();
-            GenerationStatusText.Text = FormatGenerationOutcome(generation);
-        }
-        catch (Exception exception)
-        {
-            ShowError("Monitoring failed", exception);
-        }
-        finally
-        {
-            GenerateButton.IsEnabled = true;
-            ResumeMonitoringButton.IsEnabled = true;
-            StopMonitoringButton.IsEnabled = false;
-        }
+        NewProjectButton.IsEnabled = isEnabled;
+        OpenProjectButton.IsEnabled = isEnabled;
+        SaveProjectButton.IsEnabled = isEnabled;
+        ImportAssetsButton.IsEnabled = isEnabled;
+        SettingsButton.IsEnabled = isEnabled;
+        ProviderComboBox.IsEnabled = isEnabled;
     }
 
     private async void PrepareDerivedDraft_Click(object sender, RoutedEventArgs e)
@@ -1539,4 +1653,47 @@ public sealed class GenerationReferenceChoice
     public int Order { get; set; }
     public string? Label { get; set; }
     public string? Notes { get; set; }
+}
+
+public sealed class GenerationJobListItem : INotifyPropertyChanged
+{
+    private TrackedGenerationJob _job;
+    private string _elapsedText = "0:00";
+
+    public GenerationJobListItem(TrackedGenerationJob job)
+    {
+        _job = job;
+        RefreshElapsed(DateTimeOffset.UtcNow);
+    }
+
+    public Guid GenerationId => _job.GenerationId;
+    public string ProjectName => _job.ProjectName;
+    public string ProviderAndModel => $"{_job.ProviderDisplayName} • {_job.ModelVersion}";
+    public string StatusText => _job.Status.ToString();
+    public string Message => _job.Message;
+    public string ElapsedText => _elapsedText;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void Update(TrackedGenerationJob job)
+    {
+        _job = job;
+        OnPropertyChanged(nameof(ProjectName));
+        OnPropertyChanged(nameof(ProviderAndModel));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(Message));
+        RefreshElapsed(DateTimeOffset.UtcNow);
+    }
+
+    public void RefreshElapsed(DateTimeOffset now)
+    {
+        var elapsed = now > _job.RequestedAt ? now - _job.RequestedAt : TimeSpan.Zero;
+        var text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
+        if (text == _elapsedText) return;
+        _elapsedText = text;
+        OnPropertyChanged(nameof(ElapsedText));
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

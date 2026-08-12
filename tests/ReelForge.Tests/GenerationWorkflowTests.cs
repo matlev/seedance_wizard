@@ -75,6 +75,20 @@ public sealed class GenerationWorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitAsyncReturnsAcceptedJobWithoutPollingIt()
+    {
+        var (_, workflow) = await CreateWorkflowAsync(new SuccessfulIngestionService());
+        var provider = new ScriptedAsyncProvider(GenerationProviderCostBehavior.NoCharge);
+
+        var record = await workflow.SubmitAsync(provider, CreateTextDraft(provider), authorization: null);
+
+        Assert.Equal(GenerationStatus.Running, record.Status);
+        Assert.Equal("intercepted-job", record.ProviderJobId);
+        Assert.Equal(1, provider.SubmitCalls);
+        Assert.Equal(0, provider.StatusCalls);
+    }
+
+    [Fact]
     public async Task StoppingLocalMonitoringDoesNotMarkRemoteJobCancelled()
     {
         var (_, workflow) = await CreateWorkflowAsync(new SuccessfulIngestionService());
@@ -123,6 +137,7 @@ public sealed class GenerationWorkflowTests : IDisposable
         bool blockPolling = false) : IAsyncVideoGenerationProvider
     {
         public int SubmitCalls { get; private set; }
+        public int StatusCalls { get; private set; }
         public GenerationProviderCostBehavior CostBehavior => costBehavior;
         public GenerationProviderCapabilities Capabilities { get; } = new(
             "test.provider",
@@ -157,6 +172,7 @@ public sealed class GenerationWorkflowTests : IDisposable
             string providerJobId,
             CancellationToken cancellationToken = default)
         {
+            StatusCalls++;
             if (blockPolling)
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return new ProviderGenerationJob
