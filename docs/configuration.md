@@ -95,4 +95,6 @@ Authorization headers and API keys are never logged. Inline Base64 media is repl
 
 ## Safe testing
 
-Automated tests use local files, in-memory settings/secrets, fake temporary-host clients, and mocked HTTP handlers. They cannot access a real R2 bucket or submit BytePlus/AtlasCloud jobs. Manual verification consists of configuring the values in Settings, using **Test R2 Connection**, and—only when intentionally spending money—using the application's confirmed Generate action.
+Automated tests use local files, in-memory settings/secrets, fake temporary-host clients, and mocked HTTP handlers. They cannot access a real R2 bucket or submit BytePlus/AtlasCloud jobs. The fixture-backed acceptance tests serve a committed ten-second MP4 only through a strict in-memory HTTP handler; an unexpected URL throws before any network request can be made. These tests cover reference preparation and immutable history, successful output ingestion and persistence, retries, restart reconciliation into the owning project while another project is open, and output-download failure cleanup.
+
+Manual verification consists of configuring the values in Settings, using **Test R2 Connection**, and—only when intentionally spending money—using the application's confirmed Generate action. Actual WPF media playback and machine-specific codec behavior remain manual smoke tests because the automated suite validates durable media bytes and metadata without opening a desktop media session.

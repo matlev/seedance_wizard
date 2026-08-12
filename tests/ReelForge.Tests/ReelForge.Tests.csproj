@@ -26,4 +26,8 @@
     <ProjectReference Include="..\..\src\ReelForge.Infrastructure\ReelForge.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Fixtures\test_video.mp4" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
