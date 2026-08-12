@@ -32,6 +32,7 @@ public partial class MainWindow : Window, IDisposable
     private IVideoGenerationProvider _generationProvider;
     private readonly IMediaToolDiscovery _mediaToolDiscovery;
     private readonly IApplicationSettingsStore _applicationSettingsStore;
+    private readonly RecentProjectTracker _recentProjectTracker;
     private readonly ITemporaryAssetHost _temporaryAssetHost;
     private ApplicationSettings _applicationSettings;
     private MediaToolAvailability _mediaTools;
@@ -47,6 +48,7 @@ public partial class MainWindow : Window, IDisposable
 
         _mediaToolDiscovery = new MediaToolDiscovery();
         _applicationSettingsStore = new JsonApplicationSettingsStore();
+        _recentProjectTracker = new RecentProjectTracker(_applicationSettingsStore);
         _applicationSettings = LoadApplicationSettings();
         var configuredTools = _applicationSettings.MediaTools;
         _mediaTools = _mediaToolDiscovery.Discover(configuredTools.FfmpegPath, configuredTools.FfprobePath);
@@ -79,6 +81,7 @@ public partial class MainWindow : Window, IDisposable
         _draftAutosaveTimer.Tick += DraftAutosaveTimer_Tick;
 
         MediaToolsText.Text = _mediaTools.Summary;
+        Loaded += MainWindow_Loaded;
     }
 
     protected override void OnClosed(EventArgs e)
@@ -109,6 +112,31 @@ public partial class MainWindow : Window, IDisposable
         catch
         {
             return new ApplicationSettings();
+        }
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= MainWindow_Loaded;
+        if (string.IsNullOrWhiteSpace(_applicationSettings.General.LastProjectFilePath)) return;
+
+        var projectFilePath = RecentProjectTracker.GetExistingProjectFile(_applicationSettings);
+        if (projectFilePath is null)
+        {
+            StatusText.Text = "The last project is unavailable. Use Open to choose its current location or another project.";
+            return;
+        }
+
+        StatusText.Text = $"Reopening {projectFilePath}…";
+        try
+        {
+            await _workspace.OpenAsync(projectFilePath);
+            RefreshProjectUi();
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"The last project could not be reopened: {exception.Message}";
+            InspectorText.Text = $"Automatic project reopen failed\n\n{exception}";
         }
     }
 
@@ -381,6 +409,7 @@ public partial class MainWindow : Window, IDisposable
             {
                 await _workspace.CreateAsync(dialog.ProjectDirectory, dialog.ProjectName);
                 RefreshProjectUi();
+                await RememberCurrentProjectAsync();
             });
     }
 
@@ -405,7 +434,22 @@ public partial class MainWindow : Window, IDisposable
             {
                 await _workspace.OpenAsync(dialog.ProjectFilePath);
                 RefreshProjectUi();
+                await RememberCurrentProjectAsync();
             });
+    }
+
+    private async Task RememberCurrentProjectAsync()
+    {
+        if (_workspace.Location is null) return;
+
+        try
+        {
+            await _recentProjectTracker.RememberAsync(_applicationSettings, _workspace.Location.ProjectFilePath);
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text += $" ReelForge could not remember this project for the next launch: {exception.Message}";
+        }
     }
 
     private async void SaveProject_Click(object sender, RoutedEventArgs e)

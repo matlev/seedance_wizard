@@ -16,6 +16,42 @@ public sealed class ApplicationSettings
 public sealed class GeneralApplicationSettings
 {
     public string ProjectsRoot { get; set; } = string.Empty;
+    public string LastProjectFilePath { get; set; } = string.Empty;
+}
+
+public sealed class RecentProjectTracker
+{
+    private readonly IApplicationSettingsStore _settingsStore;
+
+    public RecentProjectTracker(IApplicationSettingsStore settingsStore) => _settingsStore = settingsStore;
+
+    public async Task RememberAsync(
+        ApplicationSettings settings,
+        string projectFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectFilePath);
+        settings.General.LastProjectFilePath = Path.GetFullPath(projectFilePath);
+        await _settingsStore.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+    }
+
+    public static string? GetExistingProjectFile(ApplicationSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var configuredPath = settings.General.LastProjectFilePath;
+        if (string.IsNullOrWhiteSpace(configuredPath)) return null;
+
+        try
+        {
+            var fullPath = Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredPath));
+            return File.Exists(fullPath) ? fullPath : null;
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+    }
 }
 
 public sealed class TemporaryAssetHostingSettings

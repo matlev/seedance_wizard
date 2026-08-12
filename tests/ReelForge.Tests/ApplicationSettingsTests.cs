@@ -88,6 +88,34 @@ public sealed class ApplicationSettingsTests
     }
 
     [Fact]
+    public async Task RecentProjectTrackerPersistsAndResolvesAvailableProject()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var projectFilePath = Path.Combine(directory, "Last Project.rfp");
+            await File.WriteAllTextAsync(projectFilePath, "{}");
+            var settings = new ApplicationSettings();
+            var store = new CountingSettingsStore();
+            var tracker = new RecentProjectTracker(store);
+
+            await tracker.RememberAsync(settings, projectFilePath);
+
+            Assert.Equal(1, store.SaveCount);
+            Assert.Equal(Path.GetFullPath(projectFilePath), settings.General.LastProjectFilePath);
+            Assert.Equal(Path.GetFullPath(projectFilePath), RecentProjectTracker.GetExistingProjectFile(settings));
+
+            File.Delete(projectFilePath);
+            Assert.Null(RecentProjectTracker.GetExistingProjectFile(settings));
+            Assert.Equal(Path.GetFullPath(projectFilePath), settings.General.LastProjectFilePath);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ConfigurationStatusUsesExistenceCheckWithoutLoadingPlaintext()
     {
         var secrets = new ExistenceOnlySecretStore(
