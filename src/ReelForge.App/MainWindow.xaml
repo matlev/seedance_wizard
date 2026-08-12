@@ -152,9 +152,19 @@
                                           SelectionChanged="ProviderComboBox_SelectionChanged" />
                                 <TextBlock x:Name="ProviderText" Style="{StaticResource ApplicationTextBlockStyle}" TextWrapping="Wrap" Margin="0,5,0,12" />
 
-                                <TextBlock Text="Prompt" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,0,0,4" />
+                                <DockPanel Margin="0,0,0,4">
+                                    <Button DockPanel.Dock="Right" Width="27" Height="25" Padding="5" Margin="0"
+                                            ToolTip="Expand the prompt text area" Click="ExpandPrompt_Click"
+                                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                                        <Path Stroke="{StaticResource TextBrush}" StrokeThickness="1.5"
+                                              StrokeStartLineCap="Square" StrokeEndLineCap="Square"
+                                              Data="M 1,6 L1,1 L6,1 M10,1 L15,1 L15,6 M15,10 L15,15 L10,15 M6,15 L1,15 L1,10" />
+                                    </Button>
+                                    <TextBlock Text="Prompt" Style="{StaticResource ApplicationTextBlockStyle}" VerticalAlignment="Center" />
+                                </DockPanel>
                                 <TextBox x:Name="PromptTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="110"
-                                         TextChanged="GenerationDraftChanged" />
+                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                         TextChanged="PromptTextBox_TextChanged" />
 
                                 <TextBlock Text="Mode" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
                                 <ComboBox x:Name="ModeComboBox" SelectionChanged="GenerationMode_SelectionChanged" />
@@ -232,6 +242,33 @@
                         </ScrollViewer>
                     </TabItem>
                 </TabControl>
+            </Border>
+
+            <Border x:Name="ExpandedPromptPanel" Grid.Column="2" Grid.ColumnSpan="3" Panel.ZIndex="10"
+                    Visibility="Collapsed" Background="{StaticResource PanelBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
+                <Grid Margin="18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <DockPanel Margin="0,0,0,10">
+                        <Button DockPanel.Dock="Right" Width="31" Height="29" Padding="6" Margin="0"
+                                ToolTip="Return to normal view" Click="CollapsePrompt_Click"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <Path Stroke="{StaticResource TextBrush}" StrokeThickness="1.5"
+                                  StrokeStartLineCap="Square" StrokeEndLineCap="Square"
+                                  Data="M 1,6 L6,6 L6,1 M10,1 L10,6 L15,6 M15,10 L10,10 L10,15 M6,15 L6,10 L1,10" />
+                        </Button>
+                        <TextBlock Text="Prompt" Style="{StaticResource ApplicationTextBlockStyle}"
+                                   FontSize="18" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBox x:Name="ExpandedPromptTextBox" Grid.Row="1" AcceptsReturn="True" AcceptsTab="True"
+                             TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Disabled" FontSize="14" Padding="12"
+                             TextChanged="ExpandedPromptTextBox_TextChanged"
+                             PreviewKeyDown="ExpandedPromptTextBox_PreviewKeyDown" />
+                </Grid>
             </Border>
         </Grid>
 

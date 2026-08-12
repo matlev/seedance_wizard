@@ -40,6 +40,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly DispatcherTimer _draftAutosaveTimer;
     private CancellationTokenSource? _monitoringCancellation;
     private bool _suppressDraftAutosave;
+    private bool _suppressPromptSynchronization;
     private bool _disposed;
 
     public MainWindow()
@@ -321,6 +322,60 @@ public partial class MainWindow : Window, IDisposable
     }
 
     private void GenerationDraftChanged(object sender, EventArgs e) => ScheduleDraftAutosave();
+
+    private void PromptTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!_suppressPromptSynchronization &&
+            ExpandedPromptPanel is not null &&
+            ExpandedPromptPanel.Visibility == Visibility.Visible)
+            SynchronizePromptText(PromptTextBox, ExpandedPromptTextBox);
+        ScheduleDraftAutosave();
+    }
+
+    private void ExpandedPromptTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressPromptSynchronization) return;
+        SynchronizePromptText(ExpandedPromptTextBox, PromptTextBox);
+    }
+
+    private void ExpandPrompt_Click(object sender, RoutedEventArgs e)
+    {
+        SynchronizePromptText(PromptTextBox, ExpandedPromptTextBox);
+        ExpandedPromptPanel.Visibility = Visibility.Visible;
+        ExpandedPromptTextBox.Focus();
+        ExpandedPromptTextBox.CaretIndex = ExpandedPromptTextBox.Text.Length;
+    }
+
+    private void CollapsePrompt_Click(object sender, RoutedEventArgs e) => CollapseExpandedPrompt();
+
+    private void ExpandedPromptTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        CollapseExpandedPrompt();
+        e.Handled = true;
+    }
+
+    private void CollapseExpandedPrompt()
+    {
+        SynchronizePromptText(ExpandedPromptTextBox, PromptTextBox);
+        ExpandedPromptPanel.Visibility = Visibility.Collapsed;
+        PromptTextBox.Focus();
+        PromptTextBox.CaretIndex = PromptTextBox.Text.Length;
+    }
+
+    private void SynchronizePromptText(TextBox source, TextBox destination)
+    {
+        if (string.Equals(source.Text, destination.Text, StringComparison.Ordinal)) return;
+        _suppressPromptSynchronization = true;
+        try
+        {
+            destination.Text = source.Text;
+        }
+        finally
+        {
+            _suppressPromptSynchronization = false;
+        }
+    }
 
     private void GenerationMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -934,6 +989,7 @@ public partial class MainWindow : Window, IDisposable
 
     private void ResetProjectSpecificUi()
     {
+        ExpandedPromptPanel.Visibility = Visibility.Collapsed;
         AssetsList.SelectedItem = null;
         GenerationsList.SelectedItem = null;
         _referenceChoices.Clear();
