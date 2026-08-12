@@ -820,14 +820,24 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private async void RenameAsset_Click(object sender, RoutedEventArgs e)
     {
         if (GetSelectedAsset() is not { } asset) return;
-        var dialog = new AssetNameDialog(asset.EffectiveDisplayName) { Owner = this };
+        if (asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
+        {
+            MessageBox.Show(this, "Virtual assets do not have a stored media filename.", "Change filename", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new AssetNameDialog(asset.FileName) { Owner = this };
         if (dialog.ShowDialog() != true) return;
 
-        asset.DisplayName = dialog.AssetName;
-        await _workspace.SaveAsync();
-        RefreshProjectCollections(asset.Id);
-        InspectorText.Text = FormatAssetInspector(asset);
-        StatusText.Text = $"Renamed asset to {asset.DisplayName}.";
+        await RunUiActionAsync(
+            $"Renaming {asset.FileName}…",
+            async () =>
+            {
+                await PhysicalAssetFileRenameService.RenameAsync(_workspace, asset, dialog.FileName);
+                RefreshProjectCollections(asset.Id);
+                InspectorText.Text = FormatAssetInspector(asset);
+                StatusText.Text = $"Renamed stored media file to {asset.FileName}.";
+            });
     }
 
     private async void DeleteAsset_Click(object sender, RoutedEventArgs e)
@@ -1624,7 +1634,7 @@ public sealed class ProjectAssetListItem
 
     public ProjectAsset Asset { get; }
     public bool IsMainVideo { get; }
-    public string DisplayName => Asset.EffectiveDisplayName;
+    public string DisplayName => Asset.StorageKind == AssetStorageKind.Physical ? Asset.FileName : Asset.EffectiveDisplayName;
     public MediaType MediaType => Asset.MediaType;
     public string MainVideoGlyph => IsMainVideo ? "★" : "☆";
     public Brush MainVideoBrush => IsMainVideo ? Brushes.Gold : Brushes.DimGray;

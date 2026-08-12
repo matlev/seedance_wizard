@@ -53,7 +53,7 @@
                              PreviewMouseRightButtonDown="AssetsList_PreviewMouseRightButtonDown">
                         <ListBox.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="Change name…" Click="RenameAsset_Click" />
+                                <MenuItem Header="Change filename…" Click="RenameAsset_Click" />
                                 <MenuItem Header="Move to Project…" Click="MoveAssetToProject_Click" />
                                 <Separator />
                                 <MenuItem Header="Delete…" Foreground="#FF9B9B" Click="DeleteAsset_Click" />

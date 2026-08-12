@@ -1,31 +1,69 @@
 using System.Windows;
+using ReelForge.Infrastructure;
 
 namespace ReelForge.App;
 
 public partial class AssetNameDialog : Window
 {
-    public AssetNameDialog(string currentName)
+    private static readonly HashSet<string> MediaExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".bmp", ".gif", ".heic", ".heif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp",
+        ".avi", ".m4v", ".mkv", ".mov", ".mp4", ".webm", ".wmv",
+        ".aac", ".flac", ".m4a", ".mp3", ".ogg", ".wav", ".wma"
+    };
+    private readonly string _extension;
+
+    public AssetNameDialog(string currentFileName)
     {
         InitializeComponent();
-        AssetNameTextBox.Text = currentName;
+        _extension = Path.GetExtension(currentFileName);
+        FileNameStemTextBox.Text = Path.GetFileNameWithoutExtension(currentFileName);
+        ExtensionText.Text = $"{_extension} (file type locked)";
         Loaded += (_, _) =>
         {
-            AssetNameTextBox.Focus();
-            AssetNameTextBox.SelectAll();
+            FileNameStemTextBox.Focus();
+            FileNameStemTextBox.SelectAll();
         };
     }
 
-    public string AssetName => AssetNameTextBox.Text.Trim();
+    public string FileName => $"{FileNameStemTextBox.Text.Trim()}{_extension}";
 
     private void Update_Click(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(AssetNameTextBox.Text))
+        var stem = FileNameStemTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(stem))
         {
-            ValidationText.Text = "Enter an asset name.";
-            ValidationText.Visibility = Visibility.Visible;
+            ShowValidation("Enter a filename.");
+            return;
+        }
+        if (stem.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || stem.EndsWith(' ') || stem.EndsWith('.'))
+        {
+            ShowValidation("Enter a valid Windows filename without a folder path.");
+            return;
+        }
+        var typedExtension = Path.GetExtension(stem);
+        if (MediaExtensions.Contains(typedExtension))
+        {
+            ShowValidation($"The file type is locked as {_extension}. Remove '{typedExtension}' from the filename field.");
+            return;
+        }
+
+        try
+        {
+            PhysicalAssetFileRenameService.ValidateFileName($"current{_extension}", FileName);
+        }
+        catch (ArgumentException exception)
+        {
+            ShowValidation(exception.Message);
             return;
         }
 
         DialogResult = true;
+    }
+
+    private void ShowValidation(string message)
+    {
+        ValidationText.Text = message;
+        ValidationText.Visibility = Visibility.Visible;
     }
 }
