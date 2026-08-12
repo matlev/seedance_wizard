@@ -28,6 +28,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
     private readonly AssetImportService _assetImporter;
+    private readonly ProjectAssetTransferService _assetTransferService;
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private readonly IGeneratedOutputIngestionService _outputIngestion;
     private GenerationWorkflow _generationWorkflow = null!;
@@ -70,6 +71,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _projectStore = new PortableProjectStore();
         _assetImporter = new AssetImportService(_mediaInspector);
         _workspace = new ProjectWorkspace(_projectStore, _assetImporter);
+        _assetTransferService = new ProjectAssetTransferService(_projectStore, _assetImporter);
         _secretStore = new WindowsCredentialStore();
         _diagnosticLog = new FileApplicationDiagnosticLog();
         _r2HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
@@ -719,6 +721,18 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             $"Inspecting {asset.FileName}…",
             async () =>
             {
+                if (asset.StorageKind == AssetStorageKind.Physical && asset.Physical is not null &&
+                    !File.Exists(_workspace.GetAbsoluteAssetPath(asset)))
+                {
+                    asset.Physical.Availability = PhysicalAssetAvailability.Missing;
+                    await _workspace.SaveAsync();
+                    if (_workspace.Project?.Id != selectedProjectId) return;
+                    InspectorText.Text = FormatAssetInspector(asset);
+                    ShowAssetPreview(asset);
+                    StatusText.Text = $"{asset.FileName} is missing from its recorded project location.";
+                    return;
+                }
+
                 if (asset.MediaType is MediaType.Video or MediaType.Audio &&
                     asset.Encoding is null &&
                     _mediaTools.FfprobePath is not null)
@@ -872,51 +886,72 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         if (GetSelectedAsset() is not { } asset || _workspace.Project is null || _workspace.Location is null) return;
         var usage = GetAssetUsage(_workspace.Project, asset);
-        if (usage.Count > 0)
-        {
-            MessageBox.Show(
-                this,
-                $"'{asset.EffectiveDisplayName}' cannot be moved because it is still used by:\n\n• {string.Join("\n• ", usage)}",
-                "Asset is in use",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
         if (asset.StorageKind != AssetStorageKind.Physical)
         {
             MessageBox.Show(this, "Virtual assets cannot be moved between projects yet.", "Move asset", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var dialog = new OpenFileDialog
-        {
-            Title = "Choose the ReelForge project that will receive this asset",
-            InitialDirectory = GetDefaultProjectsDirectory(),
-            Filter = "ReelForge project (*.rfp)|*.rfp|Legacy ReelForge project (project.json)|project.json",
-            CheckFileExists = true,
-            Multiselect = false
-        };
-        if (dialog.ShowDialog(this) != true) return;
-        if (Path.GetFullPath(dialog.FileName).Equals(_workspace.Location.ProjectFilePath, StringComparison.OrdinalIgnoreCase))
-        {
-            MessageBox.Show(this, "Choose a different project.", "Move asset", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
+        var targetProjectFile = ChooseTransferTargetProject();
+        if (targetProjectFile is null) return;
 
         await RunUiActionAsync(
             $"Moving {asset.EffectiveDisplayName}…",
             async () =>
             {
-                var store = new PortableProjectStore();
-                var (targetProject, targetLocation) = await store.OpenAsync(dialog.FileName);
-                var importer = new AssetImportService(_mediaInspector);
-                var imported = AssertSingle(await importer.ImportAsync(targetLocation, [_workspace.GetAbsoluteAssetPath(asset)]));
-                imported.DisplayName = asset.EffectiveDisplayName;
-                targetProject.AddAsset(imported);
-                await store.SaveAsync(targetProject, targetLocation);
-                await RemoveCurrentProjectAssetAsync(asset);
-                StatusText.Text = $"Moved {asset.EffectiveDisplayName} to {targetProject.Name}.";
+                var result = await _assetTransferService.CopyToProjectAsync(_workspace, asset, targetProjectFile);
+                if (usage.Count == 0)
+                {
+                    await RemoveCurrentProjectAssetAsync(asset);
+                    StatusText.Text = $"Moved {asset.FileName} to {result.TargetProjectName}.";
+                    return;
+                }
+
+                StatusText.Text = $"Copied {asset.FileName} to {result.TargetProjectName}; the source remains because project history references it.";
+                MessageBox.Show(
+                    this,
+                    $"'{asset.FileName}' is now available in '{result.TargetProjectName}'.\n\n" +
+                    "ReelForge retained the source copy because removing it would break:\n\n" +
+                    $"• {string.Join("\n• ", usage)}",
+                    "Asset transferred; source retained",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             });
+    }
+
+    private async void CopyAssetToProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedAsset() is not { } asset || _workspace.Project is null || _workspace.Location is null) return;
+        if (asset.StorageKind != AssetStorageKind.Physical)
+        {
+            MessageBox.Show(this, "Virtual assets cannot be copied between projects until recipe materialization is available.", "Copy asset", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var targetProjectFile = ChooseTransferTargetProject();
+        if (targetProjectFile is null) return;
+        await RunUiActionAsync(
+            $"Copying {asset.FileName}…",
+            async () =>
+            {
+                var result = await _assetTransferService.CopyToProjectAsync(_workspace, asset, targetProjectFile);
+                StatusText.Text = $"Copied {asset.FileName} to {result.TargetProjectName} as {result.CopiedAsset.FileName}.";
+            });
+    }
+
+    private string? ChooseTransferTargetProject()
+    {
+        var dialog = new OpenProjectDialog(GetDefaultProjectsDirectory()) { Owner = this };
+        if (dialog.ShowDialog() != true) return null;
+        if (_workspace.Location is not null &&
+            Path.GetFullPath(dialog.ProjectFilePath).Equals(
+                Path.GetFullPath(_workspace.Location.ProjectFilePath),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(this, "Choose a different destination project.", "Transfer asset", MessageBoxButton.OK, MessageBoxImage.Information);
+            return null;
+        }
+        return dialog.ProjectFilePath;
     }
 
     private ProjectAsset? GetSelectedAsset() => (AssetsList.SelectedItem as ProjectAssetListItem)?.Asset;
@@ -976,10 +1011,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         ExtractFrameRecipe frame => frame.Source.AssetId == assetId,
         _ => false
     };
-
-    private static T AssertSingle<T>(IReadOnlyList<T> values) => values.Count == 1
-        ? values[0]
-        : throw new InvalidOperationException("Expected exactly one moved asset.");
 
     private async Task RunGenerationWorkflowAsync(
         GenerationDraft draft,
@@ -1181,6 +1212,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }
 
         var absolutePath = _workspace.GetAbsoluteAssetPath(asset);
+        if (!File.Exists(absolutePath))
+        {
+            PreviewPlaceholder.Text = $"Missing media file\n{asset.FileName}\n\nMoving a file in Explorer does not add it to another project's .rfp file.";
+            PreviewPlaceholder.TextAlignment = TextAlignment.Center;
+            PreviewPlaceholder.Visibility = Visibility.Visible;
+            return;
+        }
         if (asset.MediaType == MediaType.Image)
         {
             var bitmap = new BitmapImage();
@@ -1208,6 +1246,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         ImagePreview.Source = null;
         ImagePreview.Visibility = Visibility.Collapsed;
         PreviewPlaceholder.Text = "Select a video or image asset to preview";
+        PreviewPlaceholder.TextAlignment = TextAlignment.Center;
         PreviewPlaceholder.Visibility = Visibility.Visible;
         PositionSlider.Maximum = 1;
         PositionSlider.Value = 0;

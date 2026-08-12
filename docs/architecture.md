@@ -143,6 +143,10 @@ SHA-256 is the canonical durable-media content fingerprint and may support verif
 
 The stored expected hash must not silently change when replacement is detected. Until the user explicitly accepts or relinks the new bytes, the asset is reported as modified/mismatched. Historical generation/materialization receipts retain the content hash they actually referenced; if those prior bytes are no longer available, history remains intact but reconstruction is reported as unavailable rather than resolving to different media.
 
+Cross-project transfer preserves the same separation. Copying physical media creates a new destination `AssetId`, copies and re-verifies the bytes, retains the same SHA-256 when the copy is exact, and records sanitized source-project/source-asset identity without importing a generation ID that is not part of the destination project. An unreferenced source asset can then be removed for a true move. If immutable generation history, recipes, anchors, timeline state, or another durable object references the source asset, a requested move becomes a copy with an explicit explanation and retains the source asset so project history is not corrupted.
+
+The `.rfp` asset catalog remains authoritative. Moving a media file between project folders in Explorer does not transfer its logical asset record: the source project detects the recorded relative path as missing, while the destination project ignores the unregistered file until the user imports or copies it through ReelForge. A future relink workflow may use the expected SHA-256 to recognize identical bytes, but must never silently adopt or rewrite project state merely because a matching filename appears.
+
 Use explicit typed recipes rather than an operation enum plus arbitrary parameter dictionary. Conceptual recipe variants include:
 
 ```text
