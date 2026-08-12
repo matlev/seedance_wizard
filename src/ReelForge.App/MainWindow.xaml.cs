@@ -266,7 +266,7 @@ public partial class MainWindow : Window, IDisposable
         ProviderText.Text = $"{capabilities.ModelVersion}\n{costText}";
         GenerateButton.Content = _generationProvider.CostBehavior == GenerationProviderCostBehavior.NoCharge
             ? "Run fake generation"
-            : "Review and submit paid generation…";
+            : "Review and submit generation…";
         var supportsWatermark = capabilities.ProviderParameters.ContainsKey("watermark");
         var supportsAudioToggle = capabilities.ProviderParameters.ContainsKey("generate_audio") ||
                                   capabilities.ProviderParameters.ContainsKey("generateAudio");
@@ -627,7 +627,7 @@ public partial class MainWindow : Window, IDisposable
                 MessageBoxResult.No);
             if (confirmation != MessageBoxResult.Yes)
             {
-                GenerationStatusText.Text = "Submission cancelled. No API request was made.";
+                GenerationStatusText.Text = "Submission cancelled.";
                 return;
             }
 

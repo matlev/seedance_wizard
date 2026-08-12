@@ -234,8 +234,11 @@
                                         Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,14,0,0" />
                                 <WrapPanel Margin="0,7,0,0">
                                     <Button x:Name="StopMonitoringButton" Content="Stop local monitoring" Click="StopMonitoring_Click"
-                                            IsEnabled="False" Margin="0,0,6,0" />
-                                    <Button x:Name="ResumeMonitoringButton" Content="Resume selected job" Click="ResumeMonitoring_Click" />
+                                            IsEnabled="False" Height="34" Padding="12,5" Margin="0,3,6,3"
+                                            VerticalContentAlignment="Center" />
+                                    <Button x:Name="ResumeMonitoringButton" Content="Resume selected job" Click="ResumeMonitoring_Click"
+                                            Height="34" Padding="12,5" Margin="3"
+                                            VerticalContentAlignment="Center" />
                                 </WrapPanel>
                                 <TextBlock x:Name="GenerationStatusText" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="3,8" />
                             </StackPanel>
