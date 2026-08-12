@@ -1,9 +1,13 @@
 ﻿<Window x:Class="ReelForge.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:ReelForge.App"
         Title="ReelForge" Height="900" Width="1440"
         MinHeight="680" MinWidth="1080"
         WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <local:PromptPreviewConverter x:Key="PromptPreviewConverter" />
+    </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="54" />
@@ -80,11 +84,15 @@
                     </ListBox>
                     <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" />
                     <TextBlock Grid.Row="3" Text="GENERATIONS" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,8,4,6" />
-                    <ListBox x:Name="GenerationsList" Grid.Row="4" SelectionChanged="GenerationsList_SelectionChanged">
+                    <ListBox x:Name="GenerationsList" Grid.Row="4" SelectionChanged="GenerationsList_SelectionChanged"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Margin="7,4">
-                                    <TextBlock Text="{Binding RequestSnapshot.Prompt}" Style="{StaticResource ApplicationTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding RequestSnapshot.Prompt, Converter={StaticResource PromptPreviewConverter}}"
+                                               ToolTip="{Binding RequestSnapshot.Prompt}"
+                                               Style="{StaticResource ApplicationTextBlockStyle}"
+                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
                                         <TextBlock Text=" / " FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
@@ -226,19 +234,57 @@
                                 </WrapPanel>
 
                                 <TextBlock Text="Reference assets" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
-                                <TextBlock Text="Select logical project assets; role, order, label, and notes are frozen into history."
+                                <TextBlock x:Name="ReferenceAssetsHelpText"
+                                           Text="Select project assets to use as references. Role, order, label, and notes are frozen into history."
                                            TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
                                 <DataGrid x:Name="ReferenceAssetsGrid" Height="175" Margin="0,4,0,0" AutoGenerateColumns="False"
                                           CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column"
-                                          CellEditEnding="ReferenceAssetsGrid_CellEditEnding">
+                                          CellEditEnding="ReferenceAssetsGrid_CellEditEnding" SelectionUnit="FullRow"
+                                          RowHeight="34" CanUserSortColumns="False">
                                     <DataGrid.Columns>
-                                        <DataGridCheckBoxColumn Header="Use" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="42" />
-                                        <DataGridTextColumn Header="Asset" Binding="{Binding Asset.FileName}" IsReadOnly="True" Width="*" />
-                                        <DataGridComboBoxColumn x:Name="ReferenceRoleColumn" Header="Role"
-                                                                SelectedItemBinding="{Binding Role, UpdateSourceTrigger=PropertyChanged}" Width="95" />
-                                        <DataGridTextColumn Header="Order" Binding="{Binding Order, UpdateSourceTrigger=PropertyChanged}" Width="52" />
-                                        <DataGridTextColumn Header="Label" Binding="{Binding Label, UpdateSourceTrigger=PropertyChanged}" Width="90" />
-                                        <DataGridTextColumn Header="Notes" Binding="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" Width="110" />
+                                        <DataGridTemplateColumn Header="Use" Width="46">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                              Click="ReferenceChoiceChanged" ToolTip="Include this asset as a reference" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Asset" Binding="{Binding Asset.EffectiveDisplayName}" IsReadOnly="True" Width="140" />
+                                        <DataGridTemplateColumn Header="Role" Width="125">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding AvailableRoles}"
+                                                              SelectedItem="{Binding Role, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              SelectionChanged="ReferenceChoiceChanged" Margin="2" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Order" Width="58">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Order, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                             LostKeyboardFocus="ReferenceChoiceChanged" Margin="2" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Label" Width="120">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                             LostKeyboardFocus="ReferenceChoiceChanged" Margin="2" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Notes" Width="180">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Notes, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                             LostKeyboardFocus="ReferenceChoiceChanged" Margin="2" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                     </DataGrid.Columns>
                                 </DataGrid>
 

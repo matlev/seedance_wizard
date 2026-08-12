@@ -73,8 +73,6 @@ public partial class MainWindow : Window, IDisposable
         AssetsList.ItemsSource = _assets;
         GenerationsList.ItemsSource = _generations;
         ReferenceAssetsGrid.ItemsSource = _referenceChoices;
-        ReferenceRoleColumn.ItemsSource = Enum.GetValues<GenerationReferenceRole>().Cast<GenerationReferenceRole?>().Prepend(null);
-
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _positionTimer.Tick += (_, _) => UpdatePlaybackPosition();
         _positionTimer.Start();
@@ -384,6 +382,9 @@ public partial class MainWindow : Window, IDisposable
             ? mode
             : GenerationMode.TextToVideo;
         ReferenceAssetsGrid.IsEnabled = selectedMode is not GenerationMode.TextToVideo;
+        ReferenceAssetsHelpText.Text = selectedMode is GenerationMode.TextToVideo
+            ? "Text-to-video does not use reference assets. Choose ImageToVideo or ReferenceToVideo to select and describe references."
+            : "Select project assets to use as references. Role, order, label, and notes are frozen into history.";
         if (selectedMode is GenerationMode.ImageToVideo &&
             _generationProvider.Capabilities.AspectRatios.Contains("adaptive"))
         {
@@ -402,6 +403,9 @@ public partial class MainWindow : Window, IDisposable
     }
 
     private void ReferenceAssetsGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) =>
+        Dispatcher.BeginInvoke(ScheduleDraftAutosave, DispatcherPriority.Background);
+
+    private void ReferenceChoiceChanged(object sender, RoutedEventArgs e) =>
         Dispatcher.BeginInvoke(ScheduleDraftAutosave, DispatcherPriority.Background);
 
     private void ScheduleDraftAutosave()
@@ -1447,6 +1451,10 @@ public sealed class ProjectAssetListItem
 
 public sealed class GenerationReferenceChoice
 {
+    private static readonly IReadOnlyList<GenerationReferenceRole?> ReferenceRoles =
+        Enum.GetValues<GenerationReferenceRole>().Cast<GenerationReferenceRole?>().Prepend(null).ToArray();
+    private readonly IReadOnlyList<GenerationReferenceRole?> _availableRoles = ReferenceRoles;
+
     public GenerationReferenceChoice(ProjectAsset asset, int order)
     {
         Asset = asset;
@@ -1454,6 +1462,7 @@ public sealed class GenerationReferenceChoice
     }
 
     public ProjectAsset Asset { get; set; }
+    public IReadOnlyList<GenerationReferenceRole?> AvailableRoles => _availableRoles;
     public bool IsSelected { get; set; }
     public GenerationReferenceRole? Role { get; set; }
     public int Order { get; set; }
