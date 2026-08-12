@@ -9,11 +9,16 @@ public sealed class AtlasCloudAssetPreparationService : IProviderAssetPreparatio
 {
     private readonly HttpClient _httpClient;
     private readonly ISecretStore _secretStore;
+    private readonly IApplicationDiagnosticLog? _diagnosticLog;
 
-    public AtlasCloudAssetPreparationService(HttpClient httpClient, ISecretStore secretStore)
+    public AtlasCloudAssetPreparationService(
+        HttpClient httpClient,
+        ISecretStore secretStore,
+        IApplicationDiagnosticLog? diagnosticLog = null)
     {
         _httpClient = httpClient;
         _secretStore = secretStore;
+        _diagnosticLog = diagnosticLog;
         _httpClient.BaseAddress ??= new Uri("https://api.atlascloud.ai/");
         if (_httpClient.BaseAddress.Scheme != Uri.UriSchemeHttps)
             throw new ArgumentException("The AtlasCloud API base address must use HTTPS.", nameof(httpClient));
@@ -56,11 +61,18 @@ public sealed class AtlasCloudAssetPreparationService : IProviderAssetPreparatio
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
+            var technicalDetails = await WriteFailureDiagnosticsAsync(
+                providerId,
+                message,
+                Path.GetFileName(media.Path),
+                (int)response.StatusCode,
+                "media_upload_failed",
+                body).ConfigureAwait(false);
             throw new VideoGenerationProviderException(
                 $"AtlasCloud media upload failed with HTTP {(int)response.StatusCode}.",
                 (int)response.StatusCode,
                 "media_upload_failed",
-                "AtlasCloud response body omitted from durable diagnostics.");
+                technicalDetails);
         }
 
         string? url;
@@ -73,11 +85,28 @@ public sealed class AtlasCloudAssetPreparationService : IProviderAssetPreparatio
         }
         catch (JsonException exception)
         {
-            throw InvalidResponse(exception);
+            var technicalDetails = await WriteFailureDiagnosticsAsync(
+                providerId,
+                message,
+                Path.GetFileName(media.Path),
+                (int)response.StatusCode,
+                "invalid_upload_response",
+                body,
+                exception.ToString()).ConfigureAwait(false);
+            throw InvalidResponse(technicalDetails, exception);
         }
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
-            throw InvalidResponse();
+        {
+            var technicalDetails = await WriteFailureDiagnosticsAsync(
+                providerId,
+                message,
+                Path.GetFileName(media.Path),
+                (int)response.StatusCode,
+                "invalid_upload_response",
+                body).ConfigureAwait(false);
+            throw InvalidResponse(technicalDetails);
+        }
 
         return new PreparedProviderReference(
             logicalReference,
@@ -91,12 +120,49 @@ public sealed class AtlasCloudAssetPreparationService : IProviderAssetPreparatio
             });
     }
 
-    private static VideoGenerationProviderException InvalidResponse(Exception? inner = null) =>
+    private static VideoGenerationProviderException InvalidResponse(string technicalDetails, Exception? inner = null) =>
         new(
             "AtlasCloud returned an unreadable media-upload response.",
             providerCode: "invalid_upload_response",
-            technicalDetails: "AtlasCloud response body omitted from durable diagnostics.",
+            technicalDetails: technicalDetails,
             innerException: inner);
+
+    private async Task<string> WriteFailureDiagnosticsAsync(
+        string providerId,
+        HttpRequestMessage request,
+        string mediaFileName,
+        int httpStatus,
+        string providerCode,
+        string responseBody,
+        string? exception = null)
+    {
+        if (_diagnosticLog is null)
+            return "Verbose provider diagnostics are unavailable in this runtime.";
+
+        var details = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["providerId"] = providerId,
+            ["operation"] = "media upload",
+            ["httpMethod"] = request.Method.Method,
+            ["requestUri"] = request.RequestUri is null
+                ? null
+                : new UriBuilder(request.RequestUri) { Query = string.Empty, Fragment = string.Empty }.Uri.AbsoluteUri,
+            ["httpStatus"] = httpStatus.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["providerCode"] = providerCode,
+            ["mediaFileName"] = mediaFileName,
+            ["responseBody"] = ProviderDiagnosticSanitizer.SanitizeJsonOrText(responseBody),
+            ["exception"] = exception
+        };
+        var reference = await _diagnosticLog.WriteErrorAsync(
+            "provider.atlascloud",
+            "AtlasCloud media upload failed.",
+            details,
+            CancellationToken.None).ConfigureAwait(false);
+
+        return reference is null
+            ? $"Verbose diagnostics could not be written to '{_diagnosticLog.LogDirectory}'."
+            : $"Verbose diagnostics: {reference.FilePath} (event {reference.EventId}).";
+    }
 
     private static string GetMediaType(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     {

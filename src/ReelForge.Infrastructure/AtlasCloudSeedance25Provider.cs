@@ -35,9 +35,10 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
     public AtlasCloudSeedance25Provider(
         HttpClient httpClient,
         ISecretStore secretStore,
-        IProviderAssetReferenceResolver assetReferenceResolver)
+        IProviderAssetReferenceResolver assetReferenceResolver,
+        IApplicationDiagnosticLog? diagnosticLog = null)
     {
-        _apiClient = new AtlasCloudVideoApiClient(httpClient, secretStore);
+        _apiClient = new AtlasCloudVideoApiClient(httpClient, secretStore, diagnosticLog);
         _assetReferenceResolver = assetReferenceResolver;
     }
 
@@ -78,7 +79,7 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
     public Task<ProviderGenerationJob> GetJobAsync(
         string providerJobId,
         CancellationToken cancellationToken = default) =>
-        _apiClient.GetJobAsync(providerJobId, cancellationToken);
+        _apiClient.GetJobAsync(ProviderId, providerJobId, cancellationToken);
 
     public IReadOnlyDictionary<string, object?> BuildPayload(
         GenerationRequest request,

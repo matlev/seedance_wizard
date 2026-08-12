@@ -81,6 +81,12 @@ The current materializer can execute this flow for physical project assets. The 
 
 Configuration status means required values exist, not that they are valid. Only explicit test or generation actions may make external calls. Every real video generation still requires the human to click Generate and accept a fresh potentially-billable confirmation.
 
+## Diagnostic logs
+
+ReelForge writes verbose AtlasCloud HTTP failure diagnostics to daily newline-delimited JSON files under `%LOCALAPPDATA%\ReelForge\Logs`. A failed generation's inspector shows the exact log file and event ID, allowing the detailed entry to be correlated without displaying the full provider response in the normal GUI. Logs include the operation, provider ID, HTTP status, provider code, sanitized request payload, response body, and parsing exception where applicable.
+
+Authorization headers and API keys are never logged. Inline Base64 media is replaced with a size marker, and query strings and fragments are removed from URLs before persistence. Logs can still contain prompts, filenames, provider messages, and other project-related context needed for diagnosis; treat the log directory as private user data when sharing reports.
+
 ## Safe testing
 
 Automated tests use local files, in-memory settings/secrets, fake temporary-host clients, and mocked HTTP handlers. They cannot access a real R2 bucket or submit BytePlus/AtlasCloud jobs. Manual verification consists of configuring the values in Settings, using **Test R2 Connection**, and—only when intentionally spending money—using the application's confirmed Generate action.

@@ -25,6 +25,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private GenerationWorkflow _generationWorkflow = null!;
     private readonly ISecretStore _secretStore;
+    private readonly IApplicationDiagnosticLog _diagnosticLog;
     private readonly List<HttpClient> _providerHttpClients = [];
     private readonly HttpClient _r2HttpClient;
     private readonly HttpClient _downloadHttpClient;
@@ -55,6 +56,7 @@ public partial class MainWindow : Window, IDisposable
         var assetImporter = new AssetImportService(_mediaInspector);
         _workspace = new ProjectWorkspace(projectStore, assetImporter);
         _secretStore = new WindowsCredentialStore();
+        _diagnosticLog = new FileApplicationDiagnosticLog();
         _r2HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _downloadHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _temporaryAssetHost = new CloudflareR2TemporaryAssetHost(
@@ -94,6 +96,7 @@ public partial class MainWindow : Window, IDisposable
         foreach (var client in _providerHttpClients) client.Dispose();
         _r2HttpClient.Dispose();
         _downloadHttpClient.Dispose();
+        if (_diagnosticLog is IDisposable disposableDiagnosticLog) disposableDiagnosticLog.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -144,12 +147,14 @@ public partial class MainWindow : Window, IDisposable
             choices.Add(new GenerationProviderChoice(new AtlasCloudSeedance25Provider(
                 client,
                 _secretStore,
-                new ProjectAssetReferenceResolver())));
+                new ProjectAssetReferenceResolver(),
+                _diagnosticLog)));
             choices.Add(new GenerationProviderChoice(new AtlasCloudMiniMaxH3Provider(
                 client,
                 _secretStore,
-                new ProjectAssetReferenceResolver())));
-            var atlasCloudPreparation = new AtlasCloudAssetPreparationService(client, _secretStore);
+                new ProjectAssetReferenceResolver(),
+                _diagnosticLog)));
+            var atlasCloudPreparation = new AtlasCloudAssetPreparationService(client, _secretStore, _diagnosticLog);
             preparationServices[AtlasCloudSeedance25Provider.ProviderId] = atlasCloudPreparation;
             preparationServices[AtlasCloudMiniMaxH3Provider.ProviderId] = atlasCloudPreparation;
         }

@@ -156,6 +156,70 @@ public sealed class AtlasCloudMiniMaxH3ProviderTests
     }
 
     [Fact]
+    public async Task FailedSubmissionWritesSanitizedVerboseDiagnostics()
+    {
+        var logDirectory = Path.Combine(Path.GetTempPath(), "ReelForge diagnostic tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var diagnosticLog = new FileApplicationDiagnosticLog(logDirectory);
+            var handler = new RecordingHandler(
+                HttpStatusCode.PaymentRequired,
+                """{"code":"insufficient_balance","message":"Add funds.","help":"https://atlascloud.ai/billing?account=secret"}""");
+            var provider = CreateProvider(handler, diagnosticLog);
+            var image = CreateAsset(
+                MediaType.Image,
+                "first.png",
+                "data:image/png;base64,THIS_INLINE_MEDIA_MUST_NOT_BE_LOGGED");
+            var request = new GenerationRequest
+            {
+                Prompt = "A diagnostic failure test.",
+                Mode = GenerationMode.ImageToVideo,
+                DurationSeconds = 5,
+                AspectRatio = "adaptive",
+                Resolution = "768P",
+                ReferenceAssetIds = [image.Id]
+            };
+
+            var exception = await Assert.ThrowsAsync<VideoGenerationProviderException>(() =>
+                provider.SubmitAsync(request, [image], TestAuthorization()));
+
+            Assert.Equal(402, exception.HttpStatus);
+            Assert.Equal("insufficient_balance", exception.ProviderCode);
+            Assert.Contains(logDirectory, exception.TechnicalDetails, StringComparison.Ordinal);
+            Assert.Contains("event ", exception.TechnicalDetails, StringComparison.Ordinal);
+            var logPath = Assert.Single(Directory.GetFiles(logDirectory, "*.jsonl"));
+            var log = await File.ReadAllTextAsync(logPath);
+            Assert.Contains("A diagnostic failure test.", log, StringComparison.Ordinal);
+            Assert.Contains("insufficient_balance", log, StringComparison.Ordinal);
+            Assert.Contains("[inline data omitted", log, StringComparison.Ordinal);
+            Assert.Contains("https://atlascloud.ai/billing", log, StringComparison.Ordinal);
+            Assert.DoesNotContain("THIS_INLINE_MEDIA_MUST_NOT_BE_LOGGED", log, StringComparison.Ordinal);
+            Assert.DoesNotContain("account=secret", log, StringComparison.Ordinal);
+            Assert.DoesNotContain("unit-test-key", log, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(logDirectory)) Directory.Delete(logDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PlainTextDiagnosticsRemoveCredentialsInlineMediaAndUrlQueries()
+    {
+        const string input =
+            "token=do-not-log data:image/png;base64,SECRETBYTES https://example.test/help?account=secret";
+
+        var sanitized = ProviderDiagnosticSanitizer.SanitizeJsonOrText(input);
+
+        Assert.Contains("token=[redacted]", sanitized, StringComparison.Ordinal);
+        Assert.Contains("[inline data omitted", sanitized, StringComparison.Ordinal);
+        Assert.Contains("https://example.test/help", sanitized, StringComparison.Ordinal);
+        Assert.DoesNotContain("do-not-log", sanitized, StringComparison.Ordinal);
+        Assert.DoesNotContain("SECRETBYTES", sanitized, StringComparison.Ordinal);
+        Assert.DoesNotContain("account=secret", sanitized, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PollingUsesSharedAtlasCloudPredictionContract()
     {
         var handler = new RecordingHandler(
@@ -190,11 +254,14 @@ public sealed class AtlasCloudMiniMaxH3ProviderTests
     private static GenerationSubmissionAuthorization TestAuthorization() =>
         GenerationSubmissionAuthorization.ForNetworkIsolatedTest(AtlasCloudMiniMaxH3Provider.ProviderId);
 
-    private static AtlasCloudMiniMaxH3Provider CreateProvider(RecordingHandler handler) =>
+    private static AtlasCloudMiniMaxH3Provider CreateProvider(
+        RecordingHandler handler,
+        IApplicationDiagnosticLog? diagnosticLog = null) =>
         new(
             new HttpClient(handler) { BaseAddress = new Uri("https://api.atlascloud.ai/") },
             new TestSecretStore("unit-test-key"),
-            new ProjectAssetReferenceResolver());
+            new ProjectAssetReferenceResolver(),
+            diagnosticLog);
 
     private static ProjectAsset CreateAsset(MediaType type, string fileName, string providerReference)
     {

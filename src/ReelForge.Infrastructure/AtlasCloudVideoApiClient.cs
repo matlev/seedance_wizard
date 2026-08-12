@@ -14,11 +14,16 @@ internal sealed class AtlasCloudVideoApiClient
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient _httpClient;
     private readonly ISecretStore _secretStore;
+    private readonly IApplicationDiagnosticLog? _diagnosticLog;
 
-    public AtlasCloudVideoApiClient(HttpClient httpClient, ISecretStore secretStore)
+    public AtlasCloudVideoApiClient(
+        HttpClient httpClient,
+        ISecretStore secretStore,
+        IApplicationDiagnosticLog? diagnosticLog = null)
     {
         _httpClient = httpClient;
         _secretStore = secretStore;
+        _diagnosticLog = diagnosticLog;
         _httpClient.BaseAddress ??= new Uri("https://api.atlascloud.ai/");
         if (_httpClient.BaseAddress.Scheme != Uri.UriSchemeHttps)
             throw new ArgumentException("The AtlasCloud API base address must use HTTPS.", nameof(httpClient));
@@ -38,9 +43,10 @@ internal sealed class AtlasCloudVideoApiClient
         }
 
         var apiKey = await GetApiKeyAsync(cancellationToken).ConfigureAwait(false);
+        var requestBody = JsonSerializer.Serialize(payload, JsonOptions);
         using var message = new HttpRequestMessage(HttpMethod.Post, "api/v1/model/generateVideo")
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json")
+            Content = new StringContent(requestBody, Encoding.UTF8, "application/json")
         };
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
@@ -51,17 +57,47 @@ internal sealed class AtlasCloudVideoApiClient
         if (!response.IsSuccessStatusCode)
         {
             var (providerCode, providerMessage) = ReadProviderError(responseBody);
+            var technicalDetails = await WriteFailureDiagnosticsAsync(
+                authorizationProviderId,
+                "generation submission",
+                message,
+                (int)response.StatusCode,
+                providerCode,
+                requestBody,
+                responseBody).ConfigureAwait(false);
             throw new VideoGenerationProviderException(
                 providerMessage ?? $"AtlasCloud rejected the generation request with HTTP {(int)response.StatusCode}.",
                 (int)response.StatusCode,
                 providerCode,
-                "AtlasCloud response body omitted from durable diagnostics.");
+                technicalDetails);
         }
 
-        return ParseSubmission(responseBody);
+        try
+        {
+            return ParseSubmission(responseBody);
+        }
+        catch (VideoGenerationProviderException exception)
+        {
+            var technicalDetails = await WriteFailureDiagnosticsAsync(
+                authorizationProviderId,
+                "generation response parsing",
+                message,
+                (int)response.StatusCode,
+                exception.ProviderCode,
+                requestBody,
+                responseBody,
+                exception.InnerException?.ToString()).ConfigureAwait(false);
+            throw new VideoGenerationProviderException(
+                exception.Message,
+                exception.HttpStatus,
+                exception.ProviderCode,
+                technicalDetails,
+                exception.InnerException);
+        }
     }
 
     public async Task<ProviderGenerationJob> GetJobAsync(
+        string providerId,
         string providerJobId,
         CancellationToken cancellationToken = default)
     {
@@ -79,14 +115,43 @@ internal sealed class AtlasCloudVideoApiClient
         if (!response.IsSuccessStatusCode)
         {
             var (providerCode, providerMessage) = ReadProviderError(responseBody);
+            var technicalDetails = await WriteFailureDiagnosticsAsync(
+                providerId,
+                "prediction polling",
+                message,
+                (int)response.StatusCode,
+                providerCode,
+                null,
+                responseBody).ConfigureAwait(false);
             throw new VideoGenerationProviderException(
                 providerMessage ?? $"AtlasCloud prediction polling failed with HTTP {(int)response.StatusCode}.",
                 (int)response.StatusCode,
                 providerCode,
-                "AtlasCloud response body omitted from durable diagnostics.");
+                technicalDetails);
         }
 
-        return ParseJob(responseBody, providerJobId);
+        try
+        {
+            return ParseJob(responseBody, providerJobId);
+        }
+        catch (VideoGenerationProviderException exception)
+        {
+            var technicalDetails = await WriteFailureDiagnosticsAsync(
+                providerId,
+                "prediction response parsing",
+                message,
+                (int)response.StatusCode,
+                exception.ProviderCode,
+                null,
+                responseBody,
+                exception.InnerException?.ToString()).ConfigureAwait(false);
+            throw new VideoGenerationProviderException(
+                exception.Message,
+                exception.HttpStatus,
+                exception.ProviderCode,
+                technicalDetails,
+                exception.InnerException);
+        }
     }
 
     private static GenerationSubmission ParseSubmission(string responseBody)
@@ -130,7 +195,6 @@ internal sealed class AtlasCloudVideoApiClient
             throw new VideoGenerationProviderException(
                 "AtlasCloud returned an unreadable generation response.",
                 providerCode: "invalid_response",
-                technicalDetails: "AtlasCloud response body omitted from durable diagnostics.",
                 innerException: exception);
         }
     }
@@ -203,7 +267,6 @@ internal sealed class AtlasCloudVideoApiClient
             throw new VideoGenerationProviderException(
                 "AtlasCloud returned an unreadable prediction response.",
                 providerCode: "invalid_prediction_response",
-                technicalDetails: "AtlasCloud response body omitted from durable diagnostics.",
                 innerException: exception);
         }
     }
@@ -233,6 +296,48 @@ internal sealed class AtlasCloudVideoApiClient
         {
             return (null, null);
         }
+    }
+
+    private async Task<string> WriteFailureDiagnosticsAsync(
+        string providerId,
+        string operation,
+        HttpRequestMessage request,
+        int httpStatus,
+        string? providerCode,
+        string? requestBody,
+        string responseBody,
+        string? exception = null)
+    {
+        if (_diagnosticLog is null)
+            return "Verbose provider diagnostics are unavailable in this runtime.";
+
+        var details = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["providerId"] = providerId,
+            ["operation"] = operation,
+            ["httpMethod"] = request.Method.Method,
+            ["requestUri"] = SanitizeUri(request.RequestUri),
+            ["httpStatus"] = httpStatus.ToString(CultureInfo.InvariantCulture),
+            ["providerCode"] = providerCode,
+            ["requestBody"] = requestBody is null ? null : ProviderDiagnosticSanitizer.SanitizeJsonOrText(requestBody),
+            ["responseBody"] = ProviderDiagnosticSanitizer.SanitizeJsonOrText(responseBody),
+            ["exception"] = exception
+        };
+        var reference = await _diagnosticLog.WriteErrorAsync(
+            "provider.atlascloud",
+            $"AtlasCloud {operation} failed.",
+            details,
+            CancellationToken.None).ConfigureAwait(false);
+
+        return reference is null
+            ? $"Verbose diagnostics could not be written to '{_diagnosticLog.LogDirectory}'."
+            : $"Verbose diagnostics: {reference.FilePath} (event {reference.EventId}).";
+    }
+
+    private static string? SanitizeUri(Uri? uri)
+    {
+        if (uri is null) return null;
+        return new UriBuilder(uri) { Query = string.Empty, Fragment = string.Empty }.Uri.AbsoluteUri;
     }
 
     private static string? ReadScalar(JsonElement element, string name)
