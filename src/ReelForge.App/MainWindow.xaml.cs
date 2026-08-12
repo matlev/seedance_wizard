@@ -616,12 +616,12 @@ public partial class MainWindow : Window, IDisposable
             var draftSummary = CaptureDraftFromUi();
             var confirmation = MessageBox.Show(
                 this,
-                $"This will submit a potentially billable {_generationProvider.Capabilities.DisplayName} request now.\n\n" +
+                $"Review the prompt settings before submitting to {_generationProvider.Capabilities.DisplayName}.\n\n" +
                 $"Model: {_generationProvider.Capabilities.ModelVersion}\n" +
                 $"Mode: {draftSummary.Mode}\nDuration: {draftSummary.DurationSeconds}s\n" +
                 $"Resolution: {draftSummary.Resolution}\nReferences: {draftSummary.References.Count}\n\n" +
-                "Proceed and potentially incur charges?",
-                "Confirm paid generation",
+                "Proceed with these settings?",
+                "Confirm prompt submission",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning,
                 MessageBoxResult.No);
