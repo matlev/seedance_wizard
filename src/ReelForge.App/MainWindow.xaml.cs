@@ -6,6 +6,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -17,7 +18,7 @@ namespace ReelForge.App;
 
 public partial class MainWindow : Window, IDisposable
 {
-    private readonly ObservableCollection<ProjectAsset> _assets = [];
+    private readonly ObservableCollection<ProjectAssetListItem> _assets = [];
     private readonly ObservableCollection<GenerationRecord> _generations = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
     private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
@@ -550,10 +551,11 @@ public partial class MainWindow : Window, IDisposable
 
     private async void AssetsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (AssetsList.SelectedItem is not ProjectAsset asset)
+        if (AssetsList.SelectedItem is not ProjectAssetListItem item)
         {
             return;
         }
+        var asset = item.Asset;
 
         var selectedProjectId = _workspace.Project?.Id;
         GenerationsList.SelectedItem = null;
@@ -638,6 +640,181 @@ public partial class MainWindow : Window, IDisposable
 
         await RunGenerationWorkflowAsync(CaptureDraftFromUi(), authorization);
     }
+
+    private void AssetsList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var item = ItemsControl.ContainerFromElement(AssetsList, e.OriginalSource as DependencyObject) as ListBoxItem;
+        if (item is not null) item.IsSelected = true;
+    }
+
+    private async void ToggleMainVideo_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ProjectAssetListItem item } || _workspace.Project is null) return;
+        var asset = item.Asset;
+        if (asset.MediaType != MediaType.Video || asset.StorageKind != AssetStorageKind.Physical) return;
+
+        _workspace.Project.MainVideoAssetId = item.IsMainVideo ? null : asset.Id;
+        await _workspace.SaveAsync();
+        RefreshProjectCollections(asset.Id);
+        StatusText.Text = item.IsMainVideo
+            ? "The project now has no main video."
+            : $"{asset.EffectiveDisplayName} is now the main project video.";
+        e.Handled = true;
+    }
+
+    private async void RenameAsset_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedAsset() is not { } asset) return;
+        var dialog = new AssetNameDialog(asset.EffectiveDisplayName) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+
+        asset.DisplayName = dialog.AssetName;
+        await _workspace.SaveAsync();
+        RefreshProjectCollections(asset.Id);
+        InspectorText.Text = FormatAssetInspector(asset);
+        StatusText.Text = $"Renamed asset to {asset.DisplayName}.";
+    }
+
+    private async void DeleteAsset_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedAsset() is not { } asset || _workspace.Project is null) return;
+        var usage = GetAssetUsage(_workspace.Project, asset);
+        if (usage.Count > 0)
+        {
+            MessageBox.Show(
+                this,
+                $"'{asset.EffectiveDisplayName}' cannot be deleted because it is still used by:\n\n• {string.Join("\n• ", usage)}",
+                "Asset is in use",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var confirmation = MessageBox.Show(
+            this,
+            $"Delete '{asset.EffectiveDisplayName}' from this project and remove its stored media file?\n\nThis cannot be undone.",
+            "Delete asset",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (confirmation != MessageBoxResult.Yes) return;
+
+        await RemoveCurrentProjectAssetAsync(asset);
+        StatusText.Text = $"Deleted {asset.EffectiveDisplayName}.";
+    }
+
+    private async void MoveAssetToProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedAsset() is not { } asset || _workspace.Project is null || _workspace.Location is null) return;
+        var usage = GetAssetUsage(_workspace.Project, asset);
+        if (usage.Count > 0)
+        {
+            MessageBox.Show(
+                this,
+                $"'{asset.EffectiveDisplayName}' cannot be moved because it is still used by:\n\n• {string.Join("\n• ", usage)}",
+                "Asset is in use",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+        if (asset.StorageKind != AssetStorageKind.Physical)
+        {
+            MessageBox.Show(this, "Virtual assets cannot be moved between projects yet.", "Move asset", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Choose the ReelForge project that will receive this asset",
+            InitialDirectory = GetDefaultProjectsDirectory(),
+            Filter = "ReelForge project (*.rfp)|*.rfp|Legacy ReelForge project (project.json)|project.json",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        if (Path.GetFullPath(dialog.FileName).Equals(_workspace.Location.ProjectFilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(this, "Choose a different project.", "Move asset", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        await RunUiActionAsync(
+            $"Moving {asset.EffectiveDisplayName}…",
+            async () =>
+            {
+                var store = new PortableProjectStore();
+                var (targetProject, targetLocation) = await store.OpenAsync(dialog.FileName);
+                var importer = new AssetImportService(_mediaInspector);
+                var imported = AssertSingle(await importer.ImportAsync(targetLocation, [_workspace.GetAbsoluteAssetPath(asset)]));
+                imported.DisplayName = asset.EffectiveDisplayName;
+                targetProject.AddAsset(imported);
+                await store.SaveAsync(targetProject, targetLocation);
+                await RemoveCurrentProjectAssetAsync(asset);
+                StatusText.Text = $"Moved {asset.EffectiveDisplayName} to {targetProject.Name}.";
+            });
+    }
+
+    private ProjectAsset? GetSelectedAsset() => (AssetsList.SelectedItem as ProjectAssetListItem)?.Asset;
+
+    private async Task RemoveCurrentProjectAssetAsync(ProjectAsset asset)
+    {
+        if (_workspace.Project is null || _workspace.Location is null) return;
+        var absolutePath = asset.StorageKind == AssetStorageKind.Physical
+            ? _workspace.GetAbsoluteAssetPath(asset)
+            : null;
+        var oldMainVideoId = _workspace.Project.MainVideoAssetId;
+        if (oldMainVideoId == asset.Id) _workspace.Project.MainVideoAssetId = null;
+        _workspace.Project.Assets.Remove(asset);
+        try
+        {
+            await _workspace.SaveAsync();
+        }
+        catch
+        {
+            _workspace.Project.Assets.Add(asset);
+            _workspace.Project.MainVideoAssetId = oldMainVideoId;
+            throw;
+        }
+
+        if (absolutePath is not null && File.Exists(absolutePath)) File.Delete(absolutePath);
+        AssetsList.SelectedItem = null;
+        InspectorText.Text = "Select an asset or generation to inspect its details and history.";
+        ClearMediaPreview();
+        RefreshProjectCollections();
+    }
+
+    private static IReadOnlyList<string> GetAssetUsage(VideoProject project, ProjectAsset asset)
+    {
+        var usage = new List<string>();
+        if (asset.StorageKind == AssetStorageKind.Virtual) usage.Add("virtual-asset recipe history");
+        if (project.CurrentGenerationDraft?.References.Any(reference =>
+                reference.ObjectKind == GenerationReferenceObjectKind.Asset && reference.LogicalObjectId == asset.Id) == true)
+            usage.Add("the current generation draft");
+        if (project.Generations.Any(generation => generation.RequestSnapshot.References.Any(reference =>
+                reference.ObjectKind == GenerationReferenceObjectKind.Asset && reference.LogicalObjectId == asset.Id)))
+            usage.Add("submitted generation references");
+        if (project.Generations.Any(generation => generation.OutputAssetIds.Contains(asset.Id)))
+            usage.Add("generated-output history");
+        if (project.Anchors.Any(anchor => anchor.AssetId == asset.Id)) usage.Add("frame anchors");
+        if (project.Timeline.Clips.Any(clip => clip.SourceAssetId == asset.Id)) usage.Add("the timeline");
+        if (project.Assets.Any(candidate => candidate.Id != asset.Id && candidate.Provenance?.SourceAssetIds.Contains(asset.Id) == true))
+            usage.Add("derived-asset history");
+        if (project.RecipeRevisions.Any(revision => RecipeReferencesAsset(revision.Recipe, asset.Id)) ||
+            project.RecipeDrafts.Any(draft => RecipeReferencesAsset(draft.EditableRecipe, asset.Id)))
+            usage.Add("media recipes");
+        return usage.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static bool RecipeReferencesAsset(AssetRecipe recipe, Guid assetId) => recipe switch
+    {
+        TrimRecipe trim => trim.Source.AssetId == assetId,
+        ExtractFrameRecipe frame => frame.Source.AssetId == assetId,
+        _ => false
+    };
+
+    private static T AssertSingle<T>(IReadOnlyList<T> values) => values.Count == 1
+        ? values[0]
+        : throw new InvalidOperationException("Expected exactly one moved asset.");
 
     private async Task RunGenerationWorkflowAsync(
         GenerationDraft draft,
@@ -1001,7 +1178,7 @@ public partial class MainWindow : Window, IDisposable
         ClearMediaPreview();
     }
 
-    private void RefreshProjectCollections()
+    private void RefreshProjectCollections(Guid? selectedAssetId = null)
     {
         if (_workspace.Project is null) return;
         var existingChoices = _referenceChoices.ToDictionary(choice => choice.Asset.Id);
@@ -1011,7 +1188,7 @@ public partial class MainWindow : Window, IDisposable
 
         foreach (var asset in _workspace.Project.Assets)
         {
-            _assets.Add(asset);
+            _assets.Add(new ProjectAssetListItem(asset, _workspace.Project.MainVideoAssetId == asset.Id));
             if (existingChoices.TryGetValue(asset.Id, out var existing))
             {
                 existing.Asset = asset;
@@ -1027,6 +1204,8 @@ public partial class MainWindow : Window, IDisposable
             _generations.Add(generation);
 
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} assets";
+        if (selectedAssetId is { } id)
+            AssetsList.SelectedItem = _assets.FirstOrDefault(item => item.Asset.Id == id);
     }
 
     private string GetSelectedOutputFormat() =>
@@ -1244,6 +1423,26 @@ public sealed class GenerationProviderChoice
 
     public IVideoGenerationProvider Provider { get; }
     public string DisplayName => Provider.Capabilities.DisplayName;
+}
+
+public sealed class ProjectAssetListItem
+{
+    public ProjectAssetListItem(ProjectAsset asset, bool isMainVideo)
+    {
+        Asset = asset;
+        IsMainVideo = isMainVideo;
+    }
+
+    public ProjectAsset Asset { get; }
+    public bool IsMainVideo { get; }
+    public string DisplayName => Asset.EffectiveDisplayName;
+    public MediaType MediaType => Asset.MediaType;
+    public string MainVideoGlyph => IsMainVideo ? "★" : "☆";
+    public Brush MainVideoBrush => IsMainVideo ? Brushes.Gold : Brushes.DimGray;
+    public Visibility MainVideoSelectorVisibility =>
+        Asset.MediaType == MediaType.Video && Asset.StorageKind == AssetStorageKind.Physical
+            ? Visibility.Visible
+            : Visibility.Hidden;
 }
 
 public sealed class GenerationReferenceChoice
