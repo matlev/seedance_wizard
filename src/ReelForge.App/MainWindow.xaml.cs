@@ -35,6 +35,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private readonly IGeneratedOutputIngestionService _outputIngestion;
     private GenerationWorkflow _generationWorkflow = null!;
+    private IProviderAssetPreparationService? _providerPreparation;
     private readonly ISecretStore _secretStore;
     private readonly IApplicationDiagnosticLog _diagnosticLog;
     private readonly List<HttpClient> _providerHttpClients = [];
@@ -233,11 +234,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }
 
         _providerChoices = choices;
-        _generationWorkflow = new GenerationWorkflow(
-            _workspace,
-            new PhysicalAssetMaterializer(),
-            _outputIngestion,
-            new ProviderAssetPreparationRouter(preparationServices));
+        _providerPreparation = preparationServices.Count == 0
+            ? null
+            : new ProviderAssetPreparationRouter(preparationServices);
+        _generationWorkflow = CreateGenerationWorkflow(_workspace, _providerPreparation);
 
         var selected = choices.FirstOrDefault(choice =>
                            choice.Provider.Capabilities.ProviderId.Equals(preferredProviderId, StringComparison.Ordinal))
@@ -268,6 +268,15 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _providerHttpClients.Add(client);
         return client;
     }
+
+    private GenerationWorkflow CreateGenerationWorkflow(
+        ProjectWorkspace workspace,
+        IProviderAssetPreparationService? providerPreparation) =>
+        new(
+            workspace,
+            new PhysicalAssetMaterializer(),
+            _outputIngestion,
+            providerPreparation);
 
     private IAsyncVideoGenerationProvider? ResolveAsyncProvider(string providerId) =>
         _providerChoices.FirstOrDefault(choice =>
@@ -1105,11 +1114,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         var provider = _generationProvider;
         var workflow = _generationWorkflow;
+        var providerPreparation = _providerPreparation;
         var projectLocation = _workspace.Location;
         var projectName = _workspace.Project?.Name;
         if (projectLocation is null || projectName is null) return;
 
-        GenerateButton.IsEnabled = false;
+        SetProjectActionsEnabled(false);
         try
         {
             var generation = await workflow.QueueAsync(provider, draft, authorization);
@@ -1126,12 +1136,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _pendingSubmissionDelays[generation.Id] = delayCancellation;
             RefreshProjectCollections();
             GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
-            UpdateLocalQueueProjectActions();
             GenerationStatusText.Text = $"Generation queued locally for {delaySeconds} seconds. Use Cancel Job in Jobs to undo.";
             StatusText.Text = "Generation has not been sent to the provider yet.";
             _ = SubmitAfterUndoSendDelayAsync(
                 generation.Id,
                 workflow,
+                providerPreparation,
                 provider,
                 projectLocation,
                 projectName,
@@ -1149,13 +1159,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }
         finally
         {
-            GenerateButton.IsEnabled = true;
+            SetProjectActionsEnabled(true);
         }
     }
 
     private async Task SubmitAfterUndoSendDelayAsync(
         Guid generationId,
-        GenerationWorkflow workflow,
+        GenerationWorkflow activeWorkflow,
+        IProviderAssetPreparationService? providerPreparation,
         IVideoGenerationProvider provider,
         ProjectLocation projectLocation,
         string projectName,
@@ -1174,15 +1185,25 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             await _submissionGate.WaitAsync();
             try
             {
-                var generation = _workspace.Project?.Generations.SingleOrDefault(item => item.Id == generationId)
-                    ?? throw new InvalidOperationException("The locally queued generation no longer exists in its project.");
+                var usesActiveWorkspace = IsProjectOpen(projectLocation.ProjectFilePath);
+                var submissionWorkspace = _workspace;
+                var submissionWorkflow = activeWorkflow;
+                if (!usesActiveWorkspace)
+                {
+                    submissionWorkspace = new ProjectWorkspace(_projectStore, _assetImporter);
+                    await submissionWorkspace.OpenAsync(projectLocation.ProjectFilePath);
+                    submissionWorkflow = CreateGenerationWorkflow(submissionWorkspace, providerPreparation);
+                }
+                var generation = submissionWorkspace.Project?.Generations.SingleOrDefault(item => item.Id == generationId)
+                    ?? throw new InvalidOperationException("The locally queued generation no longer exists in its owning project.");
                 await RunQueuedGenerationWorkflowAsync(
-                    workflow,
+                    submissionWorkflow,
                     provider,
                     generation,
                     projectLocation,
                     projectName,
-                    authorization);
+                    authorization,
+                    usesActiveWorkspace);
             }
             finally
             {
@@ -1208,16 +1229,27 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         GenerationRecord generation,
         ProjectLocation projectLocation,
         string projectName,
-        GenerationSubmissionAuthorization? authorization)
+        GenerationSubmissionAuthorization? authorization,
+        bool usesActiveWorkspace)
     {
-        GenerateButton.IsEnabled = false;
-        SetProjectActionsEnabled(false);
-        var progress = new Progress<GenerationWorkflowProgress>(update => GenerationStatusText.Text = update.Message);
+        if (usesActiveWorkspace)
+        {
+            GenerateButton.IsEnabled = false;
+            SetProjectActionsEnabled(false);
+        }
+        IProgress<GenerationWorkflowProgress>? progress = usesActiveWorkspace
+            ? new Progress<GenerationWorkflowProgress>(update => GenerationStatusText.Text = update.Message)
+            : null;
         try
         {
             generation = await workflow.SubmitQueuedAsync(provider, generation, authorization, progress);
-            RefreshProjectCollections();
-            GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+            var sourceIsActiveNow = IsProjectOpen(projectLocation.ProjectFilePath);
+            if (sourceIsActiveNow)
+            {
+                MergeGenerationStateIntoActiveProject(generation);
+                RefreshProjectCollections();
+                GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+            }
 
             if (provider is IAsyncVideoGenerationProvider && !string.IsNullOrWhiteSpace(generation.ProviderJobId))
             {
@@ -1226,26 +1258,29 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     projectLocation,
                     projectName,
                     provider.Capabilities.DisplayName);
-                GenerationStatusText.Text = "Generation submitted. Follow its progress in the Jobs tab.";
+                if (sourceIsActiveNow)
+                    GenerationStatusText.Text = "Generation submitted. Follow its progress in the Jobs tab.";
                 StatusText.Text = $"Generation accepted by {provider.Capabilities.DisplayName}.";
             }
             else if (generation.Status is GenerationStatus.Failed or GenerationStatus.Cancelled)
             {
                 await _jobCoordinator.CompleteUnacceptedSubmissionAsync(generation);
-                GenerationStatusText.Text = FormatGenerationOutcome(generation);
+                if (sourceIsActiveNow) GenerationStatusText.Text = FormatGenerationOutcome(generation);
                 StatusText.Text = $"Generation state: {generation.Status}; no provider job is being monitored.";
             }
             else
             {
-                GenerationStatusText.Text = FormatGenerationOutcome(generation);
+                if (sourceIsActiveNow) GenerationStatusText.Text = FormatGenerationOutcome(generation);
                 StatusText.Text = $"Generation state: {generation.Status}; ingestion: {generation.IngestionStatus}.";
             }
         }
         finally
         {
-            GenerateButton.IsEnabled = true;
-            SetProjectActionsEnabled(true);
-            UpdateLocalQueueProjectActions();
+            if (usesActiveWorkspace)
+            {
+                GenerateButton.IsEnabled = true;
+                SetProjectActionsEnabled(true);
+            }
         }
     }
 
@@ -1272,14 +1307,25 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             (expected is not null && !ReferenceEquals(current, expected))) return;
         _pendingSubmissionDelays.Remove(generationId);
         current.Dispose();
-        UpdateLocalQueueProjectActions();
     }
 
-    private void UpdateLocalQueueProjectActions()
+    private bool IsProjectOpen(string projectFilePath) =>
+        _workspace.Location is not null &&
+        Path.GetFullPath(_workspace.Location.ProjectFilePath).Equals(
+            Path.GetFullPath(projectFilePath),
+            StringComparison.OrdinalIgnoreCase);
+
+    private void MergeGenerationStateIntoActiveProject(GenerationRecord source)
     {
-        var canSwitchProjects = _pendingSubmissionDelays.Count == 0;
-        NewProjectButton.IsEnabled = canSwitchProjects;
-        OpenProjectButton.IsEnabled = canSwitchProjects;
+        var target = _workspace.Project?.Generations.SingleOrDefault(candidate => candidate.Id == source.Id);
+        if (target is null || ReferenceEquals(target, source)) return;
+        target.ProviderJobId = source.ProviderJobId;
+        target.Status = source.Status;
+        target.IngestionStatus = source.IngestionStatus;
+        target.CompletedAt = source.CompletedAt;
+        target.OutputAssetIds = source.OutputAssetIds.ToList();
+        target.ResponseMetadata = new Dictionary<string, string>(source.ResponseMetadata, StringComparer.Ordinal);
+        target.Error = source.Error;
     }
 
     private async Task RunGenerationWorkflowAsync(

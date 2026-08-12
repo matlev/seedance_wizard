@@ -109,6 +109,35 @@ public sealed class GenerationWorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task QueuedGenerationCanBeSubmittedFromAReopenedOwningProject()
+    {
+        var (originalWorkspace, originalWorkflow) = await CreateWorkflowAsync(new SuccessfulIngestionService());
+        var provider = new ScriptedAsyncProvider(GenerationProviderCostBehavior.NoCharge);
+        var queued = await originalWorkflow.QueueAsync(provider, CreateTextDraft(provider), authorization: null);
+        var projectFilePath = originalWorkspace.Location!.ProjectFilePath;
+        await originalWorkspace.CreateAsync(_temporaryRoot, "Another active project");
+        var reopenedWorkspace = new ProjectWorkspace(
+            new PortableProjectStore(),
+            new AssetImportService(new StubInspector()));
+        await reopenedWorkspace.OpenAsync(projectFilePath);
+        var reopenedWorkflow = new GenerationWorkflow(
+            reopenedWorkspace,
+            new UnusedMaterializer(),
+            new SuccessfulIngestionService());
+        var reopenedGeneration = Assert.Single(reopenedWorkspace.Project!.Generations);
+
+        await reopenedWorkflow.SubmitQueuedAsync(provider, reopenedGeneration, authorization: null);
+
+        Assert.Equal(queued.Id, reopenedGeneration.Id);
+        Assert.Equal(GenerationStatus.Running, reopenedGeneration.Status);
+        Assert.Equal("intercepted-job", reopenedGeneration.ProviderJobId);
+        Assert.Equal(1, provider.SubmitCalls);
+        Assert.Equal("Another active project", originalWorkspace.Project!.Name);
+        var (persistedProject, _) = await new PortableProjectStore().OpenAsync(projectFilePath);
+        Assert.Equal(GenerationStatus.Running, Assert.Single(persistedProject.Generations).Status);
+    }
+
+    [Fact]
     public async Task StoppingLocalMonitoringDoesNotMarkRemoteJobCancelled()
     {
         var (_, workflow) = await CreateWorkflowAsync(new SuccessfulIngestionService());
