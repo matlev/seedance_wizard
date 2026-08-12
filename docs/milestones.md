@@ -125,6 +125,7 @@ Implemented vertical order within Phase 2B:
 12. Split human-authorized submission from application-scoped monitoring, persist unresolved jobs outside project files, restore them on startup, and reconcile terminal results into the owning project regardless of the currently open project.
 13. Add collision-safe cross-project physical-asset copy/move operations: copies receive a destination-local asset ID and source receipt, unreferenced moves remove the source, and referenced moves retain the source rather than breaking immutable history.
 14. Retain reconciled success/failure/cancellation entries in the Jobs pane across restarts until the user views Jobs and then leaves the tab; freeze displayed elapsed time at terminal status.
+15. Add application-level Undo Send (0-30 seconds): persist an immutable local queued generation before any provider work, capture each job's deadline independently of later setting changes, expose guaranteed local cancellation in Jobs, and safely cancel unclaimed entries interrupted by application shutdown.
 
 Phase acceptance checks:
 

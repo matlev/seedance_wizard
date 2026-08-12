@@ -89,6 +89,26 @@ public sealed class GenerationWorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task QueuedGenerationDoesNotReachProviderUntilExplicitlySubmitted()
+    {
+        var (workspace, workflow) = await CreateWorkflowAsync(new SuccessfulIngestionService());
+        var provider = new ScriptedAsyncProvider(GenerationProviderCostBehavior.NoCharge);
+
+        var record = await workflow.QueueAsync(provider, CreateTextDraft(provider), authorization: null);
+
+        Assert.Equal(GenerationStatus.Queued, record.Status);
+        Assert.Null(record.ProviderJobId);
+        Assert.Equal(0, provider.SubmitCalls);
+        Assert.Single(workspace.Project!.Generations);
+
+        await workflow.SubmitQueuedAsync(provider, record, authorization: null);
+
+        Assert.Equal(GenerationStatus.Running, record.Status);
+        Assert.Equal("intercepted-job", record.ProviderJobId);
+        Assert.Equal(1, provider.SubmitCalls);
+    }
+
+    [Fact]
     public async Task StoppingLocalMonitoringDoesNotMarkRemoteJobCancelled()
     {
         var (_, workflow) = await CreateWorkflowAsync(new SuccessfulIngestionService());

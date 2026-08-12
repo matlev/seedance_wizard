@@ -133,6 +133,92 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
         Assert.Empty(await store.LoadAsync());
     }
 
+    [Fact]
+    public async Task PendingJobCanBeCancelledBeforeProviderSubmissionBegins()
+    {
+        var provider = new PollOnlyProvider();
+        var finalizer = new RecordingFinalizer();
+        var store = new JsonGenerationJobStore(Path.Combine(_temporaryRoot, "pending-jobs.json"));
+        await using var coordinator = new GenerationJobCoordinator(store, _ => provider, finalizer);
+        var generation = CreateQueuedGeneration(provider);
+
+        await coordinator.TrackPendingAsync(
+            generation,
+            new ProjectLocation(_temporaryRoot, Path.Combine(_temporaryRoot, "pending.rfp")),
+            "Pending project",
+            provider.Capabilities.DisplayName,
+            DateTimeOffset.UtcNow.AddSeconds(30));
+        var capturedDeadline = Assert.Single(coordinator.GetSnapshot()).UndoSendExpiresAt;
+
+        var cancelled = await coordinator.CancelPendingAsync(generation.Id);
+        var finalized = await finalizer.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.True(cancelled);
+        Assert.NotNull(capturedDeadline);
+        Assert.Equal(0, provider.SubmitCalls);
+        Assert.Equal(0, provider.StatusCalls);
+        Assert.Equal(GenerationStatus.Cancelled, finalized.Status);
+        Assert.True(finalized.WasCancelledBeforeSubmission);
+        Assert.False(finalized.IsAwaitingSubmission);
+        Assert.Equal("Provider status: Cancelled", finalized.Message);
+        Assert.False(await coordinator.TryBeginSubmissionAsync(generation.Id));
+    }
+
+    [Fact]
+    public async Task ClaimedPendingJobCannotBeCancelledLocally()
+    {
+        var provider = new PollOnlyProvider();
+        var store = new JsonGenerationJobStore(Path.Combine(_temporaryRoot, "claimed-jobs.json"));
+        await using var coordinator = new GenerationJobCoordinator(store, _ => provider, new RecordingFinalizer());
+        var generation = CreateQueuedGeneration(provider);
+        await coordinator.TrackPendingAsync(
+            generation,
+            new ProjectLocation(_temporaryRoot, Path.Combine(_temporaryRoot, "claimed.rfp")),
+            "Claimed project",
+            provider.Capabilities.DisplayName,
+            DateTimeOffset.UtcNow.AddSeconds(30));
+
+        Assert.True(await coordinator.TryBeginSubmissionAsync(generation.Id));
+
+        Assert.False(await coordinator.CancelPendingAsync(generation.Id));
+        var claimed = Assert.Single(coordinator.GetSnapshot());
+        Assert.False(claimed.IsAwaitingSubmission);
+        Assert.Null(claimed.UndoSendExpiresAt);
+    }
+
+    [Fact]
+    public async Task RestoreCancelsAnUnsentJobInsteadOfSubmittingIt()
+    {
+        var provider = new PollOnlyProvider();
+        var finalizer = new RecordingFinalizer();
+        var store = new JsonGenerationJobStore(Path.Combine(_temporaryRoot, "restart-pending-jobs.json"));
+        var generation = CreateQueuedGeneration(provider);
+        await store.SaveAsync([
+            new TrackedGenerationJob
+            {
+                GenerationId = generation.Id,
+                ProjectFilePath = Path.Combine(_temporaryRoot, "restart-pending.rfp"),
+                ProjectName = "Restart pending project",
+                ProviderId = provider.Capabilities.ProviderId,
+                ProviderDisplayName = provider.Capabilities.DisplayName,
+                ModelVersion = provider.Capabilities.ModelVersion,
+                RequestedAt = generation.RequestedAt,
+                UndoSendExpiresAt = DateTimeOffset.UtcNow.AddSeconds(20),
+                IsAwaitingSubmission = true,
+                Status = GenerationStatus.Queued
+            }
+        ]);
+        await using var coordinator = new GenerationJobCoordinator(store, _ => provider, finalizer);
+
+        await coordinator.RestoreAsync();
+        var finalized = await finalizer.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(GenerationStatus.Cancelled, finalized.Status);
+        Assert.True(finalized.WasCancelledBeforeSubmission);
+        Assert.Equal(0, provider.SubmitCalls);
+        Assert.Equal(0, provider.StatusCalls);
+    }
+
     private static GenerationRecord CreateAcceptedGeneration(IVideoGenerationProvider provider) => new()
     {
         ProviderJobId = "accepted-job",
@@ -142,6 +228,21 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
             ProviderId = provider.Capabilities.ProviderId,
             ModelVersion = provider.Capabilities.ModelVersion,
             Prompt = "Already submitted by a human-confirmed application action",
+            Mode = GenerationMode.TextToVideo,
+            DurationSeconds = 5,
+            AspectRatio = "16:9",
+            Resolution = "720p"
+        }
+    };
+
+    private static GenerationRecord CreateQueuedGeneration(IVideoGenerationProvider provider) => new()
+    {
+        Status = GenerationStatus.Queued,
+        RequestSnapshot = new GenerationRequestSnapshot
+        {
+            ProviderId = provider.Capabilities.ProviderId,
+            ModelVersion = provider.Capabilities.ModelVersion,
+            Prompt = "Locally queued after explicit human confirmation",
             Mode = GenerationMode.TextToVideo,
             DurationSeconds = 5,
             AspectRatio = "16:9",

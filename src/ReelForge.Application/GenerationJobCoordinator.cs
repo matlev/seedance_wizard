@@ -12,11 +12,15 @@ public sealed class TrackedGenerationJob
     public string ModelVersion { get; set; } = string.Empty;
     public string ProviderJobId { get; set; } = string.Empty;
     public DateTimeOffset RequestedAt { get; set; }
+    public DateTimeOffset? ProviderSubmittedAt { get; set; }
+    public DateTimeOffset? UndoSendExpiresAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? CompletedAt { get; set; }
     public GenerationStatus Status { get; set; } = GenerationStatus.Queued;
     public OutputIngestionStatus IngestionStatus { get; set; } = OutputIngestionStatus.NotRequired;
     public bool IsReconciled { get; set; }
+    public bool IsAwaitingSubmission { get; set; }
+    public bool WasCancelledBeforeSubmission { get; set; }
     public string Message { get; set; } = "Waiting to check provider status…";
     public List<ProviderGenerationOutput> Outputs { get; set; } = [];
     public GenerationError? Error { get; set; }
@@ -96,13 +100,29 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
 
     public async Task RestoreAsync(CancellationToken cancellationToken = default)
     {
+        var interruptedPendingJobs = new List<TrackedGenerationJob>();
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_restored) return;
             foreach (var job in await _store.LoadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (job.IsAwaitingSubmission && string.IsNullOrWhiteSpace(job.ProviderJobId))
+                {
+                    job.Status = GenerationStatus.Cancelled;
+                    job.IsAwaitingSubmission = false;
+                    job.WasCancelledBeforeSubmission = true;
+                    job.UndoSendExpiresAt = null;
+                    job.CompletedAt = DateTimeOffset.UtcNow;
+                    job.UpdatedAt = DateTimeOffset.UtcNow;
+                    job.Message = "Provider status: Cancelled";
+                    interruptedPendingJobs.Add(job);
+                }
                 _jobs[job.GenerationId] = job;
+            }
             _restored = true;
+            if (interruptedPendingJobs.Count > 0)
+                await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -110,7 +130,118 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
         }
 
         RaiseJobsChanged();
-        foreach (var id in GetSnapshot().Select(job => job.GenerationId)) StartMonitor(id);
+        foreach (var job in interruptedPendingJobs)
+            await FinalizeAndRetainAsync(job, cancellationToken).ConfigureAwait(false);
+        foreach (var id in GetSnapshot().Where(job =>
+                     !string.IsNullOrWhiteSpace(job.ProviderJobId) ||
+                     (!job.IsReconciled && job.Status is GenerationStatus.Succeeded or GenerationStatus.Failed or GenerationStatus.Cancelled))
+                 .Select(job => job.GenerationId))
+            StartMonitor(id);
+    }
+
+    public async Task TrackPendingAsync(
+        GenerationRecord generation,
+        ProjectLocation projectLocation,
+        string projectName,
+        string providerDisplayName,
+        DateTimeOffset undoSendExpiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(generation);
+        if (generation.Status != GenerationStatus.Queued || !string.IsNullOrWhiteSpace(generation.ProviderJobId))
+            throw new InvalidOperationException("Only an unsubmitted queued generation can enter the Undo Send window.");
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(undoSendExpiresAt, generation.RequestedAt);
+
+        var job = new TrackedGenerationJob
+        {
+            GenerationId = generation.Id,
+            ProjectFilePath = projectLocation.ProjectFilePath,
+            ProjectName = projectName,
+            ProviderId = generation.RequestSnapshot.ProviderId,
+            ProviderDisplayName = providerDisplayName,
+            ModelVersion = generation.RequestSnapshot.ModelVersion,
+            RequestedAt = generation.RequestedAt,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            UndoSendExpiresAt = undoSendExpiresAt,
+            Status = GenerationStatus.Queued,
+            IngestionStatus = generation.IngestionStatus,
+            IsAwaitingSubmission = true,
+            Message = string.Empty,
+            ResponseMetadata = new Dictionary<string, string>(generation.ResponseMetadata, StringComparer.Ordinal)
+        };
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _jobs[job.GenerationId] = job;
+            await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+        RaiseJobsChanged();
+    }
+
+    public async Task<bool> TryBeginSubmissionAsync(Guid generationId, CancellationToken cancellationToken = default)
+    {
+        var claimed = false;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_jobs.TryGetValue(generationId, out var job) && job.IsAwaitingSubmission &&
+                job.Status == GenerationStatus.Queued && string.IsNullOrWhiteSpace(job.ProviderJobId))
+            {
+                job.IsAwaitingSubmission = false;
+                job.UndoSendExpiresAt = null;
+                job.ProviderSubmittedAt = DateTimeOffset.UtcNow;
+                job.UpdatedAt = DateTimeOffset.UtcNow;
+                job.Message = "Submitting generation request…";
+                claimed = true;
+                await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+        if (claimed) RaiseJobsChanged();
+        return claimed;
+    }
+
+    public async Task<bool> CancelPendingAsync(Guid generationId, CancellationToken cancellationToken = default)
+    {
+        TrackedGenerationJob? cancelled = null;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_jobs.TryGetValue(generationId, out var job) && job.IsAwaitingSubmission &&
+                job.Status == GenerationStatus.Queued && string.IsNullOrWhiteSpace(job.ProviderJobId))
+            {
+                job.Status = GenerationStatus.Cancelled;
+                job.IsAwaitingSubmission = false;
+                job.WasCancelledBeforeSubmission = true;
+                job.UndoSendExpiresAt = null;
+                job.CompletedAt = DateTimeOffset.UtcNow;
+                job.UpdatedAt = DateTimeOffset.UtcNow;
+                job.Message = "Provider status: Cancelled";
+                cancelled = Clone(job);
+                await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+        if (cancelled is null) return false;
+        JobStatusChanged?.Invoke(this, new GenerationJobStatusChangedEventArgs(
+            cancelled.GenerationId,
+            cancelled.ProjectName,
+            GenerationStatus.Queued,
+            GenerationStatus.Cancelled));
+        RaiseJobsChanged();
+        await FinalizeAndRetainAsync(cancelled, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     public async Task TrackAsync(
@@ -134,6 +265,7 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
             ModelVersion = generation.RequestSnapshot.ModelVersion,
             ProviderJobId = generation.ProviderJobId,
             RequestedAt = generation.RequestedAt,
+            ProviderSubmittedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
             Status = generation.Status,
             IngestionStatus = generation.IngestionStatus,
@@ -155,6 +287,49 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
 
         RaiseJobsChanged();
         StartMonitor(job.GenerationId);
+    }
+
+    public async Task CompleteUnacceptedSubmissionAsync(
+        GenerationRecord generation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(generation);
+        if (!string.IsNullOrWhiteSpace(generation.ProviderJobId) ||
+            generation.Status is not (GenerationStatus.Failed or GenerationStatus.Cancelled))
+            throw new InvalidOperationException("The generation must be terminal without a provider job ID.");
+
+        TrackedGenerationJob? terminal = null;
+        GenerationStatus previousStatus = GenerationStatus.Queued;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!_jobs.TryGetValue(generation.Id, out var job)) return;
+            previousStatus = job.Status;
+            job.Status = generation.Status;
+            job.IsAwaitingSubmission = false;
+            job.UndoSendExpiresAt = null;
+            job.CompletedAt = generation.CompletedAt ?? DateTimeOffset.UtcNow;
+            job.UpdatedAt = DateTimeOffset.UtcNow;
+            job.Error = generation.Error;
+            job.ResponseMetadata = new Dictionary<string, string>(generation.ResponseMetadata, StringComparer.Ordinal);
+            job.Message = generation.Error?.Message ?? $"Provider status: {generation.Status}";
+            terminal = Clone(job);
+            await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        if (terminal is null) return;
+        if (previousStatus != terminal.Status)
+            JobStatusChanged?.Invoke(this, new GenerationJobStatusChangedEventArgs(
+                terminal.GenerationId,
+                terminal.ProjectName,
+                previousStatus,
+                terminal.Status));
+        RaiseJobsChanged();
+        await FinalizeAndRetainAsync(terminal, cancellationToken).ConfigureAwait(false);
     }
 
     private void StartMonitor(Guid generationId)
@@ -290,7 +465,9 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
                 }
                 else
                 {
-                    current.Message = "Generation was cancelled by the provider.";
+                    current.Message = current.WasCancelledBeforeSubmission
+                        ? "Provider status: Cancelled"
+                        : "Generation was cancelled by the provider.";
                 }
                 await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -374,11 +551,15 @@ public sealed class GenerationJobCoordinator : IAsyncDisposable
         ModelVersion = source.ModelVersion,
         ProviderJobId = source.ProviderJobId,
         RequestedAt = source.RequestedAt,
+        ProviderSubmittedAt = source.ProviderSubmittedAt,
+        UndoSendExpiresAt = source.UndoSendExpiresAt,
         UpdatedAt = source.UpdatedAt,
         CompletedAt = source.CompletedAt,
         Status = source.Status,
         IngestionStatus = source.IngestionStatus,
         IsReconciled = source.IsReconciled,
+        IsAwaitingSubmission = source.IsAwaitingSubmission,
+        WasCancelledBeforeSubmission = source.WasCancelledBeforeSubmission,
         Message = source.Message,
         Outputs = source.Outputs.ToList(),
         Error = source.Error,

@@ -356,16 +356,37 @@
                                                                TextTrimming="CharacterEllipsis" />
                                                     <TextBlock Text="{Binding ProviderAndModel}" Foreground="{StaticResource MutedTextBrush}"
                                                                TextWrapping="Wrap" Margin="0,3,0,0" />
-                                                    <DockPanel Margin="0,7,0,0">
+                                                    <DockPanel x:Name="StandardStatusRow" Margin="0,7,0,0">
                                                         <TextBlock Text="{Binding ElapsedText}" DockPanel.Dock="Right"
                                                                    Style="{StaticResource ApplicationTextBlockStyle}" Margin="8,0,0,0" />
                                                         <TextBlock Text="{Binding StatusText}" Style="{StaticResource ApplicationTextBlockStyle}"
                                                                    TextTrimming="CharacterEllipsis" />
                                                     </DockPanel>
-                                                    <TextBlock Text="{Binding Message}" Foreground="{StaticResource MutedTextBrush}"
+                                                    <TextBlock x:Name="JobMessage" Text="{Binding Message}" Foreground="{StaticResource MutedTextBrush}"
                                                                TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                    <StackPanel x:Name="UndoSendPanel" Visibility="Collapsed" Margin="0,7,0,0">
+                                                        <DockPanel>
+                                                            <TextBlock Text="{Binding UndoSendRemainingText}" DockPanel.Dock="Right"
+                                                                       Style="{StaticResource ApplicationTextBlockStyle}" Margin="8,0,0,0" />
+                                                            <TextBlock Text="Queued" Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                        </DockPanel>
+                                                        <Button Content="Cancel Job" Tag="{Binding GenerationId}"
+                                                                Style="{StaticResource DangerButtonStyle}"
+                                                                HorizontalAlignment="Left" Margin="0,8,0,0"
+                                                                Click="CancelPendingJob_Click" />
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Border>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding IsUndoSendPending}" Value="True">
+                                                    <Setter TargetName="StandardStatusRow" Property="Visibility" Value="Collapsed" />
+                                                    <Setter TargetName="JobMessage" Property="Visibility" Value="Collapsed" />
+                                                    <Setter TargetName="UndoSendPanel" Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding WasCancelledBeforeSubmission}" Value="True">
+                                                    <Setter TargetName="StandardStatusRow" Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>

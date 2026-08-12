@@ -17,6 +17,7 @@ public sealed class GeneralApplicationSettings
 {
     public string ProjectsRoot { get; set; } = string.Empty;
     public string LastProjectFilePath { get; set; } = string.Empty;
+    public int UndoSendSeconds { get; set; }
 }
 
 public sealed class RecentProjectTracker
@@ -141,6 +142,8 @@ public static class ApplicationConfigurationCatalog
     [
         new("General.ProjectsRoot", "Default projects location", "Parent folder used by the New Project dialog.", false, false,
             @"%USERPROFILE%\Documents\ReelForge\Projects", GeneralSection),
+        new("General.UndoSendSeconds", "Undo Send", "Wait before sending a generation request so it can still be cancelled locally (0 to 30 seconds).", false, false,
+            "0", GeneralSection),
         new("MediaTools.FfmpegPath", "FFmpeg path", "Explicit ffmpeg.exe path. Leave empty to use PATH auto-detection.", false, false,
             @"C:\path\to\ffmpeg.exe", MediaToolsSection),
         new("MediaTools.FfprobePath", "ffprobe path", "Explicit ffprobe.exe path. Leave empty to use PATH auto-detection.", false, false,
@@ -180,6 +183,7 @@ public static class ApplicationSettingsAccessor
     public static string Get(ApplicationSettings settings, string key) => key switch
     {
         "General.ProjectsRoot" => settings.General.ProjectsRoot,
+        "General.UndoSendSeconds" => settings.General.UndoSendSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
         "MediaTools.FfmpegPath" => settings.MediaTools.FfmpegPath ?? string.Empty,
         "MediaTools.FfprobePath" => settings.MediaTools.FfprobePath ?? string.Empty,
         "TemporaryAssetHosting.CloudflareR2.AccountId" => settings.TemporaryAssetHosting.CloudflareR2.AccountId,
@@ -199,6 +203,11 @@ public static class ApplicationSettingsAccessor
         switch (key)
         {
             case "General.ProjectsRoot": settings.General.ProjectsRoot = value; break;
+            case "General.UndoSendSeconds":
+                if (!int.TryParse(value, out var seconds) || seconds is < 0 or > 30)
+                    throw new ArgumentException("Undo Send must be between 0 and 30 seconds.");
+                settings.General.UndoSendSeconds = seconds;
+                break;
             case "MediaTools.FfmpegPath": settings.MediaTools.FfmpegPath = EmptyToNull(value); break;
             case "MediaTools.FfprobePath": settings.MediaTools.FfprobePath = EmptyToNull(value); break;
             case "TemporaryAssetHosting.CloudflareR2.AccountId": settings.TemporaryAssetHosting.CloudflareR2.AccountId = value; break;

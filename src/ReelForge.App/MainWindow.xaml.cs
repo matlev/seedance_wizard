@@ -25,6 +25,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
     private readonly ObservableCollection<GenerationJobListItem> _jobs = [];
     private readonly HashSet<Guid> _viewedTerminalJobIds = [];
+    private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
+    private readonly SemaphoreSlim _submissionGate = new(1, 1);
     private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
@@ -126,6 +128,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _jobCoordinator.JobStatusChanged -= JobCoordinator_JobStatusChanged;
         _jobCoordinator.Stop();
         _jobElapsedTimer.Stop();
+        foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
+        foreach (var pending in _pendingSubmissionDelays.Values) pending.Dispose();
+        _pendingSubmissionDelays.Clear();
         foreach (var client in _providerHttpClients) client.Dispose();
         _r2HttpClient.Dispose();
         _downloadHttpClient.Dispose();
@@ -846,6 +851,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }
 
         GenerationSubmissionAuthorization? authorization = null;
+        var draft = CaptureDraftFromUi();
         if (_generationProvider.CostBehavior == GenerationProviderCostBehavior.PotentiallyBillable)
         {
             if (_generationProvider is not IApiKeyVideoGenerationProvider apiKeyProvider)
@@ -857,13 +863,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 return;
             }
 
-            var draftSummary = CaptureDraftFromUi();
             var confirmation = MessageBox.Show(
                 this,
                 $"Review the prompt settings before submitting to {_generationProvider.Capabilities.DisplayName}.\n\n" +
                 $"Model: {_generationProvider.Capabilities.ModelVersion}\n" +
-                $"Mode: {draftSummary.Mode}\nDuration: {draftSummary.DurationSeconds}s\n" +
-                $"Resolution: {draftSummary.Resolution}\nReferences: {draftSummary.References.Count}\n\n" +
+                $"Mode: {draft.Mode}\nDuration: {draft.DurationSeconds}s\n" +
+                $"Resolution: {draft.Resolution}\nReferences: {draft.References.Count}\n\n" +
                 "Proceed with these settings?",
                 "Confirm prompt submission",
                 MessageBoxButton.YesNo,
@@ -880,7 +885,15 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 userConfirmedPotentialCharges: true);
         }
 
-        await RunGenerationWorkflowAsync(CaptureDraftFromUi(), authorization);
+        var undoSendSeconds = Math.Clamp(_applicationSettings.General.UndoSendSeconds, 0, 30);
+        if (undoSendSeconds > 0 &&
+            _generationProvider is IAsyncVideoGenerationProvider)
+        {
+            await QueueGenerationWithUndoSendAsync(draft, authorization, undoSendSeconds);
+            return;
+        }
+
+        await RunGenerationWorkflowAsync(draft, authorization);
     }
 
     private void AssetsList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -1084,6 +1097,190 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         ExtractFrameRecipe frame => frame.Source.AssetId == assetId,
         _ => false
     };
+
+    private async Task QueueGenerationWithUndoSendAsync(
+        GenerationDraft draft,
+        GenerationSubmissionAuthorization? authorization,
+        int undoSendSeconds)
+    {
+        var provider = _generationProvider;
+        var workflow = _generationWorkflow;
+        var projectLocation = _workspace.Location;
+        var projectName = _workspace.Project?.Name;
+        if (projectLocation is null || projectName is null) return;
+
+        GenerateButton.IsEnabled = false;
+        try
+        {
+            var generation = await workflow.QueueAsync(provider, draft, authorization);
+            var delaySeconds = Math.Clamp(undoSendSeconds, 1, 30);
+            var expiresAt = DateTimeOffset.UtcNow.AddSeconds(delaySeconds);
+            await _jobCoordinator.TrackPendingAsync(
+                generation,
+                projectLocation,
+                projectName,
+                provider.Capabilities.DisplayName,
+                expiresAt);
+
+            var delayCancellation = new CancellationTokenSource();
+            _pendingSubmissionDelays[generation.Id] = delayCancellation;
+            RefreshProjectCollections();
+            GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+            UpdateLocalQueueProjectActions();
+            GenerationStatusText.Text = $"Generation queued locally for {delaySeconds} seconds. Use Cancel Job in Jobs to undo.";
+            StatusText.Text = "Generation has not been sent to the provider yet.";
+            _ = SubmitAfterUndoSendDelayAsync(
+                generation.Id,
+                workflow,
+                provider,
+                projectLocation,
+                projectName,
+                authorization,
+                expiresAt,
+                delayCancellation);
+        }
+        catch (GenerationValidationException exception)
+        {
+            GenerationStatusText.Text = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            ShowError("Generation could not be queued", exception);
+        }
+        finally
+        {
+            GenerateButton.IsEnabled = true;
+        }
+    }
+
+    private async Task SubmitAfterUndoSendDelayAsync(
+        Guid generationId,
+        GenerationWorkflow workflow,
+        IVideoGenerationProvider provider,
+        ProjectLocation projectLocation,
+        string projectName,
+        GenerationSubmissionAuthorization? authorization,
+        DateTimeOffset expiresAt,
+        CancellationTokenSource delayCancellation)
+    {
+        try
+        {
+            var remaining = expiresAt - DateTimeOffset.UtcNow;
+            if (remaining > TimeSpan.Zero)
+                await Task.Delay(remaining, delayCancellation.Token);
+            if (!await _jobCoordinator.TryBeginSubmissionAsync(generationId)) return;
+
+            RemovePendingSubmissionDelay(generationId, delayCancellation);
+            await _submissionGate.WaitAsync();
+            try
+            {
+                var generation = _workspace.Project?.Generations.SingleOrDefault(item => item.Id == generationId)
+                    ?? throw new InvalidOperationException("The locally queued generation no longer exists in its project.");
+                await RunQueuedGenerationWorkflowAsync(
+                    workflow,
+                    provider,
+                    generation,
+                    projectLocation,
+                    projectName,
+                    authorization);
+            }
+            finally
+            {
+                _submissionGate.Release();
+            }
+        }
+        catch (OperationCanceledException) when (delayCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            ShowError("Queued generation failed", exception);
+        }
+        finally
+        {
+            RemovePendingSubmissionDelay(generationId, delayCancellation);
+        }
+    }
+
+    private async Task RunQueuedGenerationWorkflowAsync(
+        GenerationWorkflow workflow,
+        IVideoGenerationProvider provider,
+        GenerationRecord generation,
+        ProjectLocation projectLocation,
+        string projectName,
+        GenerationSubmissionAuthorization? authorization)
+    {
+        GenerateButton.IsEnabled = false;
+        SetProjectActionsEnabled(false);
+        var progress = new Progress<GenerationWorkflowProgress>(update => GenerationStatusText.Text = update.Message);
+        try
+        {
+            generation = await workflow.SubmitQueuedAsync(provider, generation, authorization, progress);
+            RefreshProjectCollections();
+            GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+
+            if (provider is IAsyncVideoGenerationProvider && !string.IsNullOrWhiteSpace(generation.ProviderJobId))
+            {
+                await _jobCoordinator.TrackAsync(
+                    generation,
+                    projectLocation,
+                    projectName,
+                    provider.Capabilities.DisplayName);
+                GenerationStatusText.Text = "Generation submitted. Follow its progress in the Jobs tab.";
+                StatusText.Text = $"Generation accepted by {provider.Capabilities.DisplayName}.";
+            }
+            else if (generation.Status is GenerationStatus.Failed or GenerationStatus.Cancelled)
+            {
+                await _jobCoordinator.CompleteUnacceptedSubmissionAsync(generation);
+                GenerationStatusText.Text = FormatGenerationOutcome(generation);
+                StatusText.Text = $"Generation state: {generation.Status}; no provider job is being monitored.";
+            }
+            else
+            {
+                GenerationStatusText.Text = FormatGenerationOutcome(generation);
+                StatusText.Text = $"Generation state: {generation.Status}; ingestion: {generation.IngestionStatus}.";
+            }
+        }
+        finally
+        {
+            GenerateButton.IsEnabled = true;
+            SetProjectActionsEnabled(true);
+            UpdateLocalQueueProjectActions();
+        }
+    }
+
+    private async void CancelPendingJob_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: Guid generationId }) return;
+        try
+        {
+            if (!await _jobCoordinator.CancelPendingAsync(generationId)) return;
+            if (_pendingSubmissionDelays.TryGetValue(generationId, out var delay)) delay.Cancel();
+            RemovePendingSubmissionDelay(generationId, delay);
+            GenerationStatusText.Text = "Queued generation cancelled.";
+            StatusText.Text = "Provider status: Cancelled";
+        }
+        catch (Exception exception)
+        {
+            ShowError("Queued generation could not be cancelled", exception);
+        }
+    }
+
+    private void RemovePendingSubmissionDelay(Guid generationId, CancellationTokenSource? expected)
+    {
+        if (!_pendingSubmissionDelays.TryGetValue(generationId, out var current) ||
+            (expected is not null && !ReferenceEquals(current, expected))) return;
+        _pendingSubmissionDelays.Remove(generationId);
+        current.Dispose();
+        UpdateLocalQueueProjectActions();
+    }
+
+    private void UpdateLocalQueueProjectActions()
+    {
+        var canSwitchProjects = _pendingSubmissionDelays.Count == 0;
+        NewProjectButton.IsEnabled = canSwitchProjects;
+        OpenProjectButton.IsEnabled = canSwitchProjects;
+    }
 
     private async Task RunGenerationWorkflowAsync(
         GenerationDraft draft,
@@ -1781,6 +1978,7 @@ public sealed class GenerationJobListItem : INotifyPropertyChanged
 {
     private TrackedGenerationJob _job;
     private string _elapsedText = "0:00";
+    private string _undoSendRemainingText = "0s";
 
     public GenerationJobListItem(TrackedGenerationJob job)
     {
@@ -1794,6 +1992,9 @@ public sealed class GenerationJobListItem : INotifyPropertyChanged
     public string StatusText => _job.Status.ToString();
     public string Message => _job.Message;
     public string ElapsedText => _elapsedText;
+    public string UndoSendRemainingText => _undoSendRemainingText;
+    public bool IsUndoSendPending => _job.IsAwaitingSubmission && _job.UndoSendExpiresAt.HasValue;
+    public bool WasCancelledBeforeSubmission => _job.WasCancelledBeforeSubmission;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -1804,13 +2005,28 @@ public sealed class GenerationJobListItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(ProviderAndModel));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(Message));
+        OnPropertyChanged(nameof(IsUndoSendPending));
+        OnPropertyChanged(nameof(WasCancelledBeforeSubmission));
         RefreshElapsed(DateTimeOffset.UtcNow);
     }
 
     public void RefreshElapsed(DateTimeOffset now)
     {
+        if (IsUndoSendPending && _job.UndoSendExpiresAt is { } expiresAt)
+        {
+            var remainingSeconds = Math.Max(0, (int)Math.Ceiling((expiresAt - now).TotalSeconds));
+            var remainingText = $"{remainingSeconds}s";
+            if (remainingText != _undoSendRemainingText)
+            {
+                _undoSendRemainingText = remainingText;
+                OnPropertyChanged(nameof(UndoSendRemainingText));
+            }
+            return;
+        }
+
         var elapsedUntil = _job.CompletedAt ?? now;
-        var elapsed = elapsedUntil > _job.RequestedAt ? elapsedUntil - _job.RequestedAt : TimeSpan.Zero;
+        var elapsedFrom = _job.ProviderSubmittedAt ?? _job.RequestedAt;
+        var elapsed = elapsedUntil > elapsedFrom ? elapsedUntil - elapsedFrom : TimeSpan.Zero;
         var text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
         if (text == _elapsedText) return;
         _elapsedText = text;

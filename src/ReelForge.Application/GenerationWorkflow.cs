@@ -62,6 +62,16 @@ public sealed class GenerationWorkflow
         IProgress<GenerationWorkflowProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var record = await QueueAsync(provider, draft, authorization, cancellationToken).ConfigureAwait(false);
+        return await SubmitQueuedAsync(provider, record, authorization, progress, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<GenerationRecord> QueueAsync(
+        IVideoGenerationProvider provider,
+        GenerationDraft draft,
+        GenerationSubmissionAuthorization? authorization,
+        CancellationToken cancellationToken = default)
+    {
         EnsureProjectOpen();
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(draft);
@@ -91,6 +101,34 @@ public sealed class GenerationWorkflow
         _workspace.Project.Generations.Add(record);
         _workspace.Project.CurrentGenerationDraft = null;
         await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
+        return record;
+    }
+
+    public async Task<GenerationRecord> SubmitQueuedAsync(
+        IVideoGenerationProvider provider,
+        GenerationRecord record,
+        GenerationSubmissionAuthorization? authorization,
+        IProgress<GenerationWorkflowProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureProjectOpen();
+        ArgumentNullException.ThrowIfNull(provider);
+        ArgumentNullException.ThrowIfNull(record);
+        if (_workspace.Project!.Generations.All(candidate => candidate.Id != record.Id))
+            throw new InvalidOperationException("The queued generation does not belong to the open project.");
+        if (!record.RequestSnapshot.ProviderId.Equals(provider.Capabilities.ProviderId, StringComparison.Ordinal))
+            throw new InvalidOperationException("The queued generation provider does not match the selected provider.");
+        if (!string.IsNullOrWhiteSpace(record.ProviderJobId) || record.Status != GenerationStatus.Queued)
+            throw new InvalidOperationException("Only an unsubmitted queued generation can be sent.");
+        if (provider.CostBehavior == GenerationProviderCostBehavior.PotentiallyBillable)
+        {
+            if (authorization is null)
+                throw new InvalidOperationException("Potentially billable generation requires explicit user confirmation.");
+            authorization.Demand(provider.Capabilities.ProviderId, allowNetworkIsolatedTest: true);
+        }
+
+        var snapshot = record.RequestSnapshot;
+        var request = CreateProviderRequest(snapshot);
 
         try
         {

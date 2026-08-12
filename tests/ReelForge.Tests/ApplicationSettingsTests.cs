@@ -165,6 +165,20 @@ public sealed class ApplicationSettingsTests
         Assert.Equal("https://safe.example.test/api", settings.VideoGenerationProviders.BytePlus.ApiBaseUrl.TrimEnd('/'));
     }
 
+    [Fact]
+    public void UndoSendMustBeBetweenZeroAndThirtySeconds()
+    {
+        var settings = new ApplicationSettings();
+
+        ApplicationSettingsAccessor.Set(settings, "General.UndoSendSeconds", "30");
+
+        Assert.Equal(30, settings.General.UndoSendSeconds);
+        Assert.Throws<ArgumentException>(() =>
+            ApplicationSettingsAccessor.Set(settings, "General.UndoSendSeconds", "-1"));
+        Assert.Throws<ArgumentException>(() =>
+            ApplicationSettingsAccessor.Set(settings, "General.UndoSendSeconds", "31"));
+    }
+
     private static ApplicationSettings ConfiguredR2Settings()
     {
         var settings = new ApplicationSettings();

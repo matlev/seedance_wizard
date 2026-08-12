@@ -159,6 +159,8 @@ public partial class SettingsWindow : Window
     {
         if (requirement.Key.EndsWith(".Enabled", StringComparison.Ordinal))
             return CreateBooleanEditor(requirement);
+        if (requirement.Key == "General.UndoSendSeconds")
+            return CreateUndoSendEditor(requirement);
 
         var panel = CreateFieldPanel(requirement);
         var row = new Grid();
@@ -187,6 +189,51 @@ public partial class SettingsWindow : Window
             row.Children.Add(browse);
         }
 
+        panel.Children.Add(row);
+        return panel;
+    }
+
+    private FrameworkElement CreateUndoSendEditor(ConfigurationRequirement requirement)
+    {
+        var panel = CreateFieldPanel(requirement);
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var currentValue = _pendingValues.TryGetValue(requirement.Key, out var pending)
+            ? pending
+            : ApplicationSettingsAccessor.Get(_editor.Settings, requirement.Key);
+        var seconds = int.TryParse(currentValue, out var parsed) ? Math.Clamp(parsed, 0, 30) : 0;
+        var valueText = new TextBlock
+        {
+            MinWidth = 110,
+            Margin = new Thickness(14, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Right,
+            Style = (Style)FindResource("ApplicationTextBlockStyle")
+        };
+        var slider = new Slider
+        {
+            Minimum = 0,
+            Maximum = 30,
+            Value = seconds,
+            TickFrequency = 1,
+            IsSnapToTickEnabled = true,
+            VerticalAlignment = VerticalAlignment.Center,
+            Tag = requirement
+        };
+        void UpdateValue()
+        {
+            var selectedSeconds = (int)slider.Value;
+            _pendingValues[requirement.Key] = selectedSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            valueText.Text = selectedSeconds == 0 ? "Send Immediately" : $"{selectedSeconds} seconds";
+        }
+        slider.ValueChanged += (_, _) => UpdateValue();
+        slider.LostMouseCapture += async (_, _) => await CommitVisibleAsync().ConfigureAwait(true);
+        slider.LostKeyboardFocus += async (_, _) => await CommitVisibleAsync().ConfigureAwait(true);
+        UpdateValue();
+        row.Children.Add(slider);
+        Grid.SetColumn(valueText, 1);
+        row.Children.Add(valueText);
         panel.Children.Add(row);
         return panel;
     }

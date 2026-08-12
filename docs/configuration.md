@@ -18,6 +18,8 @@ The old `%LOCALAPPDATA%\ReelForge\settings.json` FFmpeg/ffprobe file is read as 
 
 Use **Settings** in the top application toolbar. Categories currently cover General, Media Tools, Cloudflare R2 temporary hosting, BytePlus, and AtlasCloud. Enabling AtlasCloud exposes both its Seedance 2.5 and MiniMax H3 routes; they share one AtlasCloud endpoint and credential.
 
+General settings include **Undo Send**, an integer slider from 0 through 30 seconds. Zero is displayed as **Send Immediately** and preserves immediate submission. A positive value creates a local, cancellable Jobs entry after the user confirms the request; ReelForge does not prepare references, upload media, or contact the generation provider until that entry's captured countdown expires. Changing the setting later affects only subsequently queued generations. Locally queued submissions are tied to their current project, so New/Open remain unavailable during the short Undo Send window while Settings and additional generation drafting remain usable.
+
 ReelForge also stores the last successfully created or manually opened project file in the machine-local settings file. On the next launch it reopens that project automatically. If the file has been moved, deleted, or is temporarily unavailable, startup continues without a project and prompts the user through the status bar to use **Open**; the unavailable path is retained until another project is opened.
 
 Non-secret fields show their actual merged value. Edits are marked dirty and written only when an edit is committed: keyboard focus leaves the field, another category is selected, the window is minimized, or the window closes. ReelForge does not rewrite the file on every keystroke and skips writes when nothing changed. A failed write leaves the edited value in the open window and displays the error.
@@ -82,6 +84,8 @@ The current materializer can execute this flow for physical project assets. The 
 - **AtlasCloud:** enabled flag, HTTPS API base URL, and API key shared by the selectable Seedance 2.5 and MiniMax H3 routes. Both use AtlasCloud's multipart asset preparation independently of R2.
 
 Configuration status means required values exist, not that they are valid. Only explicit test or generation actions may make external calls. Every real video generation still requires the human to click Generate and accept a fresh potentially-billable confirmation.
+
+Closing ReelForge during an Undo Send window safely cancels the unsent entry on the next launch rather than silently submitting it. The cancelled entry remains in Jobs under the same viewed-then-leave acknowledgement rule as other terminal jobs.
 
 ## Diagnostic logs
 
