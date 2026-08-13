@@ -142,6 +142,12 @@ public interface IExactVideoFrameService
         string mediaPath,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<VideoPresentationFrame>> IndexWindowAsync(
+        string mediaPath,
+        double centerSeconds,
+        double radiusSeconds = 2,
+        CancellationToken cancellationToken = default);
+
     Task<MaterializedMediaLease> ExtractAsync(
         string mediaPath,
         string sourceContentHash,

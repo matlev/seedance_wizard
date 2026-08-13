@@ -497,6 +497,13 @@ public sealed class OfflineGenerationAcceptanceTests : IDisposable
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<VideoPresentationFrame>>([]);
 
+        public Task<IReadOnlyList<VideoPresentationFrame>> IndexWindowAsync(
+            string mediaPath,
+            double centerSeconds,
+            double radiusSeconds = 2,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<VideoPresentationFrame>>([]);
+
         public Task<MaterializedMediaLease> ExtractAsync(
             string mediaPath,
             string sourceContentHash,

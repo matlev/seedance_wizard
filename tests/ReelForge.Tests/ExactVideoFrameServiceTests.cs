@@ -36,6 +36,19 @@ public sealed class ExactVideoFrameServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task WindowIndexUsesBoundedReadIntervalAroundRequestedPosition()
+    {
+        var runner = new WindowIndexRunner();
+        using var service = new ExactVideoFrameService("ffmpeg.exe", "ffprobe.exe", runner, _root);
+
+        var frames = await service.IndexWindowAsync("long source.mp4", 120, 2);
+
+        Assert.Single(frames);
+        Assert.Contains("118%+4", runner.Request!.Arguments);
+        Assert.Equal("long source.mp4", runner.Request.Arguments[^1]);
+    }
+
+    [Fact]
     public async Task ExtractionUsesDeterministicCacheAndReconstructsDeletedEntry()
     {
         var runner = new FrameRunner();
@@ -175,6 +188,26 @@ public sealed class ExactVideoFrameServiceTests : IDisposable
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             if (_delay > TimeSpan.Zero) await Task.Delay(_delay, cancellationToken);
             return new ExternalProcessResult(0, string.Empty, string.Empty);
+        }
+    }
+
+    private sealed class WindowIndexRunner : IExternalProcessRunner
+    {
+        public ExternalProcessRequest? Request { get; private set; }
+
+        public Task<ExternalProcessResult> RunAsync(
+            ExternalProcessRequest request,
+            IProgress<ProcessOutputLine>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            Request = request;
+            const string json = """
+                {
+                  "frames": [{ "best_effort_timestamp": "3600" }],
+                  "streams": [{ "index": 0, "time_base": "1/30" }]
+                }
+                """;
+            return Task.FromResult(new ExternalProcessResult(0, json, string.Empty));
         }
     }
 }

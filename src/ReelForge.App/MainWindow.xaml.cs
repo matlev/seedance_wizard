@@ -63,6 +63,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _isVideoPlaying;
     private bool _isScrubbing;
     private bool _resumePlaybackAfterScrub;
+    private bool _suppressFrameSelectionPrefetch;
     private double _volumeBeforeMute = 1;
     private bool _isJobsPanelOpen;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
@@ -2162,11 +2163,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             if (_workspace.Project?.Id != selectedProjectId || _frameSourceAssetId != asset.Id) return;
             _frameSourceContentHash = verifiedSource.ContentIdentity.Sha256
                 ?? throw new InvalidDataException("The selected video does not have a verified SHA-256 identity.");
-            _indexedFrames = await _exactFrameService.IndexAsync(path, cancellation.Token);
+            _indexedFrames = await _exactFrameService.IndexWindowAsync(
+                path,
+                Math.Max(0, VideoPreview.Position.TotalSeconds),
+                cancellationToken: cancellation.Token);
             if (_workspace.Project?.Id != selectedProjectId || _frameSourceAssetId != asset.Id) return;
             await _workspace.SaveAsync(cancellation.Token);
 
-            FrameWorkspaceStatusText.Text = $"{_indexedFrames.Count:N0} decoded frames";
+            FrameWorkspaceStatusText.Text = $"{_indexedFrames.Count:N0} nearby decoded frames";
             ContactFramesEmptyText.Visibility = Visibility.Collapsed;
             await RefreshContactFramesAsync(VideoPreview.Position.TotalSeconds, cancellation.Token);
             await RefreshSavedFramesAsync(cancellation.Token);
@@ -2225,6 +2229,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var cancellation = ReplaceFrameBrowserCancellation();
         try
         {
+            await EnsureFrameWindowAsync(VideoPreview.Position.TotalSeconds, cancellation.Token);
             await RefreshContactFramesAsync(VideoPreview.Position.TotalSeconds, cancellation.Token);
             await RefreshSavedFramesAsync(cancellation.Token);
         }
@@ -2235,6 +2240,23 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         {
             StatusText.Text = $"Could not refresh precision frames: {exception.Message}";
         }
+    }
+
+    private async Task EnsureFrameWindowAsync(double centerSeconds, CancellationToken cancellationToken)
+    {
+        if (_workspace.Project is null || _frameSourceAssetId is not { } sourceAssetId) return;
+        var source = _workspace.Project.Assets.Single(asset => asset.Id == sourceAssetId);
+        var path = _workspace.GetAbsoluteAssetPath(source);
+        var window = await _exactFrameService.IndexWindowAsync(
+            path,
+            Math.Max(0, centerSeconds),
+            cancellationToken: cancellationToken);
+        _indexedFrames = _indexedFrames.Concat(window)
+            .GroupBy(frame => (frame.VideoStreamIndex, frame.PresentationTimestamp))
+            .Select(group => group.First())
+            .OrderBy(frame => frame.PresentationTimestamp)
+            .ToArray();
+        FrameWorkspaceStatusText.Text = $"{_indexedFrames.Count:N0} nearby decoded frames";
     }
 
     private async Task RefreshContactFramesAsync(double centerSeconds, CancellationToken cancellationToken)
@@ -2253,18 +2275,25 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var centerItem = await CreateContactItemAsync(path, sourceAssetId, center, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         _contactFrames.Add(centerItem);
-        ContactFramesList.SelectedItem = centerItem;
-
-        var remaining = selectedFrames.Where(frame => frame != center)
-            .Select(frame => CreateContactItemAsync(path, sourceAssetId, frame, cancellationToken))
-            .ToArray();
-        var neighbors = await Task.WhenAll(remaining);
-        cancellationToken.ThrowIfCancellationRequested();
-        var all = neighbors.Append(centerItem).OrderBy(item => item.Frame.PresentationTimestamp).ToArray();
-        _contactFrames.Clear();
-        foreach (var item in all) _contactFrames.Add(item);
-        ContactFramesList.SelectedItem = _contactFrames.First(item => item.Frame == center);
-        ContactFramesList.ScrollIntoView(ContactFramesList.SelectedItem);
+        _suppressFrameSelectionPrefetch = true;
+        try
+        {
+            ContactFramesList.SelectedItem = centerItem;
+            var remaining = selectedFrames.Where(frame => frame != center)
+                .Select(frame => CreateContactItemAsync(path, sourceAssetId, frame, cancellationToken))
+                .ToArray();
+            var neighbors = await Task.WhenAll(remaining);
+            cancellationToken.ThrowIfCancellationRequested();
+            var all = neighbors.Append(centerItem).OrderBy(item => item.Frame.PresentationTimestamp).ToArray();
+            _contactFrames.Clear();
+            foreach (var item in all) _contactFrames.Add(item);
+            ContactFramesList.SelectedItem = _contactFrames.First(item => item.Frame == center);
+            ContactFramesList.ScrollIntoView(ContactFramesList.SelectedItem);
+        }
+        finally
+        {
+            _suppressFrameSelectionPrefetch = false;
+        }
     }
 
     private IReadOnlyList<VideoPresentationFrame> SelectContactFrames(double centerSeconds)
@@ -2375,27 +2404,94 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         return bitmap;
     }
 
-    private void ContactFramesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void ContactFramesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ContactFramesList.SelectedItem is not FrameContactListItem item || VideoPreview.Source is null) return;
         SeekPreview(item.Frame.TimestampSeconds);
+        if (_suppressFrameSelectionPrefetch) return;
+        var selectedIndex = _contactFrames.IndexOf(item);
+        if (selectedIndex > 1 && selectedIndex < _contactFrames.Count - 2) return;
+        var direction = selectedIndex <= 1 ? -1 : 1;
+        var cancellation = ReplaceFrameBrowserCancellation();
+        try
+        {
+            await EnsureFrameWindowAsync(Math.Max(0, item.Frame.TimestampSeconds + direction * 2), cancellation.Token);
+            await RefreshContactFramesAsync(item.Frame.TimestampSeconds, cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
     }
 
-    private void SelectFirstFrame_Click(object sender, RoutedEventArgs e) => SelectBoundaryFrame(first: true);
-
-    private void SelectLastFrame_Click(object sender, RoutedEventArgs e) => SelectBoundaryFrame(first: false);
-
-    private void SelectBoundaryFrame(bool first)
+    private async void ContactFramesList_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (_indexedFrames.Count == 0)
+        if (e.Key is not (Key.Left or Key.Right) ||
+            ContactFramesList.SelectedItem is not FrameContactListItem selected) return;
+        e.Handled = true;
+        var direction = e.Key == Key.Left ? -1 : 1;
+        var currentIndex = _indexedFrames.ToList().FindIndex(frame =>
+            frame.VideoStreamIndex == selected.Frame.VideoStreamIndex &&
+            frame.PresentationTimestamp == selected.Frame.PresentationTimestamp);
+        if (currentIndex < 0) return;
+        if (currentIndex + direction < 0 || currentIndex + direction >= _indexedFrames.Count)
         {
-            StatusText.Text = "Select a physical video and wait for exact frame indexing first.";
+            var cancellation = ReplaceFrameBrowserCancellation();
+            try
+            {
+                await EnsureFrameWindowAsync(
+                    Math.Max(0, selected.Frame.TimestampSeconds + direction * 2),
+                    cancellation.Token);
+                currentIndex = _indexedFrames.ToList().FindIndex(frame =>
+                    frame.VideoStreamIndex == selected.Frame.VideoStreamIndex &&
+                    frame.PresentationTimestamp == selected.Frame.PresentationTimestamp);
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+        }
+        var nextIndex = currentIndex + direction;
+        if (nextIndex < 0 || nextIndex >= _indexedFrames.Count) return;
+        var next = _indexedFrames[nextIndex];
+        var nextCancellation = ReplaceFrameBrowserCancellation();
+        try
+        {
+            await RefreshContactFramesAsync(next.TimestampSeconds, nextCancellation.Token);
+        }
+        catch (OperationCanceledException) when (nextCancellation.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async void SelectFirstFrame_Click(object sender, RoutedEventArgs e) => await SelectBoundaryFrameAsync(first: true);
+
+    private async void SelectLastFrame_Click(object sender, RoutedEventArgs e) => await SelectBoundaryFrameAsync(first: false);
+
+    private async Task SelectBoundaryFrameAsync(bool first)
+    {
+        if (GetSelectedAsset() is not { } asset)
+        {
+            StatusText.Text = "Select a physical video first.";
             return;
         }
-        var frame = first ? _indexedFrames[0] : _indexedFrames[^1];
-        SeekPreview(frame.TimestampSeconds);
-        ScheduleContactFrameRefresh();
-        StatusText.Text = first ? "Selected the first decoded presentation frame." : "Selected the final decodable presentation frame.";
+        var target = first ? 0 : Math.Max(0, asset.DurationSeconds ?? PositionSlider.Maximum);
+        var cancellation = ReplaceFrameBrowserCancellation();
+        try
+        {
+            await EnsureFrameWindowAsync(target, cancellation.Token);
+            var candidates = await _exactFrameService.IndexWindowAsync(
+                _workspace.GetAbsoluteAssetPath(asset),
+                target,
+                first ? 1 : 5,
+                cancellation.Token);
+            if (candidates.Count == 0) throw new InvalidDataException("No decoded presentation frame was found near the boundary.");
+            var frame = first ? candidates[0] : candidates[^1];
+            await RefreshContactFramesAsync(frame.TimestampSeconds, cancellation.Token);
+            StatusText.Text = first ? "Selected the first decoded presentation frame." : "Selected the final decodable presentation frame.";
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
     }
 
     private async void SaveSelectedFrame_Click(object sender, RoutedEventArgs e)

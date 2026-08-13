@@ -341,6 +341,7 @@
                                 <TextBlock x:Name="ContactFramesEmptyText" Text="Select a video to browse exact decoded frames."
                                            Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <ListBox x:Name="ContactFramesList" SelectionChanged="ContactFramesList_SelectionChanged"
+                                         PreviewKeyDown="ContactFramesList_PreviewKeyDown"
                                          ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                          Background="Transparent" BorderThickness="0" Padding="4">
                                     <ListBox.ItemsPanel>

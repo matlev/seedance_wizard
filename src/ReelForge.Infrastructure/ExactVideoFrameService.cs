@@ -146,6 +146,42 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
         return ParseIndex(result.StandardOutput);
     }
 
+    public async Task<IReadOnlyList<VideoPresentationFrame>> IndexWindowAsync(
+        string mediaPath,
+        double centerSeconds,
+        double radiusSeconds = 2,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mediaPath);
+        ArgumentOutOfRangeException.ThrowIfNegative(centerSeconds);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(radiusSeconds);
+        if (!double.IsFinite(centerSeconds) || !double.IsFinite(radiusSeconds))
+            throw new ArgumentOutOfRangeException(nameof(centerSeconds), "Frame-window timing must be finite.");
+        var ffprobePath = _ffprobePath ?? throw new MediaToolUnavailableException(
+            "ffprobe is not configured. Configure it in Settings > Media Tools to browse exact frames.");
+        var startSeconds = Math.Max(0, centerSeconds - radiusSeconds);
+        var durationSeconds = radiusSeconds * 2;
+        var interval = $"{startSeconds.ToString("0.######", CultureInfo.InvariantCulture)}%+" +
+                       durationSeconds.ToString("0.######", CultureInfo.InvariantCulture);
+        var arguments = new[]
+        {
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-read_intervals", interval,
+            "-show_entries", "stream=index,time_base:frame=best_effort_timestamp",
+            "-show_streams",
+            "-show_frames",
+            "-print_format", "json",
+            mediaPath
+        };
+        var result = await _runner.RunAsync(
+                new ExternalProcessRequest(ffprobePath, arguments),
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.Succeeded) throw new ExternalProcessException(ffprobePath, result);
+        return ParseIndex(result.StandardOutput);
+    }
+
     public async Task<MaterializedMediaLease> ExtractAsync(
         string mediaPath,
         string sourceContentHash,
