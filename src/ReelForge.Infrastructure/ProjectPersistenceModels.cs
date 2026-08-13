@@ -5,14 +5,13 @@ namespace ReelForge.Infrastructure;
 
 internal sealed class ProjectFileDto
 {
-    public const int CurrentFormatVersion = 1;
+    public const int CurrentFormatVersion = 2;
 
     public int FormatVersion { get; set; } = CurrentFormatVersion;
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset ModifiedAt { get; set; }
-    public Guid? MainVideoAssetId { get; set; }
     public List<ProjectAssetDto> Assets { get; set; } = [];
     public List<RecipeRevisionDto> RecipeRevisions { get; set; } = [];
     public List<RecipeDraftDto> RecipeDrafts { get; set; } = [];
@@ -284,7 +283,6 @@ internal static class ProjectPersistenceMapper
         Name = source.Name,
         CreatedAt = source.CreatedAt,
         ModifiedAt = source.ModifiedAt,
-        MainVideoAssetId = source.MainVideoAssetId,
         Assets = source.Assets.Select(ToDto).ToList(),
         RecipeRevisions = source.RecipeRevisions.Select(ToDto).ToList(),
         RecipeDrafts = source.RecipeDrafts.Select(ToDto).ToList(),
@@ -314,7 +312,6 @@ internal static class ProjectPersistenceMapper
         Name = source.Name,
         CreatedAt = source.CreatedAt,
         ModifiedAt = source.ModifiedAt,
-        MainVideoAssetId = source.MainVideoAssetId,
         Assets = source.Assets.Select(FromDto).ToList(),
         RecipeRevisions = source.RecipeRevisions.Select(FromDto).ToList(),
         RecipeDrafts = source.RecipeDrafts.Select(FromDto).ToList(),

@@ -56,7 +56,7 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Equal(Path.GetFullPath(_temporaryRoot), reopenedLocation.RootDirectory);
         Assert.Equal("Portable demo.rfp", Path.GetFileName(reopenedLocation.ProjectFilePath));
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(location.ProjectFilePath));
-        Assert.Equal(1, json.RootElement.GetProperty("formatVersion").GetInt32());
+        Assert.Equal(2, json.RootElement.GetProperty("formatVersion").GetInt32());
         AssertProjectFoldersExist(location.ProjectFilePath);
     }
 
@@ -179,19 +179,6 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Equal(first.Id, reopened.RecipeRevisions.Single(revision => revision.Id == second.Id).PreviousRevisionId);
         var original = Assert.IsType<TrimRecipe>(reopened.RecipeRevisions.Single(revision => revision.Id == first.Id).Recipe);
         Assert.Equal(RecipeBoundaryKind.SourceStart, original.Start.Kind);
-    }
-
-    [Fact]
-    public void FirstGeneratedPhysicalVideoBecomesMainVideo()
-    {
-        var project = new VideoProject();
-        var importedVideo = CreatePhysicalAsset("imported.mp4", "assets/videos/imported.mp4");
-        var generatedVideo = CreatePhysicalAsset("generated.mp4", "generated/generated.mp4", AssetOrigin.Generated);
-
-        project.AddAsset(importedVideo);
-        project.AddAsset(generatedVideo);
-
-        Assert.Equal(generatedVideo.Id, project.MainVideoAssetId);
     }
 
     private static ProjectAsset CreatePhysicalAsset(

@@ -24,7 +24,6 @@ public sealed class VideoProject
     public string Name { get; set; } = "Untitled project";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset ModifiedAt { get; set; } = DateTimeOffset.UtcNow;
-    public Guid? MainVideoAssetId { get; set; }
     public List<ProjectAsset> Assets { get; set; } = [];
     public List<RecipeRevision> RecipeRevisions { get; set; } = [];
     public List<RecipeDraft> RecipeDrafts { get; set; } = [];
@@ -45,14 +44,6 @@ public sealed class VideoProject
         }
 
         Assets.Add(asset);
-        if (MainVideoAssetId is null &&
-            asset.MediaType == MediaType.Video &&
-            asset.Origin == AssetOrigin.Generated &&
-            asset.StorageKind == AssetStorageKind.Physical)
-        {
-            MainVideoAssetId = asset.Id;
-        }
-
         Touch();
     }
 

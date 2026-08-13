@@ -51,10 +51,6 @@ public static class ProjectInvariantValidator
             }
         }
 
-        if (project.MainVideoAssetId is { } mainId &&
-            (!assets.TryGetValue(mainId, out var main) || main.MediaType != MediaType.Video || main.StorageKind != AssetStorageKind.Physical))
-            errors.Add("The main video must reference a durable physical video asset.");
-
         foreach (var anchor in project.Anchors)
         {
             if (anchor.CurrentRevisionId is null ||

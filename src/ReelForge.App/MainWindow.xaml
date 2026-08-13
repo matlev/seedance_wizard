@@ -128,17 +128,7 @@
                             <DataTemplate>
                                 <Border Padding="8" Margin="1" CornerRadius="3">
                                     <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Content="{Binding MainVideoGlyph}" Tag="{Binding}"
-                                                Visibility="{Binding MainVideoSelectorVisibility}"
-                                                Click="ToggleMainVideo_Click" ToolTip="Set or clear the main project video"
-                                                FontSize="18" Foreground="{Binding MainVideoBrush}"
-                                                Width="28" Height="28" Padding="0" Margin="0,0,6,0"
-                                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="{Binding DisplayName}" Style="{StaticResource ApplicationTextBlockStyle}" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding MediaType}" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
                                         </StackPanel>

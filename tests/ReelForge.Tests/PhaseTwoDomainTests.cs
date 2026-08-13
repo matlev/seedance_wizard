@@ -30,23 +30,6 @@ public sealed class PhaseTwoDomainTests : IDisposable
     }
 
     [Fact]
-    public void MainVideoCannotReferenceVirtualAsset()
-    {
-        var virtualAsset = new ProjectAsset
-        {
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Physical = null,
-            Virtual = new VirtualAssetState()
-        };
-        var project = new VideoProject { Assets = [virtualAsset], MainVideoAssetId = virtualAsset.Id };
-
-        var errors = ProjectInvariantValidator.Validate(project);
-
-        Assert.Contains(errors, error => error.Contains("main video", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
     public async Task Sha256ServiceUsesCanonicalByteFingerprintIndependentlyOfName()
     {
         Directory.CreateDirectory(_temporaryRoot);

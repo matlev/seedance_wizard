@@ -960,21 +960,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (item is not null) item.IsSelected = true;
     }
 
-    private async void ToggleMainVideo_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: ProjectAssetListItem item } || _workspace.Project is null) return;
-        var asset = item.Asset;
-        if (asset.MediaType != MediaType.Video || asset.StorageKind != AssetStorageKind.Physical) return;
-
-        _workspace.Project.MainVideoAssetId = item.IsMainVideo ? null : asset.Id;
-        await _workspace.SaveAsync();
-        RefreshProjectCollections(asset.Id);
-        StatusText.Text = item.IsMainVideo
-            ? "The project now has no main video."
-            : $"{asset.EffectiveDisplayName} is now the main project video.";
-        e.Handled = true;
-    }
-
     private async void RenameAsset_Click(object sender, RoutedEventArgs e)
     {
         if (GetSelectedAsset() is not { } asset) return;
@@ -1106,8 +1091,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var absolutePath = asset.StorageKind == AssetStorageKind.Physical
             ? _workspace.GetAbsoluteAssetPath(asset)
             : null;
-        var oldMainVideoId = _workspace.Project.MainVideoAssetId;
-        if (oldMainVideoId == asset.Id) _workspace.Project.MainVideoAssetId = null;
         _workspace.Project.Assets.Remove(asset);
         try
         {
@@ -1116,7 +1099,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         catch
         {
             _workspace.Project.Assets.Add(asset);
-            _workspace.Project.MainVideoAssetId = oldMainVideoId;
             throw;
         }
 
@@ -2483,7 +2465,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         foreach (var asset in _workspace.Project.Assets)
         {
-            _assets.Add(new ProjectAssetListItem(asset, _workspace.Project.MainVideoAssetId == asset.Id));
+            _assets.Add(new ProjectAssetListItem(asset));
             var matching = existingChoices.Where(choice =>
                 choice.ObjectKind == GenerationReferenceObjectKind.Asset && choice.LogicalObjectId == asset.Id).ToArray();
             if (matching.Length > 0)
@@ -2795,22 +2777,11 @@ public sealed class SavedFrameListItem
 
 public sealed class ProjectAssetListItem
 {
-    public ProjectAssetListItem(ProjectAsset asset, bool isMainVideo)
-    {
-        Asset = asset;
-        IsMainVideo = isMainVideo;
-    }
+    public ProjectAssetListItem(ProjectAsset asset) => Asset = asset;
 
     public ProjectAsset Asset { get; }
-    public bool IsMainVideo { get; }
     public string DisplayName => Asset.StorageKind == AssetStorageKind.Physical ? Asset.FileName : Asset.EffectiveDisplayName;
     public MediaType MediaType => Asset.MediaType;
-    public string MainVideoGlyph => IsMainVideo ? "★" : "☆";
-    public Brush MainVideoBrush => IsMainVideo ? Brushes.Gold : Brushes.DimGray;
-    public Visibility MainVideoSelectorVisibility =>
-        Asset.MediaType == MediaType.Video && Asset.StorageKind == AssetStorageKind.Physical
-            ? Visibility.Visible
-            : Visibility.Hidden;
 }
 
 public sealed class GenerationReferenceChoice

@@ -56,7 +56,6 @@ public sealed class OfflineGenerationAcceptanceTests : IDisposable
 
         var outputId = Assert.Single(generation.OutputAssetIds);
         var output = context.Workspace.Project!.Assets.Single(asset => asset.Id == outputId);
-        Assert.Equal(outputId, context.Workspace.Project.MainVideoAssetId);
         Assert.Equal(AssetOrigin.Generated, output.Origin);
         Assert.Equal(generation.Id, output.Provenance?.GenerationId);
         Assert.Equal(FixtureSha256, output.Physical?.ContentIdentity.Sha256, ignoreCase: true);
@@ -302,7 +301,6 @@ public sealed class OfflineGenerationAcceptanceTests : IDisposable
         Assert.Equal("local_ingestion_failed", generation.Error?.ProviderCode);
         Assert.Empty(generation.OutputAssetIds);
         Assert.Empty(workspace.Project!.Assets);
-        Assert.Null(workspace.Project.MainVideoAssetId);
         var generatedDirectory = Path.Combine(workspace.Location!.RootDirectory, "generated");
         Assert.Empty(Directory.EnumerateFiles(generatedDirectory));
     }

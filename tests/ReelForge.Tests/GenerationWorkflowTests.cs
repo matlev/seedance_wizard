@@ -38,7 +38,6 @@ public sealed class GenerationWorkflowTests : IDisposable
         var output = Assert.Single(workspace.Project!.Assets);
         Assert.Equal(outputId, output.Id);
         Assert.Equal(record.Id, output.Provenance?.GenerationId);
-        Assert.Equal(output.Id, workspace.Project.MainVideoAssetId);
         var store = new PortableProjectStore();
         var (reopened, _) = await store.OpenAsync(workspace.Location!.ProjectFilePath);
         Assert.Equal(outputId, Assert.Single(reopened.Generations).OutputAssetIds.Single());
