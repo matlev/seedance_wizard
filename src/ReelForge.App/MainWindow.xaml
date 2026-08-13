@@ -208,14 +208,16 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="90" />
                             </Grid.ColumnDefinitions>
-                            <Button x:Name="PlaybackButton" Grid.Column="0" Width="34" Height="30" Padding="8" Margin="0"
+                            <Button x:Name="PlaybackButton" Grid.Column="0" Width="38" Height="32" Padding="5" Margin="0"
                                     Click="Playback_Click" ToolTip="Play preview" IsEnabled="False"
                                     HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-                                <Grid Width="16" Height="16">
+                                <Grid Width="19" Height="19">
                                     <Path x:Name="PlayGlyph" Fill="{StaticResource TextBrush}"
-                                          Stretch="Uniform" Data="M 2,1 L 14,8 L 2,15 Z" />
+                                          Stretch="Uniform" Margin="2,1,1,1"
+                                          Data="M 1,0 L 16,8.5 L 1,17 Z" />
                                     <Path x:Name="PauseGlyph" Fill="{StaticResource TextBrush}" Visibility="Collapsed"
-                                          Stretch="Uniform" Data="M 2,1 H 6 V 15 H 2 Z M 10,1 H 14 V 15 H 10 Z" />
+                                          Stretch="Uniform" Margin="2"
+                                          Data="M 1,0 H 6 V 17 H 1 Z M 11,0 H 16 V 17 H 11 Z" />
                                 </Grid>
                             </Button>
                             <Slider x:Name="PositionSlider" Grid.Column="1" Minimum="0" Maximum="1" Margin="10,0"
