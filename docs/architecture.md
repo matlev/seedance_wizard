@@ -1,10 +1,10 @@
 ﻿# Architecture
 
-Status: accepted direction; Phases 2A and 2B complete; Phase 2C frame/continuation design approved and awaiting implementation
+Status: accepted direction; Phases 2A and 2B complete; Phase 2C implementation in progress
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 
-This document records the accepted target architecture. Schema-v2 logical assets, immutable recipe revisions and generation snapshots, migration, SHA-256 identity, provider-specific physical-reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, and their application boundaries are implemented. Virtual-recipe rendering, frame-anchor materialization, and general cache planning remain later Milestone 2 phases.
+This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific physical-reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, and their application boundaries are implemented. Virtual-recipe rendering, frame-anchor materialization, and general cache planning remain later Milestone 2 phases.
 
 ## Architectural direction
 
@@ -43,9 +43,9 @@ ReelForge.Application  <---  ReelForge.Infrastructure
 
 - **Core** owns project state, physical and virtual asset definitions, typed recipes, anchors, timelines, generation provenance, and graph invariants. It has no file-system, FFmpeg, HTTP, or WPF dependencies.
 - **Application** owns use cases and ports for project persistence, materialization, cache access, exports, provider preparation, and graph validation.
-- **Infrastructure** implements JSON migration/persistence, durable-file import, content identity, cache storage, FFmpeg planning/rendering, provider upload integration, and Windows services.
+- **Infrastructure** implements current-format JSON persistence, durable-file import, content identity, cache storage, FFmpeg planning/rendering, provider upload integration, and Windows services.
 - **App** treats physical and virtual assets uniformly in selection and editing UI. It requests previews, provider inputs, and exports through application services rather than resolving paths or launching FFmpeg itself.
-- **Tests** verify recipes, migrations, graph validity, deterministic cache keys, render plans, cleanup, and provider payloads without making paid provider calls.
+- **Tests** verify recipes, incompatible-format rejection, graph validity, deterministic cache keys, render plans, cleanup, and provider payloads without making paid provider calls.
 
 ### Paid-network execution boundary
 
@@ -80,7 +80,7 @@ See [MiniMax H3 local execution research](minimax-h3-local-research.md) for the 
 | `AssetProvenance` | Links source IDs, generation IDs, operation names, and parameters | Stringly typed provenance cannot safely serve as the recipe itself. Provenance should describe history; a typed recipe should define reproduction. |
 | `FrameAnchor` | Has an ID, source asset, timestamp, frame number, and label | `VideoProject` has no anchor collection, so anchors are not currently durable project state. Frame number is mandatory even when unreliable. Notes and time-basis semantics are absent. |
 | `Timeline` / `TimelineClip` | Already references assets by ID and stores non-destructive in/out positions | No tracks or recipe/render-plan boundary; current code assumes an asset can be resolved directly to a path. |
-| `PortableProjectStore` | Schema field, portable relative paths, atomic save | Supports only “reject newer schema”; it has no migration chain. It creates `cache/` but defines no deletion or reconstruction semantics. |
+| `PortableProjectStore` | Development-format marker, portable relative paths, atomic save | Intentionally rejects obsolete development formats. It creates `cache/` but does not yet define deletion or reconstruction semantics. |
 | `AssetImportService` | Copies user media into durable project storage and inspects it | Correct for physical imports, but it should not be reused for virtual outputs or cache promotion without explicit semantics. |
 | `ProjectWorkspace.GetAbsoluteAssetPath` | Centralizes relative-path resolution | Cannot represent a virtual asset. Consumers must request materialization rather than assume all assets have paths. |
 | `FfmpegCommandBuilder` / process runner | Pure arguments, safe process execution, cancellation, captured diagnostics | Commands operate on paths directly; there is no recipe compiler, dependency planner, cache key, or materialized-result lease. |
@@ -91,13 +91,13 @@ See [MiniMax H3 local execution research](minimax-h3-local-research.md) for the 
 | `GenerationRecord.ParentGenerationId` | Already enforces the desired maximum of one lineage parent | Needs a paired relationship type and validation; it must not be used to infer actual provider inputs. |
 | `GenerationRecord.OutputAssetId` / `AssetProvenance.GenerationId` | Provides the beginnings of bidirectional output provenance | The invariant is not enforced, remote completion versus local ingestion is not distinguished, and only one output is representable. |
 
-The current project contains no significant timeline/editor output to migrate, so this is the least expensive point to establish the recipe foundation.
+The pre-release project contains no supported external format baseline, so this is the least expensive point to establish the correct recipe foundation.
 
 ## Core invariants
 
 1. Every project asset has a stable logical asset ID and media type.
 2. A **physical asset** names durable media inside the portable project and records content identity.
-3. A **virtual asset** contains a typed, versioned recipe and has no authoritative media path.
+3. A **virtual asset** contains a typed recipe and has no authoritative media path.
 4. Committed recipes reference physical assets/anchors by logical ID and virtual assets by logical ID plus exact recipe revision, forming a directed acyclic graph.
 5. Source/generated physical media, project metadata, recipes, anchors, and timeline state are sufficient to reconstruct every virtual asset.
 6. Cache entries are implementation details. No persisted recipe, timeline, or provider request may depend on a cache-relative path.
@@ -181,7 +181,7 @@ ProviderSnippetRecipe
   Provider constraints/profile
 ```
 
-Each serialized recipe needs its own recipe version. Project schema versioning handles the envelope; recipe versioning prevents one future operation change from forcing unrelated recipe shapes to change.
+Recipes are serialized through explicit current-format DTOs. During pre-release development, operation shapes change in place and obsolete files are rejected. Per-operation compatibility markers can be introduced with the first supported public format if later evolution requires them.
 
 ### Recipe revisions and edit drafts
 
@@ -239,7 +239,7 @@ Extracted frame / thumbnail    disposable reproducible cache
 Saved frame image asset        explicitly promoted durable physical media
 ```
 
-Schema version 3 uses a stable logical anchor plus immutable media-semantic revisions:
+The current project format uses a stable logical anchor plus immutable media-semantic revisions:
 
 ```text
 FrameAnchor
@@ -258,16 +258,14 @@ FrameAnchorRevision
   SourceAssetId
   SourceContentHash
   VideoStreamIndex
-  TimingPrecision          ExactPresentationTimestamp | LegacyTimestampSeconds
-  PresentationTimestamp?  integer PTS for new exact anchors
-  TimeBaseNumerator?
-  TimeBaseDenominator?
-  LegacyTimestampSeconds? migration-only preserved value
+  PresentationTimestamp   integer presentation timestamp
+  TimeBaseNumerator
+  TimeBaseDenominator
   FrameNumber?            informational when reliable
   CreatedAt
 ```
 
-For new anchors, stream index plus integer presentation timestamp and rational stream time base are authoritative. Display seconds are derived. Variable-frame-rate media makes a mandatory frame number unsafe. Schema-v2 anchors migrate to revision 1 without invented precision: their original floating-point seconds are preserved as `LegacyTimestampSeconds` until an optional future visual reconciliation creates a new exact revision.
+Stream index plus integer presentation timestamp and rational stream time base are authoritative. Display seconds are derived. Variable-frame-rate media makes a mandatory frame number unsafe. Earlier development projects that stored only floating-point seconds are intentionally incompatible with this pre-release format rather than being elevated to false exactness.
 
 An uncommitted anchor draft may move freely. Once an anchor revision is committed or referenced, its extraction-defining state is immutable. Moving the Saved Frame creates a new revision linked to the prior revision. Label, notes, and archived state remain mutable logical-anchor metadata; submitted generation references freeze their own label and notes independently. Old revisions remain resolvable but are not exposed through an ordinary revision browser in Phase 2C. A future restore action creates a new revision copying an old revision's frame state rather than mutating or reactivating history.
 
@@ -589,87 +587,35 @@ Potentially billable submission remains reachable only after the desktop creates
 
 The coordinator is application-scoped rather than project-view-scoped. It continues remote monitoring while the user switches projects or has no project open, restores unresolved provider jobs after application restart, and never calls a provider's `SubmitAsync`. A locally queued entry is executed by the desktop submission workflow after its deadline without restricting New/Open or project switching. At expiry, the workflow uses the active workspace only when it still owns the captured project path; otherwise it opens an isolated workspace for that `.rfp`, locates the immutable generation ID, resolves that project's references, and persists submission state back to the owning project. If the owning project becomes active during isolated work, only the matching generation's mutable provider state is merged into the active model rather than replacing unrelated in-memory edits. If shutdown interrupts an unclaimed local entry, restore converts it to a reconciled local cancellation instead of submitting without a live authorization. A terminal result is merged into its owning `.rfp` project and successful outputs pass through the same verified ingestion/provenance path whether or not that project is currently visible. The project remains authoritative generation history; the application registry is recoverable operational/notification state. A reconciled terminal entry remains across restarts until the Jobs tab has displayed it and the user subsequently leaves that tab, preventing unattended completions from disappearing before acknowledgement.
 
-## Project schema and migration
+## Pre-release project format policy
 
-The implemented project schema is version 3. Version 1 gave `ProjectAsset.RelativePath` physical-path semantics and had no persisted anchor collection or virtual recipe discriminator. Phase 2A introduced the explicit version-1/version-2 DTOs; Phase 2C.1 added an explicit version-3 DTO and extended the transactional migration chain below.
+ReelForge maintains one current `.rfp` development format. Persistence DTOs remain separate from domain models, but there is no migration ladder and the domain does not carry a schema-version concern. The file contains a simple `formatVersion` marker used only to reject incompatible development files clearly.
 
-Implemented version 2 changes:
+While ReelForge is pre-release and its media semantics are still changing:
 
-- add an explicit physical/virtual asset discriminator;
-- move physical-only path/content identity under physical storage metadata;
-- add typed, versioned, immutable committed recipe revisions with previous-revision links and a current-revision pointer per virtual asset;
-- keep mutable recipe drafts separate from committed revision history;
-- add SHA-256 content identity for durable physical media without changing logical IDs or display/file names;
-- add a project-owned anchor collection;
-- replace asset-ID-only generation inputs with ordered/role-aware logical reference snapshots that can target assets or anchors;
-- make submitted generation request snapshots explicitly immutable;
-- add one autosaved mutable `GenerationDraft` per project without adding it to generation history;
-- pair the existing nullable `ParentGenerationId` with a nullable, cycle-checked `RelationshipType` from the settled five-value vocabulary;
-- support bidirectional generation/output provenance and multiple output asset IDs;
-- allow timeline references to target either asset kind;
-- formalize cache as non-authoritative and keep cache paths out of the `.rfp` project file;
-- enrich reusable provider references with source/materialization identity, provider scope, and expiry if they remain persisted;
-- allow retention preferences/receipts without making retained materializations authoritative project dependencies.
+- optimize the current format and domain for correctness and clarity;
+- update the format in place when the model changes;
+- reject an absent or unsupported format marker with a clear obsolete-development-format message;
+- do not deserialize historical shapes into current domain objects or preserve migration-only representations;
+- keep atomic temporary-file saves, validation-before-save, and replace-on-success corruption protection;
+- keep cache paths and transient provider representations out of authoritative project state;
+- expect disposable development projects to be recreated and media to be re-imported when the format changes.
 
-Migration strategy:
+The current format includes physical/virtual asset discrimination, immutable recipe and anchor revisions, SHA-256 physical content identity, ordered occurrence-identified generation references, immutable submitted snapshots, generation lineage, multi-output provenance, main-video selection, and timeline references. Exact anchor revisions always store source identity, video stream index, integer presentation timestamp, and rational time base; there is no approximate or migration-only timing variant.
 
-1. Deserialize the version-1 document into its version-1 shape.
-2. Convert every version-1 asset with a `RelativePath` into a physical version-2 asset without moving its file.
-3. Preserve IDs, origins, metadata, provenance, provider references, generation links, main-video selection, and timeline references unchanged.
-4. Treat existing `EditorDerived` or `ExtractedFrame` assets as physical legacy-derived assets because a version-1 path is authoritative; do not attempt to reverse-engineer recipes from string provenance.
-5. Mark migrated physical content identity as pending until SHA-256 is calculated; do not block safe metadata migration on hashing every large file, and do not invent a hash from file metadata.
-6. Convert each version-1 `GenerationRequest.ReferenceAssetIds` entry, in order, into an asset-kind logical reference snapshot. Role and revision remain unspecified because version 1 did not record them.
-7. Preserve `ParentGenerationId` when present and assign the conservative `BasedOn` relationship type unless stronger semantics are explicitly present in durable version-1 data; never guess `RetryOf`, `VariantOf`, or continuation semantics from timestamps or prompts.
-8. Preserve the version-1 request values as the historical snapshot. The migration cannot prove that the in-memory request had never been mutated before its last save, so it preserves rather than embellishes the recorded state.
-9. Convert the singular output asset ID into a one-element output collection and preserve the asset's existing generation provenance where present.
-10. Add an empty anchor catalog because version 1 never persisted anchors at project level.
-11. Validate the migrated asset/recipe/generation graphs and referenced files, report missing durable files without deleting metadata, and save the current schema only through an explicit/transactional migration path.
-12. For safe metadata-only version-1 migration, create `project.backup-v1.json` first, migrate automatically to the current schema, atomically save the selected project file, and report the upgrade. Never overwrite the known-good project if backup or migration fails. New projects use a project-named `.rfp` file; legacy `project.json` files remain supported and save in place.
-
-The migration policy is hybrid: safe/reversible metadata migrations such as v2 → v3 run automatically after a versioned backup; destructive, expensive, lossy, media-rewriting, or risky folder-layout migrations require an explanation and explicit user confirmation after backup.
-
-Downgrading a version-2 or version-3 project is not generally possible because newer logical media and anchor-revision semantics have no faithful older representation. Older applications should continue rejecting newer schemas rather than silently dropping recipes or precision.
-
-### Approved schema version 3 changes for Phase 2C
-
-Schema version 3 is required rather than silently redefining the already-implemented version 2 contract. It adds:
-
-- stable logical `FrameAnchor` objects with mutable display metadata, archive state, and a current-revision pointer;
-- immutable `FrameAnchorRevision` objects with predecessor links, source asset/SHA-256 identity, video stream index, and exact rational presentation timing for newly created anchors;
-- an explicit legacy-timing precision state for migrated version-2 anchors;
-- exact anchor-revision references in extract-frame recipes and anchor-based recipe boundaries;
-- `BeforeFrame`/`AfterFrame` boundary edges normalized to half-open `[start,end)` render intervals;
-- a stable `ReferenceId` for every generation-reference occurrence;
-- exact anchor revision, source identity, and timing data in immutable submitted reference snapshots;
-- occurrence-keyed transient prepared references replacing asset-ID-only provider overrides;
-- dependency-aware deletion that archives referenced anchors and preserves required revisions.
-
-Version 2 to version 3 migration is safe metadata migration and therefore follows the existing automatic-after-versioned-backup policy. It must:
-
-1. Create a versioned backup before writing schema 3.
-2. Preserve every project, asset, recipe, anchor, draft, generation, output, timeline, and logical ID that can remain stable.
-3. Convert each version-2 anchor into a stable logical anchor plus immutable revision 1.
-4. Preserve the original `TimestampSeconds` as legacy timing; never invent a presentation timestamp, time base, stream index, or exact-frame guarantee not present in version 2.
-5. Carry the source asset's verified SHA-256 into revision 1 when available; otherwise retain a degraded/pending identity state without blocking project open.
-6. Rewrite version-2 recipe anchor IDs to the corresponding revision-1 reference while retaining legacy timing precision. Because version 2 did not store whether an anchor boundary included or excluded its selected frame, preserve such boundaries as `LegacyUnspecified`; never fabricate `BeforeFrame` or `AfterFrame` semantics.
-7. Assign a new stable `ReferenceId` to each existing draft and historical generation-reference occurrence while preserving its original order and values.
-8. Resolve historical anchor references to revision 1 and freeze the legacy timing/source fields available at migration time without embellishment.
-9. Validate references, revision chains, lineage, source media state, and dependency rules before atomically saving schema 3.
-10. Preserve missing or changed sources and their descendants in a degraded state; never delete anchors, recipes, or generation history during migration.
-
-An optional later reconciliation workflow may show a legacy anchor against decoded frames and commit a new exact revision. It never mutates revision 1 or pretends the legacy timestamp was exact.
+At the first externally supported beta/public project-format baseline, compatibility becomes a product requirement. That release must define its supported marker and migration policy before later breaking changes ship. Until then, older builds and older development `.rfp` files are intentionally not guaranteed to interoperate.
 
 ## Components that would change during implementation
 
-- **Core:** `VideoProject`, `ProjectAsset`, `GenerationDraft`, immutable request snapshots, `GenerationRecord`, `GenerationSubmission`, `AssetProvenance`, frame anchors, recipes, reference roles, single-parent lineage validation, multi-output provenance, main-video invariants, timeline types, graph validation, content identity, and schema version.
+- **Core:** `VideoProject`, `ProjectAsset`, `GenerationDraft`, immutable request snapshots, `GenerationRecord`, `GenerationSubmission`, `AssetProvenance`, frame anchors, recipes, reference roles, single-parent lineage validation, multi-output provenance, main-video invariants, timeline types, graph validation, and content identity.
 - **Application:** replace path assumptions with materialization/export/provider-preparation ports; add submit/poll/cancel/download/ingest orchestration; expand `ProjectWorkspace` or split it into focused use cases.
-- **Persistence:** add explicit versioned DTOs and a migration chain instead of deserializing all versions directly into the current domain model.
+- **Persistence:** retain explicit current-format DTOs without deserializing files directly into the domain model; reject obsolete development formats instead of migrating them.
 - **Import/download:** record durable content identity and distinguish imported/generated/exported physical media.
 - **Media infrastructure:** add recipe planning/compilation, cache-key generation, atomic cache commits, active leases, cleanup, and operation-specific FFmpeg plans.
 - **Provider orchestration:** resolve asset/anchor references, materialize when needed, prepare uploads, qualify remote references by source fingerprint/scope/lifetime, poll jobs, and ingest successful downloads.
 - **Provider boundaries:** retain independently verified BytePlus and AtlasCloud request serialization; keep logical-reference resolution ahead of provider preparation; add upload, polling, and cancellation behavior only where each provider documents it. BytePlus desktop preparation uses provider-neutral R2 presigned HTTPS references, its no-host fallback supports inline image/audio only, and AtlasCloud retains multipart upload.
 - **WPF:** display virtual assets without requiring paths; add provider/credential/settings/reference selection and generation status/actions; keep preview/export/provider work asynchronous.
-- **Tests:** add migration fixtures, asset and generation graph/cycle tests, immutable snapshot tests, retry/branch semantics, cache deletion/reconstruction, deterministic-key fixtures, purpose-specific render plans, concurrent materialization, cancellation cleanup, output provenance, and paid-network isolation.
+- **Tests:** add current-format rejection/round-trip tests, asset and generation graph/cycle tests, immutable snapshot tests, retry/branch semantics, cache deletion/reconstruction, deterministic-key fixtures, purpose-specific render plans, concurrent materialization, cancellation cleanup, output provenance, and paid-network isolation.
 
 ## Risks and tradeoffs
 
@@ -699,7 +645,7 @@ An optional later reconciliation workflow may show a legacy anchor against decod
 4. **Generation identity:** one submitted provider request/job per generation, with provider/model selected per request and zero or more durable output asset IDs.
 5. **Reference roles:** optional provider-neutral roles are `GeneralReference`, `StartFrame`, `EndFrame`, `Character`, `Style`, `Environment`, `Motion`, and `Audio`, plus separate user label/notes.
 6. **Main video:** always a durable physical project asset. Promotion precedes selection; demotion does not make media ephemeral; deletion prompts for replacement or leaves no main video.
-7. **Migration:** safe/reversible metadata migrations run automatically after backup; destructive, expensive, lossy, media-affecting, or risky layout migrations require explicit confirmation.
+7. **Pre-release format:** maintain one current development format and reject obsolete files clearly; establish migrations only after the first supported beta/public format baseline.
 8. **Missing resources/history:** submitted generations persist until explicitly deleted. Missing physical media is reported as missing project state and never causes silent history deletion.
 9. **Materialization retention:** intentionally unresolved; logical recipes/provenance remain authoritative under every future policy.
 10. **Recipe revisions:** editable/uncommitted recipe drafts are mutable; every committed or referenced recipe revision is immutable, linked to its predecessor, and pinned explicitly by historical references.
@@ -710,7 +656,7 @@ An optional later reconciliation workflow may show a legacy anchor against decod
 1. **Meaning:** an anchor is a provider-neutral and editor-neutral exact position in source media; Saved Frame is the initial user-facing name.
 2. **Revisioning:** stable logical anchors own immutable extraction-defining revisions; moving a committed/referenced anchor creates a new revision.
 3. **Timing:** new revisions use video stream index, integer presentation timestamp, and rational time base; frame number is informational.
-4. **Legacy precision:** version-2 floating-point seconds migrate honestly as legacy timing and may be visually reconciled only by creating a later exact revision.
+4. **Exactness:** every anchor revision stores stream index, integer presentation timestamp, rational time base, and source content identity; approximate timing is not admitted into the current model.
 5. **Metadata:** display label, notes, and archived state remain mutable on the logical anchor; submitted references freeze their own label/notes.
 6. **Targets:** Phase 2C anchors any imported or generated durable physical video; virtual-video anchors wait for Phase 2D time mapping.
 7. **Deletion:** unreferenced anchors may be deleted; referenced anchors are archived/tombstoned and their pinned revisions remain resolvable.
@@ -736,4 +682,4 @@ The Phase 2C anchor questions are settled. Remaining cross-phase items are:
 
 ## Phase gate
 
-Phases 2A and 2B are complete. Phase 2C.1 through 2C.7 are approved for implementation with schema version 3, immutable exact-timing anchor revisions, occurrence-identified provider references, and `BeforeFrame`/`AfterFrame` editing boundaries. AtlasCloud MiniMax H3 is the selected first optional human-run paid anchor-continuation acceptance route because its submission/upload/polling/ingestion path is already proven; automated verification remains network-isolated. BytePlus paid acceptance is a separate provider-confidence exercise. Phase 2D virtual-recipe rendering and generalized promotion/export remain separate implementation gates.
+Phases 2A and 2B are complete. Phase 2C.1 through 2C.7 are approved for implementation with the single current development format, immutable exact-timing anchor revisions, occurrence-identified provider references, and `BeforeFrame`/`AfterFrame` editing boundaries. AtlasCloud MiniMax H3 is the selected first optional human-run paid anchor-continuation acceptance route because its submission/upload/polling/ingestion path is already proven; automated verification remains network-isolated. BytePlus paid acceptance is a separate provider-confidence exercise. Phase 2D virtual-recipe rendering and generalized promotion/export remain separate implementation gates.

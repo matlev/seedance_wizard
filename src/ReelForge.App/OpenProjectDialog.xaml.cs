@@ -29,7 +29,7 @@ public partial class OpenProjectDialog : Window
         {
             Title = "Choose a ReelForge project file",
             InitialDirectory = _initialDirectory,
-            Filter = "ReelForge project (*.rfp)|*.rfp|Legacy ReelForge project (project.json)|project.json",
+            Filter = "ReelForge project (*.rfp)|*.rfp",
             CheckFileExists = true,
             Multiselect = false
         };

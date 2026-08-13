@@ -18,11 +18,7 @@ public static class ProjectFileLocator
     }
 
     public static bool IsSupportedProjectFile(string path)
-    {
-        var fileName = Path.GetFileName(path);
-        return Path.GetExtension(fileName).Equals(PortableProjectStore.ProjectFileExtension, StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals(PortableProjectStore.LegacyProjectFileName, StringComparison.OrdinalIgnoreCase);
-    }
+        => Path.GetExtension(path).Equals(PortableProjectStore.ProjectFileExtension, StringComparison.OrdinalIgnoreCase);
 
     private static void AddProjectFiles(string directory, HashSet<string> candidates)
     {
@@ -33,8 +29,5 @@ public static class ProjectFileLocator
         {
             candidates.Add(Path.GetFullPath(projectFile));
         }
-
-        var legacyProject = Path.Combine(directory, PortableProjectStore.LegacyProjectFileName);
-        if (File.Exists(legacyProject)) candidates.Add(Path.GetFullPath(legacyProject));
     }
 }

@@ -32,8 +32,7 @@ public sealed class MediaToolConfigurationTests : IDisposable
         var settingsPath = Path.Combine(_temporaryRoot, "settings", "appsettings.local.json");
         var store = new JsonApplicationSettingsStore(
             Path.Combine(_temporaryRoot, "missing-defaults.json"),
-            settingsPath,
-            legacyMediaSettingsPath: null);
+            settingsPath);
         var configuration = new ApplicationSettings();
         configuration.MediaTools.FfmpegPath = @"C:\Tools With Spaces\ffmpeg.exe";
         configuration.MediaTools.FfprobePath = @"D:\Video\ffprobe.exe";

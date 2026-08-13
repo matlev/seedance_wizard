@@ -13,13 +13,11 @@ public sealed class WindowsCredentialStore : ISecretStore
     private const int CredentialPersistLocalMachine = 2;
     private const int ErrorNotFound = 1168;
     private readonly string _targetPrefix;
-    private readonly string? _legacyTargetPrefix;
 
-    public WindowsCredentialStore(string targetPrefix = "ReelForge", string? legacyTargetPrefix = "SeedanceWizard")
+    public WindowsCredentialStore(string targetPrefix = "ReelForge")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(targetPrefix);
         _targetPrefix = targetPrefix;
-        _legacyTargetPrefix = legacyTargetPrefix;
     }
 
     public Task SetAsync(string key, string value, CancellationToken cancellationToken = default)
@@ -68,15 +66,7 @@ public sealed class WindowsCredentialStore : ISecretStore
         ValidateKey(key);
 
         var value = ReadCredential(GetTargetName(_targetPrefix, key));
-        if (value.Found) return Task.FromResult(value.Value);
-
-        if (!string.IsNullOrWhiteSpace(_legacyTargetPrefix))
-        {
-            value = ReadCredential(GetTargetName(_legacyTargetPrefix, key));
-            if (value.Found) return Task.FromResult(value.Value);
-        }
-
-        return Task.FromResult<string?>(null);
+        return Task.FromResult(value.Found ? value.Value : null);
     }
 
     public Task<bool> ExistsAsync(string key, CancellationToken cancellationToken = default)
@@ -84,10 +74,7 @@ public sealed class WindowsCredentialStore : ISecretStore
         cancellationToken.ThrowIfCancellationRequested();
         ValidateKey(key);
 
-        if (CredentialExists(GetTargetName(_targetPrefix, key))) return Task.FromResult(true);
-        return Task.FromResult(
-            !string.IsNullOrWhiteSpace(_legacyTargetPrefix) &&
-            CredentialExists(GetTargetName(_legacyTargetPrefix, key)));
+        return Task.FromResult(CredentialExists(GetTargetName(_targetPrefix, key)));
     }
 
     private static bool CredentialExists(string targetName)
@@ -148,14 +135,6 @@ public sealed class WindowsCredentialStore : ISecretStore
             {
                 throw new Win32Exception(error, "Windows Credential Manager could not delete the secret.");
             }
-        }
-
-        if (!string.IsNullOrWhiteSpace(_legacyTargetPrefix) &&
-            !CredDelete(GetTargetName(_legacyTargetPrefix, key), CredentialTypeGeneric, 0))
-        {
-            var error = Marshal.GetLastWin32Error();
-            if (error != ErrorNotFound)
-                throw new Win32Exception(error, "Windows Credential Manager could not delete the legacy secret.");
         }
 
         return Task.CompletedTask;

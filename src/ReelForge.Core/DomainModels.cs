@@ -15,15 +15,11 @@ public enum GenerationReferenceObjectKind { Asset, FrameAnchor }
 public enum GenerationReferenceRole { GeneralReference, StartFrame, EndFrame, Character, Style, Environment, Motion, Audio }
 public enum GenerationRelationshipType { RetryOf, VariantOf, ContinueAfter, ContinueBefore, BasedOn }
 public enum RecipeBoundaryKind { SourceStart, SourceEnd, Anchor, Timestamp }
-public enum AnchorBoundaryEdge { BeforeFrame, AfterFrame, LegacyUnspecified }
-public enum AnchorTimingPrecision { ExactPresentationTimestamp, LegacyTimestampSeconds }
+public enum AnchorBoundaryEdge { BeforeFrame, AfterFrame }
 public enum AnchorRemovalDisposition { Removed, Archived }
 
 public sealed class VideoProject
 {
-    public const int CurrentSchemaVersion = 3;
-
-    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "Untitled project";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -120,7 +116,6 @@ public sealed class VideoProject
             SourceAssetId = position.SourceAssetId,
             SourceContentHash = position.SourceContentHash,
             VideoStreamIndex = position.VideoStreamIndex,
-            TimingPrecision = AnchorTimingPrecision.ExactPresentationTimestamp,
             PresentationTimestamp = position.PresentationTimestamp,
             TimeBaseNumerator = position.TimeBaseNumerator,
             TimeBaseDenominator = position.TimeBaseDenominator,
@@ -251,10 +246,7 @@ public sealed class RecipeDraft
     public DateTimeOffset ModifiedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
-public abstract record AssetRecipe
-{
-    public int RecipeSchemaVersion { get; init; } = 1;
-}
+public abstract record AssetRecipe;
 
 public sealed record TrimRecipe : AssetRecipe
 {
@@ -399,13 +391,11 @@ public sealed record FrameAnchorReferenceSnapshot
 {
     public Guid AnchorRevisionId { get; init; }
     public Guid SourceAssetId { get; init; }
-    public string? SourceContentHash { get; init; }
-    public int? VideoStreamIndex { get; init; }
-    public AnchorTimingPrecision TimingPrecision { get; init; }
-    public long? PresentationTimestamp { get; init; }
-    public int? TimeBaseNumerator { get; init; }
-    public int? TimeBaseDenominator { get; init; }
-    public double? LegacyTimestampSeconds { get; init; }
+    public string SourceContentHash { get; init; } = string.Empty;
+    public int VideoStreamIndex { get; init; }
+    public long PresentationTimestamp { get; init; }
+    public int TimeBaseNumerator { get; init; }
+    public int TimeBaseDenominator { get; init; }
     public long? FrameNumber { get; init; }
 }
 
@@ -531,24 +521,16 @@ public sealed class FrameAnchorRevision
     public int RevisionNumber { get; init; }
     public Guid? PreviousRevisionId { get; init; }
     public Guid SourceAssetId { get; init; }
-    public string? SourceContentHash { get; init; }
-    public int? VideoStreamIndex { get; init; }
-    public AnchorTimingPrecision TimingPrecision { get; init; }
-    public long? PresentationTimestamp { get; init; }
-    public int? TimeBaseNumerator { get; init; }
-    public int? TimeBaseDenominator { get; init; }
-    public double? LegacyTimestampSeconds { get; init; }
+    public string SourceContentHash { get; init; } = string.Empty;
+    public int VideoStreamIndex { get; init; }
+    public long PresentationTimestamp { get; init; }
+    public int TimeBaseNumerator { get; init; }
+    public int TimeBaseDenominator { get; init; }
     public long? FrameNumber { get; init; }
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
-    public double? TimestampSeconds => TimingPrecision switch
-    {
-        AnchorTimingPrecision.ExactPresentationTimestamp when
-            PresentationTimestamp is { } pts && TimeBaseNumerator is { } numerator && TimeBaseDenominator is > 0 =>
-            pts * (double)numerator / TimeBaseDenominator.Value,
-        AnchorTimingPrecision.LegacyTimestampSeconds => LegacyTimestampSeconds,
-        _ => null
-    };
+    public double TimestampSeconds =>
+        PresentationTimestamp * (double)TimeBaseNumerator / TimeBaseDenominator;
 }
 
 public sealed record ExactFramePosition(

@@ -44,7 +44,7 @@ Architectural debt carried into Milestone 2:
 - remote job completion, output download, and durable asset ingestion are not modeled as separate outcomes;
 - preview/provider code cannot materialize virtual inputs;
 - `cache/` has no explicit non-authoritative materialization contract;
-- schema migration is not implemented;
+- the project format is intentionally pre-release and incompatible development files are rejected rather than migrated;
 - timeline types are placeholders rather than a renderable composition model.
 
 ## Milestone 2 — AI generation loop on logical media
@@ -56,7 +56,7 @@ Implemented on the Milestone 2 branch. The materialization/provider-preparation 
 Complete this foundation before enabling paid submission:
 
 1. Approve the physical/virtual asset architecture and retention-neutral materialization invariant.
-2. Define the schema-v2 logical asset envelope, project-owned anchors, and SHA-256 physical content identity kept separate from logical ID and display/file name.
+2. Define the current logical asset envelope, project-owned anchors, and SHA-256 physical content identity kept separate from logical ID and display/file name.
 3. Define mutable recipe edit drafts and immutable committed recipe revisions with predecessor links and exact revision-pinning by every authoritative reference.
 4. Define immutable submitted-generation request snapshots.
 5. Define ordered/role-aware logical generation references targeting assets or frame anchors, pinning exact virtual recipe revisions and expected physical SHA-256 where applicable.
@@ -68,12 +68,12 @@ Complete this foundation before enabling paid submission:
 11. Define bidirectional generation/output provenance, multiple output asset IDs per job, per-generation provider/model selection, and remote-completion versus local-ingestion state.
 12. Enforce that a main video is durable physical media and that virtual/cache selection requires promotion first.
 13. Introduce the minimum materialization, provider-preparation, and retention-policy boundaries needed by generation workflows; do not select a final cache-retention policy.
-14. Add explicit version-1/version-2 persistence DTOs and a transactional migration: automatic after `project.backup-v1.json` for safe metadata changes, confirmation for media-affecting/risky work. Migrated media may begin with pending SHA-256 rather than blocking migration.
+14. Keep explicit persistence DTOs separate from domain models, save atomically, and reject obsolete pre-release project formats with a clear message rather than maintaining migration code.
 
 Phase acceptance checks:
 
-- version-1 projects migrate without moving media or changing existing IDs;
-- asset-only version-1 references preserve their original ordering and values;
+- current-format projects round-trip without changing IDs, immutable revisions, reference occurrence IDs, or authoritative media identity;
+- obsolete development formats are rejected without modifying the original file;
 - a submitted request snapshot cannot drift when its source draft changes;
 - committed recipe revisions cannot drift when a virtual asset receives a newer revision;
 - renaming physical media preserves `AssetId` and SHA-256, while changed bytes under the same name produce a detectable mismatch;
@@ -140,13 +140,13 @@ Phase acceptance checks:
 
 Approved scope. Enable the core generate → inspect → Saved Frame/anchor → continue loop while establishing anchors as reusable media-editing boundaries rather than generation-specific screenshots.
 
-#### Phase 2C.1 — anchor semantics and schema version 3
+#### Phase 2C.1 — anchor semantics and current project format
 
-Delivered: the current domain and `.rfp` persistence schema are version 3; stable anchors, immutable exact/legacy revisions, pinned recipe/history references, occurrence IDs, dependency-safe archive/removal, automatic backup-backed v1/v2 migration, and validation/round-trip coverage are implemented. Migrated v2 anchor boundaries use `LegacyUnspecified` because v2 never recorded before/after-frame inclusion semantics.
+Delivered: stable anchors, immutable exact revisions, pinned recipe/history references, occurrence IDs, dependency-safe archive/removal, explicit current-format DTOs, atomic persistence, incompatible-format rejection, and validation/round-trip coverage are implemented.
 
-1. Replace mutable schema-v2 anchors with stable logical `FrameAnchor` objects and immutable `FrameAnchorRevision` chains.
+1. Use stable logical `FrameAnchor` objects and immutable `FrameAnchorRevision` chains.
 2. Make video stream index plus integer presentation timestamp and rational time base authoritative for new anchors; derive display seconds and retain frame number only when reliable.
-3. Preserve schema-v2 floating-point anchor timestamps as explicitly legacy precision during transactional v2 → v3 migration; never fabricate exact PTS.
+3. Require exact presentation timing in the current model; obsolete floating-point-only development formats are rejected rather than converted.
 4. Keep display label, notes, archive state, and current-revision pointer on the logical anchor.
 5. Pin exact anchor revisions from committed extract-frame/trim recipes and future editing consumers.
 6. Add `BeforeFrame` and `AfterFrame` anchor-boundary edges and normalize composition intervals to `[start,end)`.
@@ -195,7 +195,7 @@ Delivered: the current domain and `.rfp` persistence schema are version 3; stabl
 
 #### Phase 2C.7 — verification and acceptance
 
-1. Add migration, immutable-revision, dependency, legacy-timing, exact-frame/VFR, cache reconstruction, failure cleanup, provider-preparation, duplicate-reference, and continuation-lineage tests.
+1. Add incompatible-format, immutable-revision, dependency, exact-frame/VFR, cache reconstruction, failure cleanup, provider-preparation, duplicate-reference, and continuation-lineage tests.
 2. Keep every automated provider path network-isolated and incapable of paid calls.
 3. Use AtlasCloud MiniMax H3 for the first optional human-confirmed paid anchor-continuation test so Phase 2C validates anchors without simultaneously introducing an unproven provider route.
 4. Treat a later BytePlus live smoke test as separate provider-confidence work.
@@ -291,7 +291,7 @@ Milestone 2 defines a retention-policy boundary but does not choose a permanent 
 ## Cross-phase test strategy
 
 - **Domain:** asset/recipe graph validity, mutable-draft-to-immutable-revision commits, exact revision pinning, draft-to-immutable-generation snapshots, logical reference roles/order, one-parent lineage/cycle validation, retry/variant semantics, anchor semantics, main-video durability, and multi-output provenance.
-- **Persistence:** golden version-1 fixtures, version-2 round trips, autosaved draft recovery, committed revision history, conservative legacy-parent/reference conversion, pending/completed SHA-256 identity, backup-before-migration, interrupted migration, newer-schema rejection, and no authoritative cache paths.
+- **Persistence:** current-format round trips, obsolete-format rejection without rewriting, autosaved draft recovery, committed revision history, pending/completed SHA-256 identity, interrupted atomic saves, and no authoritative cache paths.
 - **Generation orchestration:** state transitions, polling recovery, remote-complete/local-ingestion-failed distinction, idempotent local ingestion, cancellation semantics, and first-main-video selection.
 - **Materialization:** deterministic plans/keys, retention-policy independence, cache hits/misses, deletion recovery, concurrent requests, cancellation, corrupt entries, and unusual paths.
 - **Provider:** mocked HTTP and fake uploads only by default; live paid tests require separate credentials, explicit opt-in, and unmistakable confirmation.
@@ -325,21 +325,3 @@ Milestone 2 defines a retention-policy boundary but does not choose a permanent 
 2. Select an ending frame anchor X.
 3. Submit clip B with `ContinueAfter A` and explicit references to X plus any other assets.
 4. Confirm both the lineage edge and actual submitted references survive close/reopen and cache deletion.
-
-## Smallest implementation slice after approval
-
-Implement Phase 2A as a persistence/domain-only vertical slice:
-
-1. add explicit version-1 and version-2 persistence DTOs plus recoverable migration;
-2. introduce physical/virtual asset discrimination, project-owned anchors, and pending/verified SHA-256 physical content identity separate from IDs/names;
-3. add mutable recipe drafts, immutable committed revisions, predecessor links, and exact revision-pinned references;
-4. introduce one autosaved generation draft plus immutable submitted snapshots and the settled provider-neutral reference roles;
-5. add the single-parent relationship pair and multi-output/bidirectional provenance invariants;
-6. migrate existing asset references, parent IDs as conservative `BasedOn` lineage, and singular output links without guessing missing semantics;
-7. prove safe automatic backup/migration, recipe and generation draft recovery, revision/snapshot immutability, hash mismatch detection, lineage validation, main-video durability, multi-provider history, and cache-path independence with fixtures.
-
-This first slice should not run FFmpeg, call AtlasCloud, add credential UI, migrate real user files in place without backup, or enable paid submission. Its purpose is to freeze the durable schema and invariants required by the later generation loop.
-
-## Approval gate
-
-Stop at this revised design and plan. Do not modify domain models, source code, schemas, persistence, migrations, tests, media services, provider behavior, or UI until the user explicitly approves implementation.

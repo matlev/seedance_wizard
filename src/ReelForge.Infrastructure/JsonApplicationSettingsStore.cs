@@ -15,17 +15,13 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
     };
 
     private readonly string _defaultsPath;
-    private readonly string? _legacyMediaSettingsPath;
-
     public JsonApplicationSettingsStore(
         string? defaultsPath = null,
-        string? localSettingsPath = null,
-        string? legacyMediaSettingsPath = null)
+        string? localSettingsPath = null)
     {
         _defaultsPath = defaultsPath ?? Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         LocalSettingsPath = localSettingsPath ?? Path.Combine(localApplicationData, "ReelForge", "appsettings.local.json");
-        _legacyMediaSettingsPath = legacyMediaSettingsPath ?? Path.Combine(localApplicationData, "ReelForge", "settings.json");
     }
 
     public string LocalSettingsPath { get; }
@@ -39,7 +35,6 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
             Merge(merged, await ReadObjectAsync(LocalSettingsPath, cancellationToken).ConfigureAwait(false));
 
         var settings = merged.Deserialize<ApplicationSettings>(SerializerOptions) ?? new ApplicationSettings();
-        await MigrateLegacyMediaSettingsIfNeededAsync(settings, cancellationToken).ConfigureAwait(false);
         Normalize(settings);
         return settings;
     }
@@ -73,25 +68,6 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
         {
             if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
-    }
-
-    private async Task MigrateLegacyMediaSettingsIfNeededAsync(
-        ApplicationSettings settings,
-        CancellationToken cancellationToken)
-    {
-        if (File.Exists(LocalSettingsPath) ||
-            string.IsNullOrWhiteSpace(_legacyMediaSettingsPath) ||
-            !File.Exists(_legacyMediaSettingsPath) ||
-            !string.IsNullOrWhiteSpace(settings.MediaTools.FfmpegPath) ||
-            !string.IsNullOrWhiteSpace(settings.MediaTools.FfprobePath))
-            return;
-
-        await using var stream = File.OpenRead(_legacyMediaSettingsPath);
-        var legacy = await JsonSerializer.DeserializeAsync<MediaToolConfiguration>(stream, SerializerOptions, cancellationToken)
-            .ConfigureAwait(false);
-        if (legacy is null) return;
-        settings.MediaTools.FfmpegPath = legacy.FfmpegPath;
-        settings.MediaTools.FfprobePath = legacy.FfprobePath;
     }
 
     private static async Task<JsonObject> ReadObjectAsync(string path, CancellationToken cancellationToken)

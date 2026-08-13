@@ -34,7 +34,7 @@ public sealed class ApplicationSettingsTests
                 }
                 """);
 
-            var settings = await new JsonApplicationSettingsStore(defaultsPath, localPath, null).LoadAsync();
+            var settings = await new JsonApplicationSettingsStore(defaultsPath, localPath).LoadAsync();
 
             Assert.Equal("default-bucket", settings.TemporaryAssetHosting.CloudflareR2.BucketName);
             Assert.Equal("local-account", settings.TemporaryAssetHosting.CloudflareR2.AccountId);
@@ -55,7 +55,7 @@ public sealed class ApplicationSettingsTests
             var localPath = Path.Combine(directory, "appsettings.local.json");
             var settings = new ApplicationSettings();
             settings.TemporaryAssetHosting.CloudflareR2.Credentials.SecretAccessKey!.Value = "must-not-persist";
-            var store = new JsonApplicationSettingsStore(Path.Combine(directory, "missing.json"), localPath, null);
+            var store = new JsonApplicationSettingsStore(Path.Combine(directory, "missing.json"), localPath);
 
             await store.SaveAsync(settings);
             var json = await File.ReadAllTextAsync(localPath);

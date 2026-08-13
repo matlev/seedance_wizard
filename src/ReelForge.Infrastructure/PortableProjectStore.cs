@@ -8,7 +8,6 @@ namespace ReelForge.Infrastructure;
 public sealed class PortableProjectStore : IProjectStore
 {
     public const string ProjectFileExtension = ".rfp";
-    public const string LegacyProjectFileName = "project.json";
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
@@ -68,59 +67,28 @@ public sealed class PortableProjectStore : IProjectStore
 
         var json = await File.ReadAllBytesAsync(fullPath, cancellationToken).ConfigureAwait(false);
         using var document = JsonDocument.Parse(json);
-        if (!document.RootElement.TryGetProperty("schemaVersion", out var schemaProperty) ||
-            !schemaProperty.TryGetInt32(out var schemaVersion))
-        {
-            throw new InvalidDataException("The project file does not declare a valid schemaVersion.");
-        }
-
-        if (schemaVersion > VideoProject.CurrentSchemaVersion)
+        if (!document.RootElement.TryGetProperty("formatVersion", out var formatProperty) ||
+            !formatProperty.TryGetInt32(out var formatVersion))
         {
             throw new InvalidDataException(
-                $"Project schema {schemaVersion} is newer than this application supports ({VideoProject.CurrentSchemaVersion}).");
+                "This project uses an obsolete development format and cannot be opened. Create a new ReelForge project and re-import any media you want to keep.");
+        }
+
+        if (formatVersion != ProjectFileDto.CurrentFormatVersion)
+        {
+            throw new InvalidDataException(
+                $"This project uses unsupported development format {formatVersion}; this build requires format {ProjectFileDto.CurrentFormatVersion}.");
         }
 
         var root = Path.GetDirectoryName(fullPath)
             ?? throw new InvalidDataException("The project file must have a parent directory.");
 
-        if (schemaVersion == VideoProject.CurrentSchemaVersion)
-        {
-            var dto = JsonSerializer.Deserialize<ProjectV3Dto>(json, SerializerOptions)
-                ?? throw new InvalidDataException("The project file did not contain a valid schema-v3 project.");
-            var project = ProjectPersistenceV3Mapper.FromDto(dto);
-            RefreshPhysicalAvailability(project, root);
-            ProjectInvariantValidator.ThrowIfInvalid(project);
-            return (project, new ProjectLocation(root, fullPath));
-        }
-
-        VideoProject migrated;
-        if (schemaVersion == 2)
-        {
-            var legacyV2 = JsonSerializer.Deserialize<ProjectV2Dto>(json, SerializerOptions)
-                ?? throw new InvalidDataException("The project file did not contain a valid schema-v2 project.");
-            migrated = ProjectPersistenceMapper.Migrate(legacyV2);
-        }
-        else if (schemaVersion == 1)
-        {
-            var legacyV1 = JsonSerializer.Deserialize<ProjectV1Dto>(json, SerializerOptions)
-                ?? throw new InvalidDataException("The project file did not contain a valid schema-v1 project.");
-            migrated = ProjectPersistenceMapper.Migrate(legacyV1);
-        }
-        else
-        {
-            throw new InvalidDataException($"Project schema {schemaVersion} is not supported.");
-        }
-        RefreshPhysicalAvailability(migrated, root);
-        ProjectInvariantValidator.ThrowIfInvalid(migrated);
-
-        var backupPath = GetAvailableBackupPath(root, schemaVersion);
-        File.Copy(fullPath, backupPath, overwrite: false);
-        var migratedLocation = new ProjectLocation(
-            root,
-            fullPath,
-            new ProjectMigrationNotice(schemaVersion, VideoProject.CurrentSchemaVersion, backupPath));
-        await SaveAsync(migrated, migratedLocation, cancellationToken).ConfigureAwait(false);
-        return (migrated, migratedLocation);
+        var dto = JsonSerializer.Deserialize<ProjectFileDto>(json, SerializerOptions)
+            ?? throw new InvalidDataException("The project file did not contain a valid ReelForge project.");
+        var project = ProjectPersistenceMapper.FromDto(dto);
+        RefreshPhysicalAvailability(project, root);
+        ProjectInvariantValidator.ThrowIfInvalid(project);
+        return (project, new ProjectLocation(root, fullPath));
     }
 
     public async Task SaveAsync(
@@ -145,7 +113,7 @@ public sealed class PortableProjectStore : IProjectStore
                 FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer
-                    .SerializeAsync(stream, ProjectPersistenceV3Mapper.ToDto(project), SerializerOptions, cancellationToken)
+                    .SerializeAsync(stream, ProjectPersistenceMapper.ToDto(project), SerializerOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -158,20 +126,6 @@ public sealed class PortableProjectStore : IProjectStore
                 File.Delete(temporaryPath);
             }
         }
-    }
-
-    private static string GetAvailableBackupPath(string rootDirectory, int schemaVersion)
-    {
-        var baseName = $"project.backup-v{schemaVersion}";
-        var candidate = Path.Combine(rootDirectory, $"{baseName}.json");
-        var suffix = 2;
-        while (File.Exists(candidate))
-        {
-            candidate = Path.Combine(rootDirectory, $"{baseName}-{suffix}.json");
-            suffix++;
-        }
-
-        return candidate;
     }
 
     private static void RefreshPhysicalAvailability(VideoProject project, string rootDirectory)

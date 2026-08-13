@@ -1742,9 +1742,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} assets";
         Title = $"{_workspace.Project.Name} — ReelForge";
-        StatusText.Text = _workspace.Location!.Migration is { } migration
-            ? $"Upgraded schema {migration.FromVersion} to {migration.ToVersion}. Backup: {migration.BackupPath}"
-            : $"Opened {_workspace.Location.ProjectFilePath}";
+        StatusText.Text = $"Opened {_workspace.Location!.ProjectFilePath}";
     }
 
     private void ResetProjectSpecificUi()

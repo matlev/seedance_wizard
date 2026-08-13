@@ -479,11 +479,9 @@ public sealed class GenerationWorkflow
                     SourceAssetId = revision.SourceAssetId,
                     SourceContentHash = revision.SourceContentHash,
                     VideoStreamIndex = revision.VideoStreamIndex,
-                    TimingPrecision = revision.TimingPrecision,
                     PresentationTimestamp = revision.PresentationTimestamp,
                     TimeBaseNumerator = revision.TimeBaseNumerator,
                     TimeBaseDenominator = revision.TimeBaseDenominator,
-                    LegacyTimestampSeconds = revision.LegacyTimestampSeconds,
                     FrameNumber = revision.FrameNumber
                 },
                 Role = reference.Role,

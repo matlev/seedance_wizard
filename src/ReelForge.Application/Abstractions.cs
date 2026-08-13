@@ -3,12 +3,9 @@ using ReelForge.Core;
 
 namespace ReelForge.Application;
 
-public sealed record ProjectMigrationNotice(int FromVersion, int ToVersion, string BackupPath);
-
 public sealed record ProjectLocation(
     string RootDirectory,
-    string ProjectFilePath,
-    ProjectMigrationNotice? Migration = null);
+    string ProjectFilePath);
 
 public interface IProjectStore
 {

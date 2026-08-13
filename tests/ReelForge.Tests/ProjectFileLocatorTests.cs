@@ -31,16 +31,16 @@ public sealed class ProjectFileLocatorTests : IDisposable
     }
 
     [Fact]
-    public void IncludesLegacyProjectJsonForBackwardCompatibility()
+    public void IgnoresNonRfpFiles()
     {
         Directory.CreateDirectory(_temporaryRoot);
-        var legacyProject = Path.Combine(_temporaryRoot, PortableProjectStore.LegacyProjectFileName);
-        File.WriteAllText(legacyProject, "{}");
+        var jsonFile = Path.Combine(_temporaryRoot, "project.json");
+        File.WriteAllText(jsonFile, "{}");
 
-        var result = Assert.Single(ProjectFileLocator.FindInFolderAndChildren(_temporaryRoot));
+        var result = ProjectFileLocator.FindInFolderAndChildren(_temporaryRoot);
 
-        Assert.Equal(Path.GetFullPath(legacyProject), result);
-        Assert.True(ProjectFileLocator.IsSupportedProjectFile(result));
+        Assert.Empty(result);
+        Assert.False(ProjectFileLocator.IsSupportedProjectFile(jsonFile));
     }
 
     public void Dispose()

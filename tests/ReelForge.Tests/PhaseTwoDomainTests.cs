@@ -139,7 +139,7 @@ public sealed class PhaseTwoDomainTests : IDisposable
             AnchorId = Guid.NewGuid(),
             RevisionNumber = 1,
             SourceAssetId = source.Id,
-            TimingPrecision = AnchorTimingPrecision.ExactPresentationTimestamp,
+            VideoStreamIndex = -1,
             PresentationTimestamp = 15,
             TimeBaseNumerator = 1,
             TimeBaseDenominator = 30
@@ -149,7 +149,7 @@ public sealed class PhaseTwoDomainTests : IDisposable
 
         var errors = ProjectInvariantValidator.Validate(project);
 
-        Assert.Contains(errors, error => error.Contains("invalid exact presentation timing", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(errors, error => error.Contains("invalid presentation timing", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

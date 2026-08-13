@@ -15,9 +15,6 @@ public static class ProjectInvariantValidator
         ArgumentNullException.ThrowIfNull(project);
         var errors = new List<string>();
 
-        if (project.SchemaVersion != VideoProject.CurrentSchemaVersion)
-            errors.Add($"Project schema must be {VideoProject.CurrentSchemaVersion} in the current domain model.");
-
         AddDuplicateErrors(project.Assets.Select(asset => asset.Id), "asset", errors);
         AddDuplicateErrors(project.Anchors.Select(anchor => anchor.Id), "anchor", errors);
         AddDuplicateErrors(project.AnchorRevisions.Select(revision => revision.Id), "anchor revision", errors);
@@ -128,7 +125,7 @@ public static class ProjectInvariantValidator
                 errors.Add($"Anchor revision '{revision.Id}' must reference a durable physical video asset.");
             if (revision.RevisionNumber < 1)
                 errors.Add($"Anchor revision '{revision.Id}' has an invalid revision number.");
-            if (revision.SourceContentHash is not null && !IsSha256(revision.SourceContentHash))
+            if (!IsSha256(revision.SourceContentHash))
                 errors.Add($"Anchor revision '{revision.Id}' has an invalid source SHA-256 value.");
             if (revision.RevisionNumber == 1 && revision.PreviousRevisionId is not null)
                 errors.Add($"Anchor revision '{revision.Id}' first revision cannot have a predecessor.");
@@ -139,21 +136,9 @@ public static class ProjectInvariantValidator
                  previous.RevisionNumber != revision.RevisionNumber - 1))
                 errors.Add($"Anchor revision '{revision.Id}' has an invalid predecessor.");
 
-            if (revision.TimingPrecision == AnchorTimingPrecision.ExactPresentationTimestamp)
-            {
-                if (revision.VideoStreamIndex is null or < 0 || revision.PresentationTimestamp is null or < 0 ||
-                    revision.TimeBaseNumerator is null or <= 0 || revision.TimeBaseDenominator is null or <= 0 ||
-                    revision.LegacyTimestampSeconds is not null || !IsSha256(revision.SourceContentHash))
-                    errors.Add($"Anchor revision '{revision.Id}' has invalid exact presentation timing.");
-            }
-            else if (revision.LegacyTimestampSeconds is null or < 0 ||
-                     double.IsNaN(revision.LegacyTimestampSeconds.Value) ||
-                     double.IsInfinity(revision.LegacyTimestampSeconds.Value) ||
-                     revision.PresentationTimestamp is not null || revision.TimeBaseNumerator is not null ||
-                     revision.TimeBaseDenominator is not null || revision.VideoStreamIndex is not null)
-            {
-                errors.Add($"Anchor revision '{revision.Id}' has invalid legacy timestamp timing.");
-            }
+            if (revision.VideoStreamIndex < 0 || revision.PresentationTimestamp < 0 ||
+                revision.TimeBaseNumerator <= 0 || revision.TimeBaseDenominator <= 0)
+                errors.Add($"Anchor revision '{revision.Id}' has invalid presentation timing.");
         }
 
         foreach (var duplicate in project.AnchorRevisions
@@ -181,8 +166,6 @@ public static class ProjectInvariantValidator
             if (!assets.TryGetValue(revision.VirtualAssetId, out var asset) || asset.StorageKind != AssetStorageKind.Virtual)
                 errors.Add($"Recipe revision '{revision.Id}' must belong to an existing virtual asset.");
             if (revision.RevisionNumber < 1) errors.Add($"Recipe revision '{revision.Id}' has an invalid number.");
-            if (revision.Recipe.RecipeSchemaVersion != 1)
-                errors.Add($"Recipe revision '{revision.Id}' uses unsupported recipe schema {revision.Recipe.RecipeSchemaVersion}.");
             if (revision.PreviousRevisionId is { } previousId)
             {
                 if (!revisions.TryGetValue(previousId, out var previous) ||
@@ -261,12 +244,6 @@ public static class ProjectInvariantValidator
             anchorRevisions.TryGetValue(anchor.AnchorRevisionId, out var anchorRevision) &&
             anchorRevision.SourceAssetId != sourceAssetId)
             errors.Add($"Recipe revision '{revisionId}' trim anchor must belong to its source asset.");
-        if (boundary.Kind == RecipeBoundaryKind.Anchor &&
-            boundary.Edge == AnchorBoundaryEdge.LegacyUnspecified &&
-            boundary.Anchor is { } legacyAnchor &&
-            anchorRevisions.TryGetValue(legacyAnchor.AnchorRevisionId, out var legacyRevision) &&
-            legacyRevision.TimingPrecision != AnchorTimingPrecision.LegacyTimestampSeconds)
-            errors.Add($"Recipe revision '{revisionId}' can use an unspecified frame edge only with a migrated legacy anchor.");
         if (boundary.Kind == RecipeBoundaryKind.Anchor &&
             (boundary.Anchor is null || boundary.Edge is null))
             errors.Add($"Recipe revision '{revisionId}' anchor boundary requires a pinned revision and frame edge.");
@@ -472,11 +449,9 @@ public static class ProjectInvariantValidator
         if (snapshot.SourceAssetId != revision.SourceAssetId ||
             !string.Equals(snapshot.SourceContentHash, revision.SourceContentHash, StringComparison.OrdinalIgnoreCase) ||
             snapshot.VideoStreamIndex != revision.VideoStreamIndex ||
-            snapshot.TimingPrecision != revision.TimingPrecision ||
             snapshot.PresentationTimestamp != revision.PresentationTimestamp ||
             snapshot.TimeBaseNumerator != revision.TimeBaseNumerator ||
             snapshot.TimeBaseDenominator != revision.TimeBaseDenominator ||
-            snapshot.LegacyTimestampSeconds != revision.LegacyTimestampSeconds ||
             snapshot.FrameNumber != revision.FrameNumber)
             errors.Add($"Generation '{generationId}' anchor reference '{reference.ReferenceId}' does not match its pinned revision.");
         if (!string.Equals(reference.ContentHash, snapshot.SourceContentHash, StringComparison.OrdinalIgnoreCase))
