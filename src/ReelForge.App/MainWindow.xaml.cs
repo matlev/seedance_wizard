@@ -1178,7 +1178,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 if (_workspace.Project?.Id != selectedProjectId || AssetsList.SelectedItem != item) return;
                 var thumbnail = LoadBitmap(media.Path);
                 item.Thumbnail = thumbnail;
+                foreach (var choice in _referenceChoices.Where(choice =>
+                             choice.ObjectKind == GenerationReferenceObjectKind.FrameAnchor &&
+                             choice.LogicalObjectId == anchor.Id))
+                    choice.UpdateThumbnail(thumbnail);
                 AssetsList.Items.Refresh();
+                ReferenceAssetsGrid.Items.Refresh();
                 ClearMediaPreview();
                 PreviewPlaceholder.Visibility = Visibility.Collapsed;
                 ImagePreview.Source = thumbnail;
@@ -1198,6 +1203,18 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 StatusText.Text = $"Could not display {item.DisplayName}.";
             }
         });
+    }
+
+    private void ReferenceAssetsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ReferenceAssetsGrid.SelectedItem is not GenerationReferenceChoice choice) return;
+        var mediaItem = _assets.FirstOrDefault(item => choice.ObjectKind switch
+        {
+            GenerationReferenceObjectKind.Asset => item.Asset?.Id == choice.LogicalObjectId,
+            GenerationReferenceObjectKind.FrameAnchor => item.Anchor?.Id == choice.LogicalObjectId,
+            _ => false
+        });
+        if (mediaItem is not null) AssetsList.SelectedItem = mediaItem;
     }
 
     private async void DeleteAsset_Click(object sender, RoutedEventArgs e)
@@ -2511,6 +2528,17 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         cancellationToken.ThrowIfCancellationRequested();
         _savedFrames.Clear();
         foreach (var item in results.OrderBy(item => item.Revision.PresentationTimestamp)) _savedFrames.Add(item);
+        foreach (var item in results)
+        {
+            foreach (var choice in _referenceChoices.Where(choice =>
+                         choice.ObjectKind == GenerationReferenceObjectKind.FrameAnchor &&
+                         choice.LogicalObjectId == item.Anchor.Id))
+                choice.UpdateThumbnail(item.Thumbnail);
+            var mediaItem = _assets.FirstOrDefault(candidate => candidate.Anchor?.Id == item.Anchor.Id);
+            if (mediaItem is not null) mediaItem.Thumbnail = item.Thumbnail;
+        }
+        ReferenceAssetsGrid.Items.Refresh();
+        AssetsList.Items.Refresh();
         SavedFramesEmptyText.Visibility = _savedFrames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         SavedFramesList.SelectedItem = selectedAnchorId is { } id
             ? _savedFrames.FirstOrDefault(item => item.Anchor.Id == id)
@@ -2906,13 +2934,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             {
                 foreach (var existing in matching)
                 {
-                    existing.UpdateAsset(asset);
+                    existing.UpdateAsset(asset, mediaItem.Thumbnail);
                     _referenceChoices.Add(existing);
                 }
             }
             else
             {
-                _referenceChoices.Add(new GenerationReferenceChoice(asset, _referenceChoices.Count));
+                _referenceChoices.Add(new GenerationReferenceChoice(asset, _referenceChoices.Count, mediaItem.Thumbnail));
             }
         }
 
@@ -3271,9 +3299,9 @@ public sealed class GenerationReferenceChoice
         Enum.GetValues<GenerationReferenceRole>().Cast<GenerationReferenceRole?>().Prepend(null).ToArray();
     private readonly IReadOnlyList<GenerationReferenceRole?> _availableRoles = ReferenceRoles;
 
-    public GenerationReferenceChoice(ProjectAsset asset, int order)
+    public GenerationReferenceChoice(ProjectAsset asset, int order, BitmapSource? thumbnail = null)
     {
-        UpdateAsset(asset);
+        UpdateAsset(asset, thumbnail);
         Order = order;
     }
 
@@ -3292,6 +3320,11 @@ public sealed class GenerationReferenceChoice
     public Guid LogicalObjectId { get; private set; }
     public Guid? AnchorRevisionId { get; set; }
     public string DisplayName { get; private set; } = string.Empty;
+    public MediaType MediaType { get; private set; }
+    public string MediaTypeText { get; private set; } = string.Empty;
+    public string Glyph { get; private set; } = "•";
+    public BitmapSource? Thumbnail { get; private set; }
+    public bool HasThumbnail => Thumbnail is not null;
     public IReadOnlyList<GenerationReferenceRole?> AvailableRoles => _availableRoles;
     public bool IsSelected { get; set; }
     public GenerationReferenceRole? Role { get; set; }
@@ -3299,12 +3332,26 @@ public sealed class GenerationReferenceChoice
     public string? Label { get; set; }
     public string? Notes { get; set; }
 
-    public void UpdateAsset(ProjectAsset asset)
+    public void UpdateAsset(ProjectAsset asset, BitmapSource? thumbnail = null)
     {
         ObjectKind = GenerationReferenceObjectKind.Asset;
         LogicalObjectId = asset.Id;
         AnchorRevisionId = null;
         DisplayName = asset.EffectiveDisplayName;
+        MediaType = asset.MediaType;
+        MediaTypeText = asset.Virtual?.Kind == VirtualAssetKind.SavedClip
+            ? "Saved Clip • Video"
+            : asset.MediaType.ToString();
+        Glyph = asset.Virtual?.Kind == VirtualAssetKind.SavedClip
+            ? "✂"
+            : asset.MediaType switch
+            {
+                MediaType.Video => "▶",
+                MediaType.Image => "▧",
+                MediaType.Audio => "♪",
+                _ => "•"
+            };
+        if (thumbnail is not null) Thumbnail = thumbnail;
     }
 
     public void UpdateAnchor(FrameAnchor anchor, FrameAnchorRevision revision, string? sourceDisplayName)
@@ -3314,7 +3361,12 @@ public sealed class GenerationReferenceChoice
         AnchorRevisionId = revision.Id;
         DisplayName = $"Saved Frame • {anchor.DisplayLabel ?? "Untitled"}" +
                       (string.IsNullOrWhiteSpace(sourceDisplayName) ? string.Empty : $" ({sourceDisplayName})");
+        MediaType = MediaType.Image;
+        MediaTypeText = "Saved Frame • Image";
+        Glyph = "▣";
     }
+
+    public void UpdateThumbnail(BitmapSource? thumbnail) => Thumbnail = thumbnail;
 
     public GenerationReferenceChoice Duplicate(int order)
     {

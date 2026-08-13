@@ -540,6 +540,7 @@
                                 <DataGrid x:Name="ReferenceAssetsGrid" Height="175" Margin="0,4,0,0" AutoGenerateColumns="False"
                                           CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column"
                                           CellEditEnding="ReferenceAssetsGrid_CellEditEnding" SelectionUnit="FullRow"
+                                          SelectionChanged="ReferenceAssetsGrid_SelectionChanged"
                                           RowHeight="34" CanUserSortColumns="False">
                                     <DataGrid.Columns>
                                         <DataGridTemplateColumn Header="Use" Width="46">
@@ -551,7 +552,59 @@
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
-                                        <DataGridTextColumn Header="Reference" Binding="{Binding DisplayName}" IsReadOnly="True" Width="160" />
+                                        <DataGridTemplateColumn Header="Reference" Width="210" IsReadOnly="True">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="3,1">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="32" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Width="28" Height="25" Background="#0B0D12"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                            <Grid>
+                                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                                                <TextBlock x:Name="ReferenceGlyph" Text="{Binding Glyph}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource MutedTextBrush}" FontSize="14" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
+                                                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
+                                                                       Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                            <TextBlock Text="{Binding MediaTypeText}" FontSize="10"
+                                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                                        </StackPanel>
+                                                        <Grid.ToolTip>
+                                                            <ToolTip Placement="Mouse" MaxWidth="290"
+                                                                     Background="{StaticResource PanelRaisedBrush}"
+                                                                     Foreground="{StaticResource TextBrush}"
+                                                                     BorderBrush="{StaticResource BorderBrush}">
+                                                                <StackPanel>
+                                                                    <Border Width="250" Height="140" Background="#050609"
+                                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                                        <Grid>
+                                                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                                                            <TextBlock x:Name="ReferencePreviewGlyph" Text="{Binding Glyph}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                       FontSize="36" Foreground="{StaticResource MutedTextBrush}" />
+                                                                        </Grid>
+                                                                    </Border>
+                                                                    <TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,7,0,0" />
+                                                                    <TextBlock Text="{Binding MediaTypeText}" Foreground="{StaticResource MutedTextBrush}" />
+                                                                    <TextBlock Text="Click the row to show this reference in the viewer."
+                                                                               FontSize="10" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                                                </StackPanel>
+                                                            </ToolTip>
+                                                        </Grid.ToolTip>
+                                                    </Grid>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                            <Setter TargetName="ReferenceGlyph" Property="Visibility" Value="Collapsed" />
+                                                            <Setter TargetName="ReferencePreviewGlyph" Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                         <DataGridTemplateColumn Header="Role" Width="125">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
