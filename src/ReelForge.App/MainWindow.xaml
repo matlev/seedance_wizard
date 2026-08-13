@@ -456,19 +456,71 @@
                                     HorizontalAlignment="Center" Margin="0,16,0,0"
                                     ToolTip="Select a video or Saved Clip in Project Media first" />
                         </StackPanel>
-                        <StackPanel x:Name="WorkingCompositionState" Visibility="Collapsed"
-                                    HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
-                            <TextBlock Text="WORKING COMPOSITION" FontSize="12" FontWeight="SemiBold"
-                                       Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" />
-                            <TextBlock x:Name="WorkingCompositionNameText" Text="Working Composition"
-                                       Style="{StaticResource ApplicationTextBlockStyle}" FontSize="19" FontWeight="SemiBold"
-                                       HorizontalAlignment="Center" Margin="0,14,0,7" />
-                            <TextBlock x:Name="WorkingCompositionSummaryText" TextWrapping="Wrap" TextAlignment="Center"
-                                       Foreground="{StaticResource MutedTextBrush}" />
-                            <TextBlock Text="The exact composition recipe is project state. Timeline editing and multi-segment rendering arrive in the next editor slice."
-                                       TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
-                                       FontSize="11" Margin="0,8,0,0" />
-                        </StackPanel>
+                        <Grid x:Name="WorkingCompositionState" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <DockPanel Margin="2,0,2,10">
+                                <Button x:Name="PreviewCompositionButton" DockPanel.Dock="Right"
+                                        Content="Preview composition" Click="PreviewComposition_Click"
+                                        Background="{StaticResource AccentBrush}" Foreground="White"
+                                        ToolTip="Render or reuse a cached preview of the committed composition" />
+                                <StackPanel>
+                                    <TextBlock Text="WORKING COMPOSITION" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource MutedTextBrush}" />
+                                    <TextBlock x:Name="WorkingCompositionNameText" Text="Working Composition"
+                                               Style="{StaticResource ApplicationTextBlockStyle}" FontSize="18" FontWeight="SemiBold"
+                                               Margin="0,5,0,2" />
+                                    <TextBlock x:Name="WorkingCompositionSummaryText" TextWrapping="Wrap"
+                                               Foreground="{StaticResource MutedTextBrush}" />
+                                </StackPanel>
+                            </DockPanel>
+                            <ListBox x:Name="CompositionSegmentsList" Grid.Row="1"
+                                     SelectionChanged="CompositionSegmentsList_SelectionChanged"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="7,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="36" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding PositionText}" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                       FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding DisplayName}" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding DetailText}" Foreground="{StaticResource MutedTextBrush}"
+                                                           FontSize="11" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding AudioText}" Foreground="{StaticResource MutedTextBrush}"
+                                                       VerticalAlignment="Center" Margin="12,0,2,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Grid Grid.Row="2" Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="AddCompositionSegmentButton" Content="Add selected media"
+                                            Click="AddCompositionSegment_Click"
+                                            ToolTip="Select a physical video or Saved Clip in Project Media, then add it here" />
+                                    <Button x:Name="MoveCompositionSegmentUpButton" Content="Move up"
+                                            Click="MoveCompositionSegmentUp_Click" IsEnabled="False" />
+                                    <Button x:Name="MoveCompositionSegmentDownButton" Content="Move down"
+                                            Click="MoveCompositionSegmentDown_Click" IsEnabled="False" />
+                                </StackPanel>
+                                <Button x:Name="RemoveCompositionSegmentButton" Grid.Column="1" Content="Remove"
+                                        Click="RemoveCompositionSegment_Click" Style="{StaticResource DangerButtonStyle}"
+                                        IsEnabled="False" />
+                            </Grid>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
@@ -681,7 +733,7 @@
                             <TextBlock Text="EDIT TOOLS" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
                             <TextBlock Text="Working Composition" Style="{StaticResource ApplicationTextBlockStyle}"
                                        FontSize="17" FontWeight="SemiBold" Margin="0,16,0,5" />
-                            <TextBlock Text="Start a composition from Project Media to expose editing inspection and tools. Full timeline, audio, encoding, and export controls remain in their later milestone."
+                            <TextBlock Text="Build the ordered Working Composition below. Select a physical video or Saved Clip in Project Media, add it, reorder the segments, then preview the committed composition."
                                        TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" />
                         </StackPanel>
                     </TabItem>

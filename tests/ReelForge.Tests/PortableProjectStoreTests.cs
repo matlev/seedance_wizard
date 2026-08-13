@@ -276,6 +276,58 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Empty(ProjectInvariantValidator.Validate(reopened));
     }
 
+    [Fact]
+    public async Task WorkingCompositionEditsCommitOrderedImmutableRevisions()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Composition editing");
+        var first = CreatePhysicalAsset("first.mp4", "assets/videos/first.mp4");
+        var second = CreatePhysicalAsset("second.mp4", "assets/videos/second.mp4");
+        workspace.Project!.AddAsset(first);
+        workspace.Project.AddAsset(second);
+        await workspace.SaveAsync();
+        var service = new WorkingCompositionService(workspace);
+        await service.CreateInitialAsync(first.Id);
+
+        var added = await service.AddSegmentAsync(second.Id);
+        var secondSegmentId = Assert.IsType<CompositionRecipe>(added.Recipe).Segments[1].Id;
+        var moved = await service.MoveSegmentAsync(secondSegmentId, -1);
+
+        var movedRecipe = Assert.IsType<CompositionRecipe>(moved.Recipe);
+        Assert.Equal([second.Id, first.Id], movedRecipe.Segments.Select(segment => segment.Source.AssetId));
+        var historicalInitial = Assert.IsType<CompositionRecipe>(workspace.Project.RecipeRevisions[0].Recipe);
+        Assert.Equal(first.Id, Assert.Single(historicalInitial.Segments).Source.AssetId);
+        Assert.Equal(3, moved.RevisionNumber);
+
+        var reopened = (await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath)).Project;
+        var composition = reopened.Assets.Single(asset => asset.Id == reopened.WorkingCompositionAssetId);
+        var reopenedRevision = reopened.RecipeRevisions.Single(revision =>
+            revision.Id == composition.Virtual!.CurrentRecipeRevisionId);
+        Assert.Equal(
+            [second.Id, first.Id],
+            Assert.IsType<CompositionRecipe>(reopenedRevision.Recipe).Segments.Select(segment => segment.Source.AssetId));
+        Assert.Empty(ProjectInvariantValidator.Validate(reopened));
+    }
+
+    [Fact]
+    public async Task WorkingCompositionRemoveRejectsDeletingItsLastSegment()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Composition minimum");
+        var source = CreatePhysicalAsset("source.mp4", "assets/videos/source.mp4");
+        workspace.Project!.AddAsset(source);
+        await workspace.SaveAsync();
+        var service = new WorkingCompositionService(workspace);
+        await service.CreateInitialAsync(source.Id);
+        var current = service.GetCurrent();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RemoveSegmentAsync(Assert.Single(current.Recipe.Segments).Id));
+
+        Assert.Contains("at least one", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(service.GetCurrent().Recipe.Segments);
+    }
+
     private static ProjectAsset CreatePhysicalAsset(
         string fileName,
         string relativePath,

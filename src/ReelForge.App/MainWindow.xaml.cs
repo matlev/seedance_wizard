@@ -30,6 +30,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ObservableCollection<GenerationJobListItem> _jobs = [];
     private readonly ObservableCollection<FrameContactListItem> _contactFrames = [];
     private readonly ObservableCollection<SavedFrameListItem> _savedFrames = [];
+    private readonly ObservableCollection<CompositionSegmentListItem> _compositionSegments = [];
     private readonly HashSet<Guid> _viewedTerminalJobIds = [];
     private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
     private readonly SemaphoreSlim _submissionGate = new(1, 1);
@@ -151,6 +152,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         JobsList.ItemsSource = _jobs;
         ContactFramesList.ItemsSource = _contactFrames;
         SavedFramesList.ItemsSource = _savedFrames;
+        CompositionSegmentsList.ItemsSource = _compositionSegments;
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _positionTimer.Tick += (_, _) => UpdatePlaybackPosition();
         _positionTimer.Start();
@@ -970,6 +972,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         ResetFrameWorkspace();
         if (item.Anchor is not null && item.AnchorRevision is not null)
         {
+            UpdateCompositionActionState();
             if (!_restoringProjectUiState) await SaveProjectUiStateAsync("anchor", item.Anchor.Id);
             await ShowSavedFramePreviewAsync(item, selectedProjectId);
             return;
@@ -1042,6 +1045,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         MediaPreparationSelectionText.Text = canPrepare
             ? asset.EffectiveDisplayName
             : "Select a physical video in Project Media";
+        UpdateCompositionActionState();
     }
 
     private async void StartEdit_Click(object sender, RoutedEventArgs e)
@@ -1065,14 +1069,132 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var hasComposition = composition is not null;
         EditEmptyState.Visibility = hasComposition ? Visibility.Collapsed : Visibility.Visible;
         WorkingCompositionState.Visibility = hasComposition ? Visibility.Visible : Visibility.Collapsed;
-        if (!hasComposition) return;
+        if (!hasComposition)
+        {
+            _compositionSegments.Clear();
+            UpdateCompositionActionState();
+            return;
+        }
+        var selectedSegmentId = (CompositionSegmentsList.SelectedItem as CompositionSegmentListItem)?.SegmentId;
         WorkingCompositionNameText.Text = composition!.EffectiveDisplayName;
         var revision = _workspace.Project!.RecipeRevisions.Single(candidate =>
             candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
         var recipe = (CompositionRecipe)revision.Recipe;
         WorkingCompositionSummaryText.Text =
             $"{recipe.Segments.Count} exact, revision-pinned segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • recipe revision {revision.RevisionNumber}";
+        _compositionSegments.Clear();
+        for (var index = 0; index < recipe.Segments.Count; index++)
+        {
+            var segment = recipe.Segments[index];
+            var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId);
+            _compositionSegments.Add(new CompositionSegmentListItem(index, segment, source));
+        }
+        CompositionSegmentsList.SelectedItem = selectedSegmentId is { } id
+            ? _compositionSegments.FirstOrDefault(item => item.SegmentId == id)
+            : null;
+        UpdateCompositionActionState();
     }
+
+    private async void AddCompositionSegment_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedAsset() is not { } source) return;
+        await RunUiActionAsync($"Adding {source.EffectiveDisplayName} to the composition…", async () =>
+        {
+            var revision = await new WorkingCompositionService(_workspace).AddSegmentAsync(source.Id);
+            var segment = AssertCompositionRecipe(revision).Segments[^1];
+            RefreshEditWorkspaceState();
+            CompositionSegmentsList.SelectedItem = _compositionSegments.FirstOrDefault(item => item.SegmentId == segment.Id);
+            StatusText.Text = $"Added {source.EffectiveDisplayName} to the Working Composition.";
+        });
+    }
+
+    private async void MoveCompositionSegmentUp_Click(object sender, RoutedEventArgs e) =>
+        await MoveSelectedCompositionSegmentAsync(-1);
+
+    private async void MoveCompositionSegmentDown_Click(object sender, RoutedEventArgs e) =>
+        await MoveSelectedCompositionSegmentAsync(1);
+
+    private async Task MoveSelectedCompositionSegmentAsync(int offset)
+    {
+        if (CompositionSegmentsList.SelectedItem is not CompositionSegmentListItem selected) return;
+        await RunUiActionAsync("Reordering the Working Composition…", async () =>
+        {
+            await new WorkingCompositionService(_workspace).MoveSegmentAsync(selected.SegmentId, offset);
+            RefreshEditWorkspaceState();
+            CompositionSegmentsList.SelectedItem = _compositionSegments.FirstOrDefault(item => item.SegmentId == selected.SegmentId);
+            StatusText.Text = "Working Composition order updated.";
+        });
+    }
+
+    private async void RemoveCompositionSegment_Click(object sender, RoutedEventArgs e)
+    {
+        if (CompositionSegmentsList.SelectedItem is not CompositionSegmentListItem selected) return;
+        await RunUiActionAsync($"Removing {selected.DisplayName} from the composition…", async () =>
+        {
+            await new WorkingCompositionService(_workspace).RemoveSegmentAsync(selected.SegmentId);
+            RefreshEditWorkspaceState();
+            StatusText.Text = $"Removed {selected.DisplayName} from the Working Composition.";
+        });
+    }
+
+    private async void PreviewComposition_Click(object sender, RoutedEventArgs e)
+    {
+        if (_workspace.Project is null || _workspace.Location is null) return;
+        var projectId = _workspace.Project.Id;
+        var (composition, revision, _) = new WorkingCompositionService(_workspace).GetCurrent();
+        await RunUiActionAsync("Rendering composition preview…", async () =>
+        {
+            MaterializedMediaLease? lease = null;
+            try
+            {
+                lease = await _mediaMaterializer.MaterializeAsync(
+                    _workspace.Project,
+                    _workspace.Location,
+                    new MaterializationRequest(
+                        new AssetMaterializationTarget(composition.Id, revision.Id),
+                        MaterializationPurpose.Preview));
+                if (_workspace.Project?.Id != projectId)
+                {
+                    await lease.DisposeAsync();
+                    lease = null;
+                    return;
+                }
+                ClearMediaPreview();
+                _activePreviewLease = lease;
+                lease = null;
+                PreviewPlaceholder.Visibility = Visibility.Collapsed;
+                OpenVideoPreview(_activePreviewLease.Path, requiresWarmup: true);
+                StatusText.Text = "Working Composition preview is ready.";
+            }
+            finally
+            {
+                if (lease is not null) await lease.DisposeAsync();
+            }
+        });
+    }
+
+    private void CompositionSegmentsList_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        UpdateCompositionActionState();
+
+    private void UpdateCompositionActionState()
+    {
+        if (AddCompositionSegmentButton is null) return;
+        var source = GetSelectedAsset();
+        AddCompositionSegmentButton.IsEnabled = _workspace.Project?.WorkingCompositionAssetId is not null &&
+                                                source is { MediaType: MediaType.Video } &&
+                                                source.Id != _workspace.Project.WorkingCompositionAssetId &&
+                                                (source.StorageKind == AssetStorageKind.Physical ||
+                                                 source.Virtual?.Kind == VirtualAssetKind.SavedClip);
+        var index = CompositionSegmentsList.SelectedIndex;
+        MoveCompositionSegmentUpButton.IsEnabled = index > 0;
+        MoveCompositionSegmentDownButton.IsEnabled = index >= 0 && index < _compositionSegments.Count - 1;
+        RemoveCompositionSegmentButton.IsEnabled = index >= 0 && _compositionSegments.Count > 1;
+        PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0;
+    }
+
+    private static CompositionRecipe AssertCompositionRecipe(RecipeRevision revision) =>
+        revision.Recipe as CompositionRecipe
+        ?? throw new InvalidDataException("The Working Composition update did not produce a composition recipe.");
 
     private async void SelectFrame_Click(object sender, RoutedEventArgs e)
     {
@@ -2531,6 +2653,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         SelectFrameButton.IsEnabled = false;
         MakeClipButton.IsEnabled = false;
         StartEditButton.IsEnabled = false;
+        _compositionSegments.Clear();
+        UpdateCompositionActionState();
         MediaPreparationSelectionText.Text = "Select a physical video in Project Media";
         ContactFramesEmptyText.Text = "Select a video to browse exact decoded frames.";
         ContactFramesEmptyText.Visibility = Visibility.Visible;
@@ -3606,6 +3730,29 @@ public sealed class ProjectMediaListItem
         };
     private bool IsSavedClip => Asset?.Virtual?.Kind == VirtualAssetKind.SavedClip;
     private bool IsComposition => Asset?.Virtual?.Kind == VirtualAssetKind.Composition;
+}
+
+public sealed class CompositionSegmentListItem
+{
+    public CompositionSegmentListItem(int index, CompositionSegment segment, ProjectAsset? source)
+    {
+        Index = index;
+        SegmentId = segment.Id;
+        DisplayName = source?.EffectiveDisplayName ?? "Missing source";
+        DetailText = source is null
+            ? $"Source {segment.Source.AssetId:N} is unavailable"
+            : source.StorageKind == AssetStorageKind.Virtual
+                ? $"Saved Clip • pinned recipe {segment.Source.RecipeRevisionId?.ToString("N") ?? "missing"}"
+                : "Physical video • full source";
+        AudioText = segment.AudioEnabled ? "Audio on" : "Audio off";
+    }
+
+    public int Index { get; }
+    public Guid SegmentId { get; }
+    public string PositionText => $"{Index + 1}.";
+    public string DisplayName { get; }
+    public string DetailText { get; }
+    public string AudioText { get; }
 }
 
 public sealed class GenerationReferenceChoice

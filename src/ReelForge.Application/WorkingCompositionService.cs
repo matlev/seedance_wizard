@@ -96,4 +96,145 @@ public sealed class WorkingCompositionService
             throw;
         }
     }
+
+    public async Task<RecipeRevision> AddSegmentAsync(
+        Guid sourceAssetId,
+        CancellationToken cancellationToken = default) =>
+        await UpdateAsync(
+            segments => segments.Add(CreateSegment(RequireVideoSource(sourceAssetId))),
+            cancellationToken).ConfigureAwait(false);
+
+    public async Task<RecipeRevision> MoveSegmentAsync(
+        Guid segmentId,
+        int offset,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset is not (-1 or 1))
+            throw new ArgumentOutOfRangeException(nameof(offset), "A composition segment can move one position at a time.");
+        return await UpdateAsync(segments =>
+        {
+            var index = segments.FindIndex(segment => segment.Id == segmentId);
+            if (index < 0) throw new InvalidOperationException("The selected composition segment no longer exists.");
+            var target = index + offset;
+            if (target < 0 || target >= segments.Count) return;
+            (segments[index], segments[target]) = (segments[target], segments[index]);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<RecipeRevision> RemoveSegmentAsync(
+        Guid segmentId,
+        CancellationToken cancellationToken = default) =>
+        await UpdateAsync(segments =>
+        {
+            if (segments.Count == 1)
+                throw new InvalidOperationException("A Working Composition must contain at least one segment.");
+            if (segments.RemoveAll(segment => segment.Id == segmentId) == 0)
+                throw new InvalidOperationException("The selected composition segment no longer exists.");
+        }, cancellationToken).ConfigureAwait(false);
+
+    public (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent()
+    {
+        var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
+        var compositionId = project.WorkingCompositionAssetId
+            ?? throw new InvalidOperationException("Start a Working Composition first.");
+        var asset = project.Assets.SingleOrDefault(candidate => candidate.Id == compositionId)
+            ?? throw new InvalidDataException("The Working Composition asset is missing.");
+        var revisionId = asset.Virtual?.CurrentRecipeRevisionId
+            ?? throw new InvalidDataException("The Working Composition has no committed recipe revision.");
+        var revision = project.RecipeRevisions.SingleOrDefault(candidate => candidate.Id == revisionId)
+            ?? throw new InvalidDataException("The current Working Composition recipe revision is missing.");
+        return revision.Recipe is CompositionRecipe recipe
+            ? (asset, revision, recipe)
+            : throw new InvalidDataException("The Working Composition revision does not contain a composition recipe.");
+    }
+
+    private async Task<RecipeRevision> UpdateAsync(
+        Action<List<CompositionSegment>> update,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
+        var (asset, _, currentRecipe) = GetCurrent();
+        var segments = currentRecipe.Segments.Select(CloneSegment).ToList();
+        update(segments);
+
+        var revisionCount = project.RecipeRevisions.Count;
+        var oldCurrentRevisionId = asset.Virtual!.CurrentRecipeRevisionId;
+        var oldSources = asset.Provenance?.SourceAssetIds.ToList() ?? [];
+        var existingDraft = project.RecipeDrafts.SingleOrDefault(draft => draft.VirtualAssetId == asset.Id);
+        var oldDraftBasedOn = existingDraft?.BasedOnRevisionId;
+        var oldDraftRecipe = existingDraft?.EditableRecipe;
+        try
+        {
+            var recipe = new CompositionRecipe { Segments = segments };
+            var revision = project.CommitRecipe(asset.Id, recipe);
+            asset.Provenance ??= new AssetProvenance { Operation = "working-composition" };
+            asset.Provenance.SourceAssetIds = segments.Select(segment => segment.Source.AssetId).Distinct().ToList();
+            if (existingDraft is null)
+            {
+                existingDraft = new RecipeDraft { VirtualAssetId = asset.Id };
+                project.RecipeDrafts.Add(existingDraft);
+            }
+            existingDraft.BasedOnRevisionId = revision.Id;
+            existingDraft.EditableRecipe = new CompositionRecipe
+            {
+                Segments = segments.Select(CloneSegment).ToList()
+            };
+            existingDraft.ModifiedAt = DateTimeOffset.UtcNow;
+            await _workspace.SaveAsync(cancellationToken).ConfigureAwait(false);
+            return revision;
+        }
+        catch
+        {
+            project.RecipeRevisions.RemoveRange(revisionCount, project.RecipeRevisions.Count - revisionCount);
+            asset.Virtual!.CurrentRecipeRevisionId = oldCurrentRevisionId;
+            if (asset.Provenance is not null) asset.Provenance.SourceAssetIds = oldSources;
+            if (oldDraftRecipe is null)
+            {
+                project.RecipeDrafts.RemoveAll(draft => draft.VirtualAssetId == asset.Id);
+            }
+            else if (existingDraft is not null)
+            {
+                existingDraft.BasedOnRevisionId = oldDraftBasedOn;
+                existingDraft.EditableRecipe = oldDraftRecipe;
+            }
+            throw;
+        }
+    }
+
+    private ProjectAsset RequireVideoSource(Guid sourceAssetId)
+    {
+        var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
+        var source = project.Assets.SingleOrDefault(asset => asset.Id == sourceAssetId)
+            ?? throw new InvalidOperationException("The selected composition source no longer exists.");
+        if (source.Id == project.WorkingCompositionAssetId)
+            throw new InvalidOperationException("A Working Composition cannot contain itself.");
+        if (source.MediaType != MediaType.Video ||
+            (source.StorageKind == AssetStorageKind.Virtual && source.Virtual?.Kind != VirtualAssetKind.SavedClip))
+            throw new InvalidOperationException("Add a physical video or Saved Clip to the Working Composition.");
+        return source;
+    }
+
+    private static CompositionSegment CreateSegment(ProjectAsset source) => new()
+    {
+        Source = new AssetRevisionReference
+        {
+            AssetId = source.Id,
+            RecipeRevisionId = source.StorageKind == AssetStorageKind.Virtual
+                ? source.Virtual?.CurrentRecipeRevisionId
+                    ?? throw new InvalidOperationException("The selected Saved Clip has no committed recipe revision.")
+                : null
+        },
+        Start = RecipeBoundary.SourceStart,
+        End = RecipeBoundary.SourceEnd
+    };
+
+    private static CompositionSegment CloneSegment(CompositionSegment segment) => new()
+    {
+        Id = segment.Id,
+        Source = segment.Source with { },
+        Start = segment.Start with { },
+        End = segment.End with { },
+        AudioEnabled = segment.AudioEnabled
+    };
 }

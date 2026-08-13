@@ -264,7 +264,7 @@ Phase acceptance checks:
 
 ### Phase 2D — basic recipe-based media operations
 
-In progress. The first 2D engine slice introduces a provider-neutral recursive render-plan tree with deterministic plan identities. It resolves pinned physical and virtual dependencies, rejects unpinned or cyclic recipe graphs at planning time, materializes Saved Clips whose sources are other Saved Clips, and lets the single-segment Working Composition resolve a pinned virtual source. Multi-segment concat, compatibility/normalization planning, virtual-video anchor time mapping, and durable promotion/export remain subsequent 2D slices.
+In progress. ReelForge now has a provider-neutral recursive render-plan tree with deterministic plan identities, explicit compatibility analysis, compatible multi-segment concat, and the first user-testable composition workflow. The Edit workspace can add selected physical videos or Saved Clips, reorder/remove segments through immutable recipe revisions, persist the result, and render or reuse a composition preview. Typed normalization, mixed-audio handling, virtual-video anchor time mapping, durable promotion/export, and the full timeline remain subsequent 2D slices.
 
 #### Phase 2D.1 — recursive planning and virtual sources
 
@@ -281,6 +281,14 @@ In progress. The first 2D engine slice introduces a provider-neutral recursive r
 3. Compile compatible ordered video segments into one FFmpeg concat filter graph with explicit audio handling and reset timestamps.
 4. Render through unique temporary files, atomically commit the composition cache entry, retain dependency leases for the full operation, and reuse unchanged results.
 5. Refuse incompatible, unknown, or mixed-audio compositions with a normalization requirement; typed normalization and silence generation remain the next 2D slice.
+
+#### Phase 2D.3 — testable Working Composition editor
+
+1. Present the committed Working Composition as an ordered segment list in the Edit workspace.
+2. Add selected physical videos or Saved Clips while pinning each virtual source to its exact current recipe revision.
+3. Move and remove segments through new immutable composition revisions; retain at least one segment.
+4. Persist every discrete composition edit and reconstruct the same current revision after reopening the project.
+5. Render or reuse the committed multi-segment composition preview through the shared materializer without creating an authoritative intermediate asset.
 
 1. Expand the narrow Phase 2C Saved Clip compiler into general recipe planning and recursive virtual-source time mapping.
 2. Reuse and expand existing media encoding inspection.

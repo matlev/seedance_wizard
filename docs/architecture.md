@@ -354,6 +354,8 @@ The first executor slice recursively materializes nested trim nodes, preserving 
 
 The next executor slice treats media compatibility as an explicit result rather than an eager side effect. Ordered composition inputs are `Compatible`, `RequiresNormalization`, or `Unknown`, with differences in video codec, dimensions, pixel format, frame rate, audio presence, codec, sample rate, channel count, and layout retained as planning data. Missing metadata is inspected from the realized media when possible. Only compatible sets currently compile into a single timestamp-resetting FFmpeg concat filter graph; incompatible or mixed-audio sets stop with a normalization requirement instead of being silently coerced. Composition renders use deterministic cache identity, active dependency leases, unique temporary output, atomic commit, and failure cleanup.
 
+The first editor-facing consumer is deliberately narrower than a timeline. The Edit workspace projects the current immutable Working Composition revision as an ordered list. Add, move, and remove are discrete commits that create a new revision and refresh a mutable draft based on it; earlier revisions remain unchanged. Virtual segment sources pin their exact recipe revision. Preview requests the current composition revision from the shared materializer, so the project persists logical sources and order while the rendered MP4 remains disposable cache state.
+
 ## Disposable cache
 
 Recommended layout:
