@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phase 2A complete; Phase 2B has completed one human-run AtlasCloud MiniMax H3 generation, with follow-up UX verification pending.
+Status: Milestone 1 and Milestone 2 Phases 2A/2B complete; Phase 2C frame/continuation design approved and awaiting implementation.
 
 ## Product priority
 
@@ -129,7 +129,7 @@ Implemented vertical order within Phase 2B:
 
 Phase acceptance checks:
 
-- one explicitly confirmed AtlasCloud MiniMax H3 live submission has proceeded through job polling to a durable generated asset; repeat acceptance for the final Jobs/reference/player UX remains human-run, while automated tests stay network-isolated;
+- explicitly confirmed AtlasCloud MiniMax H3 text-to-video and reference-to-video submissions have proceeded through job polling to durable generated assets; active monitoring survived restart with correct wall-clock elapsed time, the owning project reconciled correctly, and an existing main video remained selected while the new continuation arrived unstarred;
 - normal application startup and unit/integration tests cannot accidentally make paid requests;
 - remote completion without a valid local download is not reported as a successfully ingested project asset;
 - a downloaded output answers which generation, prompt, model, settings, references, and lineage produced it;
@@ -138,23 +138,79 @@ Phase acceptance checks:
 
 ### Phase 2C — frame and continuation workflow
 
-Enable the core generate → inspect → anchor → continue loop:
+Approved scope. Enable the core generate → inspect → Saved Frame/anchor → continue loop while establishing anchors as reusable media-editing boundaries rather than generation-specific screenshots.
 
-1. Add frame-range inspection/contact browsing without retaining every review frame.
-2. Create, label, edit, and delete persistent frame anchors.
-3. Add first-frame and last-frame convenience anchors/selections.
-4. Materialize an anchor as an image only for preview, provider preparation, promotion, or export.
-5. Allow generation requests to select frame anchors directly as logical references.
-6. Record anchor logical identity/revision in the submitted snapshot and optional extracted-image/materialization evidence separately.
-7. Implement Continue After and Continue Before UX using explicit lineage plus explicit anchor/other references.
-8. Preserve continuation history even after extracted PNG cache files are removed.
+#### Phase 2C.1 — anchor semantics and schema version 3
+
+1. Replace mutable schema-v2 anchors with stable logical `FrameAnchor` objects and immutable `FrameAnchorRevision` chains.
+2. Make video stream index plus integer presentation timestamp and rational time base authoritative for new anchors; derive display seconds and retain frame number only when reliable.
+3. Preserve schema-v2 floating-point anchor timestamps as explicitly legacy precision during transactional v2 → v3 migration; never fabricate exact PTS.
+4. Keep display label, notes, archive state, and current-revision pointer on the logical anchor.
+5. Pin exact anchor revisions from committed extract-frame/trim recipes and future editing consumers.
+6. Add `BeforeFrame` and `AfterFrame` anchor-boundary edges and normalize composition intervals to `[start,end)`.
+7. Add a stable occurrence `ReferenceId` to every generation draft/history reference.
+8. Archive/tombstone referenced anchors instead of destroying required history; retain degraded anchors when source media is missing or hash-mismatched.
+
+#### Phase 2C.2 — provider-neutral materialization and prepared references
+
+1. Generalize materialization targets from asset-only requests to typed asset-revision or anchor-revision targets.
+2. Replace asset-ID-only provider overrides with occurrence-keyed transient prepared references carrying media type, role, order, and provider representation.
+3. Keep expiring URLs, data URLs, upload IDs, cache paths, and other provider/materialization details out of authoritative Core provenance.
+4. Verify the pinned source SHA-256 and resolve the exact decoded anchor frame before purpose-specific preview/provider transformations.
+5. Record receipts tying derived encodings/uploads back to the same anchor revision, canonical extracted-frame hash, and transformation profile.
+
+#### Phase 2C.3 — exact frame indexing and extraction
+
+1. Add cancellable FFmpeg/ffprobe-backed exact-frame discovery and extraction for physical video sources.
+2. Define First Frame and Last Frame using decoded presentation frames; Last Frame is the final decodable presentation frame rather than `duration - epsilon`.
+3. Use deterministic cache keys based on source content, stream/PTS/time base, anchor revision, purpose/profile, and renderer fingerprint.
+4. Coalesce duplicate work, write through unique temporary files, commit cache entries atomically, and clean up cancellation/failure artifacts.
+5. Reconstruct missing thumbnails/extracted frames after cache deletion without modifying logical anchors or history.
+
+#### Phase 2C.4 — frame browser and Saved Frames UI
+
+1. Replace the central lower Timeline placeholder with an initial precision-frame workspace, without claiming the full timeline editor is implemented.
+2. Add a local contact strip centered near the playhead, initially approximately nine frames with selectable spacing/range.
+3. Debounce navigation, extract the center/selected frame first, opportunistically prefetch a bounded neighborhood, and cancel stale work.
+4. Create Saved Frames from exact extracted frames; add first/last-frame shortcuts, cached thumbnails, jump-to-frame, label/notes editing, and dependency-safe delete/archive.
+5. Keep Saved Frames visually distinct from physical Project Assets. Historical revisions remain resolvable through history/dependency details but do not receive a general revision browser in Phase 2C.
+
+#### Phase 2C.5 — generation-reference integration
+
+1. Select Saved Frames directly as logical references with explicit role, order, label, and notes.
+2. Support duplicate occurrences of the same logical object through distinct `ReferenceId` values.
+3. Freeze exact anchor revision, source identity, stream/timing semantics, and reference occurrence metadata before any paid work.
+4. Materialize and prepare anchors through the same provider-neutral workflow used by assets, then route through AtlasCloud upload or BytePlus/R2 as required.
+5. Allow anchor plus source-video references when supported; provider capability validation remains authoritative.
+
+#### Phase 2C.6 — Continue After and Continue Before UX
+
+1. Require explicit source-output selection when a parent generation has multiple outputs.
+2. Preselect the first/final decoded frame as appropriate, show its canonical extracted preview, and require confirmation before creating/using the anchor.
+3. Recommend a compatible I2V or R2V mode while keeping provider/model/mode visible and user-selectable.
+4. Map Continue After anchors conceptually to `StartFrame` and Continue Before anchors to `EndFrame`, subject to provider capabilities.
+5. Record parent plus `ContinueAfter`/`ContinueBefore` only when the source actually originates from a generation; imported-video continuation UX uses the explicit anchor reference without invented lineage.
+
+#### Phase 2C.7 — verification and acceptance
+
+1. Add migration, immutable-revision, dependency, legacy-timing, exact-frame/VFR, cache reconstruction, failure cleanup, provider-preparation, duplicate-reference, and continuation-lineage tests.
+2. Keep every automated provider path network-isolated and incapable of paid calls.
+3. Use AtlasCloud MiniMax H3 for the first optional human-confirmed paid anchor-continuation test so Phase 2C validates anchors without simultaneously introducing an unproven provider route.
+4. Treat a later BytePlus live smoke test as separate provider-confidence work.
 
 Phase acceptance checks:
 
-- generating clip A, selecting an exact ending anchor, and generating continuation B produces an explicit `ContinueAfter` edge plus the actual anchor reference;
-- the anchor survives close/reopen without owning a durable PNG;
-- cache deletion removes no continuation provenance;
-- a provider-incompatible anchor representation is converted by materialization/provider preparation rather than by the UI.
+- any imported or generated physical video can be browsed at exact decoded presentation frames and named Saved Frames can be revisited after close/reopen;
+- generating clip A, confirming its exact final-frame anchor, and generating continuation B produces an explicit `ContinueAfter` edge plus a reference occurrence pinned to the exact anchor revision;
+- invoking continuation from imported media creates the anchor reference without inventing a parent generation;
+- committed generation and editing references do not drift when the logical Saved Frame receives a newer current revision;
+- edit boundaries can express before/after-frame intent and normalize without duplicate frames at adjoining cuts;
+- deleting referenced Saved Frames archives them while all pinned revisions remain resolvable;
+- clearing the entire frame/thumbnail cache removes no anchor, recipe, continuation provenance, or generation history and required images rematerialize correctly;
+- preview and provider preparation resolve the same exact decoded source frame even when their purpose-specific derivative bytes differ;
+- a provider-incompatible anchor representation is converted by materialization/provider preparation rather than by the UI;
+- missing or changed source media leaves anchors visible in degraded state and prevents incorrect materialization/submission;
+- no automated test can submit a live or paid provider request.
 
 ### Phase 2D — basic recipe-based media operations
 

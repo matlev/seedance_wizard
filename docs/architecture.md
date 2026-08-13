@@ -1,6 +1,6 @@
 ﻿# Architecture
 
-Status: accepted direction; Phase 2A complete; Phase 2B implementation complete with one successful human-run AtlasCloud MiniMax H3 generation and follow-up UX verification pending
+Status: accepted direction; Phases 2A and 2B complete; Phase 2C frame/continuation design approved and awaiting implementation
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 
@@ -151,13 +151,13 @@ Use explicit typed recipes rather than an operation enum plus arbitrary paramete
 
 ```text
 TrimRecipe
-  SourceAssetId
-  StartBoundary             anchor, timestamp, or source start
-  EndBoundary               anchor, timestamp, or source end
+  Source                    exact asset/recipe revision reference
+  StartBoundary             anchor revision + edge, timestamp, or source start
+  EndBoundary               anchor revision + edge, timestamp, or source end
   RenderProfile
 
 ConcatRecipe
-  InputAssetIds[]
+  Inputs[]                  exact asset/recipe revision references
   CompatibilityPolicy
   Transition-free ordering initially
   RenderProfile
@@ -167,8 +167,8 @@ NormalizeRecipe
   TargetMediaProfile
 
 ExtractFrameRecipe
-  SourceAssetId
-  AnchorId
+  Source                    exact asset/recipe revision reference
+  Anchor                    exact anchor revision reference
   ImageProfile
 
 TimelineCompositionRecipe
@@ -176,7 +176,7 @@ TimelineCompositionRecipe
   RenderProfile
 
 ProviderSnippetRecipe
-  SourceAssetId
+  Source                    exact asset/recipe revision reference
   Boundaries
   Provider constraints/profile
 ```
@@ -216,7 +216,7 @@ Durable references pin both the virtual asset ID and exact recipe revision ID. T
 
 The domain should reject:
 
-- missing asset or anchor references;
+- missing asset, anchor, or anchor-revision references;
 - missing or mismatched committed recipe revisions;
 - direct or indirect recipe cycles;
 - media-type-incompatible operations;
@@ -229,33 +229,84 @@ Deleting a virtual asset should not delete its physical sources. Deleting a phys
 
 ## Anchors
 
-Anchors become first-class members of `VideoProject`. Conceptually:
+`FrameAnchor` is a general project-media primitive, not a generation-specific object and not a persistent screenshot. It identifies an exact visual position in an exact version of a source video. Generation references, visual bookmarks, frame export/promotion, trim recipes, splice/concat recipes, and future timeline compositions may all consume the same anchor revision.
+
+The user-facing name is **Saved Frame**. The internal domain name remains `FrameAnchor`. Durable anchor state, disposable extracted images/thumbnails, and explicitly promoted physical image assets are distinct:
+
+```text
+Saved Frame / FrameAnchor       durable logical project state
+Extracted frame / thumbnail    disposable reproducible cache
+Saved frame image asset        explicitly promoted durable physical media
+```
+
+Schema version 3 uses a stable logical anchor plus immutable media-semantic revisions:
 
 ```text
 FrameAnchor
   Id
-  AssetId
-  Timestamp                 canonical logical position
-  FrameNumber?              optional; retained only when reliable
-  TimeBase?                 optional precision/reconciliation metadata
-  Label?
+  CurrentRevisionId
+  DisplayLabel?
   Notes?
+  IsArchived
+  CreatedAt
+
+FrameAnchorRevision
+  Id
+  AnchorId
+  RevisionNumber
+  PreviousRevisionId?
+  SourceAssetId
+  SourceContentHash
+  VideoStreamIndex
+  TimingPrecision          ExactPresentationTimestamp | LegacyTimestampSeconds
+  PresentationTimestamp?  integer PTS for new exact anchors
+  TimeBaseNumerator?
+  TimeBaseDenominator?
+  LegacyTimestampSeconds? migration-only preserved value
+  FrameNumber?            informational when reliable
+  CreatedAt
 ```
 
-Timestamp is authoritative for persistence unless the source provides a stable frame/time basis that can be retained. Variable-frame-rate media makes a mandatory frame number unsafe. An anchor does not own a PNG. An extracted image is either a virtual `ExtractFrameRecipe`, a cache result, or an explicitly saved physical asset.
+For new anchors, stream index plus integer presentation timestamp and rational stream time base are authoritative. Display seconds are derived. Variable-frame-rate media makes a mandatory frame number unsafe. Schema-v2 anchors migrate to revision 1 without invented precision: their original floating-point seconds are preserved as `LegacyTimestampSeconds` until an optional future visual reconciliation creates a new exact revision.
 
-Open question: whether anchors may target any time-addressable virtual video or only physical video. Allowing virtual targets is more expressive and still reproducible, but complicates time mapping when upstream recipes change. The recommended first slice limits anchors to physical video, then deliberately extends the rule after trim semantics are proven.
+An uncommitted anchor draft may move freely. Once an anchor revision is committed or referenced, its extraction-defining state is immutable. Moving the Saved Frame creates a new revision linked to the prior revision. Label, notes, and archived state remain mutable logical-anchor metadata; submitted generation references freeze their own label and notes independently. Old revisions remain resolvable but are not exposed through an ordinary revision browser in Phase 2C. A future restore action creates a new revision copying an old revision's frame state rather than mutating or reactivating history.
+
+An unreferenced anchor may be deleted. Once any generation, committed recipe, timeline/composition, export, or other authoritative object pins one of its revisions, Delete archives the logical anchor from ordinary working UI while retaining all required history. Missing or hash-mismatched source media leaves the anchor visible in a degraded state and blocks materialization; it never deletes descendants or provenance.
+
+Phase 2C limits anchors to durable physical video assets. Virtual-video anchors wait until Phase 2D defines recipe time mapping. Any imported or generated physical video may be anchored. An imported source can use the Continue After/Before workflow without inventing generation lineage.
+
+### Editing-boundary semantics
+
+An anchor revision identifies a presentation frame. An editing boundary additionally identifies which edge of that frame is intended:
+
+```text
+AnchorBoundary
+  AnchorId
+  AnchorRevisionId
+  Edge                  BeforeFrame | AfterFrame
+
+BeforeFrame             start boundary of the identified presentation frame
+AfterFrame              next presentation boundary, or SourceEnd for the final frame
+```
+
+Composition and trim plans normalize to half-open intervals `[start, end)`. This prevents duplicate frames at adjoining cuts while allowing creator-facing actions such as **Cut before this frame** and **Cut after this frame**. Committed `TrimRecipe`, `ExtractFrameRecipe`, and future composition segments pin exact anchor revisions rather than a mutable `AnchorId`. The final decodable presentation frame is the canonical Last Frame selection; `AfterFrame` on it resolves to `SourceEnd`.
+
+An extracted image is only one materialization of an anchor position. Editing may use the anchor strictly as a temporal boundary and never extract an image. When extraction is needed, preview and provider preparation must resolve the same exact decoded source frame. Purpose-specific derivatives may legitimately differ in size, encoding, compression, or hosting representation; receipts tie them to the same anchor revision, canonical extracted-frame hash, and transformation profile.
 
 ## Materialization boundary
 
 Conceptual application contracts:
 
 ```text
+MaterializationTarget
+  AssetRevisionReference
+  | AnchorRevisionReference
+
 IMediaMaterializer
-  MaterializeAsync(assetId, purpose, cancellationToken)
+  MaterializeAsync(target, purpose, profile?, cancellationToken)
 
 IMaterializationPlanner
-  BuildPlan(project, assetId, purpose)
+  BuildPlan(project, target, purpose, profile?)
 
 IAssetRecipeCompiler
   Compile(recipeGraph, renderContext)
@@ -270,19 +321,21 @@ IAssetExportService
   SaveAsPhysicalAssetAsync(assetId, ...)
 ```
 
-`MaterializationPurpose` is conceptual and initially includes `Preview`, `ProviderUpload`, `FinalExport`, `FrameExtraction`, `Thumbnail`, and `Waveform`. Purpose influences quality, format, lifetime, provider limits, and whether a direct source path is acceptable.
+`MaterializationPurpose` includes `Preview`, `ProviderUpload`, `FinalExport`, `FrameExtraction`, `Thumbnail`, and `Waveform`. Purpose influences quality, format, lifetime, provider limits, and whether a direct source path is acceptable. The current asset-only `MaterializationRequest` must be generalized in Phase 2C; anchor revisions must not masquerade as `ProjectAsset` instances.
 
 `MaterializeAsync` should return a result/lease containing the usable path, resolved metadata, cache key or physical content identity, and ownership/lifetime information. Callers must not infer permanence from receiving a path. A lease prevents cleanup from removing an artifact while preview, upload, or export is using it.
 
 The materializer follows this decision flow:
 
-1. Resolve the logical asset and validate its dependency graph.
-2. If a physical source already satisfies the purpose, return it without copying.
-3. Build a deterministic render plan for a virtual asset.
-4. Compute the cache key from the plan and transitive inputs.
-5. Reuse a verified cache hit, otherwise render into a temporary file.
-6. Atomically commit the completed artifact to cache and return a lease.
-7. For explicit export/promotion, copy or render into durable storage and create/update the appropriate physical project asset only after success.
+1. Resolve the logical asset revision or anchor revision and validate its dependency graph.
+2. Verify every durable physical source against its pinned SHA-256 identity.
+3. If a physical source already satisfies the purpose, return it without copying.
+4. For an anchor target, resolve the exact video stream and presentation timestamp before any purpose-specific transformation.
+5. Build a deterministic render plan for a virtual asset or extracted anchor frame.
+6. Compute the cache key from the plan and transitive inputs.
+7. Reuse a verified cache hit, otherwise render into a temporary file.
+8. Atomically commit the completed artifact to cache and return a lease.
+9. For explicit export/promotion, copy or render into durable storage and create/update the appropriate physical project asset only after success.
 
 The UI, provider adapters, and timeline must not decide whether FFmpeg is required. They request an asset for a purpose; the materialization layer owns that choice.
 
@@ -314,7 +367,7 @@ A cache key should use canonical, culture-invariant serialization of:
 - recipe type and recipe version;
 - normalized recipe values and render parameters;
 - transitive source content identities, not only file names;
-- relevant anchor values;
+- exact anchor revisions, timing values, and boundary edges;
 - materialization purpose/profile where output differs;
 - renderer identity and behavior-affecting FFmpeg/build information.
 
@@ -497,6 +550,21 @@ Provider adapter
   serialize verified provider contract -> submit/poll/cancel
 ```
 
+Every generation-reference occurrence has a stable `ReferenceId` distinct from the referenced logical object. The same asset or anchor may intentionally appear more than once with different roles, order, labels, preparation profiles, or provider treatment. Transient prepared representations are keyed by occurrence ID rather than `AssetId`/`AnchorId`:
+
+```text
+PreparedGenerationReference          transient application/provider contract
+  ReferenceId
+  LogicalObjectKind
+  LogicalObjectId
+  MediaType
+  Role?
+  Order
+  ProviderRepresentation             URL, data URL, provider asset ID, etc.
+```
+
+`ProviderRepresentation` is never persisted as Core domain meaning. By the time a provider adapter receives this descriptor, it needs the realized media type, role/order, and qualified representation; it does not need to know whether the representation originated from a physical asset, virtual recipe revision, or anchor revision. The immutable project snapshot retains that provenance.
+
 The UI selects logical project objects and never creates intermediate files manually. For each reference, orchestration:
 
 1. freezes its logical identity/revision in the request snapshot;
@@ -513,7 +581,7 @@ For providers that require HTTPS-accessible local references, `ITemporaryAssetHo
 
 Application settings are likewise outside the project domain. `IApplicationSettingsStore` merges checked-in defaults with `%LOCALAPPDATA%\ReelForge\appsettings.local.json`; `ISecretStore` keeps credential values in Windows Credential Manager. One requirement catalog drives Settings labels, required/secret status, placeholders, credential key discovery, and validation. The checked-in JSON declares secret names and target keys using a non-secret marker, while load/save normalization prevents that property from carrying plaintext.
 
-The transient `GenerationRequest.ReferenceAssetIds` remains a low-level provider-input shape. `GenerationWorkflow` freezes the richer draft into a path-free immutable snapshot first, materializes and verifies physical references, uploads them through the documented provider-preparation boundary, and supplies temporary overrides only to the serializer. Recipes and UI remain provider-neutral. No paid submission appears in materialization, orchestration, polling, or provider contract tests.
+The current transient `GenerationRequest.ReferenceAssetIds` and asset-ID-keyed override map are Phase 2B compatibility shapes and cannot represent anchor references correctly. Phase 2C replaces them with occurrence-identified prepared references. `GenerationWorkflow` continues to freeze the richer draft into a path-free immutable snapshot first, resolve and verify logical references, materialize only when required, and supply transient provider representations only to the serializer. Recipes and UI remain provider-neutral. No paid submission appears in materialization, orchestration, polling, or provider contract tests.
 
 Submission and monitoring are separate application responsibilities. `GenerationWorkflow.QueueAsync` validates the draft, freezes the immutable generation snapshot, and persists a local queued record without contacting a provider. When the application-level Undo Send value is positive, `GenerationJobCoordinator` records that entry and its captured deadline in `%LOCALAPPDATA%\ReelForge\active-jobs.json`. Cancellation is an atomic transition available only while the entry is still awaiting submission; it guarantees reference preparation, uploads, and provider submission have not started. Deadline expiry atomically claims the entry before `GenerationWorkflow.SubmitQueuedAsync` can perform provider work, so a simultaneous cancel cannot misrepresent an already-started request. A zero-second setting follows the immediate `SubmitAsync` path.
 
@@ -523,9 +591,9 @@ The coordinator is application-scoped rather than project-view-scoped. It contin
 
 ## Project schema and migration
 
-The current schema is version 1. A schema bump is recommended because version 1 gives `ProjectAsset.RelativePath` physical-path semantics and has no persisted anchor collection or virtual recipe discriminator. Treating new fields as merely optional would deserialize, but it would leave important invariants ambiguous.
+The implemented project schema is version 2. Version 1 gave `ProjectAsset.RelativePath` physical-path semantics and had no persisted anchor collection or virtual recipe discriminator. Phase 2A introduced the explicit version-1/version-2 DTO and transactional migration chain below.
 
-Conceptual version 2 changes:
+Implemented version 2 changes:
 
 - add an explicit physical/virtual asset discriminator;
 - move physical-only path/content identity under physical storage metadata;
@@ -558,9 +626,38 @@ Migration strategy:
 11. Validate the migrated asset/recipe/generation graphs and referenced files, report missing durable files without deleting metadata, and save version 2 only through an explicit/transactional migration path.
 12. For this safe metadata-only version-1 to version-2 migration, create `project.backup-v1.json` first, migrate automatically, atomically save the selected project file, and report the upgrade. Never overwrite the known-good project if backup or migration fails. New projects use a project-named `.rfp` file; legacy `project.json` files remain supported and save in place.
 
-Migration policy beyond version 2 is hybrid: safe/reversible metadata migrations run automatically after a versioned backup; destructive, expensive, lossy, media-rewriting, or risky folder-layout migrations require an explanation and explicit user confirmation after backup.
+The migration policy is hybrid: safe/reversible metadata migrations such as v2 → v3 run automatically after a versioned backup; destructive, expensive, lossy, media-rewriting, or risky folder-layout migrations require an explanation and explicit user confirmation after backup.
 
-Downgrading a version-2 project to version 1 is not generally possible because virtual assets have no physical paths. Older applications should continue rejecting newer schemas rather than silently dropping recipes.
+Downgrading a version-2 or version-3 project is not generally possible because newer logical media and anchor-revision semantics have no faithful older representation. Older applications should continue rejecting newer schemas rather than silently dropping recipes or precision.
+
+### Approved schema version 3 changes for Phase 2C
+
+Schema version 3 is required rather than silently redefining the already-implemented version 2 contract. It adds:
+
+- stable logical `FrameAnchor` objects with mutable display metadata, archive state, and a current-revision pointer;
+- immutable `FrameAnchorRevision` objects with predecessor links, source asset/SHA-256 identity, video stream index, and exact rational presentation timing for newly created anchors;
+- an explicit legacy-timing precision state for migrated version-2 anchors;
+- exact anchor-revision references in extract-frame recipes and anchor-based recipe boundaries;
+- `BeforeFrame`/`AfterFrame` boundary edges normalized to half-open `[start,end)` render intervals;
+- a stable `ReferenceId` for every generation-reference occurrence;
+- exact anchor revision, source identity, and timing data in immutable submitted reference snapshots;
+- occurrence-keyed transient prepared references replacing asset-ID-only provider overrides;
+- dependency-aware deletion that archives referenced anchors and preserves required revisions.
+
+Version 2 to version 3 migration is safe metadata migration and therefore follows the existing automatic-after-versioned-backup policy. It must:
+
+1. Create a versioned backup before writing schema 3.
+2. Preserve every project, asset, recipe, anchor, draft, generation, output, timeline, and logical ID that can remain stable.
+3. Convert each version-2 anchor into a stable logical anchor plus immutable revision 1.
+4. Preserve the original `TimestampSeconds` as legacy timing; never invent a presentation timestamp, time base, stream index, or exact-frame guarantee not present in version 2.
+5. Carry the source asset's verified SHA-256 into revision 1 when available; otherwise retain a degraded/pending identity state without blocking project open.
+6. Rewrite version-2 recipe anchor IDs to the corresponding revision-1 reference while retaining legacy timing precision.
+7. Assign a new stable `ReferenceId` to each existing draft and historical generation-reference occurrence while preserving its original order and values.
+8. Resolve historical anchor references to revision 1 and freeze the legacy timing/source fields available at migration time without embellishment.
+9. Validate references, revision chains, lineage, source media state, and dependency rules before atomically saving schema 3.
+10. Preserve missing or changed sources and their descendants in a degraded state; never delete anchors, recipes, or generation history during migration.
+
+An optional later reconciliation workflow may show a legacy anchor against decoded frames and commit a new exact revision. It never mutates revision 1 or pretends the legacy timestamp was exact.
 
 ## Components that would change during implementation
 
@@ -608,16 +705,35 @@ Downgrading a version-2 project to version 1 is not generally possible because v
 10. **Recipe revisions:** editable/uncommitted recipe drafts are mutable; every committed or referenced recipe revision is immutable, linked to its predecessor, and pinned explicitly by historical references.
 11. **Content identity:** SHA-256 is the canonical fingerprint of durable media bytes and remains separate from stable `AssetId` and human-readable display/file name.
 
+## Settled Phase 2C decisions
+
+1. **Meaning:** an anchor is a provider-neutral and editor-neutral exact position in source media; Saved Frame is the initial user-facing name.
+2. **Revisioning:** stable logical anchors own immutable extraction-defining revisions; moving a committed/referenced anchor creates a new revision.
+3. **Timing:** new revisions use video stream index, integer presentation timestamp, and rational time base; frame number is informational.
+4. **Legacy precision:** version-2 floating-point seconds migrate honestly as legacy timing and may be visually reconciled only by creating a later exact revision.
+5. **Metadata:** display label, notes, and archived state remain mutable on the logical anchor; submitted references freeze their own label/notes.
+6. **Targets:** Phase 2C anchors any imported or generated durable physical video; virtual-video anchors wait for Phase 2D time mapping.
+7. **Deletion:** unreferenced anchors may be deleted; referenced anchors are archived/tombstoned and their pinned revisions remain resolvable.
+8. **Boundaries:** editing references an anchor revision plus `BeforeFrame` or `AfterFrame`, normalized internally to `[start,end)`.
+9. **Last frame:** Last Frame means the final decodable presentation frame; `AfterFrame` on it resolves to `SourceEnd`.
+10. **Materialization:** canonical preview and provider preparation resolve the same decoded frame, while purpose-specific derivative encoding may differ and remains evidenced.
+11. **Reference occurrences:** every generation reference has its own stable `ReferenceId`; providers consume transient prepared media descriptors rather than project assets or anchor objects.
+12. **Continuation:** mode recommendations remain explicit; multiple parent outputs require selection; an imported video may use continuation UX without false generation lineage.
+13. **UI:** the central lower workspace hosts the initial local contact strip; old anchor revisions stay outside the ordinary workflow.
+14. **Promotion:** a logical Saved Frame is sufficient for Phase 2C cherry-picking; saving a standalone durable image remains later work.
+15. **Acceptance provider:** AtlasCloud MiniMax H3 is the first optional human-run paid anchor continuation; automated tests make no live or paid calls.
+
 ## Remaining questions and recommended defaults
 
-These are not blockers for documenting the settled generation model, but the relevant item should be confirmed before its implementation slice:
+The Phase 2C anchor questions are settled. Remaining cross-phase items are:
 
-1. **Anchor targets:** initially physical video only; add virtual-video anchors after time mapping is specified.
-2. **Materialization retention:** retain the policy boundary without selecting minimal/balanced/persistent behavior in Phase 2A.
-3. **Missing sources:** open in a degraded state, preserve every logical descendant/history record, and add relinking later.
+1. **Virtual-video anchor mapping:** define only after Phase 2D establishes recipe time mapping; Phase 2C is physical-video-only.
+2. **Materialization retention:** retain the policy boundary without selecting minimal/balanced/persistent behavior.
+3. **Missing-source recovery:** Phase 2C preserves degraded state and blocks materialization; user-driven relinking/recovery remains later work.
 4. **External exports:** default to export history without making reconstruction depend on an external path; decide catalog behavior with export UX.
 5. **Provider cancellation:** distinguish local polling cancellation from remote cancellation and expose the latter only when verified.
+6. **Saved-frame promotion:** direct logical Saved Frame use satisfies Phase 2C; general Save Frame as Asset UI remains with later promotion/export work.
 
 ## Phase gate
 
-Phase 2A and the Phase 2B implementation were explicitly approved. BytePlus ModelArk is the preferred official provider for the first optional human-run paid acceptance test; AtlasCloud remains a selectable alternate route. Phase 2C frame/continuation UI and Phase 2D virtual-recipe rendering remain separate implementation gates.
+Phases 2A and 2B are complete. Phase 2C.1 through 2C.7 are approved for implementation with schema version 3, immutable exact-timing anchor revisions, occurrence-identified provider references, and `BeforeFrame`/`AfterFrame` editing boundaries. AtlasCloud MiniMax H3 is the selected first optional human-run paid anchor-continuation acceptance route because its submission/upload/polling/ingestion path is already proven; automated verification remains network-isolated. BytePlus paid acceptance is a separate provider-confidence exercise. Phase 2D virtual-recipe rendering and generalized promotion/export remain separate implementation gates.
