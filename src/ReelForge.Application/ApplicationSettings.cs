@@ -19,6 +19,16 @@ public sealed class GeneralApplicationSettings
     public string LastProjectFilePath { get; set; } = string.Empty;
     public int UndoSendSeconds { get; set; }
     public string LogDirectory { get; set; } = ApplicationStoragePaths.GetDefaultLogDirectory();
+    public Dictionary<string, ProjectUserInterfaceState> ProjectStates { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public enum ProjectWorkspaceKind { Generate, Edit }
+
+public sealed class ProjectUserInterfaceState
+{
+    public ProjectWorkspaceKind Workspace { get; set; } = ProjectWorkspaceKind.Generate;
+    public string? SelectedMediaKind { get; set; }
+    public Guid? SelectedMediaId { get; set; }
 }
 
 public static class ApplicationStoragePaths

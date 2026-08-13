@@ -26,6 +26,8 @@ Media Tools includes a **Media cache limit**, displayed in selectable megabytes 
 
 ReelForge also stores the last successfully created or manually opened project file in the machine-local settings file. On the next launch it reopens that project automatically. If the file has been moved, deleted, or is temporarily unavailable, startup continues without a project and prompts the user through the status bar to use **Open**; the unavailable path is retained until another project is opened.
 
+The last Generate/Edit workspace and currently selected Project Media item are also machine-local and keyed by project ID. Reopening one project does not inherit another project's workspace or viewer selection. Durable Working Composition identity remains project state rather than an application preference.
+
 Non-secret fields show their actual merged value. Edits are marked dirty and written only when an edit is committed: keyboard focus leaves the field, another category is selected, the window is minimized, or the window closes. ReelForge does not rewrite the file on every keystroke and skips writes when nothing changed. A failed write leaves the edited value in the open window and displays the error.
 
 FFmpeg and ffprobe may be discovered from `PATH` or selected explicitly. Media-tool, R2, provider enablement, provider base-URL, and credential changes take effect after the Settings window closes. A newly configured provider runtime handles new submissions; an operation already in flight retains the provider instance and endpoint with which it started.

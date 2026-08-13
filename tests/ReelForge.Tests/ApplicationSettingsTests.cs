@@ -116,6 +116,38 @@ public sealed class ApplicationSettingsTests
     }
 
     [Fact]
+    public async Task PerProjectWorkspaceAndViewerSelectionRoundTripAsMachineLocalState()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var localPath = Path.Combine(directory, "appsettings.local.json");
+            var projectId = Guid.NewGuid();
+            var selectedMediaId = Guid.NewGuid();
+            var settings = new ApplicationSettings();
+            settings.General.ProjectStates[projectId.ToString("N")] = new ProjectUserInterfaceState
+            {
+                Workspace = ProjectWorkspaceKind.Edit,
+                SelectedMediaKind = "asset",
+                SelectedMediaId = selectedMediaId
+            };
+            var store = new JsonApplicationSettingsStore(Path.Combine(directory, "missing.json"), localPath);
+
+            await store.SaveAsync(settings);
+            var loaded = await store.LoadAsync();
+
+            var state = Assert.Single(loaded.General.ProjectStates).Value;
+            Assert.Equal(ProjectWorkspaceKind.Edit, state.Workspace);
+            Assert.Equal("asset", state.SelectedMediaKind);
+            Assert.Equal(selectedMediaId, state.SelectedMediaId);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ConfigurationStatusUsesExistenceCheckWithoutLoadingPlaintext()
     {
         var secrets = new ExistenceOnlySecretStore(

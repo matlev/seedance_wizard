@@ -91,6 +91,9 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
     private static void Normalize(ApplicationSettings settings)
     {
         settings.General ??= new GeneralApplicationSettings();
+        settings.General.ProjectStates = new Dictionary<string, ProjectUserInterfaceState>(
+            settings.General.ProjectStates ?? new Dictionary<string, ProjectUserInterfaceState>(),
+            StringComparer.OrdinalIgnoreCase);
         settings.MediaTools ??= new MediaToolConfiguration();
         if (settings.MediaTools.CacheSizeBytes <= 0)
             settings.MediaTools.CacheSizeBytes = MediaToolConfiguration.DefaultCacheSizeBytes;

@@ -63,7 +63,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _isScrubbing;
     private bool _resumePlaybackAfterScrub;
     private double _volumeBeforeMute = 1;
-    private bool _jobsTabWasSelected;
+    private bool _isJobsPanelOpen;
+    private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
+    private bool _restoringProjectUiState;
     private bool _dismissingViewedJobs;
     private CancellationTokenSource? _frameBrowserCancellation;
     private IReadOnlyList<VideoPresentationFrame> _indexedFrames = [];
@@ -135,6 +137,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _frameBrowserDebounceTimer.Tick += FrameBrowserDebounceTimer_Tick;
 
         MediaToolsText.Text = _mediaTools.Summary;
+        ApplyWorkspaceMode();
         Loaded += MainWindow_Loaded;
     }
 
@@ -316,7 +319,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _ = Dispatcher.BeginInvoke(() =>
         {
             RefreshJobsUi();
-            if (JobsTab is not null && !JobsTab.IsSelected && _viewedTerminalJobIds.Count > 0)
+            if (!_isJobsPanelOpen && _viewedTerminalJobIds.Count > 0)
                 _ = DismissViewedTerminalJobsAsync();
         }, DispatcherPriority.Background);
     }
@@ -326,7 +329,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (_disposed || Dispatcher.HasShutdownStarted) return;
         _ = Dispatcher.BeginInvoke(() =>
         {
-            if (JobsTab is not null && JobsActivityIndicator is not null && JobsTab.IsSelected)
+            if (_isJobsPanelOpen)
             {
                 if (IsTerminalStatus(e.CurrentStatus)) _viewedTerminalJobIds.Add(e.GenerationId);
             }
@@ -339,19 +342,94 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }, DispatcherPriority.Background);
     }
 
-    private async void RightPanelTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void WorkspaceMode_Checked(object sender, RoutedEventArgs e)
     {
-        if (JobsTab is null || JobsActivityIndicator is null || e.Source != RightPanelTabs) return;
-        if (JobsTab.IsSelected)
+        if (RightPanelTabs is null) return;
+        if (_isJobsPanelOpen) await SetJobsPanelOpenAsync(false);
+        _activeWorkspace = EditWorkspaceButton.IsChecked == true
+            ? ProjectWorkspaceKind.Edit
+            : ProjectWorkspaceKind.Generate;
+        ApplyWorkspaceMode();
+        if (!_restoringProjectUiState) await SaveProjectUiStateAsync();
+    }
+
+    private void ApplyWorkspaceMode()
+    {
+        if (GenerateLowerWorkspace is null) return;
+        var isGenerate = _activeWorkspace == ProjectWorkspaceKind.Generate;
+        GenerateLowerWorkspace.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
+        EditLowerWorkspace.Visibility = isGenerate ? Visibility.Collapsed : Visibility.Visible;
+        GenerationHistoryPanel.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
+        GenerationPanelSplitter.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
+        GenerationHistoryRow.MinHeight = isGenerate ? 80 : 0;
+        GenerationHistoryRow.Height = isGenerate ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        GenerationSplitterRow.Height = isGenerate ? new GridLength(5) : new GridLength(0);
+        ProjectMediaRow.Height = isGenerate ? new GridLength(2, GridUnitType.Star) : new GridLength(1, GridUnitType.Star);
+        GenerateTab.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
+        EditToolsTab.Visibility = isGenerate ? Visibility.Collapsed : Visibility.Visible;
+        if (isGenerate && RightPanelTabs.SelectedItem == EditToolsTab) RightPanelTabs.SelectedItem = GenerateTab;
+        if (!isGenerate) RightPanelTabs.SelectedItem = EditToolsTab;
+        ExpandedPromptPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private async void JobsChrome_Click(object sender, RoutedEventArgs e) =>
+        await SetJobsPanelOpenAsync(!_isJobsPanelOpen);
+
+    private async void CloseJobs_Click(object sender, RoutedEventArgs e) =>
+        await SetJobsPanelOpenAsync(false);
+
+    private async Task SetJobsPanelOpenAsync(bool isOpen)
+    {
+        if (_isJobsPanelOpen == isOpen) return;
+        _isJobsPanelOpen = isOpen;
+        JobsPanel.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
+        if (isOpen)
         {
             JobsActivityIndicator.Visibility = Visibility.Collapsed;
-            _jobsTabWasSelected = true;
             MarkVisibleTerminalJobsViewed();
         }
-        else if (_jobsTabWasSelected)
+        else
         {
-            _jobsTabWasSelected = false;
             await DismissViewedTerminalJobsAsync();
+        }
+    }
+
+    private async Task SaveProjectUiStateAsync(string? mediaKind = null, Guid? mediaId = null)
+    {
+        if (_workspace.Project is null) return;
+        var key = _workspace.Project.Id.ToString("N", CultureInfo.InvariantCulture);
+        if (!_applicationSettings.General.ProjectStates.TryGetValue(key, out var state))
+        {
+            state = new ProjectUserInterfaceState();
+            _applicationSettings.General.ProjectStates[key] = state;
+        }
+        state.Workspace = _activeWorkspace;
+        if (mediaKind is not null)
+        {
+            state.SelectedMediaKind = mediaKind;
+            state.SelectedMediaId = mediaId;
+        }
+        await _applicationSettingsStore.SaveAsync(_applicationSettings);
+    }
+
+    private void RestoreProjectUiState()
+    {
+        if (_workspace.Project is null) return;
+        var key = _workspace.Project.Id.ToString("N", CultureInfo.InvariantCulture);
+        _applicationSettings.General.ProjectStates.TryGetValue(key, out var state);
+        _restoringProjectUiState = true;
+        try
+        {
+            _activeWorkspace = state?.Workspace ?? ProjectWorkspaceKind.Generate;
+            GenerateWorkspaceButton.IsChecked = _activeWorkspace == ProjectWorkspaceKind.Generate;
+            EditWorkspaceButton.IsChecked = _activeWorkspace == ProjectWorkspaceKind.Edit;
+            ApplyWorkspaceMode();
+            if (state is { SelectedMediaKind: "asset", SelectedMediaId: { } assetId })
+                AssetsList.SelectedItem = _assets.FirstOrDefault(item => item.Asset.Id == assetId);
+        }
+        finally
+        {
+            _restoringProjectUiState = false;
         }
     }
 
@@ -373,7 +451,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         JobsEmptyText.Visibility = _jobs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         JobsList.Visibility = _jobs.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-        if (JobsTab.IsSelected) MarkVisibleTerminalJobsViewed();
+        if (_isJobsPanelOpen) MarkVisibleTerminalJobsViewed();
         RefreshJobElapsedTimes();
     }
 
@@ -850,6 +928,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var selectedProjectId = _workspace.Project?.Id;
         GenerationsList.SelectedItem = null;
         ResetFrameWorkspace();
+        if (!_restoringProjectUiState) await SaveProjectUiStateAsync("asset", asset.Id);
 
         await RunUiActionAsync(
             $"Inspecting {asset.FileName}…",
@@ -2433,6 +2512,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         RefreshProjectCollections();
         if (_workspace.Project.CurrentGenerationDraft is { } draft)
             LoadDraftIntoUi(draft);
+        RestoreProjectUiState();
         _suppressDraftAutosave = false;
 
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} assets";

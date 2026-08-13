@@ -68,6 +68,32 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="WorkspaceModeButtonStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="ModeBorder" Background="#1C202B" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="3" Padding="18,8" Margin="2,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ModeBorder" Property="Background" Value="#292D3A" />
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ModeBorder" Property="Background" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="ModeBorder" Property="BorderBrush" Value="#A89BFF" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -78,6 +104,19 @@
 
         <Border Grid.Row="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
             <DockPanel Margin="10,5">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Button x:Name="JobsChromeButton" Click="JobsChrome_Click" Margin="8,0,4,0"
+                            ToolTip="View generation jobs from any workspace">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Jobs" />
+                            <Ellipse x:Name="JobsActivityIndicator" Width="8" Height="8" Margin="6,0,0,0"
+                                     VerticalAlignment="Center" Fill="#FFD166" Visibility="Collapsed"
+                                     ToolTip="A generation job changed status" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock x:Name="ProjectTitleText" Text="No project open" Foreground="{StaticResource MutedTextBrush}"
+                               VerticalAlignment="Center" Margin="12,0" />
+                </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <TextBlock Text="REELFORGE" Style="{StaticResource ApplicationTextBlockStyle}" FontSize="16" VerticalAlignment="Center" Margin="4,0,18,0" />
                     <Button x:Name="NewProjectButton" Content="New project" Click="NewProject_Click" />
@@ -86,8 +125,14 @@
                     <Button x:Name="ImportAssetsButton" Content="Import assets" Click="ImportAssets_Click" />
                     <Button x:Name="SettingsButton" Content="Settings" Click="Settings_Click" />
                 </StackPanel>
-                <TextBlock x:Name="ProjectTitleText" Text="No project open" Foreground="{StaticResource MutedTextBrush}"
-                           VerticalAlignment="Center" HorizontalAlignment="Right" Margin="12,0" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <RadioButton x:Name="GenerateWorkspaceButton" Content="Generate" GroupName="Workspace"
+                                 Style="{StaticResource WorkspaceModeButtonStyle}" IsChecked="True"
+                                 Checked="WorkspaceMode_Checked" />
+                    <RadioButton x:Name="EditWorkspaceButton" Content="Edit" GroupName="Workspace"
+                                 Style="{StaticResource WorkspaceModeButtonStyle}"
+                                 Checked="WorkspaceMode_Checked" />
+                </StackPanel>
             </DockPanel>
         </Border>
 
@@ -103,16 +148,16 @@
             <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <Grid Margin="12">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="2*" MinHeight="80" />
-                        <RowDefinition Height="5" />
-                        <RowDefinition Height="*" MinHeight="80" />
+                        <RowDefinition x:Name="ProjectMediaRow" Height="2*" MinHeight="80" />
+                        <RowDefinition x:Name="GenerationSplitterRow" Height="5" />
+                        <RowDefinition x:Name="GenerationHistoryRow" Height="*" MinHeight="80" />
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TextBlock Text="PROJECT ASSETS" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,2,4,8" />
+                        <TextBlock Text="PROJECT MEDIA" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,2,4,8" />
                         <ListBox x:Name="AssetsList" Grid.Row="1" SelectionChanged="AssetsList_SelectionChanged"
                                  PreviewMouseRightButtonDown="AssetsList_PreviewMouseRightButtonDown">
                         <ListBox.ContextMenu>
@@ -138,9 +183,9 @@
                         </ListBox.ItemTemplate>
                         </ListBox>
                     </Grid>
-                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
+                    <GridSplitter x:Name="GenerationPanelSplitter" Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
                                   ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
-                    <Grid Grid.Row="2">
+                    <Grid x:Name="GenerationHistoryPanel" Grid.Row="2">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
@@ -229,7 +274,7 @@
 
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" />
 
-                <Border Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                <Border x:Name="GenerateLowerWorkspace" Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
                     <Grid Margin="14">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -334,14 +379,30 @@
                         </Grid>
                     </Grid>
                 </Border>
+                <Border x:Name="EditLowerWorkspace" Grid.Row="2" Visibility="Collapsed"
+                        Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <Grid Margin="18">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480">
+                            <TextBlock Text="WORKING COMPOSITION" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Text="No composition yet." Style="{StaticResource ApplicationTextBlockStyle}"
+                                       FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,7" />
+                            <TextBlock Text="Choose a starting video or Saved Clip from Project Media. The editor will build a logical composition without copying or destructively changing the source."
+                                       TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+                            <Button x:Name="StartEditButton" Content="Start Edit" IsEnabled="False"
+                                    HorizontalAlignment="Center" Margin="0,16,0,0"
+                                    ToolTip="Select a video or Saved Clip in Project Media first" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
             </Grid>
 
             <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" />
 
             <Border Grid.Column="4" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
-                <TabControl x:Name="RightPanelTabs" Margin="8" Style="{StaticResource RightPanelTabControlStyle}"
-                            SelectionChanged="RightPanelTabs_SelectionChanged">
-                    <TabItem Header="Inspector">
+                <Grid>
+                <TabControl x:Name="RightPanelTabs" Margin="8" Style="{StaticResource RightPanelTabControlStyle}">
+                    <TabItem x:Name="InspectorTab" Header="Inspector">
                         <Grid Margin="10">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -352,7 +413,7 @@
                                      Text="Select an asset or generation to inspect its details and history." />
                         </Grid>
                     </TabItem>
-                    <TabItem Header="Generate">
+                    <TabItem x:Name="GenerateTab" Header="Generate">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="12">
                                 <TextBlock Text="GENERATION PROVIDER" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
@@ -486,25 +547,30 @@
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
-                    <TabItem x:Name="JobsTab">
-                        <TabItem.Header>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Jobs" />
-                                <Ellipse x:Name="JobsActivityIndicator" Width="7" Height="7" Margin="5,1,0,0"
-                                         VerticalAlignment="Top" Fill="#FFD166" Visibility="Collapsed"
-                                         ToolTip="A generation job changed status" />
-                            </StackPanel>
-                        </TabItem.Header>
+                    <TabItem x:Name="EditToolsTab" Header="Edit Tools" Visibility="Collapsed">
+                        <StackPanel Margin="12">
+                            <TextBlock Text="EDIT TOOLS" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                            <TextBlock Text="Working Composition" Style="{StaticResource ApplicationTextBlockStyle}"
+                                       FontSize="17" FontWeight="SemiBold" Margin="0,16,0,5" />
+                            <TextBlock Text="Start a composition from Project Media to expose editing inspection and tools. Full timeline, audio, encoding, and export controls remain in their later milestone."
+                                       TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" />
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
+                    <Grid x:Name="JobsPanel" Visibility="Collapsed" Background="{StaticResource PanelBrush}" Margin="8">
                         <Grid Margin="10">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <StackPanel Margin="2,4,2,10">
+                            <DockPanel Margin="2,4,2,10">
+                                <Button DockPanel.Dock="Right" Content="Close" Click="CloseJobs_Click" Padding="8,3" />
+                                <StackPanel>
                                 <TextBlock Text="GENERATION JOBS" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
-                                <TextBlock Text="Completed jobs clear from this pane after you view them and leave the Jobs tab."
+                                <TextBlock Text="Completed jobs clear from this pane after you view them and leave Jobs."
                                            TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
-                            </StackPanel>
+                                </StackPanel>
+                            </DockPanel>
                             <Grid Grid.Row="1">
                                 <TextBlock x:Name="JobsEmptyText" Text="No generation jobs to review."
                                            Foreground="{StaticResource MutedTextBrush}"
@@ -555,8 +621,8 @@
                                 </ListBox>
                             </Grid>
                         </Grid>
-                    </TabItem>
-                </TabControl>
+                    </Grid>
+                </Grid>
             </Border>
 
             <Border x:Name="ExpandedPromptPanel" Grid.Column="2" Grid.ColumnSpan="3" Panel.ZIndex="10"
