@@ -166,6 +166,8 @@ public static class ApplicationConfigurationCatalog
             @"C:\path\to\ffmpeg.exe", MediaToolsSection),
         new("MediaTools.FfprobePath", "ffprobe path", "Explicit ffprobe.exe path. Leave empty to use PATH auto-detection.", false, false,
             @"C:\path\to\ffprobe.exe", MediaToolsSection),
+        new("MediaTools.CacheSizeBytes", "Media cache limit", "Maximum disk space for disposable media derivatives. Lower cache values may make some video-editing actions perform poorly or become impossible.", false, false,
+            MediaToolConfiguration.DefaultCacheSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture), MediaToolsSection),
         new("TemporaryAssetHosting.CloudflareR2.AccountId", "R2 Account ID", "Cloudflare account identifier used by the R2 S3 endpoint.", true, false,
             "32-character Cloudflare account ID", R2Section),
         new("TemporaryAssetHosting.CloudflareR2.BucketName", "R2 bucket name", "Private bucket used for temporary provider references.", true, false,
@@ -205,6 +207,7 @@ public static class ApplicationSettingsAccessor
         "General.LogDirectory" => settings.General.LogDirectory,
         "MediaTools.FfmpegPath" => settings.MediaTools.FfmpegPath ?? string.Empty,
         "MediaTools.FfprobePath" => settings.MediaTools.FfprobePath ?? string.Empty,
+        "MediaTools.CacheSizeBytes" => settings.MediaTools.CacheSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
         "TemporaryAssetHosting.CloudflareR2.AccountId" => settings.TemporaryAssetHosting.CloudflareR2.AccountId,
         "TemporaryAssetHosting.CloudflareR2.BucketName" => settings.TemporaryAssetHosting.CloudflareR2.BucketName,
         "TemporaryAssetHosting.CloudflareR2.Endpoint" => settings.TemporaryAssetHosting.CloudflareR2.Endpoint,
@@ -235,6 +238,15 @@ public static class ApplicationSettingsAccessor
                 break;
             case "MediaTools.FfmpegPath": settings.MediaTools.FfmpegPath = EmptyToNull(value); break;
             case "MediaTools.FfprobePath": settings.MediaTools.FfprobePath = EmptyToNull(value); break;
+            case "MediaTools.CacheSizeBytes":
+                const long minimumCacheBytes = 1024L * 1024;
+                const long maximumCacheBytes = 8L * 1024 * 1024 * 1024 * 1024;
+                if (!long.TryParse(value, System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture, out var cacheBytes) ||
+                    cacheBytes is < minimumCacheBytes or > maximumCacheBytes)
+                    throw new ArgumentException("Media cache limit must be between 1 MB and 8 TB.");
+                settings.MediaTools.CacheSizeBytes = cacheBytes;
+                break;
             case "TemporaryAssetHosting.CloudflareR2.AccountId": settings.TemporaryAssetHosting.CloudflareR2.AccountId = value; break;
             case "TemporaryAssetHosting.CloudflareR2.BucketName": settings.TemporaryAssetHosting.CloudflareR2.BucketName = value; break;
             case "TemporaryAssetHosting.CloudflareR2.Endpoint": settings.TemporaryAssetHosting.CloudflareR2.Endpoint = value; break;

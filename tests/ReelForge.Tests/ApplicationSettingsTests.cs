@@ -198,6 +198,23 @@ public sealed class ApplicationSettingsTests
             ApplicationSettingsAccessor.Set(settings, "General.LogDirectory", " "));
     }
 
+    [Fact]
+    public void MediaCacheLimitDefaultsToTenGigabytesAndStoresCanonicalBytes()
+    {
+        var settings = new ApplicationSettings();
+
+        Assert.Equal(10L * 1024 * 1024 * 1024, settings.MediaTools.CacheSizeBytes);
+
+        ApplicationSettingsAccessor.Set(
+            settings,
+            "MediaTools.CacheSizeBytes",
+            (2L * 1024 * 1024 * 1024).ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        Assert.Equal(2L * 1024 * 1024 * 1024, settings.MediaTools.CacheSizeBytes);
+        Assert.Throws<ArgumentException>(() =>
+            ApplicationSettingsAccessor.Set(settings, "MediaTools.CacheSizeBytes", "1048575"));
+    }
+
     private static ApplicationSettings ConfiguredR2Settings()
     {
         var settings = new ApplicationSettings();

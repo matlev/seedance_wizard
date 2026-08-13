@@ -166,6 +166,8 @@ public partial class SettingsWindow : Window
             return CreateBooleanEditor(requirement);
         if (requirement.Key == "General.UndoSendSeconds")
             return CreateUndoSendEditor(requirement);
+        if (requirement.Key == "MediaTools.CacheSizeBytes")
+            return CreateCacheSizeEditor(requirement);
 
         var panel = CreateFieldPanel(requirement);
         var row = new Grid();
@@ -195,6 +197,96 @@ public partial class SettingsWindow : Window
             row.Children.Add(browse);
         }
 
+        panel.Children.Add(row);
+        return panel;
+    }
+
+    private FrameworkElement CreateCacheSizeEditor(ConfigurationRequirement requirement)
+    {
+        const long megabyte = 1024L * 1024;
+        const long gigabyte = 1024L * 1024 * 1024;
+        var panel = CreateFieldPanel(requirement);
+        panel.ToolTip = requirement.Description;
+        var row = new Grid { ToolTip = requirement.Description };
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
+        var current = _pendingValues.TryGetValue(requirement.Key, out var pending)
+            ? pending
+            : ApplicationSettingsAccessor.Get(_editor.Settings, requirement.Key);
+        var bytes = long.TryParse(current, System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : MediaToolConfiguration.DefaultCacheSizeBytes;
+        var useGigabytes = bytes >= gigabyte && bytes % gigabyte == 0;
+        var value = useGigabytes ? bytes / (decimal)gigabyte : bytes / (decimal)megabyte;
+        var valueEditor = new TextBox
+        {
+            Text = value.ToString("0.##", System.Globalization.CultureInfo.CurrentCulture),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            ToolTip = requirement.Description
+        };
+        var unitEditor = new ComboBox
+        {
+            Margin = new Thickness(7, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            ToolTip = "Choose whether the cache limit is measured in megabytes or gigabytes."
+        };
+        var megabytes = new ComboBoxItem { Content = "Megabytes (MB)", Tag = megabyte };
+        var gigabytes = new ComboBoxItem { Content = "Gigabytes (GB)", Tag = gigabyte };
+        unitEditor.Items.Add(megabytes);
+        unitEditor.Items.Add(gigabytes);
+        unitEditor.SelectedItem = useGigabytes ? gigabytes : megabytes;
+        var previousUnitFactor = useGigabytes ? gigabyte : megabyte;
+
+        void UpdatePendingValue()
+        {
+            var factor = (unitEditor.SelectedItem as ComboBoxItem)?.Tag is long selectedFactor
+                ? selectedFactor
+                : megabyte;
+            if (!decimal.TryParse(valueEditor.Text, System.Globalization.NumberStyles.Number,
+                    System.Globalization.CultureInfo.CurrentCulture, out var selectedValue) || selectedValue <= 0)
+            {
+                _pendingValues[requirement.Key] = "0";
+                return;
+            }
+            try
+            {
+                _pendingValues[requirement.Key] = decimal.ToInt64(decimal.Round(
+                        selectedValue * factor,
+                        0,
+                        MidpointRounding.AwayFromZero))
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+            catch (OverflowException)
+            {
+                _pendingValues[requirement.Key] = long.MaxValue.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
+
+        valueEditor.TextChanged += (_, _) => UpdatePendingValue();
+        valueEditor.LostKeyboardFocus += async (_, _) => await CommitVisibleAsync().ConfigureAwait(true);
+        unitEditor.SelectionChanged += async (_, _) =>
+        {
+            var newUnitFactor = (unitEditor.SelectedItem as ComboBoxItem)?.Tag is long selectedFactor
+                ? selectedFactor
+                : megabyte;
+            if (newUnitFactor != previousUnitFactor &&
+                decimal.TryParse(valueEditor.Text, System.Globalization.NumberStyles.Number,
+                    System.Globalization.CultureInfo.CurrentCulture, out var previousValue))
+            {
+                var convertedValue = previousValue * previousUnitFactor / newUnitFactor;
+                valueEditor.Text = convertedValue.ToString(
+                    "0.##",
+                    System.Globalization.CultureInfo.CurrentCulture);
+            }
+            previousUnitFactor = newUnitFactor;
+            UpdatePendingValue();
+            await CommitVisibleAsync().ConfigureAwait(true);
+        };
+        row.Children.Add(valueEditor);
+        Grid.SetColumn(unitEditor, 1);
+        row.Children.Add(unitEditor);
         panel.Children.Add(row);
         return panel;
     }

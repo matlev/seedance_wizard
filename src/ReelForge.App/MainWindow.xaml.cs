@@ -89,7 +89,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "ReelForge",
-                "Cache"));
+                "Cache"),
+            maximumCacheBytes: configuredTools.CacheSizeBytes);
         _projectStore = new PortableProjectStore();
         _assetImporter = new AssetImportService(_mediaInspector);
         _workspace = new ProjectWorkspace(_projectStore, _assetImporter);
@@ -510,6 +511,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _applicationSettings.MediaTools.FfprobePath);
         _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
         _exactFrameService.UpdateExecutablePaths(_mediaTools.FfmpegPath, _mediaTools.FfprobePath);
+        _exactFrameService.UpdateMaximumCacheBytes(_applicationSettings.MediaTools.CacheSizeBytes);
+        await _exactFrameService.TrimCacheAsync();
         MediaToolsText.Text = _mediaTools.Summary;
         RefreshProviderRuntime(selectedProviderId);
         if (activeDraft is not null && _generationProvider.Capabilities.ProviderId.Equals(

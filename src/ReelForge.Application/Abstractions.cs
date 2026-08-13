@@ -340,8 +340,11 @@ public sealed record ConnectionTestResult(
 
 public sealed class MediaToolConfiguration
 {
+    public const long DefaultCacheSizeBytes = 10L * 1024 * 1024 * 1024;
+
     public string? FfmpegPath { get; set; }
     public string? FfprobePath { get; set; }
+    public long CacheSizeBytes { get; set; } = DefaultCacheSizeBytes;
 }
 
 public sealed record MediaToolAvailability(

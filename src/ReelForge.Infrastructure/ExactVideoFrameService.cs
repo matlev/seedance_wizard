@@ -15,10 +15,13 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
     private readonly IContentHashService _contentHashService;
     private readonly string _cacheRoot;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _cacheLocks = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, int> _leasedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _fingerprintLock = new(1, 1);
+    private readonly SemaphoreSlim _trimLock = new(1, 1);
     private string? _ffmpegPath;
     private string? _ffprobePath;
     private string? _rendererFingerprint;
+    private long _maximumCacheBytes;
     private bool _disposed;
 
     public ExactVideoFrameService(
@@ -26,7 +29,8 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
         string? ffprobePath,
         IExternalProcessRunner runner,
         string cacheRoot,
-        IContentHashService? contentHashService = null)
+        IContentHashService? contentHashService = null,
+        long maximumCacheBytes = MediaToolConfiguration.DefaultCacheSizeBytes)
     {
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheRoot);
@@ -35,6 +39,7 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
         _runner = runner;
         _cacheRoot = Path.GetFullPath(cacheRoot);
         _contentHashService = contentHashService ?? new Sha256ContentHashService();
+        UpdateMaximumCacheBytes(maximumCacheBytes);
     }
 
     public void UpdateExecutablePaths(string? ffmpegPath, string? ffprobePath)
@@ -44,11 +49,74 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
         _rendererFingerprint = null;
     }
 
+    public void UpdateMaximumCacheBytes(long maximumCacheBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumCacheBytes);
+        Interlocked.Exchange(ref _maximumCacheBytes, maximumCacheBytes);
+    }
+
+    public async Task TrimCacheAsync(CancellationToken cancellationToken = default)
+    {
+        await _trimLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!Directory.Exists(_cacheRoot)) return;
+
+            var entries = new List<CacheEntry>();
+            long totalBytes = 0;
+            foreach (var path in Directory.EnumerateFiles(_cacheRoot, "*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (Path.GetFileName(path).Contains(".tmp.", StringComparison.OrdinalIgnoreCase)) continue;
+                try
+                {
+                    var info = new FileInfo(path);
+                    if (!info.Exists) continue;
+                    entries.Add(new CacheEntry(info.FullName, info.Length, info.LastWriteTimeUtc));
+                    totalBytes += info.Length;
+                }
+                catch (IOException)
+                {
+                    // A concurrent cache operation owns this entry; leave it for the next trim.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Cache cleanup is best effort and must not prevent frame materialization.
+                }
+            }
+
+            var maximumBytes = Interlocked.Read(ref _maximumCacheBytes);
+            foreach (var entry in entries.OrderBy(candidate => candidate.LastUsedUtc))
+            {
+                if (totalBytes <= maximumBytes) break;
+                if (_leasedPaths.ContainsKey(entry.Path)) continue;
+                try
+                {
+                    File.Delete(entry.Path);
+                    totalBytes -= entry.Length;
+                }
+                catch (IOException)
+                {
+                    // The entry became busy after enumeration; retry on a later trim.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Cache cleanup is best effort.
+                }
+            }
+        }
+        finally
+        {
+            _trimLock.Release();
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         _fingerprintLock.Dispose();
+        _trimLock.Dispose();
         foreach (var cacheLock in _cacheLocks.Values) cacheLock.Dispose();
         _cacheLocks.Clear();
     }
@@ -98,13 +166,15 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
         var key = CreateCacheKey(sourceContentHash, revision, purpose, profile, fingerprint);
         var cacheDirectory = Path.Combine(_cacheRoot, "frames");
         var cachePath = Path.Combine(cacheDirectory, $"{key}.png");
-        if (IsUsableCacheFile(cachePath)) return await OpenCacheLeaseAsync(cachePath, cancellationToken).ConfigureAwait(false);
+        if (IsUsableCacheFile(cachePath))
+            return await OpenAndTrimCacheLeaseAsync(cachePath, cancellationToken).ConfigureAwait(false);
 
         var cacheLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
         await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (IsUsableCacheFile(cachePath)) return await OpenCacheLeaseAsync(cachePath, cancellationToken).ConfigureAwait(false);
+            if (IsUsableCacheFile(cachePath))
+                return await OpenAndTrimCacheLeaseAsync(cachePath, cancellationToken).ConfigureAwait(false);
             Directory.CreateDirectory(cacheDirectory);
             var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.png");
             try
@@ -136,7 +206,7 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
                 if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
             }
 
-            return await OpenCacheLeaseAsync(cachePath, cancellationToken).ConfigureAwait(false);
+            return await OpenAndTrimCacheLeaseAsync(cachePath, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -214,16 +284,48 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
             profile ?? string.Empty,
             rendererFingerprint));
 
-    private async Task<MaterializedMediaLease> OpenCacheLeaseAsync(
+    private async Task<MaterializedMediaLease> OpenAndTrimCacheLeaseAsync(
         string cachePath,
         CancellationToken cancellationToken)
     {
-        var identity = await _contentHashService.ComputeAsync(cachePath, cancellationToken).ConfigureAwait(false);
-        return new MaterializedMediaLease(
-            cachePath,
-            identity,
-            new MediaEncodingMetadata { ContainerFormat = "png" },
-            isDurableSource: false);
+        var normalizedPath = Path.GetFullPath(cachePath);
+        _leasedPaths.AddOrUpdate(normalizedPath, 1, static (_, count) => checked(count + 1));
+        try
+        {
+            File.SetLastWriteTimeUtc(normalizedPath, DateTime.UtcNow);
+            var identity = await _contentHashService.ComputeAsync(normalizedPath, cancellationToken).ConfigureAwait(false);
+            await TrimCacheAsync(cancellationToken).ConfigureAwait(false);
+            return new MaterializedMediaLease(
+                normalizedPath,
+                identity,
+                new MediaEncodingMetadata { ContainerFormat = "png" },
+                isDurableSource: false,
+                release: () =>
+                {
+                    ReleaseLease(normalizedPath);
+                    return ValueTask.CompletedTask;
+                });
+        }
+        catch
+        {
+            ReleaseLease(normalizedPath);
+            throw;
+        }
+    }
+
+    private void ReleaseLease(string path)
+    {
+        while (_leasedPaths.TryGetValue(path, out var count))
+        {
+            if (count <= 1)
+            {
+                if (_leasedPaths.TryRemove(new KeyValuePair<string, int>(path, count))) return;
+            }
+            else if (_leasedPaths.TryUpdate(path, count - 1, count))
+            {
+                return;
+            }
+        }
     }
 
     private static bool IsUsableCacheFile(string path) =>
@@ -252,4 +354,6 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
                int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out denominator) &&
                numerator > 0 && denominator > 0;
     }
+
+    private sealed record CacheEntry(string Path, long Length, DateTime LastUsedUtc);
 }

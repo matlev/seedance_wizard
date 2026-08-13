@@ -99,6 +99,32 @@ public sealed class ExactVideoFrameServiceTests : IDisposable
             : []);
     }
 
+    [Fact]
+    public async Task CacheLimitEvictsOldestUnleasedFrameWithoutRemovingActiveLease()
+    {
+        var runner = new FrameRunner();
+        using var service = new ExactVideoFrameService(
+            "ffmpeg.exe",
+            "ffprobe.exe",
+            runner,
+            _root,
+            maximumCacheBytes: 5);
+        var firstRevision = CreateRevision();
+        var secondRevision = CreateRevision();
+
+        var first = await service.ExtractAsync(
+            "source.mp4", firstRevision.SourceContentHash, firstRevision, MaterializationPurpose.Thumbnail);
+        var firstPath = first.Path;
+        await first.DisposeAsync();
+        await Task.Delay(20);
+
+        await using var second = await service.ExtractAsync(
+            "source.mp4", secondRevision.SourceContentHash, secondRevision, MaterializationPurpose.Thumbnail);
+
+        Assert.False(File.Exists(firstPath));
+        Assert.True(File.Exists(second.Path));
+    }
+
     private ExactVideoFrameService CreateService(FrameRunner runner) =>
         new("ffmpeg.exe", "ffprobe.exe", runner, _root);
 

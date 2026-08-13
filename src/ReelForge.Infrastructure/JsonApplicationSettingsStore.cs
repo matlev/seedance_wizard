@@ -92,6 +92,8 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
     {
         settings.General ??= new GeneralApplicationSettings();
         settings.MediaTools ??= new MediaToolConfiguration();
+        if (settings.MediaTools.CacheSizeBytes <= 0)
+            settings.MediaTools.CacheSizeBytes = MediaToolConfiguration.DefaultCacheSizeBytes;
         settings.TemporaryAssetHosting ??= new TemporaryAssetHostingSettings();
         settings.TemporaryAssetHosting.CloudflareR2 ??= new CloudflareR2Settings();
         settings.VideoGenerationProviders ??= new VideoGenerationProviderSettings();
