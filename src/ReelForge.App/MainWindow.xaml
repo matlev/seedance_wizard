@@ -7,6 +7,67 @@
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <local:PromptPreviewConverter x:Key="PromptPreviewConverter" />
+        <Style x:Key="RightPanelTabItemStyle" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="0,0,0,2"
+                                CornerRadius="4,4,0,0"
+                                Margin="0,0,3,0"
+                                Padding="13,9,13,7">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#222633" />
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#292D3A" />
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="RightPanelTabControlStyle" TargetType="TabControl">
+            <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource RightPanelTabItemStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid KeyboardNavigation.TabNavigation="Local">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TabPanel Grid.Row="0" IsItemsHost="True" Margin="0,0,0,-1"
+                                      KeyboardNavigation.TabIndex="1" Panel.ZIndex="1" />
+                            <Border Grid.Row="1" Background="{TemplateBinding Background}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                                <ContentPresenter x:Name="PART_SelectedContentHost"
+                                                  ContentSource="SelectedContent" />
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -42,15 +103,18 @@
             <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <Grid Margin="12">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="2*" MinHeight="80" />
                         <RowDefinition Height="5" />
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" MinHeight="80" />
                     </Grid.RowDefinitions>
-                    <TextBlock Text="PROJECT ASSETS" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,2,4,8" />
-                    <ListBox x:Name="AssetsList" Grid.Row="1" SelectionChanged="AssetsList_SelectionChanged"
-                             PreviewMouseRightButtonDown="AssetsList_PreviewMouseRightButtonDown">
+                    <Grid Grid.Row="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="PROJECT ASSETS" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,2,4,8" />
+                        <ListBox x:Name="AssetsList" Grid.Row="1" SelectionChanged="AssetsList_SelectionChanged"
+                                 PreviewMouseRightButtonDown="AssetsList_PreviewMouseRightButtonDown">
                         <ListBox.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Change filename…" Click="RenameAsset_Click" />
@@ -82,11 +146,19 @@
                                 </Border>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
-                    </ListBox>
-                    <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" />
-                    <TextBlock Grid.Row="3" Text="GENERATIONS" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,8,4,6" />
-                    <ListBox x:Name="GenerationsList" Grid.Row="4" SelectionChanged="GenerationsList_SelectionChanged"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        </ListBox>
+                    </Grid>
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
+                                  ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="GENERATIONS" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,8,4,6" />
+                        <ListBox x:Name="GenerationsList" Grid.Row="1" SelectionChanged="GenerationsList_SelectionChanged"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="False" VerticalContentAlignment="Top">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Margin="7,4">
@@ -102,7 +174,8 @@
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
-                    </ListBox>
+                        </ListBox>
+                    </Grid>
                 </Grid>
             </Border>
 
@@ -135,14 +208,21 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="90" />
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                <Button Content="Play" Click="Play_Click" Padding="10,4" />
-                                <Button Content="Pause" Click="Pause_Click" Padding="10,4" />
-                            </StackPanel>
+                            <Button x:Name="PlaybackButton" Grid.Column="0" Width="34" Height="30" Padding="8" Margin="0"
+                                    Click="Playback_Click" ToolTip="Play preview" IsEnabled="False"
+                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                                <Grid Width="16" Height="16">
+                                    <Path x:Name="PlayGlyph" Fill="{StaticResource TextBrush}"
+                                          Stretch="Uniform" Data="M 2,1 L 14,8 L 2,15 Z" />
+                                    <Path x:Name="PauseGlyph" Fill="{StaticResource TextBrush}" Visibility="Collapsed"
+                                          Stretch="Uniform" Data="M 2,1 H 6 V 15 H 2 Z M 10,1 H 14 V 15 H 10 Z" />
+                                </Grid>
+                            </Button>
                             <Slider x:Name="PositionSlider" Grid.Column="1" Minimum="0" Maximum="1" Margin="10,0"
-                                    VerticalAlignment="Center" IsMoveToPointEnabled="True"
+                                    VerticalAlignment="Center" IsMoveToPointEnabled="False"
                                     ValueChanged="PositionSlider_ValueChanged"
                                     PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
+                                    PreviewMouseMove="PositionSlider_PreviewMouseMove"
                                     PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp" />
                             <TextBlock x:Name="TimeText" Grid.Column="2" Style="{StaticResource ApplicationTextBlockStyle}"
                                        Text="00:00 / 00:00" VerticalAlignment="Center" Margin="6,0,10,0" />
@@ -181,7 +261,8 @@
             <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" />
 
             <Border Grid.Column="4" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
-                <TabControl x:Name="RightPanelTabs" Margin="8" SelectionChanged="RightPanelTabs_SelectionChanged">
+                <TabControl x:Name="RightPanelTabs" Margin="8" Style="{StaticResource RightPanelTabControlStyle}"
+                            SelectionChanged="RightPanelTabs_SelectionChanged">
                     <TabItem Header="Inspector">
                         <Grid Margin="10">
                             <Grid.RowDefinitions>

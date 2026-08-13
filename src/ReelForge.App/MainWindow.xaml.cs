@@ -56,7 +56,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _suppressPromptSynchronization;
     private bool _isVideoPlaying;
     private bool _isScrubbing;
-    private bool _wasPlayingBeforeScrub;
     private double _volumeBeforeMute = 1;
     private bool _jobsTabWasSelected;
     private bool _dismissingViewedJobs;
@@ -1550,15 +1549,18 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         VideoPreview.Source = new Uri(absolutePath, UriKind.Absolute);
         VideoPreview.Visibility = Visibility.Visible;
+        PlaybackButton.IsEnabled = true;
     }
 
     private void ClearMediaPreview()
     {
         VideoPreview.Stop();
-        _isVideoPlaying = false;
+        SetPlaybackState(false);
         _isScrubbing = false;
+        if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
         VideoPreview.Source = null;
         VideoPreview.Visibility = Visibility.Collapsed;
+        PlaybackButton.IsEnabled = false;
         ImagePreview.Source = null;
         ImagePreview.Visibility = Visibility.Collapsed;
         PreviewPlaceholder.Text = "Select a video or image asset to preview";
@@ -1585,6 +1587,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             VideoPreview.Pause();
             VideoPreview.Position = TimeSpan.Zero;
         }
+        SetPlaybackState(_isVideoPlaying);
         UpdatePlaybackPosition();
     }
 
@@ -1592,46 +1595,52 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         VideoPreview.Position = TimeSpan.Zero;
         VideoPreview.Pause();
-        _isVideoPlaying = false;
+        SetPlaybackState(false);
         UpdatePlaybackPosition();
     }
 
-    private void Play_Click(object sender, RoutedEventArgs e)
+    private void Playback_Click(object sender, RoutedEventArgs e)
     {
-        if (VideoPreview.Source is not null)
+        if (VideoPreview.Source is null) return;
+        if (_isVideoPlaying)
         {
-            VideoPreview.Play();
-            _isVideoPlaying = true;
+            VideoPreview.Pause();
+            SetPlaybackState(false);
+            return;
         }
-    }
 
-    private void Pause_Click(object sender, RoutedEventArgs e)
-    {
-        VideoPreview.Pause();
-        _isVideoPlaying = false;
+        VideoPreview.Play();
+        SetPlaybackState(true);
     }
 
     private void PositionSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (VideoPreview.Source is null) return;
         _isScrubbing = true;
-        _wasPlayingBeforeScrub = _isVideoPlaying;
         VideoPreview.Pause();
-        var pointer = e.GetPosition(PositionSlider);
-        if (PositionSlider.ActualWidth > 0)
-            PositionSlider.Value = Math.Clamp(pointer.X / PositionSlider.ActualWidth, 0, 1) * PositionSlider.Maximum;
+        SetPlaybackState(false);
+        PositionSlider.CaptureMouse();
+        UpdateScrubPosition(e);
+        e.Handled = true;
+    }
+
+    private void PositionSlider_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_isScrubbing || e.LeftButton != MouseButtonState.Pressed) return;
+        UpdateScrubPosition(e);
+        e.Handled = true;
     }
 
     private void PositionSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (VideoPreview.Source is null) return;
+        if (VideoPreview.Source is null || !_isScrubbing) return;
+        UpdateScrubPosition(e);
         SeekPreview(PositionSlider.Value);
         _isScrubbing = false;
-        if (_wasPlayingBeforeScrub)
-        {
-            VideoPreview.Play();
-            _isVideoPlaying = true;
-        }
+        if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
+        VideoPreview.Play();
+        SetPlaybackState(true);
+        e.Handled = true;
     }
 
     private void PositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -1644,6 +1653,24 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (VideoPreview.Source is null) return;
         VideoPreview.Position = TimeSpan.FromSeconds(Math.Clamp(seconds, 0, PositionSlider.Maximum));
         TimeText.Text = $"{FormatTime(VideoPreview.Position)} / {FormatTime(VideoPreview.NaturalDuration.HasTimeSpan ? VideoPreview.NaturalDuration.TimeSpan : TimeSpan.Zero)}";
+    }
+
+    private void UpdateScrubPosition(MouseEventArgs e)
+    {
+        if (PositionSlider.ActualWidth <= 0) return;
+        var pointer = e.GetPosition(PositionSlider);
+        var fraction = Math.Clamp(pointer.X / PositionSlider.ActualWidth, 0, 1);
+        PositionSlider.Value = PositionSlider.Minimum +
+                               fraction * (PositionSlider.Maximum - PositionSlider.Minimum);
+    }
+
+    private void SetPlaybackState(bool isPlaying)
+    {
+        _isVideoPlaying = isPlaying;
+        if (PlaybackButton is null || PlayGlyph is null || PauseGlyph is null) return;
+        PlayGlyph.Visibility = isPlaying ? Visibility.Collapsed : Visibility.Visible;
+        PauseGlyph.Visibility = isPlaying ? Visibility.Visible : Visibility.Collapsed;
+        PlaybackButton.ToolTip = isPlaying ? "Pause preview" : "Play preview";
     }
 
     private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
