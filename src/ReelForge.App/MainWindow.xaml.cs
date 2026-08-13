@@ -33,6 +33,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly HashSet<Guid> _viewedTerminalJobIds = [];
     private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
     private readonly SemaphoreSlim _submissionGate = new(1, 1);
+    private readonly SemaphoreSlim _frameNavigationGate = new(1, 1);
     private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
@@ -68,6 +69,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _resumePlaybackAfterScrub;
     private bool _suppressFrameSelectionPrefetch;
     private bool _suppressProjectMediaSelection;
+    private int _pendingKeyboardFrameSteps;
+    private bool _isKeyboardFrameNavigationRunning;
     private double _volumeBeforeMute = 1;
     private bool _isJobsPanelOpen;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
@@ -78,6 +81,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _dismissingViewedJobs;
     private CancellationTokenSource? _frameBrowserCancellation;
     private IReadOnlyList<VideoPresentationFrame> _indexedFrames = [];
+    private double? _pendingContactFrameTimestamp;
     private Guid? _frameSourceAssetId;
     private string? _frameSourceContentHash;
     private MaterializedMediaLease? _activePreviewLease;
@@ -2222,7 +2226,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             SetPlaybackState(false);
         }
         _resumePlaybackAfterScrub = false;
-        ScheduleContactFrameRefresh();
+        ScheduleContactFrameRefresh(PositionSlider.Value);
         e.Handled = true;
     }
 
@@ -2377,6 +2381,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _frameBrowserCancellation?.Dispose();
         _frameBrowserCancellation = null;
         _indexedFrames = [];
+        _pendingContactFrameTimestamp = null;
+        _pendingKeyboardFrameSteps = 0;
+        _isKeyboardFrameNavigationRunning = false;
         _frameSourceAssetId = null;
         _frameSourceContentHash = null;
         _contactFrames.Clear();
@@ -2398,9 +2405,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         ClearSavedFrameEditor();
     }
 
-    private void ScheduleContactFrameRefresh()
+    private void ScheduleContactFrameRefresh(double? targetSeconds = null)
     {
         if (_indexedFrames.Count == 0 || _frameSourceAssetId is null) return;
+        _pendingContactFrameTimestamp = targetSeconds ?? VideoPreview.Position.TotalSeconds;
         _frameBrowserDebounceTimer.Stop();
         _frameBrowserDebounceTimer.Start();
     }
@@ -2412,8 +2420,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var cancellation = ReplaceFrameBrowserCancellation();
         try
         {
-            await EnsureFrameWindowAsync(VideoPreview.Position.TotalSeconds, cancellation.Token);
-            await RefreshContactFramesAsync(VideoPreview.Position.TotalSeconds, cancellation.Token);
+            var target = _pendingContactFrameTimestamp ?? VideoPreview.Position.TotalSeconds;
+            _pendingContactFrameTimestamp = null;
+            await RunFrameNavigationAsync(async token =>
+            {
+                await EnsureFrameWindowAsync(target, token);
+                await RefreshContactFramesAsync(target, token);
+            }, cancellation.Token);
             await RefreshSavedFramesAsync(cancellation.Token);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -2430,6 +2443,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (_workspace.Project is null || _frameSourceAssetId is not { } sourceAssetId) return;
         var source = _workspace.Project.Assets.Single(asset => asset.Id == sourceAssetId);
         var path = _workspace.GetAbsoluteAssetPath(source);
+        var duration = source.DurationSeconds ?? source.Encoding?.DurationSeconds ?? PositionSlider.Maximum;
+        if (duration > 0) centerSeconds = Math.Clamp(centerSeconds, 0, duration);
         var window = await _exactFrameService.IndexWindowAsync(
             path,
             Math.Max(0, centerSeconds),
@@ -2449,44 +2464,44 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             string.IsNullOrWhiteSpace(_frameSourceContentHash) || _indexedFrames.Count == 0) return;
         var source = _workspace.Project.Assets.Single(asset => asset.Id == sourceAssetId);
         var path = _workspace.GetAbsoluteAssetPath(source);
-        var selectedFrames = SelectContactFrames(centerSeconds);
+        var selectedFrames = ExactFrameContactWindow.Select(_indexedFrames, centerSeconds);
         if (selectedFrames.Count == 0) return;
 
-        _contactFrames.Clear();
         ContactFramesEmptyText.Visibility = Visibility.Collapsed;
         var center = selectedFrames.MinBy(frame => Math.Abs(frame.TimestampSeconds - centerSeconds))!;
-        var centerItem = await CreateContactItemAsync(path, sourceAssetId, center, cancellationToken);
+        var existingItems = _contactFrames.ToDictionary(
+            item => (item.Frame.VideoStreamIndex, item.Frame.PresentationTimestamp));
+        var missingFrames = selectedFrames.Where(frame =>
+            !existingItems.ContainsKey((frame.VideoStreamIndex, frame.PresentationTimestamp))).ToArray();
+        var createdItems = await Task.WhenAll(missingFrames.Select(frame =>
+            CreateContactItemAsync(path, sourceAssetId, frame, cancellationToken)));
         cancellationToken.ThrowIfCancellationRequested();
-        _contactFrames.Add(centerItem);
+        foreach (var item in createdItems)
+            existingItems[(item.Frame.VideoStreamIndex, item.Frame.PresentationTimestamp)] = item;
+        var desiredItems = selectedFrames.Select(frame =>
+            existingItems[(frame.VideoStreamIndex, frame.PresentationTimestamp)]).ToArray();
+
         _suppressFrameSelectionPrefetch = true;
         try
         {
-            ContactFramesList.SelectedItem = centerItem;
-            var remaining = selectedFrames.Where(frame => frame != center)
-                .Select(frame => CreateContactItemAsync(path, sourceAssetId, frame, cancellationToken))
-                .ToArray();
-            var neighbors = await Task.WhenAll(remaining);
-            cancellationToken.ThrowIfCancellationRequested();
-            var all = neighbors.Append(centerItem).OrderBy(item => item.Frame.PresentationTimestamp).ToArray();
-            _contactFrames.Clear();
-            foreach (var item in all) _contactFrames.Add(item);
-            ContactFramesList.SelectedItem = _contactFrames.First(item => item.Frame == center);
+            for (var index = 0; index < desiredItems.Length; index++)
+            {
+                var desired = desiredItems[index];
+                if (index < _contactFrames.Count && ReferenceEquals(_contactFrames[index], desired)) continue;
+                var existingIndex = _contactFrames.IndexOf(desired);
+                if (existingIndex >= 0) _contactFrames.Move(existingIndex, index);
+                else _contactFrames.Insert(index, desired);
+            }
+            while (_contactFrames.Count > desiredItems.Length) _contactFrames.RemoveAt(_contactFrames.Count - 1);
+            ContactFramesList.SelectedItem = desiredItems.Single(item =>
+                item.Frame.VideoStreamIndex == center.VideoStreamIndex &&
+                item.Frame.PresentationTimestamp == center.PresentationTimestamp);
             ContactFramesList.ScrollIntoView(ContactFramesList.SelectedItem);
         }
         finally
         {
             _suppressFrameSelectionPrefetch = false;
         }
-    }
-
-    private IReadOnlyList<VideoPresentationFrame> SelectContactFrames(double centerSeconds)
-    {
-        if (_indexedFrames.Count == 0) return [];
-        var center = _indexedFrames.MinBy(frame => Math.Abs(frame.TimestampSeconds - centerSeconds))!;
-        var centerIndex = _indexedFrames.ToList().IndexOf(center);
-        var start = Math.Max(0, Math.Min(centerIndex - 4, _indexedFrames.Count - 9));
-        var count = Math.Min(9, _indexedFrames.Count - start);
-        return _indexedFrames.Skip(start).Take(count).ToArray();
     }
 
     private async Task<FrameContactListItem> CreateContactItemAsync(
@@ -2603,57 +2618,143 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (ContactFramesList.SelectedItem is not FrameContactListItem item || VideoPreview.Source is null) return;
         SeekPreview(item.Frame.TimestampSeconds);
         if (_suppressFrameSelectionPrefetch) return;
-        var selectedIndex = _contactFrames.IndexOf(item);
-        if (selectedIndex > 1 && selectedIndex < _contactFrames.Count - 2) return;
-        var direction = selectedIndex <= 1 ? -1 : 1;
-        var cancellation = ReplaceFrameBrowserCancellation();
+        var cancellationToken = _frameBrowserCancellation?.Token ?? CancellationToken.None;
         try
         {
-            await EnsureFrameWindowAsync(Math.Max(0, item.Frame.TimestampSeconds + direction * 2), cancellation.Token);
-            await RefreshContactFramesAsync(item.Frame.TimestampSeconds, cancellation.Token);
+            await RunFrameNavigationAsync(async token =>
+            {
+                if (ContactFramesList.SelectedItem is not FrameContactListItem latest) return;
+                await EnsureAdjacentFramesAvailableAsync(latest.Frame, direction: 0, token);
+                await RefreshContactFramesAsync(latest.Frame.TimestampSeconds, token);
+            }, cancellationToken);
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
     }
 
-    private async void ContactFramesList_PreviewKeyDown(object sender, KeyEventArgs e)
+    private void ContactFramesList_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key is not (Key.Left or Key.Right) ||
-            ContactFramesList.SelectedItem is not FrameContactListItem selected) return;
+        if (e.Key is not (Key.Left or Key.Right)) return;
         e.Handled = true;
-        var direction = e.Key == Key.Left ? -1 : 1;
-        var currentIndex = _indexedFrames.ToList().FindIndex(frame =>
-            frame.VideoStreamIndex == selected.Frame.VideoStreamIndex &&
-            frame.PresentationTimestamp == selected.Frame.PresentationTimestamp);
-        if (currentIndex < 0) return;
-        if (currentIndex + direction < 0 || currentIndex + direction >= _indexedFrames.Count)
-        {
-            var cancellation = ReplaceFrameBrowserCancellation();
-            try
-            {
-                await EnsureFrameWindowAsync(
-                    Math.Max(0, selected.Frame.TimestampSeconds + direction * 2),
-                    cancellation.Token);
-                currentIndex = _indexedFrames.ToList().FindIndex(frame =>
-                    frame.VideoStreamIndex == selected.Frame.VideoStreamIndex &&
-                    frame.PresentationTimestamp == selected.Frame.PresentationTimestamp);
-            }
-            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-            {
-                return;
-            }
-        }
-        var nextIndex = currentIndex + direction;
-        if (nextIndex < 0 || nextIndex >= _indexedFrames.Count) return;
-        var next = _indexedFrames[nextIndex];
-        var nextCancellation = ReplaceFrameBrowserCancellation();
+        if (ContactFramesList.SelectedItem is not FrameContactListItem) return;
+        _pendingKeyboardFrameSteps += e.Key == Key.Left ? -1 : 1;
+        if (_isKeyboardFrameNavigationRunning) return;
+        _isKeyboardFrameNavigationRunning = true;
+        _ = ProcessKeyboardFrameNavigationAsync();
+    }
+
+    private async Task ProcessKeyboardFrameNavigationAsync()
+    {
         try
         {
-            await RefreshContactFramesAsync(next.TimestampSeconds, nextCancellation.Token);
+            while (_pendingKeyboardFrameSteps != 0 && _mediaPreparationMode != MediaPreparationMode.None)
+            {
+                var steps = _pendingKeyboardFrameSteps;
+                _pendingKeyboardFrameSteps = 0;
+                var cancellationToken = _frameBrowserCancellation?.Token ?? CancellationToken.None;
+                await RunFrameNavigationAsync(async token =>
+                {
+                    if (ContactFramesList.SelectedItem is not FrameContactListItem selected) return;
+                    var targetSeconds = EstimateKeyboardTargetSeconds(selected.Frame, steps);
+                    var nearestIndex = ExactFrameContactWindow.FindNearestIndex(_indexedFrames, targetSeconds);
+                    var localInterval = EstimateFrameIntervalSeconds(selected.Frame);
+                    if (nearestIndex < 0 ||
+                        Math.Abs(_indexedFrames[nearestIndex].TimestampSeconds - targetSeconds) > localInterval * 0.6)
+                    {
+                        await EnsureFrameWindowAsync(targetSeconds, token);
+                        nearestIndex = ExactFrameContactWindow.FindNearestIndex(_indexedFrames, targetSeconds);
+                    }
+                    if (nearestIndex < 0) return;
+                    var target = _indexedFrames[nearestIndex];
+                    await RefreshContactFramesAsync(target.TimestampSeconds, token);
+                }, cancellationToken);
+            }
         }
-        catch (OperationCanceledException) when (nextCancellation.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"Could not navigate exact frames: {exception.Message}";
+        }
+        finally
+        {
+            _isKeyboardFrameNavigationRunning = false;
+            if (_pendingKeyboardFrameSteps != 0 && _mediaPreparationMode != MediaPreparationMode.None)
+            {
+                _isKeyboardFrameNavigationRunning = true;
+                _ = ProcessKeyboardFrameNavigationAsync();
+            }
+        }
+    }
+
+    private async Task EnsureAdjacentFramesAvailableAsync(
+        VideoPresentationFrame selected,
+        int direction,
+        CancellationToken cancellationToken)
+    {
+        var selectedIndex = FindIndexedFrame(selected);
+        var needsEarlier = direction < 0 && selectedIndex <= 0;
+        var needsLater = direction > 0 && selectedIndex >= _indexedFrames.Count - 1;
+        var nearEitherEdge = direction == 0 &&
+                             (selectedIndex < 4 || selectedIndex >= _indexedFrames.Count - 4);
+        if (!needsEarlier && !needsLater && !nearEitherEdge) return;
+
+        var source = _workspace.Project?.Assets.SingleOrDefault(asset => asset.Id == _frameSourceAssetId);
+        var duration = source?.DurationSeconds ?? source?.Encoding?.DurationSeconds ?? PositionSlider.Maximum;
+        var probeCenter = direction switch
+        {
+            < 0 => selected.TimestampSeconds - 2,
+            > 0 => selected.TimestampSeconds + 2,
+            _ when selectedIndex < 4 => selected.TimestampSeconds - 2,
+            _ => selected.TimestampSeconds + 2
+        };
+        if (duration > 0) probeCenter = Math.Clamp(probeCenter, 0, duration);
+        else probeCenter = Math.Max(0, probeCenter);
+        await EnsureFrameWindowAsync(probeCenter, cancellationToken);
+    }
+
+    private int FindIndexedFrame(VideoPresentationFrame frame) => _indexedFrames.ToList().FindIndex(candidate =>
+        candidate.VideoStreamIndex == frame.VideoStreamIndex &&
+        candidate.PresentationTimestamp == frame.PresentationTimestamp);
+
+    private double EstimateKeyboardTargetSeconds(VideoPresentationFrame selected, int steps)
+    {
+        var source = _workspace.Project?.Assets.SingleOrDefault(asset => asset.Id == _frameSourceAssetId);
+        var duration = source?.DurationSeconds ?? source?.Encoding?.DurationSeconds ?? PositionSlider.Maximum;
+        var target = selected.TimestampSeconds + steps * EstimateFrameIntervalSeconds(selected);
+        return duration > 0 ? Math.Clamp(target, 0, duration) : Math.Max(0, target);
+    }
+
+    private double EstimateFrameIntervalSeconds(VideoPresentationFrame selected)
+    {
+        var currentIndex = FindIndexedFrame(selected);
+        if (currentIndex >= 0 && currentIndex + 1 < _indexedFrames.Count)
+        {
+            var nextInterval = _indexedFrames[currentIndex + 1].TimestampSeconds - selected.TimestampSeconds;
+            if (nextInterval is > 0 and < 1) return nextInterval;
+        }
+        if (currentIndex > 0)
+        {
+            var priorInterval = selected.TimestampSeconds - _indexedFrames[currentIndex - 1].TimestampSeconds;
+            if (priorInterval is > 0 and < 1) return priorInterval;
+        }
+        return 1d / 30;
+    }
+
+    private async Task RunFrameNavigationAsync(
+        Func<CancellationToken, Task> action,
+        CancellationToken cancellationToken)
+    {
+        await _frameNavigationGate.WaitAsync(cancellationToken);
+        try
+        {
+            await action(cancellationToken);
+        }
+        finally
+        {
+            _frameNavigationGate.Release();
         }
     }
 
@@ -2862,7 +2963,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         if (SavedFramesList.SelectedItem is not SavedFrameListItem item) return;
         SeekPreview(item.Revision.TimestampSeconds);
-        ScheduleContactFrameRefresh();
+        ScheduleContactFrameRefresh(item.Revision.TimestampSeconds);
         StatusText.Text = $"Jumped to {FormatFrameTimestamp(item.Revision.TimestampSeconds)}.";
     }
 
