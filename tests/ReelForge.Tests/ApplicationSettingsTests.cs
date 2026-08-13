@@ -5,6 +5,23 @@ namespace ReelForge.Tests;
 
 public sealed class ApplicationSettingsTests
 {
+    [Theory]
+    [InlineData(true, ProjectWorkspaceKind.Generate, false, true)]
+    [InlineData(true, ProjectWorkspaceKind.Generate, true, false)]
+    [InlineData(true, ProjectWorkspaceKind.Edit, false, false)]
+    [InlineData(false, ProjectWorkspaceKind.Generate, false, false)]
+    public void GeneratedOutputPreviewOnlyUsesIdleGenerateViewer(
+        bool owningProjectIsOpen,
+        ProjectWorkspaceKind workspace,
+        bool mediaPreparationActive,
+        bool expected)
+    {
+        Assert.Equal(expected, GeneratedOutputPreviewPolicy.ShouldAutoPreview(
+            owningProjectIsOpen,
+            workspace,
+            mediaPreparationActive));
+    }
+
     [Fact]
     public async Task LocalSettingsOverrideDefaultsWithoutErasingOtherValues()
     {

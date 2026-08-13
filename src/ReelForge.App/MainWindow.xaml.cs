@@ -583,6 +583,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (isActiveProject)
         {
             RefreshProjectCollections();
+            TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
             StatusText.Text = job.Status == GenerationStatus.Succeeded
                 ? "Generated output added as durable project media."
                 : $"Generation finished with status {job.Status}.";
@@ -1496,6 +1497,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 MergeGenerationStateIntoActiveProject(generation);
                 RefreshProjectCollections();
                 GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+                TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
             }
 
             if (provider is IAsyncVideoGenerationProvider && !string.IsNullOrWhiteSpace(generation.ProviderJobId))
@@ -1595,6 +1597,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 progress);
             RefreshProjectCollections();
             GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+            TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
 
             if (provider is IAsyncVideoGenerationProvider &&
                 !string.IsNullOrWhiteSpace(generation.ProviderJobId) &&
@@ -1638,6 +1641,20 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         ImportAssetsButton.IsEnabled = isEnabled;
         SettingsButton.IsEnabled = isEnabled;
         ProviderComboBox.IsEnabled = isEnabled;
+    }
+
+    private void TryAutoPreviewGeneratedOutput(GenerationRecord generation, bool owningProjectIsOpen)
+    {
+        if (generation.Status != GenerationStatus.Succeeded ||
+            generation.IngestionStatus != OutputIngestionStatus.Succeeded ||
+            !GeneratedOutputPreviewPolicy.ShouldAutoPreview(
+                owningProjectIsOpen,
+                _activeWorkspace,
+                _mediaPreparationMode != MediaPreparationMode.None))
+            return;
+        var outputId = generation.OutputAssetIds.LastOrDefault();
+        if (outputId == Guid.Empty) return;
+        AssetsList.SelectedItem = _assets.FirstOrDefault(item => item.Asset?.Id == outputId);
     }
 
     private async void PrepareDerivedDraft_Click(object sender, RoutedEventArgs e)
