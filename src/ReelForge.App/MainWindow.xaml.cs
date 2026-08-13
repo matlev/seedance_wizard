@@ -65,6 +65,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _suppressDraftAutosave;
     private bool _suppressPromptSynchronization;
     private bool _isVideoPlaying;
+    private bool _isVideoPreviewPriming;
     private bool _isScrubbing;
     private bool _resumePlaybackAfterScrub;
     private bool _suppressFrameSelectionPrefetch;
@@ -2118,7 +2119,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         VideoPreview.Source = new Uri(absolutePath, UriKind.Absolute);
         VideoPreview.Visibility = Visibility.Visible;
         PlaybackControlsBorder.Visibility = Visibility.Visible;
-        PlaybackButton.IsEnabled = true;
+        PlaybackButton.IsEnabled = false;
     }
 
     private async Task ShowVirtualAssetPreviewAsync(
@@ -2151,7 +2152,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 VideoPreview.Source = new Uri(_activePreviewLease.Path, UriKind.Absolute);
                 VideoPreview.Visibility = Visibility.Visible;
                 PlaybackControlsBorder.Visibility = Visibility.Visible;
-                PlaybackButton.IsEnabled = true;
+                PlaybackButton.IsEnabled = false;
                 StatusText.Text = $"Selected Saved Clip {asset.EffectiveDisplayName}.";
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
@@ -2171,7 +2172,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void ClearMediaPreview()
     {
+        _isVideoPreviewPriming = false;
         VideoPreview.Stop();
+        VideoPreview.Close();
         SetPlaybackState(false);
         _isScrubbing = false;
         _resumePlaybackAfterScrub = false;
@@ -2205,22 +2208,29 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }
 
         var openedSource = VideoPreview.Source;
+        _isVideoPreviewPriming = true;
+        PlaybackButton.IsEnabled = false;
+        var wasMuted = VideoPreview.IsMuted;
+        VideoPreview.IsMuted = true;
         VideoPreview.Position = TimeSpan.Zero;
         VideoPreview.Play();
         await Task.Delay(100);
-        if (VideoPreview.Source == openedSource && !_isVideoPlaying)
-        {
-            VideoPreview.Pause();
-            VideoPreview.Position = TimeSpan.Zero;
-        }
-        SetPlaybackState(_isVideoPlaying);
+        if (VideoPreview.Source != openedSource) return;
+
+        VideoPreview.Stop();
+        VideoPreview.Position = TimeSpan.Zero;
+        VideoPreview.IsMuted = wasMuted;
+        _isVideoPreviewPriming = false;
+        PlaybackButton.IsEnabled = true;
+        SetPlaybackState(false);
         UpdatePlaybackPosition();
     }
 
     private void VideoPreview_MediaEnded(object sender, RoutedEventArgs e)
     {
+        if (_isVideoPreviewPriming) return;
+        VideoPreview.Stop();
         VideoPreview.Position = TimeSpan.Zero;
-        VideoPreview.Pause();
         SetPlaybackState(false);
         UpdatePlaybackPosition();
     }
