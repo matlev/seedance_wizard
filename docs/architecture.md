@@ -352,6 +352,8 @@ Phase 2D begins that generalization with `RecipeRenderPlanner`. A virtual asset 
 
 The first executor slice recursively materializes nested trim nodes, preserving an active lease on every dependency until its consumer finishes. This permits a Saved Clip to use another pinned Saved Clip and permits the initial single-segment Working Composition to resolve a virtual source. It deliberately does not disguise recursive intermediate rendering as optimized planning: multi-segment concat, normalization decisions, operation fusion, and virtual-source anchor time mapping remain later Phase 2D work.
 
+The next executor slice treats media compatibility as an explicit result rather than an eager side effect. Ordered composition inputs are `Compatible`, `RequiresNormalization`, or `Unknown`, with differences in video codec, dimensions, pixel format, frame rate, audio presence, codec, sample rate, channel count, and layout retained as planning data. Missing metadata is inspected from the realized media when possible. Only compatible sets currently compile into a single timestamp-resetting FFmpeg concat filter graph; incompatible or mixed-audio sets stop with a normalization requirement instead of being silently coerced. Composition renders use deterministic cache identity, active dependency leases, unique temporary output, atomic commit, and failure cleanup.
+
 ## Disposable cache
 
 Recommended layout:

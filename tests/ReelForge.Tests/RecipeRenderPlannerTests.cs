@@ -137,6 +137,35 @@ public sealed class RecipeRenderPlannerTests
         Assert.Contains("cycle", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void CompositionPlanCarriesCompatibilityDecisionWithoutRendering()
+    {
+        var first = PhysicalVideo();
+        first.Encoding = Encoding(1280);
+        var second = PhysicalVideo();
+        second.Encoding = Encoding(1920);
+        var composition = VirtualVideo("Composition");
+        composition.Virtual!.Kind = VirtualAssetKind.Composition;
+        var project = new VideoProject { Assets = [first, second, composition] };
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = first.Id } },
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = second.Id } }
+            ]
+        });
+
+        var plan = RecipeRenderPlanner.Plan(
+            project,
+            new AssetMaterializationTarget(composition.Id, revision.Id),
+            MaterializationPurpose.Preview);
+
+        var node = Assert.IsType<CompositionRenderPlanNode>(plan.Root);
+        Assert.Equal(CompositionCompatibilityDecision.RequiresNormalization, node.Compatibility.Decision);
+        Assert.Contains(node.Compatibility.Issues, issue => issue.Property.Contains("width", StringComparison.Ordinal));
+    }
+
     private static ProjectAsset PhysicalVideo() => new()
     {
         DisplayName = "Source",
@@ -167,5 +196,24 @@ public sealed class RecipeRenderPlannerTests
     {
         Kind = RecipeBoundaryKind.Timestamp,
         TimestampSeconds = seconds
+    };
+
+    private static MediaEncodingMetadata Encoding(int width) => new()
+    {
+        Video = new VideoStreamMetadata
+        {
+            Codec = "h264",
+            Width = width,
+            Height = 720,
+            PixelFormat = "yuv420p",
+            FrameRate = "30/1"
+        },
+        Audio = new AudioStreamMetadata
+        {
+            Codec = "aac",
+            SampleRate = 48000,
+            Channels = 2,
+            ChannelLayout = "stereo"
+        }
     };
 }

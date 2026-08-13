@@ -9,10 +9,12 @@ namespace ReelForge.Infrastructure;
 public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
 {
     private const string TrimAlgorithmVersion = "saved-clip-trim-v1";
+    private const string ConcatAlgorithmVersion = "composition-concat-v1";
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly IExactVideoFrameService _exactFrameService;
     private readonly IExternalProcessRunner _runner;
     private readonly IContentHashService _contentHashService;
+    private readonly IMediaInspectionService? _mediaInspector;
     private readonly string _cacheRoot;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _cacheLocks = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _fingerprintLock = new(1, 1);
@@ -25,7 +27,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         IExternalProcessRunner runner,
         IExactVideoFrameService exactFrameService,
         string cacheRoot,
-        IContentHashService? contentHashService = null)
+        IContentHashService? contentHashService = null,
+        IMediaInspectionService? mediaInspector = null)
     {
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(exactFrameService);
@@ -35,6 +38,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         _exactFrameService = exactFrameService;
         _cacheRoot = Path.GetFullPath(cacheRoot);
         _contentHashService = contentHashService ?? new Sha256ContentHashService();
+        _mediaInspector = mediaInspector;
         _physicalMaterializer = new PhysicalAssetMaterializer(_contentHashService, exactFrameService);
     }
 
@@ -136,9 +140,64 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         MaterializationRequest request,
         CancellationToken cancellationToken)
     {
-        if (composition.Segments is not [var segment])
-            throw new NotSupportedException(
-                "Multi-segment composition rendering requires the Phase 2D concat planner.");
+        if (composition.Segments is [var segment])
+            return await MaterializeCompositionSegmentAsync(
+                    project, location, outputAsset, segment, request, cancellationToken)
+                .ConfigureAwait(false);
+
+        var leases = new List<MaterializedMediaLease>();
+        try
+        {
+            foreach (var plannedSegment in composition.Segments)
+            {
+                leases.Add(await MaterializeCompositionSegmentAsync(
+                        project, location, outputAsset, plannedSegment, request, cancellationToken)
+                    .ConfigureAwait(false));
+            }
+
+            var encodings = new List<MediaEncodingMetadata?>();
+            foreach (var lease in leases)
+            {
+                var encoding = lease.Encoding;
+                if (encoding?.Video is null && _mediaInspector is not null)
+                    encoding = await _mediaInspector.InspectAsync(lease.Path, cancellationToken).ConfigureAwait(false);
+                encodings.Add(encoding);
+            }
+            var compatibility = MediaCompatibilityAnalyzer.Analyze(encodings);
+            if (!compatibility.CanConcatWithoutNormalization)
+            {
+                var detail = compatibility.Decision == CompositionCompatibilityDecision.Unknown
+                    ? "one or more inputs have incomplete stream metadata"
+                    : string.Join(", ", compatibility.Issues.Select(issue => issue.Property));
+                throw new NotSupportedException(
+                    $"Composition inputs require normalization before concat: {detail}.");
+            }
+
+            var allAudioEnabled = composition.Segments.All(segment => segment.AudioEnabled);
+            var noAudioEnabled = composition.Segments.All(segment => !segment.AudioEnabled);
+            if (!allAudioEnabled && !noAudioEnabled)
+                throw new NotSupportedException(
+                    "Composition segments with mixed audio enablement require normalization and silence generation.");
+            var includeAudio = allAudioEnabled && encodings.All(encoding => encoding?.Audio is not null);
+            return await RenderConcatAsync(
+                    outputAsset, composition, leases, includeAudio, request, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            for (var index = leases.Count - 1; index >= 0; index--)
+                await leases[index].DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task<MaterializedMediaLease> MaterializeCompositionSegmentAsync(
+        VideoProject project,
+        ProjectLocation location,
+        ProjectAsset outputAsset,
+        CompositionSegmentRenderPlan segment,
+        MaterializationRequest request,
+        CancellationToken cancellationToken)
+    {
         var sourceAsset = project.Assets.Single(asset => asset.Id == segment.Source.AssetId);
         if (segment.Start.Kind == RecipeBoundaryKind.SourceStart &&
             segment.End.Kind == RecipeBoundaryKind.SourceEnd)
@@ -149,9 +208,74 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                 project, location, sourceAsset, segment.Source, request, cancellationToken)
             .ConfigureAwait(false);
         return await RenderTrimAsync(
-                project, outputAsset, segment.Source.AssetId, composition.NodeHash,
+                project, outputAsset, segment.Source.AssetId, segment.SegmentHash,
                 segment.Start, segment.End, source, request, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private async Task<MaterializedMediaLease> RenderConcatAsync(
+        ProjectAsset outputAsset,
+        CompositionRenderPlanNode composition,
+        IReadOnlyList<MaterializedMediaLease> inputs,
+        bool includeAudio,
+        MaterializationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
+            "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or export compositions.");
+        var fingerprint = await GetRendererFingerprintAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
+        var key = HashText(string.Join('|',
+            ConcatAlgorithmVersion,
+            composition.NodeHash,
+            string.Join(';', inputs.Select(input => input.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty)),
+            includeAudio,
+            request.Purpose,
+            request.Profile ?? string.Empty,
+            fingerprint));
+        var cacheDirectory = Path.Combine(_cacheRoot, "compositions");
+        var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
+        if (IsUsableCacheFile(cachePath))
+            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
+
+        var cacheLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+        await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (IsUsableCacheFile(cachePath))
+                return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
+            Directory.CreateDirectory(cacheDirectory);
+            var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
+            try
+            {
+                var arguments = FfmpegCommandBuilder.BuildCompatibleConcatArguments(
+                    inputs.Select(input => input.Path).ToArray(), temporaryPath, includeAudio);
+                var result = await _runner.RunAsync(
+                        new ExternalProcessRequest(ffmpegPath, arguments),
+                        cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+                if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
+                if (!IsUsableCacheFile(temporaryPath))
+                    throw new InvalidDataException("FFmpeg completed without producing the composition preview.");
+                try
+                {
+                    File.Move(temporaryPath, cachePath, overwrite: false);
+                }
+                catch (IOException) when (IsUsableCacheFile(cachePath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            }
+
+            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            cacheLock.Release();
+        }
     }
 
     private Task<MaterializedMediaLease> MaterializeExtractFrameNodeAsync(

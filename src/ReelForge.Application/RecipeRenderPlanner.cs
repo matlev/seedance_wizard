@@ -48,6 +48,7 @@ public sealed record CompositionRenderPlanNode(
     Guid VirtualAssetId,
     Guid RecipeRevisionId,
     IReadOnlyList<CompositionSegmentRenderPlan> Segments,
+    CompositionCompatibilityReport Compatibility,
     string Hash)
     : MediaRenderPlanNode(VirtualAssetId, MediaType.Video, Hash);
 
@@ -56,7 +57,8 @@ public sealed record CompositionSegmentRenderPlan(
     MediaRenderPlanNode Source,
     RecipeBoundary Start,
     RecipeBoundary End,
-    bool AudioEnabled);
+    bool AudioEnabled,
+    string SegmentHash);
 
 public static class RecipeRenderPlanner
 {
@@ -188,8 +190,15 @@ public static class RecipeRenderPlanner
             var source = BuildNode(project, segment.Source, activeRevisions);
             if (source.MediaType != MediaType.Video)
                 throw new InvalidDataException($"Composition segment '{segment.Id}' requires video input.");
+            var segmentHash = Hash(string.Join('|',
+                "segment",
+                segment.Id.ToString("N"),
+                source.NodeHash,
+                BoundaryKey(segment.Start),
+                BoundaryKey(segment.End),
+                segment.AudioEnabled));
             return new CompositionSegmentRenderPlan(
-                segment.Id, source, segment.Start, segment.End, segment.AudioEnabled);
+                segment.Id, source, segment.Start, segment.End, segment.AudioEnabled, segmentHash);
         }).ToArray();
         var segmentKey = string.Join(';', segments.Select(segment => string.Join(',',
             segment.SegmentId.ToString("N"),
@@ -197,10 +206,17 @@ public static class RecipeRenderPlanner
             BoundaryKey(segment.Start),
             BoundaryKey(segment.End),
             segment.AudioEnabled)));
+        var compatibility = MediaCompatibilityAnalyzer.Analyze(
+            composition.Segments.Select(segment =>
+            {
+                var sourceAsset = FindAsset(project, segment.Source.AssetId);
+                return sourceAsset.Encoding ?? sourceAsset.Virtual?.ExpectedMediaProperties;
+            }).ToArray());
         return new CompositionRenderPlanNode(
             asset.Id,
             revision.Id,
             segments,
+            compatibility,
             Hash($"composition|{asset.Id:N}|{revision.Id:N}|{segmentKey}"));
     }
 

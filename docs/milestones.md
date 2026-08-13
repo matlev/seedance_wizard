@@ -274,6 +274,14 @@ In progress. The first 2D engine slice introduces a provider-neutral recursive r
 4. Execute nested Saved Clip trims recursively while retaining per-node cache reuse and active leases.
 5. Resolve a single-segment Working Composition through a pinned physical or Saved Clip source; keep multi-segment concat explicit and unsupported until its compatibility planner is delivered.
 
+#### Phase 2D.2 — compatibility analysis and compatible concat
+
+1. Represent composition compatibility as an explicit `Compatible`, `RequiresNormalization`, or `Unknown` planning result with property-level differences.
+2. Inspect realized media when virtual-source metadata is incomplete rather than guessing compatibility from labels or file extensions.
+3. Compile compatible ordered video segments into one FFmpeg concat filter graph with explicit audio handling and reset timestamps.
+4. Render through unique temporary files, atomically commit the composition cache entry, retain dependency leases for the full operation, and reuse unchanged results.
+5. Refuse incompatible, unknown, or mixed-audio compositions with a normalization requirement; typed normalization and silence generation remain the next 2D slice.
+
 1. Expand the narrow Phase 2C Saved Clip compiler into general recipe planning and recursive virtual-source time mapping.
 2. Reuse and expand existing media encoding inspection.
 3. Add compatibility analysis as data/planning, not an eager normalization side effect.

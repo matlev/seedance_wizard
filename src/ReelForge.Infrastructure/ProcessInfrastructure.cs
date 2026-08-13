@@ -246,6 +246,45 @@ public static class FfmpegCommandBuilder
         ];
     }
 
+    public static IReadOnlyList<string> BuildCompatibleConcatArguments(
+        IReadOnlyList<string> inputPaths,
+        string outputPath,
+        bool includeAudio)
+    {
+        ArgumentNullException.ThrowIfNull(inputPaths);
+        if (inputPaths.Count < 2)
+            throw new ArgumentException("Concat requires at least two inputs.", nameof(inputPaths));
+        foreach (var inputPath in inputPaths) ValidateMediaPath(inputPath, nameof(inputPaths));
+        ValidateMediaPath(outputPath, nameof(outputPath));
+
+        var arguments = new List<string> { "-hide_banner", "-y" };
+        foreach (var inputPath in inputPaths)
+        {
+            arguments.Add("-i");
+            arguments.Add(inputPath);
+        }
+
+        var filters = new List<string>();
+        var concatInputs = new StringBuilder();
+        for (var index = 0; index < inputPaths.Count; index++)
+        {
+            filters.Add($"[{index}:v:0]setpts=PTS-STARTPTS[v{index}]");
+            concatInputs.Append(CultureInfo.InvariantCulture, $"[v{index}]");
+            if (!includeAudio) continue;
+            filters.Add($"[{index}:a:0]asetpts=PTS-STARTPTS[a{index}]");
+            concatInputs.Append(CultureInfo.InvariantCulture, $"[a{index}]");
+        }
+        filters.Add(includeAudio
+            ? $"{concatInputs}concat=n={inputPaths.Count}:v=1:a=1[v][a]"
+            : $"{concatInputs}concat=n={inputPaths.Count}:v=1:a=0[v]");
+        arguments.AddRange(["-filter_complex", string.Join(';', filters), "-map", "[v]"]);
+        if (includeAudio) arguments.AddRange(["-map", "[a]"]);
+        arguments.AddRange(["-c:v", "libx264"]);
+        if (includeAudio) arguments.AddRange(["-c:a", "aac"]);
+        arguments.AddRange(["-movflags", "+faststart", outputPath]);
+        return arguments;
+    }
+
     private static string FormatSeconds(double seconds) =>
         seconds.ToString("0.###", CultureInfo.InvariantCulture);
 

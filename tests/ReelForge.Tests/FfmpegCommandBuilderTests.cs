@@ -47,4 +47,28 @@ public sealed class FfmpegCommandBuilderTests
         Assert.Equal("vfr", arguments[11]);
         Assert.Equal("1", arguments[13]);
     }
+
+    [Fact]
+    public void CompatibleConcatBuildsFilterGraphWithoutShellQuoting()
+    {
+        var arguments = FfmpegCommandBuilder.BuildCompatibleConcatArguments(
+            [@"C:\Project media\one.mp4", @"C:\Project media\two.mp4"],
+            @"C:\Project media\joined.mp4",
+            includeAudio: true);
+
+        Assert.Equal(2, arguments.Count(argument => argument == "-i"));
+        Assert.Contains(@"C:\Project media\one.mp4", arguments);
+        Assert.Contains(@"C:\Project media\two.mp4", arguments);
+        var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.Contains("concat=n=2:v=1:a=1[v][a]", graph, StringComparison.Ordinal);
+        Assert.Contains("[0:a:0]asetpts=PTS-STARTPTS[a0]", graph, StringComparison.Ordinal);
+        Assert.Equal(@"C:\Project media\joined.mp4", arguments[^1]);
+    }
+
+    [Fact]
+    public void CompatibleConcatRequiresMultipleInputs()
+    {
+        Assert.Throws<ArgumentException>(() => FfmpegCommandBuilder.BuildCompatibleConcatArguments(
+            ["one.mp4"], "joined.mp4", includeAudio: false));
+    }
 }

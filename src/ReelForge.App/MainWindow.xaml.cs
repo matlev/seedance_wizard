@@ -119,7 +119,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _mediaTools.FfmpegPath,
             processRunner,
             _exactFrameService,
-            mediaCacheRoot);
+            mediaCacheRoot,
+            mediaInspector: _mediaInspector);
         _projectStore = new PortableProjectStore();
         _assetImporter = new AssetImportService(_mediaInspector);
         _workspace = new ProjectWorkspace(_projectStore, _assetImporter);

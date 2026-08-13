@@ -287,6 +287,175 @@ public sealed class MaterializationTargetTests : IDisposable
         Assert.Equal(1, runner.TrimCount);
     }
 
+    [Fact]
+    public async Task CompatibleCompositionConcatsPhysicalSegmentsAndReusesCache()
+    {
+        var (project, location, firstSource) = await CreateProjectSourceAsync();
+        var firstPath = Path.Combine(_root, firstSource.Physical!.RelativePath);
+        firstSource.Physical.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(firstPath);
+        firstSource.Encoding = CompatibleEncoding();
+        var secondRelativePath = Path.Combine("assets", "videos", "second.mp4");
+        var secondPath = Path.Combine(_root, secondRelativePath);
+        await File.WriteAllBytesAsync(secondPath, [6, 7, 8, 9]);
+        var secondSource = new ProjectAsset
+        {
+            DisplayName = "second.mp4",
+            FileName = "second.mp4",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Physical,
+            Encoding = CompatibleEncoding(),
+            Physical = new PhysicalAssetStorage
+            {
+                RelativePath = secondRelativePath,
+                ContentIdentity = await new Sha256ContentHashService().ComputeAsync(secondPath)
+            }
+        };
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(secondSource);
+        project.AddAsset(composition);
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = firstSource.Id } },
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = secondSource.Id } }
+            ]
+        });
+        var runner = new TrimRunner();
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
+        var request = new MaterializationRequest(
+            new AssetMaterializationTarget(composition.Id, revision.Id),
+            MaterializationPurpose.Preview);
+
+        await using var first = await materializer.MaterializeAsync(project, location, request);
+        await using var second = await materializer.MaterializeAsync(project, location, request);
+
+        Assert.Equal(first.Path, second.Path);
+        Assert.Equal(1, runner.ConcatCount);
+        Assert.Equal(0, runner.TrimCount);
+        Assert.Contains("-filter_complex", runner.ConcatRequest!.Arguments);
+    }
+
+    [Fact]
+    public async Task IncompatibleCompositionReportsNormalizationWithoutRunningConcat()
+    {
+        var (project, location, firstSource) = await CreateProjectSourceAsync();
+        var firstPath = Path.Combine(_root, firstSource.Physical!.RelativePath);
+        firstSource.Physical.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(firstPath);
+        firstSource.Encoding = CompatibleEncoding();
+        var secondRelativePath = Path.Combine("assets", "videos", "wide.mp4");
+        var secondPath = Path.Combine(_root, secondRelativePath);
+        await File.WriteAllBytesAsync(secondPath, [10, 11, 12]);
+        var incompatibleEncoding = CompatibleEncoding();
+        incompatibleEncoding.Video!.Width = 1920;
+        var secondSource = new ProjectAsset
+        {
+            DisplayName = "wide.mp4",
+            FileName = "wide.mp4",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Physical,
+            Encoding = incompatibleEncoding,
+            Physical = new PhysicalAssetStorage
+            {
+                RelativePath = secondRelativePath,
+                ContentIdentity = await new Sha256ContentHashService().ComputeAsync(secondPath)
+            }
+        };
+        var composition = new ProjectAsset
+        {
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(secondSource);
+        project.AddAsset(composition);
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = firstSource.Id } },
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = secondSource.Id } }
+            ]
+        });
+        var runner = new TrimRunner();
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
+
+        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(composition.Id, revision.Id),
+                MaterializationPurpose.Preview)));
+
+        Assert.Contains("normalization", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, runner.ConcatCount);
+    }
+
+    [Fact]
+    public async Task FailedCompositionConcatRemovesPartialCacheArtifact()
+    {
+        var (project, location, firstSource) = await CreateProjectSourceAsync();
+        var firstPath = Path.Combine(_root, firstSource.Physical!.RelativePath);
+        firstSource.Physical.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(firstPath);
+        firstSource.Encoding = CompatibleEncoding();
+        var secondRelativePath = Path.Combine("assets", "videos", "second-failure.mp4");
+        var secondPath = Path.Combine(_root, secondRelativePath);
+        await File.WriteAllBytesAsync(secondPath, [20, 21, 22]);
+        var secondSource = new ProjectAsset
+        {
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Physical,
+            Encoding = CompatibleEncoding(),
+            Physical = new PhysicalAssetStorage
+            {
+                RelativePath = secondRelativePath,
+                ContentIdentity = await new Sha256ContentHashService().ComputeAsync(secondPath)
+            }
+        };
+        var composition = new ProjectAsset
+        {
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(secondSource);
+        project.AddAsset(composition);
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = firstSource.Id } },
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = secondSource.Id } }
+            ]
+        });
+        var runner = new TrimRunner { FailConcat = true };
+        var cacheRoot = Path.Combine(_root, "cache");
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", runner, new StubExactFrameService([]), cacheRoot);
+
+        await Assert.ThrowsAsync<ExternalProcessException>(() => materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(composition.Id, revision.Id),
+                MaterializationPurpose.Preview)));
+
+        var compositionCache = Path.Combine(cacheRoot, "compositions");
+        Assert.False(Directory.Exists(compositionCache) &&
+                     Directory.EnumerateFiles(compositionCache, "*.tmp.mp4").Any());
+    }
+
     private async Task<(VideoProject Project, ProjectLocation Location, ProjectAsset Asset)> CreateProjectSourceAsync()
     {
         var relativePath = Path.Combine("assets", "videos", "source.mp4");
@@ -308,6 +477,27 @@ public sealed class MaterializationTargetTests : IDisposable
         var project = new VideoProject { Assets = [asset] };
         return (project, new ProjectLocation(_root, Path.Combine(_root, "Test.rfp")), asset);
     }
+
+    private static MediaEncodingMetadata CompatibleEncoding() => new()
+    {
+        ContainerFormat = "mp4",
+        DurationSeconds = 4,
+        Video = new VideoStreamMetadata
+        {
+            Codec = "h264",
+            Width = 1280,
+            Height = 720,
+            PixelFormat = "yuv420p",
+            FrameRate = "30/1"
+        },
+        Audio = new AudioStreamMetadata
+        {
+            Codec = "aac",
+            SampleRate = 48000,
+            Channels = 2,
+            ChannelLayout = "stereo"
+        }
+    };
 
     public void Dispose()
     {
@@ -345,7 +535,10 @@ public sealed class MaterializationTargetTests : IDisposable
     private sealed class TrimRunner : IExternalProcessRunner
     {
         public int TrimCount { get; private set; }
+        public int ConcatCount { get; private set; }
+        public bool FailConcat { get; init; }
         public ExternalProcessRequest? TrimRequest { get; private set; }
+        public ExternalProcessRequest? ConcatRequest { get; private set; }
 
         public async Task<ExternalProcessResult> RunAsync(
             ExternalProcessRequest request,
@@ -354,8 +547,22 @@ public sealed class MaterializationTargetTests : IDisposable
         {
             if (request.Arguments.SequenceEqual(["-version"]))
                 return new ExternalProcessResult(0, "ffmpeg version test-1\n", string.Empty);
-            TrimCount++;
-            TrimRequest = request;
+            if (request.Arguments.Contains("-filter_complex"))
+            {
+                ConcatCount++;
+                ConcatRequest = request;
+                if (FailConcat)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(request.Arguments[^1])!);
+                    await File.WriteAllBytesAsync(request.Arguments[^1], [99], cancellationToken);
+                    return new ExternalProcessResult(1, string.Empty, "simulated concat failure");
+                }
+            }
+            else
+            {
+                TrimCount++;
+                TrimRequest = request;
+            }
             Directory.CreateDirectory(Path.GetDirectoryName(request.Arguments[^1])!);
             await File.WriteAllBytesAsync(request.Arguments[^1], [1, 2, 3], cancellationToken);
             return new ExternalProcessResult(0, string.Empty, string.Empty);
