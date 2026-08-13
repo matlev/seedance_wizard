@@ -155,6 +155,8 @@ Delivered: stable anchors, immutable exact revisions, pinned recipe/history refe
 
 #### Phase 2C.2 — provider-neutral materialization and prepared references
 
+In progress: typed asset/anchor materialization targets and occurrence-keyed prepared references are implemented. Physical anchor sources are hash-verified before extraction; exact decoded-frame realization and its canonical receipts complete with Phase 2C.3.
+
 1. Generalize materialization targets from asset-only requests to typed asset-revision or anchor-revision targets.
 2. Replace asset-ID-only provider overrides with occurrence-keyed transient prepared references carrying media type, role, order, and provider representation.
 3. Keep expiring URLs, data URLs, upload IDs, cache paths, and other provider/materialization details out of authoritative Core provenance.

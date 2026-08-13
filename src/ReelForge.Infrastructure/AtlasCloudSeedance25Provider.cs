@@ -112,19 +112,19 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
             }
         }
 
-        var resolvedReferences = new Dictionary<Guid, string>();
-        foreach (var asset in references)
+        var resolvedReferences = new List<string>();
+        for (var index = 0; index < references.Count; index++)
         {
-            var resolved = request.ProviderReferenceOverrides.TryGetValue(asset.Id, out var prepared)
-                ? prepared
-                : _assetReferenceResolver.Resolve(ProviderId, asset);
+            var asset = references[index];
+            var resolved = GetPreparedRepresentation(request, index, asset.Id)
+                ?? _assetReferenceResolver.Resolve(ProviderId, asset);
             if (string.IsNullOrWhiteSpace(resolved))
             {
                 errors.Add($"{asset.FileName} has no AtlasCloud reference URL, Base64 value, or uploaded asset reference.");
             }
             else
             {
-                resolvedReferences[asset.Id] = resolved;
+                resolvedReferences.Add(resolved);
             }
         }
 
@@ -148,10 +148,10 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
 
         if (request.Mode == GenerationMode.ImageToVideo)
         {
-            payload["image"] = resolvedReferences[references[0].Id];
+            payload["image"] = resolvedReferences[0];
             if (references.Count == 2)
             {
-                payload["last_image"] = resolvedReferences[references[1].Id];
+                payload["last_image"] = resolvedReferences[1];
             }
         }
         else if (request.Mode == GenerationMode.ReferenceToVideo)
@@ -167,18 +167,27 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
     private static void AddReferenceArray(
         Dictionary<string, object?> payload,
         string fieldName,
-        IEnumerable<ProjectAsset> references,
-        Dictionary<Guid, string> resolvedReferences,
+        IReadOnlyList<ProjectAsset> references,
+        List<string> resolvedReferences,
         MediaType mediaType)
     {
         var values = references
-            .Where(asset => asset.MediaType == mediaType)
-            .Select(asset => resolvedReferences[asset.Id])
+            .Select((asset, index) => (asset, index))
+            .Where(item => item.asset.MediaType == mediaType)
+            .Select(item => resolvedReferences[item.index])
             .ToArray();
         if (values.Length > 0)
         {
             payload[fieldName] = values;
         }
+    }
+
+    private static string? GetPreparedRepresentation(GenerationRequest request, int index, Guid logicalObjectId)
+    {
+        var ordered = request.PreparedReferences.OrderBy(reference => reference.Order).ToArray();
+        if (index < ordered.Length && ordered[index].LogicalObjectId == logicalObjectId)
+            return ordered[index].ProviderRepresentation;
+        return ordered.FirstOrDefault(reference => reference.LogicalObjectId == logicalObjectId)?.ProviderRepresentation;
     }
 
     private static string GetModelId(GenerationMode mode) => mode switch

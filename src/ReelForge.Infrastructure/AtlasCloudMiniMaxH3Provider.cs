@@ -94,12 +94,12 @@ public sealed class AtlasCloudMiniMaxH3Provider : IAsyncVideoGenerationProvider,
                 break;
         }
 
-        var resolvedReferences = new Dictionary<Guid, string>();
-        foreach (var asset in references)
+        var resolvedReferences = new List<string>();
+        for (var index = 0; index < references.Count; index++)
         {
-            var resolved = request.ProviderReferenceOverrides.TryGetValue(asset.Id, out var prepared)
-                ? prepared
-                : _assetReferenceResolver.Resolve(ProviderId, asset)
+            var asset = references[index];
+            var resolved = GetPreparedRepresentation(request, index, asset.Id)
+                ?? _assetReferenceResolver.Resolve(ProviderId, asset)
                   ?? _assetReferenceResolver.Resolve(AtlasCloudSeedance25Provider.ProviderId, asset);
             if (string.IsNullOrWhiteSpace(resolved))
             {
@@ -118,7 +118,7 @@ public sealed class AtlasCloudMiniMaxH3Provider : IAsyncVideoGenerationProvider,
                 continue;
             }
 
-            resolvedReferences[asset.Id] = resolved;
+            resolvedReferences.Add(resolved);
         }
 
         if (errors.Count > 0)
@@ -135,20 +135,28 @@ public sealed class AtlasCloudMiniMaxH3Provider : IAsyncVideoGenerationProvider,
 
         if (request.Mode == GenerationMode.ImageToVideo)
         {
-            payload["image"] = resolvedReferences[references[0].Id];
+            payload["image"] = resolvedReferences[0];
             if (references.Count == 2)
-                payload["end_image"] = resolvedReferences[references[1].Id];
+                payload["end_image"] = resolvedReferences[1];
         }
         else if (request.Mode == GenerationMode.ReferenceToVideo)
         {
-            payload["refers"] = references.Select(asset => new Dictionary<string, string>(StringComparer.Ordinal)
+            payload["refers"] = references.Select((asset, index) => new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["url"] = resolvedReferences[asset.Id],
+                ["url"] = resolvedReferences[index],
                 ["type"] = asset.MediaType.ToString().ToLowerInvariant()
             }).ToArray();
         }
 
         return payload;
+    }
+
+    private static string? GetPreparedRepresentation(GenerationRequest request, int index, Guid logicalObjectId)
+    {
+        var ordered = request.PreparedReferences.OrderBy(reference => reference.Order).ToArray();
+        if (index < ordered.Length && ordered[index].LogicalObjectId == logicalObjectId)
+            return ordered[index].ProviderRepresentation;
+        return ordered.FirstOrDefault(reference => reference.LogicalObjectId == logicalObjectId)?.ProviderRepresentation;
     }
 
     private static string GetModelId(GenerationMode mode) => mode switch

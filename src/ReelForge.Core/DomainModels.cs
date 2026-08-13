@@ -327,8 +327,17 @@ public sealed class GenerationRequest
     public List<Guid> ReferenceAssetIds { get; set; } = [];
     public Dictionary<string, string> ProviderParameters { get; set; } = new(StringComparer.Ordinal);
     // Transient provider-ready representations. These values are never persisted as logical history.
-    public Dictionary<Guid, string> ProviderReferenceOverrides { get; set; } = [];
+    public List<PreparedGenerationReference> PreparedReferences { get; set; } = [];
 }
+
+public sealed record PreparedGenerationReference(
+    Guid ReferenceId,
+    GenerationReferenceObjectKind LogicalObjectKind,
+    Guid LogicalObjectId,
+    MediaType MediaType,
+    GenerationReferenceRole? Role,
+    int Order,
+    string ProviderRepresentation);
 
 public sealed class GenerationDraft
 {

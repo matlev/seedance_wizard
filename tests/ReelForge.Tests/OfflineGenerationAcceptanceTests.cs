@@ -37,8 +37,9 @@ public sealed class OfflineGenerationAcceptanceTests : IDisposable
         Assert.True(provider.StatusCalls >= 2);
         Assert.NotNull(provider.SubmittedRequest);
         Assert.Equal(context.Reference.Id, Assert.Single(provider.SubmittedRequest.ReferenceAssetIds));
-        Assert.Equal("https://uploads.reelforge.test/reference.mp4",
-            provider.SubmittedRequest.ProviderReferenceOverrides[context.Reference.Id]);
+        var preparedReference = Assert.Single(provider.SubmittedRequest.PreparedReferences);
+        Assert.Equal(context.Reference.Id, preparedReference.LogicalObjectId);
+        Assert.Equal("https://uploads.reelforge.test/reference.mp4", preparedReference.ProviderRepresentation);
         Assert.Equal(1, context.Preparation.CallCount);
         Assert.Equal(FixtureSha256, context.Preparation.LogicalReference?.ContentHash, ignoreCase: true);
 
@@ -51,7 +52,7 @@ public sealed class OfflineGenerationAcceptanceTests : IDisposable
         Assert.Equal(4, frozenReference.Order);
         Assert.Equal("Motion guide", frozenReference.Label);
         Assert.Equal("Use the movement and timing from this clip.", frozenReference.Notes);
-        Assert.Equal("mock-upload", generation.ResponseMetadata[$"reference.{context.Reference.Id:N}.preparation"]);
+        Assert.Equal("mock-upload", generation.ResponseMetadata[$"reference.{frozenReference.ReferenceId:N}.preparation"]);
 
         var outputId = Assert.Single(generation.OutputAssetIds);
         var output = context.Workspace.Project!.Assets.Single(asset => asset.Id == outputId);

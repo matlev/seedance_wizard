@@ -69,11 +69,21 @@ public enum MaterializationRetentionPreference
     Persistent
 }
 
-public sealed record MaterializationRequest(
+public abstract record MaterializationTarget;
+
+public sealed record AssetMaterializationTarget(
     Guid AssetId,
-    Guid? RecipeRevisionId,
+    Guid? RecipeRevisionId = null) : MaterializationTarget;
+
+public sealed record AnchorMaterializationTarget(
+    Guid AnchorId,
+    Guid AnchorRevisionId) : MaterializationTarget;
+
+public sealed record MaterializationRequest(
+    MaterializationTarget Target,
     MaterializationPurpose Purpose,
-    MaterializationRetentionPreference RetentionPreference = MaterializationRetentionPreference.Unspecified);
+    MaterializationRetentionPreference RetentionPreference = MaterializationRetentionPreference.Unspecified,
+    string? Profile = null);
 
 public sealed class MaterializedMediaLease : IAsyncDisposable
 {
@@ -119,7 +129,7 @@ public interface IMaterializationRetentionPolicy
 {
     MaterializationRetentionPreference Resolve(
         MaterializationPurpose purpose,
-        Guid assetId,
+        MaterializationTarget target,
         MaterializationRetentionPreference requestedPreference);
 }
 

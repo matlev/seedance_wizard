@@ -94,6 +94,31 @@ public sealed class AtlasCloudMiniMaxH3ProviderTests
     }
 
     [Fact]
+    public void PreparedReferencesRemainDistinctWhenOneLogicalAssetAppearsTwice()
+    {
+        var image = CreateAsset(MediaType.Image, "character.png", "https://assets.example/fallback.png");
+        var provider = CreateProvider(new RecordingHandler(HttpStatusCode.OK, "{}"));
+        var request = ValidReferenceRequest([image.Id, image.Id]);
+        request.PreparedReferences =
+        [
+            new PreparedGenerationReference(
+                Guid.NewGuid(), GenerationReferenceObjectKind.Asset, image.Id, MediaType.Image,
+                GenerationReferenceRole.Character, 0, "https://uploads.example/front.png"),
+            new PreparedGenerationReference(
+                Guid.NewGuid(), GenerationReferenceObjectKind.Asset, image.Id, MediaType.Image,
+                GenerationReferenceRole.Style, 1, "https://uploads.example/profile.png")
+        ];
+
+        var payload = provider.BuildPayload(request, [image]);
+        var refers = Assert.IsType<Dictionary<string, string>[]>(payload["refers"]);
+
+        Assert.Collection(
+            refers,
+            item => AssertReference(item, "https://uploads.example/front.png", "image"),
+            item => AssertReference(item, "https://uploads.example/profile.png", "image"));
+    }
+
+    [Fact]
     public void ReferenceToVideoRejectsAudioOnlyAndNonHttpsReferences()
     {
         var audio = CreateAsset(MediaType.Audio, "beat.wav", "https://assets.example/beat.wav");

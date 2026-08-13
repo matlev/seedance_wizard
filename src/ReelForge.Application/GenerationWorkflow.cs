@@ -283,8 +283,8 @@ public sealed class GenerationWorkflow
             var asset = _workspace.Project!.Assets.Single(candidate => candidate.Id == reference.LogicalObjectId);
             if (TryGetReusableProviderReference(provider.Capabilities.ProviderId, asset, reference, out var reusableReference))
             {
-                request.ProviderReferenceOverrides[reference.LogicalObjectId] = reusableReference;
-                record.ResponseMetadata[$"reference.{reference.LogicalObjectId:N}.preparation"] = "reused-provider-reference";
+                request.PreparedReferences.Add(CreatePreparedReference(reference, asset.MediaType, reusableReference));
+                record.ResponseMetadata[$"reference.{reference.ReferenceId:N}.preparation"] = "reused-provider-reference";
                 continue;
             }
 
@@ -296,8 +296,7 @@ public sealed class GenerationWorkflow
                     _workspace.Project!,
                     _workspace.Location!,
                     new MaterializationRequest(
-                        reference.LogicalObjectId,
-                        reference.RecipeRevisionId,
+                        new AssetMaterializationTarget(reference.LogicalObjectId, reference.RecipeRevisionId),
                         MaterializationPurpose.ProviderUpload,
                         MaterializationRetentionPreference.Ephemeral),
                     cancellationToken)
@@ -305,13 +304,25 @@ public sealed class GenerationWorkflow
             var prepared = await _providerPreparation
                 .PrepareAsync(provider.Capabilities.ProviderId, reference, media, authorization, cancellationToken)
                 .ConfigureAwait(false);
-            request.ProviderReferenceOverrides[reference.LogicalObjectId] = prepared.ProviderRepresentation;
-            record.ResponseMetadata[$"reference.{reference.LogicalObjectId:N}.preparation"] =
+            request.PreparedReferences.Add(CreatePreparedReference(reference, asset.MediaType, prepared.ProviderRepresentation));
+            record.ResponseMetadata[$"reference.{reference.ReferenceId:N}.preparation"] =
                 prepared.Receipt?.ProviderScope ?? "prepared";
         }
 
         await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
     }
+
+    private static PreparedGenerationReference CreatePreparedReference(
+        GenerationReferenceSnapshot reference,
+        MediaType mediaType,
+        string representation) => new(
+            reference.ReferenceId,
+            reference.ObjectKind,
+            reference.LogicalObjectId,
+            mediaType,
+            reference.Role,
+            reference.Order ?? int.MaxValue,
+            representation);
 
     private static bool TryGetReusableProviderReference(
         string providerId,

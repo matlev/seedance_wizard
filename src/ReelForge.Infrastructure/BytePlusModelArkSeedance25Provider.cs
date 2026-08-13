@@ -133,12 +133,12 @@ public sealed class BytePlusModelArkSeedance25Provider :
                 errors.Add("BytePlus image-to-video requires one or two image references and no video or audio references.");
         }
 
-        var resolvedReferences = new Dictionary<Guid, string>();
-        foreach (var asset in references)
+        var resolvedReferences = new List<string>();
+        for (var index = 0; index < references.Count; index++)
         {
-            var resolved = request.ProviderReferenceOverrides.TryGetValue(asset.Id, out var prepared)
-                ? prepared
-                : _assetReferenceResolver.Resolve(ProviderId, asset);
+            var asset = references[index];
+            var resolved = GetPreparedRepresentation(request, index, asset.Id)
+                ?? _assetReferenceResolver.Resolve(ProviderId, asset);
             if (string.IsNullOrWhiteSpace(resolved))
             {
                 errors.Add($"{asset.FileName} has no prepared BytePlus reference.");
@@ -149,7 +149,7 @@ public sealed class BytePlusModelArkSeedance25Provider :
                 errors.Add($"{asset.FileName} has an unsupported BytePlus reference representation.");
                 continue;
             }
-            resolvedReferences[asset.Id] = resolved;
+            resolvedReferences.Add(resolved);
         }
 
         if (errors.Count > 0)
@@ -187,7 +187,7 @@ public sealed class BytePlusModelArkSeedance25Provider :
                 ["type"] = typeName,
                 [typeName] = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    ["url"] = resolvedReferences[asset.Id]
+                    ["url"] = resolvedReferences[index]
                 },
                 ["role"] = role
             });
@@ -205,13 +205,21 @@ public sealed class BytePlusModelArkSeedance25Provider :
             ["return_last_frame"] = ReadBoolean(request, "return_last_frame", false),
             ["output_format"] = ReadChoice(request, "output_format", ["mp4", "mov"], "mp4")
         };
-        if (resolvedReferences.Values.Any(value => value.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) &&
+        if (resolvedReferences.Any(value => value.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) &&
             JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions).Length >= MaximumRequestBodyBytes)
         {
             throw new GenerationValidationException(
                 ["The inline BytePlus request would exceed the documented 64 MB request-body limit."]);
         }
         return payload;
+    }
+
+    private static string? GetPreparedRepresentation(GenerationRequest request, int index, Guid logicalObjectId)
+    {
+        var ordered = request.PreparedReferences.OrderBy(reference => reference.Order).ToArray();
+        if (index < ordered.Length && ordered[index].LogicalObjectId == logicalObjectId)
+            return ordered[index].ProviderRepresentation;
+        return ordered.FirstOrDefault(reference => reference.LogicalObjectId == logicalObjectId)?.ProviderRepresentation;
     }
 
     private static bool IsSupportedRepresentation(MediaType mediaType, string value)
