@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -21,7 +22,7 @@ namespace ReelForge.App;
 
 public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 {
-    private readonly ObservableCollection<ProjectAssetListItem> _assets = [];
+    private readonly ObservableCollection<ProjectMediaListItem> _assets = [];
     private readonly ObservableCollection<GenerationRecord> _generations = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
     private readonly ObservableCollection<GenerationJobListItem> _jobs = [];
@@ -116,7 +117,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _jobCoordinator.JobsChanged += JobCoordinator_JobsChanged;
         _jobCoordinator.JobStatusChanged += JobCoordinator_JobStatusChanged;
 
-        AssetsList.ItemsSource = _assets;
+        var projectMediaView = new ListCollectionView(_assets);
+        projectMediaView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ProjectMediaListItem.GroupName)));
+        AssetsList.ItemsSource = projectMediaView;
         GenerationsList.ItemsSource = _generations;
         ReferenceAssetsGrid.ItemsSource = _referenceChoices;
         JobsList.ItemsSource = _jobs;
@@ -424,8 +427,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             GenerateWorkspaceButton.IsChecked = _activeWorkspace == ProjectWorkspaceKind.Generate;
             EditWorkspaceButton.IsChecked = _activeWorkspace == ProjectWorkspaceKind.Edit;
             ApplyWorkspaceMode();
-            if (state is { SelectedMediaKind: "asset", SelectedMediaId: { } assetId })
-                AssetsList.SelectedItem = _assets.FirstOrDefault(item => item.Asset.Id == assetId);
+            if (state is { SelectedMediaKind: { } kind, SelectedMediaId: { } mediaId })
+                AssetsList.SelectedItem = _assets.FirstOrDefault(item =>
+                    kind == "asset" ? item.Asset?.Id == mediaId : item.Anchor?.Id == mediaId);
         }
         finally
         {
@@ -919,15 +923,22 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void AssetsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (AssetsList.SelectedItem is not ProjectAssetListItem item)
+        if (AssetsList.SelectedItem is not ProjectMediaListItem item)
         {
             return;
         }
-        var asset = item.Asset;
 
         var selectedProjectId = _workspace.Project?.Id;
         GenerationsList.SelectedItem = null;
         ResetFrameWorkspace();
+        if (item.Anchor is not null && item.AnchorRevision is not null)
+        {
+            if (!_restoringProjectUiState) await SaveProjectUiStateAsync("anchor", item.Anchor.Id);
+            await ShowSavedFramePreviewAsync(item, selectedProjectId);
+            return;
+        }
+
+        if (item.Asset is not { } asset) return;
         if (!_restoringProjectUiState) await SaveProjectUiStateAsync("asset", asset.Id);
 
         await RunUiActionAsync(
@@ -947,7 +958,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     return;
                 }
 
-                if (asset.MediaType is MediaType.Video or MediaType.Audio &&
+                if (asset.StorageKind == AssetStorageKind.Physical &&
+                    asset.MediaType is MediaType.Video or MediaType.Audio &&
                     asset.Encoding is null &&
                     _mediaTools.FfprobePath is not null)
                 {
@@ -1062,6 +1074,48 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             });
     }
 
+    private async Task ShowSavedFramePreviewAsync(ProjectMediaListItem item, Guid? selectedProjectId)
+    {
+        if (_workspace.Project is null || _workspace.Location is null ||
+            item.Anchor is not { } anchor || item.AnchorRevision is not { } revision) return;
+
+        await RunUiActionAsync($"Loading {item.DisplayName}…", async () =>
+        {
+            try
+            {
+                await using var media = await new PhysicalAssetMaterializer(exactFrameService: _exactFrameService)
+                    .MaterializeAsync(
+                        _workspace.Project,
+                        _workspace.Location,
+                        new MaterializationRequest(
+                            new AnchorMaterializationTarget(anchor.Id, revision.Id),
+                            MaterializationPurpose.Preview),
+                        CancellationToken.None);
+                if (_workspace.Project?.Id != selectedProjectId || AssetsList.SelectedItem != item) return;
+                var thumbnail = LoadBitmap(media.Path);
+                item.Thumbnail = thumbnail;
+                AssetsList.Items.Refresh();
+                ClearMediaPreview();
+                PreviewPlaceholder.Visibility = Visibility.Collapsed;
+                ImagePreview.Source = thumbnail;
+                ImagePreview.Visibility = Visibility.Visible;
+                InspectorText.Text = FormatSavedFrameInspector(
+                    new SavedFrameListItem(anchor, revision, thumbnail, error: null));
+                StatusText.Text = $"Selected Saved Frame {item.DisplayName}.";
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                if (_workspace.Project?.Id != selectedProjectId) return;
+                ClearMediaPreview();
+                PreviewPlaceholder.Text = $"Saved Frame preview unavailable\n\n{exception.Message}";
+                PreviewPlaceholder.Visibility = Visibility.Visible;
+                InspectorText.Text = FormatSavedFrameInspector(
+                    new SavedFrameListItem(anchor, revision, thumbnail: null, exception.Message));
+                StatusText.Text = $"Could not display {item.DisplayName}.";
+            }
+        });
+    }
+
     private async void DeleteAsset_Click(object sender, RoutedEventArgs e)
     {
         if (GetSelectedAsset() is not { } asset || _workspace.Project is null) return;
@@ -1162,7 +1216,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         return dialog.ProjectFilePath;
     }
 
-    private ProjectAsset? GetSelectedAsset() => (AssetsList.SelectedItem as ProjectAssetListItem)?.Asset;
+    private ProjectAsset? GetSelectedAsset() => (AssetsList.SelectedItem as ProjectMediaListItem)?.Asset;
 
     private async Task RemoveCurrentProjectAssetAsync(ProjectAsset asset)
     {
@@ -2515,7 +2569,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         RestoreProjectUiState();
         _suppressDraftAutosave = false;
 
-        ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} assets";
+        ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} media items";
         Title = $"{_workspace.Project.Name} — ReelForge";
         StatusText.Text = $"Opened {_workspace.Location!.ProjectFilePath}";
     }
@@ -2543,9 +2597,23 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _generations.Clear();
         _referenceChoices.Clear();
 
+        var mediaItems = new List<ProjectMediaListItem>();
         foreach (var asset in _workspace.Project.Assets)
         {
-            _assets.Add(new ProjectAssetListItem(asset));
+            var mediaItem = new ProjectMediaListItem(asset);
+            if (asset is { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Image } &&
+                File.Exists(_workspace.GetAbsoluteAssetPath(asset)))
+            {
+                try
+                {
+                    mediaItem.Thumbnail = LoadBitmap(_workspace.GetAbsoluteAssetPath(asset));
+                }
+                catch (Exception exception) when (exception is IOException or NotSupportedException)
+                {
+                    // The viewer reports unreadable image details when the item is explicitly selected.
+                }
+            }
+            mediaItems.Add(mediaItem);
             var matching = existingChoices.Where(choice =>
                 choice.ObjectKind == GenerationReferenceObjectKind.Asset && choice.LogicalObjectId == asset.Id).ToArray();
             if (matching.Length > 0)
@@ -2568,6 +2636,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             var revision = _workspace.Project.AnchorRevisions.SingleOrDefault(candidate => candidate.Id == revisionId);
             if (revision is null) continue;
             var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == revision.SourceAssetId);
+            mediaItems.Add(new ProjectMediaListItem(anchor, revision));
             var matching = existingChoices.Where(choice =>
                 choice.ObjectKind == GenerationReferenceObjectKind.FrameAnchor && choice.LogicalObjectId == anchor.Id).ToArray();
             if (matching.Length > 0)
@@ -2588,12 +2657,16 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             }
         }
 
+
+        foreach (var item in mediaItems.OrderBy(item => item.GroupOrder).ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase))
+            _assets.Add(item);
+
         foreach (var generation in _workspace.Project.Generations.OrderByDescending(item => item.RequestedAt))
             _generations.Add(generation);
 
-        ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} assets";
+        ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} media items";
         if (selectedAssetId is { } id)
-            AssetsList.SelectedItem = _assets.FirstOrDefault(item => item.Asset.Id == id);
+            AssetsList.SelectedItem = _assets.FirstOrDefault(item => item.Asset?.Id == id);
     }
 
     private string GetSelectedOutputFormat() =>
@@ -2855,13 +2928,55 @@ public sealed class SavedFrameListItem
         .ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
 }
 
-public sealed class ProjectAssetListItem
+public sealed class ProjectMediaListItem
 {
-    public ProjectAssetListItem(ProjectAsset asset) => Asset = asset;
+    public ProjectMediaListItem(ProjectAsset asset) => Asset = asset;
 
-    public ProjectAsset Asset { get; }
-    public string DisplayName => Asset.StorageKind == AssetStorageKind.Physical ? Asset.FileName : Asset.EffectiveDisplayName;
-    public MediaType MediaType => Asset.MediaType;
+    public ProjectMediaListItem(FrameAnchor anchor, FrameAnchorRevision revision)
+    {
+        Anchor = anchor;
+        AnchorRevision = revision;
+    }
+
+    public ProjectAsset? Asset { get; }
+    public FrameAnchor? Anchor { get; }
+    public FrameAnchorRevision? AnchorRevision { get; }
+    public BitmapSource? Thumbnail { get; set; }
+    public string DisplayName => Anchor?.DisplayLabel ??
+                                 (Asset!.StorageKind == AssetStorageKind.Physical
+                                     ? Asset.FileName
+                                     : Asset.EffectiveDisplayName);
+    public string KindText => Anchor is not null ? "Saved Frame" : Asset!.StorageKind == AssetStorageKind.Virtual
+        ? IsSavedClip ? "Saved Clip" : $"Virtual {Asset.MediaType}"
+        : Asset.MediaType.ToString();
+    public string GroupName => Anchor is not null ? "SAVED FRAMES" : Asset!.StorageKind == AssetStorageKind.Virtual
+        ? IsSavedClip ? "SAVED CLIPS" : "VIRTUAL MEDIA"
+        : Asset.MediaType switch
+        {
+            MediaType.Video => "VIDEOS",
+            MediaType.Image => "IMAGES",
+            MediaType.Audio => "AUDIO",
+            _ => "MEDIA"
+        };
+    public int GroupOrder => GroupName switch
+    {
+        "VIDEOS" => 0,
+        "IMAGES" => 1,
+        "AUDIO" => 2,
+        "SAVED FRAMES" => 3,
+        "SAVED CLIPS" => 4,
+        _ => 5
+    };
+    public string Glyph => Anchor is not null ? "▣" : Asset!.StorageKind == AssetStorageKind.Virtual
+        ? "✂"
+        : Asset.MediaType switch
+        {
+            MediaType.Video => "▶",
+            MediaType.Image => "▧",
+            MediaType.Audio => "♪",
+            _ => "•"
+        };
+    private bool IsSavedClip => Asset?.StorageKind == AssetStorageKind.Virtual && Asset.MediaType == MediaType.Video;
 }
 
 public sealed class GenerationReferenceChoice
