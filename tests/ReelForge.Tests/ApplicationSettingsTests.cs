@@ -88,6 +88,50 @@ public sealed class ApplicationSettingsTests
     }
 
     [Fact]
+    public async Task ConcurrentSavesToSameSettingsPathRemainAtomic()
+    {
+        var directory = CreateDirectory();
+        try
+        {
+            var localPath = Path.Combine(directory, "appsettings.local.json");
+            var defaultsPath = Path.Combine(directory, "missing.json");
+            var stores = new[]
+            {
+                new JsonApplicationSettingsStore(defaultsPath, localPath),
+                new JsonApplicationSettingsStore(defaultsPath, localPath)
+            };
+
+            await stores[0].SaveAsync(new ApplicationSettings());
+            var operations = Enumerable.Range(0, 30).Select(async index =>
+            {
+                if (index % 3 == 0)
+                {
+                    await stores[index % stores.Length].LoadAsync();
+                    return;
+                }
+                var settings = new ApplicationSettings();
+                settings.General.UndoSendSeconds = index;
+                settings.General.ProjectStates[Guid.NewGuid().ToString("N")] = new ProjectUserInterfaceState
+                {
+                    Workspace = index % 2 == 0 ? ProjectWorkspaceKind.Generate : ProjectWorkspaceKind.Edit
+                };
+                await stores[index % stores.Length].SaveAsync(settings);
+            });
+
+            await Task.WhenAll(operations);
+
+            var loaded = await stores[0].LoadAsync();
+            Assert.InRange(loaded.General.UndoSendSeconds, 0, 29);
+            Assert.Single(loaded.General.ProjectStates);
+            Assert.Empty(Directory.EnumerateFiles(directory, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task EditorCommitsDirtyFieldsOnlyAtLifecycleBoundary()
     {
         var store = new CountingSettingsStore();

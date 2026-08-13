@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Encodings.Web;
@@ -7,6 +8,9 @@ namespace ReelForge.Infrastructure;
 
 public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> SettingsFileLocks =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
@@ -28,47 +32,67 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
 
     public async Task<ApplicationSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
-        var merged = JsonSerializer.SerializeToNode(new ApplicationSettings(), SerializerOptions)!.AsObject();
-        if (File.Exists(_defaultsPath))
-            Merge(merged, await ReadObjectAsync(_defaultsPath, cancellationToken).ConfigureAwait(false));
-        if (File.Exists(LocalSettingsPath))
-            Merge(merged, await ReadObjectAsync(LocalSettingsPath, cancellationToken).ConfigureAwait(false));
+        var settingsFileLock = GetSettingsFileLock();
+        await settingsFileLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var merged = JsonSerializer.SerializeToNode(new ApplicationSettings(), SerializerOptions)!.AsObject();
+            if (File.Exists(_defaultsPath))
+                Merge(merged, await ReadObjectAsync(_defaultsPath, cancellationToken).ConfigureAwait(false));
+            if (File.Exists(LocalSettingsPath))
+                Merge(merged, await ReadObjectAsync(LocalSettingsPath, cancellationToken).ConfigureAwait(false));
 
-        var settings = merged.Deserialize<ApplicationSettings>(SerializerOptions) ?? new ApplicationSettings();
-        Normalize(settings);
-        return settings;
+            var settings = merged.Deserialize<ApplicationSettings>(SerializerOptions) ?? new ApplicationSettings();
+            Normalize(settings);
+            return settings;
+        }
+        finally
+        {
+            settingsFileLock.Release();
+        }
     }
 
     public async Task SaveAsync(ApplicationSettings settings, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        Normalize(settings);
-        var directory = Path.GetDirectoryName(LocalSettingsPath)
-            ?? throw new InvalidOperationException("The application settings path has no parent directory.");
-        Directory.CreateDirectory(directory);
-        var temporaryPath = LocalSettingsPath + ".tmp";
+        var normalizedPath = Path.GetFullPath(LocalSettingsPath);
+        var saveLock = GetSettingsFileLock();
+        await saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        string? temporaryPath = null;
         try
         {
+            Normalize(settings);
+            var payload = JsonSerializer.SerializeToUtf8Bytes(settings, SerializerOptions);
+            var directory = Path.GetDirectoryName(normalizedPath)
+                ?? throw new InvalidOperationException("The application settings path has no parent directory.");
+            Directory.CreateDirectory(directory);
+            temporaryPath = Path.Combine(
+                directory,
+                $".{Path.GetFileName(normalizedPath)}.{Guid.NewGuid():N}.tmp");
             await using (var stream = new FileStream(
                              temporaryPath,
-                             FileMode.Create,
+                             FileMode.CreateNew,
                              FileAccess.Write,
                              FileShare.None,
                              4096,
                              FileOptions.Asynchronous))
             {
-                await JsonSerializer.SerializeAsync(stream, settings, SerializerOptions, cancellationToken)
-                    .ConfigureAwait(false);
+                await stream.WriteAsync(payload, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            File.Move(temporaryPath, LocalSettingsPath, overwrite: true);
+            File.Move(temporaryPath, normalizedPath, overwrite: true);
         }
         finally
         {
-            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            if (temporaryPath is not null && File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            saveLock.Release();
         }
     }
+
+    private SemaphoreSlim GetSettingsFileLock() => SettingsFileLocks.GetOrAdd(
+        Path.GetFullPath(LocalSettingsPath),
+        static _ => new SemaphoreSlim(1, 1));
 
     private static async Task<JsonObject> ReadObjectAsync(string path, CancellationToken cancellationToken)
     {
