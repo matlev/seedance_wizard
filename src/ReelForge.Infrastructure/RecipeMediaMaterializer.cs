@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using ReelForge.Application;
@@ -9,7 +10,7 @@ namespace ReelForge.Infrastructure;
 public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
 {
     private const string TrimAlgorithmVersion = "saved-clip-trim-v1";
-    private const string ConcatAlgorithmVersion = "composition-concat-v1";
+    private const string ConcatAlgorithmVersion = "composition-concat-v2";
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly IExactVideoFrameService _exactFrameService;
     private readonly IExternalProcessRunner _runner;
@@ -159,28 +160,21 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
             foreach (var lease in leases)
             {
                 var encoding = lease.Encoding;
-                if (encoding?.Video is null && _mediaInspector is not null)
+                if (_mediaInspector is not null &&
+                    (!lease.IsDurableSource || encoding?.Video is null || encoding.DurationSeconds is null))
                     encoding = await _mediaInspector.InspectAsync(lease.Path, cancellationToken).ConfigureAwait(false);
                 encodings.Add(encoding);
             }
             var compatibility = MediaCompatibilityAnalyzer.Analyze(encodings);
-            if (!compatibility.CanConcatWithoutNormalization)
-            {
-                var detail = compatibility.Decision == CompositionCompatibilityDecision.Unknown
-                    ? "one or more inputs have incomplete stream metadata"
-                    : string.Join(", ", compatibility.Issues.Select(issue => issue.Property));
-                throw new NotSupportedException(
-                    $"Composition inputs require normalization before concat: {detail}.");
-            }
-
             var allAudioEnabled = composition.Segments.All(segment => segment.AudioEnabled);
             var noAudioEnabled = composition.Segments.All(segment => !segment.AudioEnabled);
-            if (!allAudioEnabled && !noAudioEnabled)
-                throw new NotSupportedException(
-                    "Composition segments with mixed audio enablement require normalization and silence generation.");
             var includeAudio = allAudioEnabled && encodings.All(encoding => encoding?.Audio is not null);
+            var normalize = !compatibility.CanConcatWithoutNormalization || (!allAudioEnabled && !noAudioEnabled);
+            if (normalize && _mediaInspector is null && encodings.Any(encoding => !CanNormalize(encoding)))
+                throw new NotSupportedException(
+                    "Composition inputs require normalization, but complete video duration and stream metadata are unavailable.");
             return await RenderConcatAsync(
-                    outputAsset, composition, leases, includeAudio, request, cancellationToken)
+                    outputAsset, composition, leases, encodings, includeAudio, normalize, request, cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
@@ -217,7 +211,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         ProjectAsset outputAsset,
         CompositionRenderPlanNode composition,
         IReadOnlyList<MaterializedMediaLease> inputs,
+        List<MediaEncodingMetadata?> encodings,
         bool includeAudio,
+        bool normalize,
         MaterializationRequest request,
         CancellationToken cancellationToken)
     {
@@ -229,6 +225,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
             composition.NodeHash,
             string.Join(';', inputs.Select(input => input.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty)),
             includeAudio,
+            normalize,
+            string.Join(';', composition.Segments.Select(segment => segment.AudioEnabled)),
             request.Purpose,
             request.Profile ?? string.Empty,
             fingerprint));
@@ -247,8 +245,18 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
             var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
             try
             {
-                var arguments = FfmpegCommandBuilder.BuildCompatibleConcatArguments(
-                    inputs.Select(input => input.Path).ToArray(), temporaryPath, includeAudio);
+                var arguments = normalize
+                    ? FfmpegCommandBuilder.BuildNormalizedConcatArguments(
+                        inputs.Select((input, index) => new NormalizedConcatInput(
+                            input.Path,
+                            encodings[index]?.DurationSeconds
+                                ?? throw new NotSupportedException("A composition segment has no known duration for normalization."),
+                            encodings[index]?.Audio is not null,
+                            composition.Segments[index].AudioEnabled)).ToArray(),
+                        temporaryPath,
+                        CreateNormalizationProfile(encodings))
+                    : FfmpegCommandBuilder.BuildCompatibleConcatArguments(
+                        inputs.Select(input => input.Path).ToArray(), temporaryPath, includeAudio);
                 var result = await _runner.RunAsync(
                         new ExternalProcessRequest(ffmpegPath, arguments),
                         cancellationToken: cancellationToken)
@@ -276,6 +284,43 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         {
             cacheLock.Release();
         }
+    }
+
+    private static NormalizedConcatProfile CreateNormalizationProfile(
+        IReadOnlyList<MediaEncodingMetadata?> encodings)
+    {
+        if (encodings.Any(encoding => !CanNormalize(encoding)))
+            throw new NotSupportedException(
+                "Composition normalization requires a known duration, width, height, and frame rate for every segment.");
+        var width = encodings.Max(encoding => encoding!.Video!.Width!.Value);
+        var height = encodings.Max(encoding => encoding!.Video!.Height!.Value);
+        var frameRate = encodings.Select(encoding => ParseFrameRate(encoding!.Video!.FrameRate!))
+            .FirstOrDefault(value => value > 0);
+        if (frameRate <= 0)
+            throw new NotSupportedException("Composition normalization requires a valid frame rate.");
+        return new NormalizedConcatProfile(width, height, frameRate);
+    }
+
+    private static bool CanNormalize(MediaEncodingMetadata? encoding) =>
+        encoding is
+        {
+            DurationSeconds: > 0,
+            Video.Width: > 0,
+            Video.Height: > 0,
+            Video.FrameRate: not null
+        } && ParseFrameRate(encoding.Video.FrameRate) > 0;
+
+    private static double ParseFrameRate(string value)
+    {
+        var parts = value.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 2 &&
+            double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var numerator) &&
+            double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var denominator) &&
+            denominator > 0)
+            return numerator / denominator;
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : 0;
     }
 
     private Task<MaterializedMediaLease> MaterializeExtractFrameNodeAsync(

@@ -280,7 +280,7 @@ In progress. ReelForge now has a provider-neutral recursive render-plan tree wit
 2. Inspect realized media when virtual-source metadata is incomplete rather than guessing compatibility from labels or file extensions.
 3. Compile compatible ordered video segments into one FFmpeg concat filter graph with explicit audio handling and reset timestamps.
 4. Render through unique temporary files, atomically commit the composition cache entry, retain dependency leases for the full operation, and reuse unchanged results.
-5. Refuse incompatible, unknown, or mixed-audio compositions with a normalization requirement; typed normalization and silence generation remain the next 2D slice.
+5. Normalize mismatched dimensions, frame rates, pixel formats, and audio layouts into a common preview profile. Generate duration-matched silence for audio-disabled or silent segments so mixed compositions remain synchronized.
 
 #### Phase 2D.3 — testable Working Composition editor
 

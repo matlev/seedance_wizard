@@ -345,7 +345,7 @@ public sealed class MaterializationTargetTests : IDisposable
     }
 
     [Fact]
-    public async Task IncompatibleCompositionReportsNormalizationWithoutRunningConcat()
+    public async Task IncompatibleCompositionNormalizesAndCachesConcat()
     {
         var (project, location, firstSource) = await CreateProjectSourceAsync();
         var firstPath = Path.Combine(_root, firstSource.Physical!.RelativePath);
@@ -383,22 +383,29 @@ public sealed class MaterializationTargetTests : IDisposable
             Segments =
             [
                 new CompositionSegment { Source = new AssetRevisionReference { AssetId = firstSource.Id } },
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = secondSource.Id } }
+                new CompositionSegment
+                {
+                    Source = new AssetRevisionReference { AssetId = secondSource.Id },
+                    AudioEnabled = false
+                }
             ]
         });
         var runner = new TrimRunner();
         using var materializer = new RecipeMediaMaterializer(
             "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
 
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => materializer.MaterializeAsync(
+        await using var preview = await materializer.MaterializeAsync(
             project,
             location,
             new MaterializationRequest(
                 new AssetMaterializationTarget(composition.Id, revision.Id),
-                MaterializationPurpose.Preview)));
+                MaterializationPurpose.Preview));
 
-        Assert.Contains("normalization", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(0, runner.ConcatCount);
+        Assert.Equal(1, runner.ConcatCount);
+        var graph = runner.ConcatRequest!.Arguments[runner.ConcatRequest.Arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.Contains("scale=1920:720", graph, StringComparison.Ordinal);
+        Assert.Contains("anullsrc=r=48000:cl=stereo", graph, StringComparison.Ordinal);
+        Assert.True(File.Exists(preview.Path));
     }
 
     [Fact]

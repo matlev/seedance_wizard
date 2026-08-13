@@ -285,6 +285,65 @@ public static class FfmpegCommandBuilder
         return arguments;
     }
 
+    public static IReadOnlyList<string> BuildNormalizedConcatArguments(
+        IReadOnlyList<NormalizedConcatInput> inputs,
+        string outputPath,
+        NormalizedConcatProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(inputs);
+        ArgumentNullException.ThrowIfNull(profile);
+        if (inputs.Count < 2)
+            throw new ArgumentException("Concat requires at least two inputs.", nameof(inputs));
+        if (profile.Width <= 0 || profile.Height <= 0 || profile.FramesPerSecond <= 0 ||
+            double.IsNaN(profile.FramesPerSecond) || double.IsInfinity(profile.FramesPerSecond))
+            throw new ArgumentOutOfRangeException(nameof(profile));
+        if (profile.AudioSampleRate <= 0)
+            throw new ArgumentOutOfRangeException(nameof(profile));
+        foreach (var input in inputs)
+        {
+            ValidateMediaPath(input.Path, nameof(inputs));
+            if (input.DurationSeconds <= 0 || double.IsNaN(input.DurationSeconds) || double.IsInfinity(input.DurationSeconds))
+                throw new ArgumentOutOfRangeException(nameof(inputs), "Every normalized concat input requires a positive duration.");
+        }
+        ValidateMediaPath(outputPath, nameof(outputPath));
+
+        var includeAudio = inputs.Any(input => input.AudioEnabled);
+        var arguments = new List<string> { "-hide_banner", "-y" };
+        foreach (var input in inputs)
+            arguments.AddRange(["-i", input.Path]);
+
+        var width = profile.Width - profile.Width % 2;
+        var height = profile.Height - profile.Height % 2;
+        var fps = profile.FramesPerSecond.ToString("0.###", CultureInfo.InvariantCulture);
+        var filters = new List<string>();
+        var concatInputs = new StringBuilder();
+        for (var index = 0; index < inputs.Count; index++)
+        {
+            filters.Add(
+                $"[{index}:v:0]scale={width}:{height}:force_original_aspect_ratio=decrease," +
+                $"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p," +
+                $"setpts=PTS-STARTPTS[v{index}]");
+            concatInputs.Append(CultureInfo.InvariantCulture, $"[v{index}]");
+            if (!includeAudio) continue;
+
+            var duration = FormatSeconds(inputs[index].DurationSeconds);
+            filters.Add(inputs[index].HasAudio && inputs[index].AudioEnabled
+                ? $"[{index}:a:0]aresample={profile.AudioSampleRate},aformat=channel_layouts=stereo," +
+                  $"apad,atrim=duration={duration},asetpts=PTS-STARTPTS[a{index}]"
+                : $"anullsrc=r={profile.AudioSampleRate}:cl=stereo,atrim=duration={duration}," +
+                  $"asetpts=PTS-STARTPTS[a{index}]");
+            concatInputs.Append(CultureInfo.InvariantCulture, $"[a{index}]");
+        }
+
+        filters.Add(includeAudio
+            ? $"{concatInputs}concat=n={inputs.Count}:v=1:a=1[v][a]"
+            : $"{concatInputs}concat=n={inputs.Count}:v=1:a=0[v]");
+        arguments.AddRange(["-filter_complex", string.Join(';', filters), "-map", "[v]"]);
+        if (includeAudio) arguments.AddRange(["-map", "[a]", "-c:a", "aac"]);
+        arguments.AddRange(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", outputPath]);
+        return arguments;
+    }
+
     private static string FormatSeconds(double seconds) =>
         seconds.ToString("0.###", CultureInfo.InvariantCulture);
 
@@ -297,6 +356,18 @@ public static class FfmpegCommandBuilder
         }
     }
 }
+
+public sealed record NormalizedConcatInput(
+    string Path,
+    double DurationSeconds,
+    bool HasAudio,
+    bool AudioEnabled);
+
+public sealed record NormalizedConcatProfile(
+    int Width,
+    int Height,
+    double FramesPerSecond,
+    int AudioSampleRate = 48000);
 
 public sealed class FfprobeMediaInspectionService : IMediaInspectionService
 {

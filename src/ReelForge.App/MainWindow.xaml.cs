@@ -2252,6 +2252,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         Guid? selectedProjectId)
     {
         if (_workspace.Project is null || _workspace.Location is null) return;
+        var kindName = asset.Virtual?.Kind == VirtualAssetKind.Composition
+            ? "Working Composition"
+            : "Saved Clip";
         await RunUiActionAsync($"Preparing {asset.EffectiveDisplayName}…", async () =>
         {
             MaterializedMediaLease? lease = null;
@@ -2276,13 +2279,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 OpenVideoPreview(
                     _activePreviewLease.Path,
                     requiresWarmup: asset.Virtual?.Kind != VirtualAssetKind.SavedClip);
-                StatusText.Text = $"Selected Saved Clip {asset.EffectiveDisplayName}.";
+                StatusText.Text = $"Selected {kindName} {asset.EffectiveDisplayName}.";
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 if (_workspace.Project?.Id != selectedProjectId) return;
                 ClearMediaPreview();
-                PreviewPlaceholder.Text = $"Saved Clip preview unavailable\n\n{exception.Message}";
+                PreviewPlaceholder.Text = $"{kindName} preview unavailable\n\n{exception.Message}";
                 PreviewPlaceholder.Visibility = Visibility.Visible;
                 StatusText.Text = $"Could not prepare {asset.EffectiveDisplayName}.";
             }

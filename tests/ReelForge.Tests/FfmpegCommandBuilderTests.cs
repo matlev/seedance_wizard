@@ -71,4 +71,23 @@ public sealed class FfmpegCommandBuilderTests
         Assert.Throws<ArgumentException>(() => FfmpegCommandBuilder.BuildCompatibleConcatArguments(
             ["one.mp4"], "joined.mp4", includeAudio: false));
     }
+
+    [Fact]
+    public void NormalizedConcatMatchesVideoAndCreatesSilenceForDisabledAudio()
+    {
+        var arguments = FfmpegCommandBuilder.BuildNormalizedConcatArguments(
+            [
+                new NormalizedConcatInput("one.mp4", 4.25, HasAudio: true, AudioEnabled: true),
+                new NormalizedConcatInput("two.mp4", 2.5, HasAudio: true, AudioEnabled: false)
+            ],
+            "joined.mp4",
+            new NormalizedConcatProfile(1920, 1080, 30000d / 1001d));
+
+        var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.Contains("scale=1920:1080", graph, StringComparison.Ordinal);
+        Assert.Contains("fps=29.97", graph, StringComparison.Ordinal);
+        Assert.Contains("[0:a:0]aresample=48000", graph, StringComparison.Ordinal);
+        Assert.Contains("anullsrc=r=48000:cl=stereo,atrim=duration=2.5", graph, StringComparison.Ordinal);
+        Assert.Contains("concat=n=2:v=1:a=1[v][a]", graph, StringComparison.Ordinal);
+    }
 }
