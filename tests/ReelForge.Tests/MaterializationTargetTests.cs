@@ -157,6 +157,136 @@ public sealed class MaterializationTargetTests : IDisposable
         Assert.EndsWith("source.mp4", preview.Path, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task NestedSavedClipsMaterializeRecursivelyAndReuseEachCacheLevel()
+    {
+        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
+        sourceAsset.DurationSeconds = 8;
+        sourceAsset.Physical!.ContentIdentity = await new Sha256ContentHashService()
+            .ComputeAsync(Path.Combine(_root, sourceAsset.Physical.RelativePath));
+        var inner = new ProjectAsset
+        {
+            DisplayName = "Inner",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState
+            {
+                Kind = VirtualAssetKind.SavedClip,
+                ExpectedMediaProperties = new MediaEncodingMetadata { DurationSeconds = 4 }
+            }
+        };
+        var outer = new ProjectAsset
+        {
+            DisplayName = "Outer",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState
+            {
+                Kind = VirtualAssetKind.SavedClip,
+                ExpectedMediaProperties = new MediaEncodingMetadata { DurationSeconds = 2 }
+            }
+        };
+        project.AddAsset(inner);
+        project.AddAsset(outer);
+        var innerRevision = project.CommitRecipe(inner.Id, new TrimRecipe
+        {
+            Source = new AssetRevisionReference { AssetId = sourceAsset.Id },
+            Start = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 1 },
+            End = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 5 }
+        });
+        var outerRevision = project.CommitRecipe(outer.Id, new TrimRecipe
+        {
+            Source = new AssetRevisionReference
+            {
+                AssetId = inner.Id,
+                RecipeRevisionId = innerRevision.Id
+            },
+            Start = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 1 },
+            End = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 3 }
+        });
+        var runner = new TrimRunner();
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
+        var request = new MaterializationRequest(
+            new AssetMaterializationTarget(outer.Id, outerRevision.Id),
+            MaterializationPurpose.Preview);
+
+        await using var first = await materializer.MaterializeAsync(project, location, request);
+        await using var second = await materializer.MaterializeAsync(project, location, request);
+
+        Assert.False(first.IsDurableSource);
+        Assert.Equal(first.Path, second.Path);
+        Assert.Equal(2, runner.TrimCount);
+    }
+
+    [Fact]
+    public async Task WorkingCompositionResolvesItsPinnedSavedClipSource()
+    {
+        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
+        sourceAsset.DurationSeconds = 8;
+        sourceAsset.Physical!.ContentIdentity = await new Sha256ContentHashService()
+            .ComputeAsync(Path.Combine(_root, sourceAsset.Physical.RelativePath));
+        var clip = new ProjectAsset
+        {
+            DisplayName = "Pinned clip",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState
+            {
+                Kind = VirtualAssetKind.SavedClip,
+                ExpectedMediaProperties = new MediaEncodingMetadata { DurationSeconds = 3 }
+            }
+        };
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(clip);
+        project.AddAsset(composition);
+        var clipRevision = project.CommitRecipe(clip.Id, new TrimRecipe
+        {
+            Source = new AssetRevisionReference { AssetId = sourceAsset.Id },
+            Start = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 2 },
+            End = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 5 }
+        });
+        var compositionRevision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment
+                {
+                    Source = new AssetRevisionReference
+                    {
+                        AssetId = clip.Id,
+                        RecipeRevisionId = clipRevision.Id
+                    },
+                    Start = RecipeBoundary.SourceStart,
+                    End = RecipeBoundary.SourceEnd
+                }
+            ]
+        });
+        var runner = new TrimRunner();
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
+
+        await using var preview = await materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(composition.Id, compositionRevision.Id),
+                MaterializationPurpose.Preview));
+
+        Assert.False(preview.IsDurableSource);
+        Assert.Equal(1, runner.TrimCount);
+    }
+
     private async Task<(VideoProject Project, ProjectLocation Location, ProjectAsset Asset)> CreateProjectSourceAsync()
     {
         var relativePath = Path.Combine("assets", "videos", "source.mp4");

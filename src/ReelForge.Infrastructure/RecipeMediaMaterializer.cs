@@ -67,54 +67,135 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                 .ConfigureAwait(false);
         }
 
-        return await MaterializeTrimAsync(project, location, asset, assetTarget, request, cancellationToken)
+        var plan = RecipeRenderPlanner.Plan(project, assetTarget, request.Purpose, request.Profile);
+        return await ExecuteNodeAsync(project, location, asset, plan.Root, request, cancellationToken)
             .ConfigureAwait(false);
     }
 
-    private async Task<MaterializedMediaLease> MaterializeTrimAsync(
+    private async Task<MaterializedMediaLease> ExecuteNodeAsync(
         VideoProject project,
         ProjectLocation location,
-        ProjectAsset asset,
-        AssetMaterializationTarget target,
+        ProjectAsset outputAsset,
+        MediaRenderPlanNode node,
         MaterializationRequest request,
         CancellationToken cancellationToken)
     {
-        if (asset.Virtual is null)
-            throw new InvalidDataException($"Virtual asset '{asset.EffectiveDisplayName}' has no virtual state.");
-        var revisionId = target.RecipeRevisionId ?? asset.Virtual.CurrentRecipeRevisionId
-            ?? throw new InvalidOperationException($"Virtual asset '{asset.EffectiveDisplayName}' has no committed recipe.");
-        var revision = project.RecipeRevisions.SingleOrDefault(candidate =>
-                candidate.Id == revisionId && candidate.VirtualAssetId == asset.Id)
-            ?? throw new InvalidOperationException($"Recipe revision '{revisionId}' no longer exists.");
-        if (revision.Recipe is CompositionRecipe composition)
+        switch (node)
         {
-            return await MaterializeInitialCompositionAsync(
-                project, location, composition, request, cancellationToken).ConfigureAwait(false);
+            case PhysicalSourceRenderPlanNode physical:
+                return await _physicalMaterializer.MaterializeAsync(
+                        project,
+                        location,
+                        request with { Target = new AssetMaterializationTarget(physical.AssetId) },
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            case TrimRenderPlanNode trim:
+                return await MaterializeTrimNodeAsync(
+                        project, location, outputAsset, trim, request, cancellationToken)
+                    .ConfigureAwait(false);
+            case ExtractFrameRenderPlanNode frame:
+                return await MaterializeExtractFrameNodeAsync(
+                        project, location, outputAsset, frame, request, cancellationToken)
+                    .ConfigureAwait(false);
+            case CompositionRenderPlanNode composition:
+                return await MaterializeCompositionNodeAsync(
+                        project, location, outputAsset, composition, request, cancellationToken)
+                    .ConfigureAwait(false);
+            default:
+                throw new NotSupportedException($"Render node '{node.GetType().Name}' is not supported.");
         }
-        if (revision.Recipe is not TrimRecipe trim)
-            throw new NotSupportedException(
-                $"Recipe '{revision.Recipe.GetType().Name}' is not part of the current Saved Clip materialization slice.");
-        if (trim.Source.RecipeRevisionId is not null)
-            throw new NotSupportedException("Saved Clips of virtual sources are not supported in the current materialization slice.");
+    }
 
-        var sourceAsset = project.Assets.SingleOrDefault(candidate => candidate.Id == trim.Source.AssetId)
-            ?? throw new InvalidOperationException($"Clip source '{trim.Source.AssetId}' no longer exists.");
-        await using var source = await _physicalMaterializer.MaterializeAsync(
+    private async Task<MaterializedMediaLease> MaterializeTrimNodeAsync(
+        VideoProject project,
+        ProjectLocation location,
+        ProjectAsset outputAsset,
+        TrimRenderPlanNode trim,
+        MaterializationRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var source = await ExecuteNodeAsync(
                 project,
                 location,
-                new MaterializationRequest(
-                    new AssetMaterializationTarget(sourceAsset.Id),
-                    request.Purpose,
-                    request.RetentionPreference,
-                    request.Profile),
+                project.Assets.Single(asset => asset.Id == trim.Source.AssetId),
+                trim.Source,
+                request,
                 cancellationToken)
             .ConfigureAwait(false);
+        return await RenderTrimAsync(
+                project, outputAsset, trim.Source.AssetId, trim.NodeHash, trim.Start, trim.End,
+                source, request, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<MaterializedMediaLease> MaterializeCompositionNodeAsync(
+        VideoProject project,
+        ProjectLocation location,
+        ProjectAsset outputAsset,
+        CompositionRenderPlanNode composition,
+        MaterializationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (composition.Segments is not [var segment])
+            throw new NotSupportedException(
+                "Multi-segment composition rendering requires the Phase 2D concat planner.");
+        var sourceAsset = project.Assets.Single(asset => asset.Id == segment.Source.AssetId);
+        if (segment.Start.Kind == RecipeBoundaryKind.SourceStart &&
+            segment.End.Kind == RecipeBoundaryKind.SourceEnd)
+            return await ExecuteNodeAsync(project, location, sourceAsset, segment.Source, request, cancellationToken)
+                .ConfigureAwait(false);
+
+        await using var source = await ExecuteNodeAsync(
+                project, location, sourceAsset, segment.Source, request, cancellationToken)
+            .ConfigureAwait(false);
+        return await RenderTrimAsync(
+                project, outputAsset, segment.Source.AssetId, composition.NodeHash,
+                segment.Start, segment.End, source, request, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private Task<MaterializedMediaLease> MaterializeExtractFrameNodeAsync(
+        VideoProject project,
+        ProjectLocation location,
+        ProjectAsset outputAsset,
+        ExtractFrameRenderPlanNode frame,
+        MaterializationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (frame.Source is not PhysicalSourceRenderPlanNode physical)
+            throw new NotSupportedException(
+                "Extracting a frame from virtual video requires Phase 2D time mapping.");
+        return _physicalMaterializer.MaterializeAsync(
+            project,
+            location,
+            request with
+            {
+                Target = new AnchorMaterializationTarget(
+                    frame.Anchor.AnchorId,
+                    frame.Anchor.AnchorRevisionId),
+                Profile = frame.ImageProfile ?? request.Profile
+            },
+            cancellationToken);
+    }
+
+    private async Task<MaterializedMediaLease> RenderTrimAsync(
+        VideoProject project,
+        ProjectAsset outputAsset,
+        Guid sourceAssetId,
+        string nodeHash,
+        RecipeBoundary start,
+        RecipeBoundary end,
+        MaterializedMediaLease source,
+        MaterializationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var sourceAsset = project.Assets.Single(candidate => candidate.Id == sourceAssetId);
         var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
             "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or use Saved Clips.");
         var fingerprint = await GetRendererFingerprintAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
         var key = HashText(string.Join('|',
             TrimAlgorithmVersion,
-            revision.Id.ToString("N"),
+            nodeHash,
             source.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty,
             request.Purpose.ToString(),
             request.Profile ?? string.Empty,
@@ -122,18 +203,21 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         var cacheDirectory = Path.Combine(_cacheRoot, "clips");
         var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
         if (IsUsableCacheFile(cachePath))
-            return await OpenCacheLeaseAsync(cachePath, asset, cancellationToken).ConfigureAwait(false);
+            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
 
         var cacheLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
         await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (IsUsableCacheFile(cachePath))
-                return await OpenCacheLeaseAsync(cachePath, asset, cancellationToken).ConfigureAwait(false);
+                return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
+            var durationSeconds = source.Encoding?.DurationSeconds ??
+                                  sourceAsset.DurationSeconds ??
+                                  sourceAsset.Encoding?.DurationSeconds;
             var startSeconds = await ResolveBoundarySecondsAsync(
-                project, sourceAsset, source.Path, trim.Start, isEnd: false, cancellationToken).ConfigureAwait(false);
+                project, sourceAsset, source.Path, start, durationSeconds, isEnd: false, cancellationToken).ConfigureAwait(false);
             var endSeconds = await ResolveBoundarySecondsAsync(
-                project, sourceAsset, source.Path, trim.End, isEnd: true, cancellationToken).ConfigureAwait(false);
+                project, sourceAsset, source.Path, end, durationSeconds, isEnd: true, cancellationToken).ConfigureAwait(false);
             if (startSeconds < 0 || endSeconds <= startSeconds)
                 throw new InvalidDataException("The Saved Clip recipe resolves to an empty or invalid source range.");
             Directory.CreateDirectory(cacheDirectory);
@@ -163,7 +247,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                 if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
             }
 
-            return await OpenCacheLeaseAsync(cachePath, asset, cancellationToken).ConfigureAwait(false);
+            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -171,45 +255,25 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         }
     }
 
-    private Task<MaterializedMediaLease> MaterializeInitialCompositionAsync(
-        VideoProject project,
-        ProjectLocation location,
-        CompositionRecipe composition,
-        MaterializationRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (composition.Segments is not [var segment] ||
-            segment.Start.Kind != RecipeBoundaryKind.SourceStart ||
-            segment.End.Kind != RecipeBoundaryKind.SourceEnd)
-            throw new NotSupportedException(
-                "Composition rendering is not part of this milestone. The initial one-source Working Composition can be previewed directly.");
-        return MaterializeAsync(
-            project,
-            location,
-            request with
-            {
-                Target = new AssetMaterializationTarget(
-                    segment.Source.AssetId,
-                    segment.Source.RecipeRevisionId)
-            },
-            cancellationToken);
-    }
-
     private async Task<double> ResolveBoundarySecondsAsync(
         VideoProject project,
         ProjectAsset sourceAsset,
         string sourcePath,
         RecipeBoundary boundary,
+        double? sourceDurationSeconds,
         bool isEnd,
         CancellationToken cancellationToken)
     {
         if (boundary.Kind == RecipeBoundaryKind.SourceStart) return 0;
         if (boundary.Kind == RecipeBoundaryKind.SourceEnd)
-            return ResolveSourceDuration(sourceAsset);
+            return ResolveSourceDuration(sourceAsset, sourceDurationSeconds);
         if (boundary.Kind == RecipeBoundaryKind.Timestamp && boundary.TimestampSeconds is { } timestamp)
             return timestamp;
         if (boundary.Kind != RecipeBoundaryKind.Anchor || boundary.Anchor is null || boundary.Edge is null)
             throw new InvalidDataException("The Saved Clip contains an incomplete boundary.");
+        if (sourceAsset.StorageKind != AssetStorageKind.Physical)
+            throw new NotSupportedException(
+                "Anchor boundaries on virtual video require Phase 2D time mapping.");
 
         var anchorRevision = project.AnchorRevisions.SingleOrDefault(candidate =>
                 candidate.Id == boundary.Anchor.AnchorRevisionId && candidate.AnchorId == boundary.Anchor.AnchorId)
@@ -236,12 +300,13 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
             .OrderBy(frame => frame.PresentationTimestamp)
             .FirstOrDefault();
         if (next is not null) return next.TimestampSeconds;
-        if (isEnd) return ResolveSourceDuration(sourceAsset);
+        if (isEnd) return ResolveSourceDuration(sourceAsset, sourceDurationSeconds);
         throw new InvalidDataException("The frame following the Saved Clip start could not be resolved.");
     }
 
-    private static double ResolveSourceDuration(ProjectAsset sourceAsset) =>
-        sourceAsset.DurationSeconds ?? sourceAsset.Encoding?.DurationSeconds
+    private static double ResolveSourceDuration(ProjectAsset sourceAsset, double? materializedDurationSeconds) =>
+        materializedDurationSeconds ?? sourceAsset.DurationSeconds ?? sourceAsset.Encoding?.DurationSeconds ??
+        sourceAsset.Virtual?.ExpectedMediaProperties?.DurationSeconds
         ?? throw new InvalidDataException("The source duration is required to resolve the end of this Saved Clip.");
 
     private async Task<string> GetRendererFingerprintAsync(string ffmpegPath, CancellationToken cancellationToken)

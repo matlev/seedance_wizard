@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phases 2A/2B/2C complete; Phase 2D basic recipe-based media operations are next.
+Status: Milestone 1 and Milestone 2 Phases 2A/2B/2C complete; Phase 2D basic recipe-based media operations are in progress.
 
 ## Product priority
 
@@ -263,6 +263,16 @@ Phase acceptance checks:
 - no automated test can submit a live or paid provider request.
 
 ### Phase 2D — basic recipe-based media operations
+
+In progress. The first 2D engine slice introduces a provider-neutral recursive render-plan tree with deterministic plan identities. It resolves pinned physical and virtual dependencies, rejects unpinned or cyclic recipe graphs at planning time, materializes Saved Clips whose sources are other Saved Clips, and lets the single-segment Working Composition resolve a pinned virtual source. Multi-segment concat, compatibility/normalization planning, virtual-video anchor time mapping, and durable promotion/export remain subsequent 2D slices.
+
+#### Phase 2D.1 — recursive planning and virtual sources
+
+1. Resolve a requested virtual asset/revision into an explicit immutable plan tree before invoking FFmpeg.
+2. Include pinned recipe revisions, canonical recipe boundaries, physical content identities, materialization purpose, and profile in deterministic plan identities.
+3. Reject missing assets/revisions, unpinned virtual dependencies, incompatible media types, and dependency cycles before rendering.
+4. Execute nested Saved Clip trims recursively while retaining per-node cache reuse and active leases.
+5. Resolve a single-segment Working Composition through a pinned physical or Saved Clip source; keep multi-segment concat explicit and unsupported until its compatibility planner is delivered.
 
 1. Expand the narrow Phase 2C Saved Clip compiler into general recipe planning and recursive virtual-source time mapping.
 2. Reuse and expand existing media encoding inspection.

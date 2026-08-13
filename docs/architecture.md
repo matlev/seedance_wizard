@@ -348,6 +348,10 @@ The materializer follows this decision flow:
 
 The UI, provider adapters, and timeline must not decide whether FFmpeg is required. They request an asset for a purpose; the materialization layer owns that choice.
 
+Phase 2D begins that generalization with `RecipeRenderPlanner`. A virtual asset request is first expanded into a provider-neutral tree of physical sources, pinned trim revisions, extract-frame revisions, and ordered composition segments. Each node has a deterministic identity derived from its authoritative payload and transitive dependency identities; the enclosing plan additionally includes materialization purpose and profile. The planner rejects unpinned virtual dependencies, missing revisions, incompatible media types, and cycles before an external process runs.
+
+The first executor slice recursively materializes nested trim nodes, preserving an active lease on every dependency until its consumer finishes. This permits a Saved Clip to use another pinned Saved Clip and permits the initial single-segment Working Composition to resolve a virtual source. It deliberately does not disguise recursive intermediate rendering as optimized planning: multi-segment concat, normalization decisions, operation fusion, and virtual-source anchor time mapping remain later Phase 2D work.
+
 ## Disposable cache
 
 Recommended layout:
