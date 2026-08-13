@@ -59,6 +59,7 @@ internal sealed class ContentIdentityDto
 
 internal sealed class VirtualAssetStateDto
 {
+    public VirtualAssetKind Kind { get; set; }
     public Guid? CurrentRecipeRevisionId { get; set; }
     public MediaEncodingMetadata? ExpectedMediaProperties { get; set; }
 }
@@ -352,6 +353,7 @@ internal static class ProjectPersistenceMapper
         Physical = ToDto(source.Physical),
         Virtual = source.Virtual is null ? null : new VirtualAssetStateDto
         {
+            Kind = source.Virtual.Kind,
             CurrentRecipeRevisionId = source.Virtual.CurrentRecipeRevisionId,
             ExpectedMediaProperties = source.Virtual.ExpectedMediaProperties
         },
@@ -375,6 +377,7 @@ internal static class ProjectPersistenceMapper
         Physical = FromDto(source.Physical),
         Virtual = source.Virtual is null ? null : new VirtualAssetState
         {
+            Kind = source.Virtual.Kind,
             CurrentRecipeRevisionId = source.Virtual.CurrentRecipeRevisionId,
             ExpectedMediaProperties = source.Virtual.ExpectedMediaProperties
         },

@@ -3049,7 +3049,7 @@ public sealed class ProjectMediaListItem
             MediaType.Audio => "♪",
             _ => "•"
         };
-    private bool IsSavedClip => Asset?.StorageKind == AssetStorageKind.Virtual && Asset.MediaType == MediaType.Video;
+    private bool IsSavedClip => Asset?.Virtual?.Kind == VirtualAssetKind.SavedClip;
 }
 
 public sealed class GenerationReferenceChoice

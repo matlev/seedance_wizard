@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ReelForge.Application;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
 
@@ -181,6 +182,39 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Equal(RecipeBoundaryKind.SourceStart, original.Start.Kind);
     }
 
+    [Fact]
+    public async Task SavedClipPersistsExactHiddenBoundariesWithoutCreatingSavedFrames()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Clip boundaries");
+        var source = CreatePhysicalAsset("source.mp4", "assets/videos/source.mp4");
+        source.DurationSeconds = 12;
+        workspace.Project!.AddAsset(source);
+        await workspace.SaveAsync();
+        var position = new ExactFramePosition(source.Id, new string('a', 64), 0, 450, 1, 100, 135);
+
+        var clip = await new SavedClipService(workspace).CreateAsync(
+            "Favorite moment",
+            source.Id,
+            ClipBoundarySelection.AtFrame(position, AnchorBoundaryEdge.BeforeFrame),
+            ClipBoundarySelection.SourceEnd);
+
+        var hiddenAnchor = Assert.Single(workspace.Project.Anchors);
+        Assert.True(hiddenAnchor.IsArchived);
+        Assert.Equal(VirtualAssetKind.SavedClip, clip.Virtual?.Kind);
+        Assert.Equal(7.5, clip.Virtual?.ExpectedMediaProperties?.DurationSeconds);
+        var revision = Assert.Single(workspace.Project.RecipeRevisions);
+        var recipe = Assert.IsType<TrimRecipe>(revision.Recipe);
+        Assert.Equal(hiddenAnchor.Id, recipe.Start.Anchor?.AnchorId);
+        Assert.Equal(AnchorBoundaryEdge.BeforeFrame, recipe.Start.Edge);
+        Assert.Equal(RecipeBoundaryKind.SourceEnd, recipe.End.Kind);
+
+        var (reopened, _) = await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath);
+        Assert.Equal(VirtualAssetKind.SavedClip, reopened.Assets.Single(asset => asset.Id == clip.Id).Virtual?.Kind);
+        Assert.True(Assert.Single(reopened.Anchors).IsArchived);
+        Assert.Empty(ProjectInvariantValidator.Validate(reopened));
+    }
+
     private static ProjectAsset CreatePhysicalAsset(
         string fileName,
         string relativePath,
@@ -237,6 +271,15 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.True(Directory.Exists(Path.Combine(_temporaryRoot, "generated")));
         Assert.True(Directory.Exists(Path.Combine(_temporaryRoot, "exports")));
         Assert.True(Directory.Exists(Path.Combine(_temporaryRoot, "cache")));
+    }
+
+    private sealed class UnusedImporter : IAssetImportService
+    {
+        public Task<IReadOnlyList<ProjectAsset>> ImportAsync(
+            ProjectLocation location,
+            IEnumerable<string> sourcePaths,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("This test does not import assets.");
     }
 
     public void Dispose()
