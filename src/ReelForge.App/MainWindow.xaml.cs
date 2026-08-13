@@ -61,6 +61,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _suppressPromptSynchronization;
     private bool _isVideoPlaying;
     private bool _isScrubbing;
+    private bool _resumePlaybackAfterScrub;
     private double _volumeBeforeMute = 1;
     private bool _jobsTabWasSelected;
     private bool _dismissingViewedJobs;
@@ -1830,6 +1831,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         VideoPreview.Stop();
         SetPlaybackState(false);
         _isScrubbing = false;
+        _resumePlaybackAfterScrub = false;
         if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
         VideoPreview.Source = null;
         VideoPreview.Visibility = Visibility.Collapsed;
@@ -1889,6 +1891,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void PositionSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (VideoPreview.Source is null) return;
+        _resumePlaybackAfterScrub = _isVideoPlaying;
         _isScrubbing = true;
         VideoPreview.Pause();
         SetPlaybackState(false);
@@ -1911,8 +1914,17 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         SeekPreview(PositionSlider.Value);
         _isScrubbing = false;
         if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
-        VideoPreview.Play();
-        SetPlaybackState(true);
+        if (_resumePlaybackAfterScrub)
+        {
+            VideoPreview.Play();
+            SetPlaybackState(true);
+        }
+        else
+        {
+            VideoPreview.Pause();
+            SetPlaybackState(false);
+        }
+        _resumePlaybackAfterScrub = false;
         ScheduleContactFrameRefresh();
         e.Handled = true;
     }
