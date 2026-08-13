@@ -15,7 +15,6 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
     private readonly IContentHashService _contentHashService;
     private readonly string _cacheRoot;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _cacheLocks = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, int> _leasedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _fingerprintLock = new(1, 1);
     private readonly SemaphoreSlim _trimLock = new(1, 1);
     private string? _ffmpegPath;
@@ -89,7 +88,7 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
             foreach (var entry in entries.OrderBy(candidate => candidate.LastUsedUtc))
             {
                 if (totalBytes <= maximumBytes) break;
-                if (_leasedPaths.ContainsKey(entry.Path)) continue;
+                if (MediaCacheLeaseRegistry.IsLeased(entry.Path)) continue;
                 try
                 {
                     File.Delete(entry.Path);
@@ -324,8 +323,7 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
         string cachePath,
         CancellationToken cancellationToken)
     {
-        var normalizedPath = Path.GetFullPath(cachePath);
-        _leasedPaths.AddOrUpdate(normalizedPath, 1, static (_, count) => checked(count + 1));
+        var normalizedPath = MediaCacheLeaseRegistry.Acquire(cachePath);
         try
         {
             File.SetLastWriteTimeUtc(normalizedPath, DateTime.UtcNow);
@@ -338,29 +336,14 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
                 isDurableSource: false,
                 release: () =>
                 {
-                    ReleaseLease(normalizedPath);
+                    MediaCacheLeaseRegistry.Release(normalizedPath);
                     return ValueTask.CompletedTask;
                 });
         }
         catch
         {
-            ReleaseLease(normalizedPath);
+            MediaCacheLeaseRegistry.Release(normalizedPath);
             throw;
-        }
-    }
-
-    private void ReleaseLease(string path)
-    {
-        while (_leasedPaths.TryGetValue(path, out var count))
-        {
-            if (count <= 1)
-            {
-                if (_leasedPaths.TryRemove(new KeyValuePair<string, int>(path, count))) return;
-            }
-            else if (_leasedPaths.TryUpdate(path, count - 1, count))
-            {
-                return;
-            }
         }
     }
 

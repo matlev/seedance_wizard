@@ -38,6 +38,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ProjectAssetTransferService _assetTransferService;
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private readonly ExactVideoFrameService _exactFrameService;
+    private readonly RecipeMediaMaterializer _mediaMaterializer;
     private readonly IGeneratedOutputIngestionService _outputIngestion;
     private GenerationWorkflow _generationWorkflow = null!;
     private IProviderAssetPreparationService? _providerPreparation;
@@ -87,15 +88,21 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _mediaTools = _mediaToolDiscovery.Discover(configuredTools.FfmpegPath, configuredTools.FfprobePath);
         var processRunner = new ExternalProcessRunner();
         _mediaInspector = new FfprobeMediaInspectionService(_mediaTools.FfprobePath, processRunner);
+        var mediaCacheRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ReelForge",
+            "Cache");
         _exactFrameService = new ExactVideoFrameService(
             _mediaTools.FfmpegPath,
             _mediaTools.FfprobePath,
             processRunner,
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ReelForge",
-                "Cache"),
+            mediaCacheRoot,
             maximumCacheBytes: configuredTools.CacheSizeBytes);
+        _mediaMaterializer = new RecipeMediaMaterializer(
+            _mediaTools.FfmpegPath,
+            processRunner,
+            _exactFrameService,
+            mediaCacheRoot);
         _projectStore = new PortableProjectStore();
         _assetImporter = new AssetImportService(_mediaInspector);
         _workspace = new ProjectWorkspace(_projectStore, _assetImporter);
@@ -168,6 +175,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         foreach (var client in _providerHttpClients) client.Dispose();
         _r2HttpClient.Dispose();
         _downloadHttpClient.Dispose();
+        _mediaMaterializer.Dispose();
         _exactFrameService.Dispose();
         if (_diagnosticLog is IDisposable disposableDiagnosticLog) disposableDiagnosticLog.Dispose();
         GC.SuppressFinalize(this);
@@ -308,7 +316,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         IProviderAssetPreparationService? providerPreparation) =>
         new(
             workspace,
-            new PhysicalAssetMaterializer(exactFrameService: _exactFrameService),
+            _mediaMaterializer,
             _outputIngestion,
             providerPreparation);
 
@@ -595,6 +603,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _applicationSettings.MediaTools.FfprobePath);
         _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
         _exactFrameService.UpdateExecutablePaths(_mediaTools.FfmpegPath, _mediaTools.FfprobePath);
+        _mediaMaterializer.UpdateExecutablePath(_mediaTools.FfmpegPath);
         _exactFrameService.UpdateMaximumCacheBytes(_applicationSettings.MediaTools.CacheSizeBytes);
         await _exactFrameService.TrimCacheAsync();
         MediaToolsText.Text = _mediaTools.Summary;
