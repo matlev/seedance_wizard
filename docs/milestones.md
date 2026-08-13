@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phases 2A/2B complete; Phase 2C frame/continuation design approved and awaiting implementation.
+Status: Milestone 1 and Milestone 2 Phases 2A/2B complete; Phase 2C frame/continuation implementation is in progress, with Phase 2C.1 delivered.
 
 ## Product priority
 
@@ -141,6 +141,8 @@ Phase acceptance checks:
 Approved scope. Enable the core generate → inspect → Saved Frame/anchor → continue loop while establishing anchors as reusable media-editing boundaries rather than generation-specific screenshots.
 
 #### Phase 2C.1 — anchor semantics and schema version 3
+
+Delivered: the current domain and `.rfp` persistence schema are version 3; stable anchors, immutable exact/legacy revisions, pinned recipe/history references, occurrence IDs, dependency-safe archive/removal, automatic backup-backed v1/v2 migration, and validation/round-trip coverage are implemented. Migrated v2 anchor boundaries use `LegacyUnspecified` because v2 never recorded before/after-frame inclusion semantics.
 
 1. Replace mutable schema-v2 anchors with stable logical `FrameAnchor` objects and immutable `FrameAnchorRevision` chains.
 2. Make video stream index plus integer presentation timestamp and rational time base authoritative for new anchors; derive display seconds and retain frame number only when reliable.

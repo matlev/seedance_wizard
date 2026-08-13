@@ -170,10 +170,17 @@ internal sealed class AssetRecipeV2Dto
     public string Type { get; set; } = "extractFrame";
     public int RecipeSchemaVersion { get; set; } = 1;
     public AssetRevisionReferenceV2Dto Source { get; set; } = new();
-    public RecipeBoundary? Start { get; set; }
-    public RecipeBoundary? End { get; set; }
+    public RecipeBoundaryV2Dto? Start { get; set; }
+    public RecipeBoundaryV2Dto? End { get; set; }
     public Guid? AnchorId { get; set; }
     public string? Profile { get; set; }
+}
+
+internal sealed class RecipeBoundaryV2Dto
+{
+    public RecipeBoundaryKind Kind { get; set; }
+    public Guid? AnchorId { get; set; }
+    public double? TimestampSeconds { get; set; }
 }
 
 internal sealed class AssetRevisionReferenceV2Dto
@@ -369,6 +376,220 @@ internal static class ProjectPersistenceMapper
         }
 
         return project;
+    }
+
+    public static VideoProject Migrate(ProjectV2Dto source)
+    {
+        var anchorRevisionIds = source.Anchors.ToDictionary(anchor => anchor.Id, _ => Guid.NewGuid());
+        var assets = source.Assets.Select(FromDto).ToList();
+        var assetById = assets.ToDictionary(asset => asset.Id);
+
+        FrameAnchorRevision MigrateAnchorRevision(FrameAnchorV2Dto anchor)
+        {
+            assetById.TryGetValue(anchor.AssetId, out var asset);
+            var verifiedHash = asset?.Physical?.ContentIdentity is
+                { Status: ContentHashStatus.Verified, Sha256.Length: 64 } identity
+                    ? identity.Sha256
+                    : null;
+            return new FrameAnchorRevision
+            {
+                Id = anchorRevisionIds[anchor.Id],
+                AnchorId = anchor.Id,
+                RevisionNumber = 1,
+                SourceAssetId = anchor.AssetId,
+                SourceContentHash = verifiedHash,
+                TimingPrecision = AnchorTimingPrecision.LegacyTimestampSeconds,
+                LegacyTimestampSeconds = anchor.TimestampSeconds,
+                FrameNumber = anchor.FrameNumber,
+                CreatedAt = source.CreatedAt
+            };
+        }
+
+        FrameAnchorReferenceSnapshot? MigrateAnchorSnapshot(GenerationReferenceSnapshotV2Dto reference)
+        {
+            if (reference.ObjectKind != GenerationReferenceObjectKind.FrameAnchor ||
+                !anchorRevisionIds.TryGetValue(reference.LogicalObjectId, out var revisionId))
+            {
+                return null;
+            }
+
+            var legacy = source.Anchors.Single(anchor => anchor.Id == reference.LogicalObjectId);
+            var revision = MigrateAnchorRevision(legacy);
+            return new FrameAnchorReferenceSnapshot
+            {
+                AnchorRevisionId = revisionId,
+                SourceAssetId = revision.SourceAssetId,
+                SourceContentHash = revision.SourceContentHash,
+                TimingPrecision = revision.TimingPrecision,
+                LegacyTimestampSeconds = revision.LegacyTimestampSeconds,
+                FrameNumber = revision.FrameNumber
+            };
+        }
+
+        var project = new VideoProject
+        {
+            SchemaVersion = VideoProject.CurrentSchemaVersion,
+            Id = source.Id,
+            Name = source.Name,
+            CreatedAt = source.CreatedAt,
+            ModifiedAt = source.ModifiedAt,
+            MainVideoAssetId = source.MainVideoAssetId,
+            Assets = assets,
+            Anchors = source.Anchors.Select(anchor => new FrameAnchor
+            {
+                Id = anchor.Id,
+                CurrentRevisionId = anchorRevisionIds[anchor.Id],
+                DisplayLabel = anchor.Label,
+                Notes = anchor.Notes,
+                CreatedAt = source.CreatedAt
+            }).ToList(),
+            AnchorRevisions = source.Anchors.Select(MigrateAnchorRevision).ToList(),
+            RecipeRevisions = source.RecipeRevisions.Select(revision => new RecipeRevision
+            {
+                Id = revision.Id,
+                VirtualAssetId = revision.VirtualAssetId,
+                RevisionNumber = revision.RevisionNumber,
+                PreviousRevisionId = revision.PreviousRevisionId,
+                CreatedAt = revision.CreatedAt,
+                Recipe = MigrateRecipe(revision.Recipe, anchorRevisionIds)
+            }).ToList(),
+            RecipeDrafts = source.RecipeDrafts.Select(draft => new RecipeDraft
+            {
+                Id = draft.Id,
+                VirtualAssetId = draft.VirtualAssetId,
+                BasedOnRevisionId = draft.BasedOnRevisionId,
+                EditableRecipe = MigrateRecipe(draft.EditableRecipe, anchorRevisionIds),
+                ModifiedAt = draft.ModifiedAt
+            }).ToList(),
+            CurrentGenerationDraft = source.CurrentGenerationDraft is null ? null : new GenerationDraft
+            {
+                ProviderId = source.CurrentGenerationDraft.ProviderId,
+                ModelVersion = source.CurrentGenerationDraft.ModelVersion,
+                Prompt = source.CurrentGenerationDraft.Prompt,
+                Mode = source.CurrentGenerationDraft.Mode,
+                DurationSeconds = source.CurrentGenerationDraft.DurationSeconds,
+                AspectRatio = source.CurrentGenerationDraft.AspectRatio,
+                Resolution = source.CurrentGenerationDraft.Resolution,
+                References = source.CurrentGenerationDraft.References.Select(reference => new GenerationReferenceDraft
+                {
+                    ReferenceId = Guid.NewGuid(),
+                    ObjectKind = reference.ObjectKind,
+                    LogicalObjectId = reference.LogicalObjectId,
+                    AnchorRevisionId = reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor &&
+                        anchorRevisionIds.TryGetValue(reference.LogicalObjectId, out var revisionId)
+                            ? revisionId
+                            : null,
+                    Role = reference.Role,
+                    Order = reference.Order,
+                    Label = reference.Label,
+                    Notes = reference.Notes
+                }).ToList(),
+                ProviderParameters = Copy(source.CurrentGenerationDraft.ProviderParameters),
+                ParentGenerationId = source.CurrentGenerationDraft.ParentGenerationId,
+                RelationshipType = source.CurrentGenerationDraft.RelationshipType,
+                ModifiedAt = source.CurrentGenerationDraft.ModifiedAt
+            },
+            Generations = source.Generations.Select(generation => new GenerationRecord
+            {
+                Id = generation.Id,
+                RequestSnapshot = new GenerationRequestSnapshot
+                {
+                    ProviderId = generation.RequestSnapshot.ProviderId,
+                    ModelVersion = generation.RequestSnapshot.ModelVersion,
+                    Mode = generation.RequestSnapshot.Mode,
+                    Prompt = generation.RequestSnapshot.Prompt,
+                    DurationSeconds = generation.RequestSnapshot.DurationSeconds,
+                    AspectRatio = generation.RequestSnapshot.AspectRatio,
+                    Resolution = generation.RequestSnapshot.Resolution,
+                    References = Array.AsReadOnly(generation.RequestSnapshot.References.Select(reference =>
+                        new GenerationReferenceSnapshot
+                        {
+                            ReferenceId = Guid.NewGuid(),
+                            ObjectKind = reference.ObjectKind,
+                            LogicalObjectId = reference.LogicalObjectId,
+                            RecipeRevisionId = reference.RecipeRevisionId,
+                            Anchor = MigrateAnchorSnapshot(reference),
+                            ContentHash = reference.ContentHash,
+                            Role = reference.Role,
+                            Order = reference.Order,
+                            Label = reference.Label,
+                            Notes = reference.Notes,
+                            Materialization = FromDto(reference.Materialization)
+                        }).ToArray()),
+                    ProviderParameters = ReadOnly(generation.RequestSnapshot.ProviderParameters)
+                },
+                RequestedAt = generation.RequestedAt,
+                ProviderJobId = generation.ProviderJobId,
+                Status = generation.Status,
+                IngestionStatus = generation.IngestionStatus,
+                CompletedAt = generation.CompletedAt,
+                OutputAssetIds = [.. generation.OutputAssetIds],
+                ResponseMetadata = Copy(generation.ResponseMetadata),
+                Error = FromDto(generation.Error),
+                ParentGenerationId = generation.ParentGenerationId,
+                RelationshipType = generation.RelationshipType
+            }).ToList(),
+            Timeline = new Timeline
+            {
+                Clips = source.Timeline.Clips.Select(clip => new TimelineClip
+                {
+                    Id = clip.Id,
+                    SourceAssetId = clip.SourceAssetId,
+                    SourceRecipeRevisionId = clip.SourceRecipeRevisionId,
+                    InPointSeconds = clip.InPointSeconds,
+                    OutPointSeconds = clip.OutPointSeconds,
+                    TimelinePositionSeconds = clip.TimelinePositionSeconds,
+                    Track = clip.Track,
+                    AudioEnabled = clip.AudioEnabled
+                }).ToList()
+            }
+        };
+
+        return project;
+    }
+
+    private static AssetRecipe MigrateRecipe(
+        AssetRecipeV2Dto source,
+        Dictionary<Guid, Guid> anchorRevisionIds) => source.Type switch
+    {
+        "trim" => new TrimRecipe
+        {
+            RecipeSchemaVersion = source.RecipeSchemaVersion,
+            Source = FromDto(source.Source),
+            Start = MigrateBoundary(source.Start ?? new RecipeBoundaryV2Dto { Kind = RecipeBoundaryKind.SourceStart }, anchorRevisionIds),
+            End = MigrateBoundary(source.End ?? new RecipeBoundaryV2Dto { Kind = RecipeBoundaryKind.SourceEnd }, anchorRevisionIds),
+            RenderProfile = source.Profile
+        },
+        "extractFrame" when source.AnchorId is { } anchorId && anchorRevisionIds.TryGetValue(anchorId, out var revisionId) =>
+            new ExtractFrameRecipe
+            {
+                RecipeSchemaVersion = source.RecipeSchemaVersion,
+                Source = FromDto(source.Source),
+                Anchor = new AnchorRevisionReference { AnchorId = anchorId, AnchorRevisionId = revisionId },
+                ImageProfile = source.Profile
+            },
+        "extractFrame" => throw new InvalidDataException("A schema-v2 extract-frame recipe references an unknown anchor."),
+        _ => throw new InvalidDataException($"Recipe type '{source.Type}' is not supported.")
+    };
+
+    private static RecipeBoundary MigrateBoundary(
+        RecipeBoundaryV2Dto source,
+        Dictionary<Guid, Guid> anchorRevisionIds)
+    {
+        if (source.Kind != RecipeBoundaryKind.Anchor)
+            return new RecipeBoundary { Kind = source.Kind, TimestampSeconds = source.TimestampSeconds };
+        if (source.AnchorId is not { } anchorId || !anchorRevisionIds.TryGetValue(anchorId, out var revisionId))
+            throw new InvalidDataException("A schema-v2 recipe boundary references an unknown anchor.");
+        return new RecipeBoundary
+        {
+            Kind = RecipeBoundaryKind.Anchor,
+            Anchor = new AnchorRevisionReference
+            {
+                AnchorId = anchorId,
+                AnchorRevisionId = revisionId
+            },
+            Edge = AnchorBoundaryEdge.LegacyUnspecified
+        };
     }
 
     public static ProjectV2Dto ToDto(VideoProject source) => new()
@@ -622,8 +843,8 @@ internal static class ProjectPersistenceMapper
             Type = "trim",
             RecipeSchemaVersion = trim.RecipeSchemaVersion,
             Source = ToDto(trim.Source),
-            Start = trim.Start,
-            End = trim.End,
+            Start = ToV2Dto(trim.Start),
+            End = ToV2Dto(trim.End),
             Profile = trim.RenderProfile
         },
         ExtractFrameRecipe frame => new AssetRecipeV2Dto
@@ -631,7 +852,7 @@ internal static class ProjectPersistenceMapper
             Type = "extractFrame",
             RecipeSchemaVersion = frame.RecipeSchemaVersion,
             Source = ToDto(frame.Source),
-            AnchorId = frame.AnchorId,
+            AnchorId = frame.Anchor.AnchorId,
             Profile = frame.ImageProfile
         },
         _ => throw new NotSupportedException($"Recipe type '{source.GetType().Name}' is not supported.")
@@ -643,18 +864,38 @@ internal static class ProjectPersistenceMapper
         {
             RecipeSchemaVersion = source.RecipeSchemaVersion,
             Source = FromDto(source.Source),
-            Start = source.Start ?? RecipeBoundary.SourceStart,
-            End = source.End ?? RecipeBoundary.SourceEnd,
+            Start = FromDto(source.Start) ?? RecipeBoundary.SourceStart,
+            End = FromDto(source.End) ?? RecipeBoundary.SourceEnd,
             RenderProfile = source.Profile
         },
         "extractFrame" => new ExtractFrameRecipe
         {
             RecipeSchemaVersion = source.RecipeSchemaVersion,
             Source = FromDto(source.Source),
-            AnchorId = source.AnchorId ?? Guid.Empty,
+            Anchor = new AnchorRevisionReference
+            {
+                AnchorId = source.AnchorId ?? Guid.Empty,
+                AnchorRevisionId = Guid.Empty
+            },
             ImageProfile = source.Profile
         },
         _ => throw new InvalidDataException($"Recipe type '{source.Type}' is not supported.")
+    };
+
+    private static RecipeBoundaryV2Dto ToV2Dto(RecipeBoundary source) => new()
+    {
+        Kind = source.Kind,
+        AnchorId = source.Anchor?.AnchorId,
+        TimestampSeconds = source.TimestampSeconds
+    };
+
+    private static RecipeBoundary? FromDto(RecipeBoundaryV2Dto? source) => source is null ? null : new()
+    {
+        Kind = source.Kind,
+        Anchor = source.AnchorId is { } anchorId
+            ? new AnchorRevisionReference { AnchorId = anchorId, AnchorRevisionId = Guid.Empty }
+            : null,
+        TimestampSeconds = source.TimestampSeconds
     };
 
     private static AssetRevisionReferenceV2Dto ToDto(AssetRevisionReference source) => new()
@@ -672,22 +913,16 @@ internal static class ProjectPersistenceMapper
     private static FrameAnchorV2Dto ToDto(FrameAnchor source) => new()
     {
         Id = source.Id,
-        AssetId = source.AssetId,
-        FrameNumber = source.FrameNumber,
-        TimestampSeconds = source.TimestampSeconds,
-        TimeBase = source.TimeBase,
-        Label = source.Label,
+        AssetId = Guid.Empty,
+        TimestampSeconds = 0,
+        Label = source.DisplayLabel,
         Notes = source.Notes
     };
 
     private static FrameAnchor FromDto(FrameAnchorV2Dto source) => new()
     {
         Id = source.Id,
-        AssetId = source.AssetId,
-        FrameNumber = source.FrameNumber,
-        TimestampSeconds = source.TimestampSeconds,
-        TimeBase = source.TimeBase,
-        Label = source.Label,
+        DisplayLabel = source.Label,
         Notes = source.Notes
     };
 

@@ -85,20 +85,31 @@ public sealed class PortableProjectStore : IProjectStore
 
         if (schemaVersion == VideoProject.CurrentSchemaVersion)
         {
-            var dto = JsonSerializer.Deserialize<ProjectV2Dto>(json, SerializerOptions)
-                ?? throw new InvalidDataException("The project file did not contain a valid schema-v2 project.");
-            var project = ProjectPersistenceMapper.FromDto(dto);
+            var dto = JsonSerializer.Deserialize<ProjectV3Dto>(json, SerializerOptions)
+                ?? throw new InvalidDataException("The project file did not contain a valid schema-v3 project.");
+            var project = ProjectPersistenceV3Mapper.FromDto(dto);
             RefreshPhysicalAvailability(project, root);
             ProjectInvariantValidator.ThrowIfInvalid(project);
             return (project, new ProjectLocation(root, fullPath));
         }
 
-        if (schemaVersion != 1)
+        VideoProject migrated;
+        if (schemaVersion == 2)
+        {
+            var legacyV2 = JsonSerializer.Deserialize<ProjectV2Dto>(json, SerializerOptions)
+                ?? throw new InvalidDataException("The project file did not contain a valid schema-v2 project.");
+            migrated = ProjectPersistenceMapper.Migrate(legacyV2);
+        }
+        else if (schemaVersion == 1)
+        {
+            var legacyV1 = JsonSerializer.Deserialize<ProjectV1Dto>(json, SerializerOptions)
+                ?? throw new InvalidDataException("The project file did not contain a valid schema-v1 project.");
+            migrated = ProjectPersistenceMapper.Migrate(legacyV1);
+        }
+        else
+        {
             throw new InvalidDataException($"Project schema {schemaVersion} is not supported.");
-
-        var legacy = JsonSerializer.Deserialize<ProjectV1Dto>(json, SerializerOptions)
-            ?? throw new InvalidDataException("The project file did not contain a valid schema-v1 project.");
-        var migrated = ProjectPersistenceMapper.Migrate(legacy);
+        }
         RefreshPhysicalAvailability(migrated, root);
         ProjectInvariantValidator.ThrowIfInvalid(migrated);
 
@@ -134,7 +145,7 @@ public sealed class PortableProjectStore : IProjectStore
                 FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer
-                    .SerializeAsync(stream, ProjectPersistenceMapper.ToDto(project), SerializerOptions, cancellationToken)
+                    .SerializeAsync(stream, ProjectPersistenceV3Mapper.ToDto(project), SerializerOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
 

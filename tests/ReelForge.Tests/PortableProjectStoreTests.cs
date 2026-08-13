@@ -12,7 +12,7 @@ public sealed class PortableProjectStoreTests : IDisposable
         Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task CreateSaveOpenRoundTripsSchemaTwoProject()
+    public async Task CreateSaveOpenRoundTripsSchemaThreeProject()
     {
         var store = new PortableProjectStore();
         var (project, location) = await store.CreateAsync(_temporaryRoot, "Portable demo");
@@ -130,13 +130,13 @@ public sealed class PortableProjectStoreTests : IDisposable
 
         var (project, location) = await new PortableProjectStore().OpenAsync(projectPath);
 
-        Assert.Equal(2, project.SchemaVersion);
+        Assert.Equal(VideoProject.CurrentSchemaVersion, project.SchemaVersion);
         Assert.NotNull(location.Migration);
         Assert.Equal(1, location.Migration.FromVersion);
         Assert.True(File.Exists(location.Migration.BackupPath));
         Assert.Contains("\"schemaVersion\": 1", await File.ReadAllTextAsync(location.Migration.BackupPath));
         using (var migratedJson = JsonDocument.Parse(await File.ReadAllTextAsync(projectPath)))
-            Assert.Equal(2, migratedJson.RootElement.GetProperty("schemaVersion").GetInt32());
+            Assert.Equal(VideoProject.CurrentSchemaVersion, migratedJson.RootElement.GetProperty("schemaVersion").GetInt32());
 
         var asset = Assert.Single(project.Assets);
         Assert.Equal(AssetStorageKind.Physical, asset.StorageKind);
@@ -148,6 +148,174 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Equal(GenerationRelationshipType.BasedOn, project.Generations[1].RelationshipType);
         Assert.Equal(assetId, Assert.Single(project.Generations[1].RequestSnapshot.References).LogicalObjectId);
         Assert.Equal(parentId, asset.Provenance?.GenerationId);
+    }
+
+    [Fact]
+    public async Task SchemaThreeRoundTripPreservesImmutableAnchorRevisionsAndReferenceOccurrences()
+    {
+        var store = new PortableProjectStore();
+        var (project, location) = await store.CreateAsync(_temporaryRoot, "Saved frames");
+        var source = CreatePhysicalAsset("source.mp4", "assets/videos/source.mp4");
+        project.AddAsset(source);
+        var anchor = new FrameAnchor { DisplayLabel = "Hero glance" };
+        project.Anchors.Add(anchor);
+        var first = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            source.Id, new string('a', 64), 0, 90_000, 1, 90_000, 30));
+        var second = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            source.Id, new string('a', 64), 0, 180_000, 1, 90_000, 60));
+        var firstReferenceId = Guid.NewGuid();
+        var secondReferenceId = Guid.NewGuid();
+        project.Generations.Add(new GenerationRecord
+        {
+            Status = GenerationStatus.Failed,
+            RequestSnapshot = new GenerationRequestSnapshot
+            {
+                ProviderId = "fake",
+                ModelVersion = "fake-v1",
+                Prompt = "Use the earlier saved frame twice",
+                References = Array.AsReadOnly(new[]
+                {
+                    CreateAnchorSnapshot(firstReferenceId, anchor.Id, first, GenerationReferenceRole.StartFrame),
+                    CreateAnchorSnapshot(secondReferenceId, anchor.Id, first, GenerationReferenceRole.Character)
+                })
+            }
+        });
+
+        await store.SaveAsync(project, location);
+        var (reopened, _) = await store.OpenAsync(location.ProjectFilePath);
+
+        Assert.Equal(second.Id, Assert.Single(reopened.Anchors).CurrentRevisionId);
+        Assert.Equal(first.Id, reopened.AnchorRevisions.Single(revision => revision.RevisionNumber == 1).Id);
+        Assert.Equal(first.Id, reopened.AnchorRevisions.Single(revision => revision.Id == second.Id).PreviousRevisionId);
+        var references = Assert.Single(reopened.Generations).RequestSnapshot.References;
+        Assert.Equal([firstReferenceId, secondReferenceId], references.Select(reference => reference.ReferenceId));
+        Assert.All(references, reference => Assert.Equal(first.Id, reference.Anchor?.AnchorRevisionId));
+    }
+
+    [Fact]
+    public async Task OpeningVersionTwoCreatesLegacyAnchorRevisionWithoutInventingBoundaryEdge()
+    {
+        Directory.CreateDirectory(_temporaryRoot);
+        var sourceId = Guid.NewGuid();
+        var virtualId = Guid.NewGuid();
+        var anchorId = Guid.NewGuid();
+        var recipeRevisionId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var projectPath = Path.Combine(_temporaryRoot, "Legacy anchors.rfp");
+        var legacyJson = $$"""
+            {
+              "schemaVersion": 2,
+              "id": "{{Guid.NewGuid()}}",
+              "name": "Legacy anchors",
+              "createdAt": "2026-08-01T00:00:00+00:00",
+              "modifiedAt": "2026-08-02T00:00:00+00:00",
+              "assets": [
+                {
+                  "id": "{{sourceId}}",
+                  "displayName": "source.mp4",
+                  "fileName": "source.mp4",
+                  "mediaType": "video",
+                  "storageKind": "physical",
+                  "origin": "imported",
+                  "createdAt": "2026-08-01T00:00:00+00:00",
+                  "physical": {
+                    "relativePath": "assets/videos/source.mp4",
+                    "durability": "source",
+                    "contentIdentity": { "algorithm": "SHA-256", "sha256": "{{new string('c', 64)}}", "status": "verified" }
+                  },
+                  "providerReferences": {}
+                },
+                {
+                  "id": "{{virtualId}}",
+                  "displayName": "legacy trim",
+                  "fileName": "legacy trim",
+                  "mediaType": "video",
+                  "storageKind": "virtual",
+                  "origin": "editorDerived",
+                  "createdAt": "2026-08-01T00:00:00+00:00",
+                  "virtual": { "currentRecipeRevisionId": "{{recipeRevisionId}}" },
+                  "providerReferences": {}
+                }
+              ],
+              "recipeRevisions": [{
+                "id": "{{recipeRevisionId}}",
+                "virtualAssetId": "{{virtualId}}",
+                "revisionNumber": 1,
+                "createdAt": "2026-08-01T00:00:00+00:00",
+                "recipe": {
+                  "type": "trim",
+                  "recipeSchemaVersion": 1,
+                  "source": { "assetId": "{{sourceId}}" },
+                  "start": { "kind": "sourceStart" },
+                  "end": { "kind": "anchor", "anchorId": "{{anchorId}}" }
+                }
+              }],
+              "anchors": [{
+                "id": "{{anchorId}}",
+                "assetId": "{{sourceId}}",
+                "frameNumber": 38,
+                "timestampSeconds": 1.25,
+                "timeBase": "1/30",
+                "label": "Legacy saved frame",
+                "notes": "Preserve me"
+              }],
+              "currentGenerationDraft": {
+                "prompt": "legacy draft",
+                "mode": "referenceToVideo",
+                "durationSeconds": 5,
+                "aspectRatio": "16:9",
+                "resolution": "720p",
+                "references": [{ "objectKind": "frameAnchor", "logicalObjectId": "{{anchorId}}", "role": "startFrame" }],
+                "providerParameters": {},
+                "modifiedAt": "2026-08-02T00:00:00+00:00"
+              },
+              "generations": [{
+                "id": "{{generationId}}",
+                "requestSnapshot": {
+                  "providerId": "legacy.provider",
+                  "modelVersion": "legacy-v2",
+                  "mode": "referenceToVideo",
+                  "prompt": "legacy history",
+                  "durationSeconds": 5,
+                  "aspectRatio": "16:9",
+                  "resolution": "720p",
+                  "references": [{
+                    "objectKind": "frameAnchor",
+                    "logicalObjectId": "{{anchorId}}",
+                    "contentHash": "{{new string('c', 64)}}",
+                    "role": "startFrame"
+                  }],
+                  "providerParameters": {}
+                },
+                "requestedAt": "2026-08-02T00:00:00+00:00",
+                "status": "failed",
+                "ingestionStatus": "notRequired",
+                "responseMetadata": {}
+              }],
+              "timeline": { "clips": [] }
+            }
+            """;
+        await File.WriteAllTextAsync(projectPath, legacyJson);
+
+        var (project, location) = await new PortableProjectStore().OpenAsync(projectPath);
+
+        Assert.Equal(VideoProject.CurrentSchemaVersion, project.SchemaVersion);
+        Assert.Equal(2, location.Migration?.FromVersion);
+        Assert.True(File.Exists(location.Migration?.BackupPath));
+        var anchor = Assert.Single(project.Anchors);
+        var revision = Assert.Single(project.AnchorRevisions);
+        Assert.Equal(anchorId, anchor.Id);
+        Assert.Equal(revision.Id, anchor.CurrentRevisionId);
+        Assert.Equal(AnchorTimingPrecision.LegacyTimestampSeconds, revision.TimingPrecision);
+        Assert.Equal(1.25, revision.LegacyTimestampSeconds);
+        Assert.Null(revision.PresentationTimestamp);
+        var recipe = Assert.IsType<TrimRecipe>(Assert.Single(project.RecipeRevisions).Recipe);
+        Assert.Equal(revision.Id, recipe.End.Anchor?.AnchorRevisionId);
+        Assert.Equal(AnchorBoundaryEdge.LegacyUnspecified, recipe.End.Edge);
+        Assert.NotEqual(Guid.Empty, Assert.Single(project.CurrentGenerationDraft?.References!).ReferenceId);
+        var historicalReference = Assert.Single(Assert.Single(project.Generations).RequestSnapshot.References);
+        Assert.NotEqual(Guid.Empty, historicalReference.ReferenceId);
+        Assert.Equal(revision.Id, historicalReference.Anchor?.AnchorRevisionId);
     }
 
     [Fact]
@@ -247,6 +415,32 @@ public sealed class PortableProjectStoreTests : IDisposable
                 Status = ContentHashStatus.Verified,
                 LengthBytes = 42
             }
+        }
+    };
+
+    private static GenerationReferenceSnapshot CreateAnchorSnapshot(
+        Guid referenceId,
+        Guid anchorId,
+        FrameAnchorRevision revision,
+        GenerationReferenceRole role) => new()
+    {
+        ReferenceId = referenceId,
+        ObjectKind = GenerationReferenceObjectKind.FrameAnchor,
+        LogicalObjectId = anchorId,
+        ContentHash = revision.SourceContentHash,
+        Role = role,
+        Anchor = new FrameAnchorReferenceSnapshot
+        {
+            AnchorRevisionId = revision.Id,
+            SourceAssetId = revision.SourceAssetId,
+            SourceContentHash = revision.SourceContentHash,
+            VideoStreamIndex = revision.VideoStreamIndex,
+            TimingPrecision = revision.TimingPrecision,
+            PresentationTimestamp = revision.PresentationTimestamp,
+            TimeBaseNumerator = revision.TimeBaseNumerator,
+            TimeBaseDenominator = revision.TimeBaseDenominator,
+            LegacyTimestampSeconds = revision.LegacyTimestampSeconds,
+            FrameNumber = revision.FrameNumber
         }
     };
 

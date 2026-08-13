@@ -1089,7 +1089,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             usage.Add("submitted generation references");
         if (project.Generations.Any(generation => generation.OutputAssetIds.Contains(asset.Id)))
             usage.Add("generated-output history");
-        if (project.Anchors.Any(anchor => anchor.AssetId == asset.Id)) usage.Add("frame anchors");
+        if (project.AnchorRevisions.Any(revision => revision.SourceAssetId == asset.Id)) usage.Add("saved frames");
         if (project.Timeline.Clips.Any(clip => clip.SourceAssetId == asset.Id)) usage.Add("the timeline");
         if (project.Assets.Any(candidate => candidate.Id != asset.Id && candidate.Provenance?.SourceAssetIds.Contains(asset.Id) == true))
             usage.Add("derived-asset history");
@@ -1431,6 +1431,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 .OrderBy(choice => choice.Order)
                 .Select(choice => new GenerationReferenceDraft
                 {
+                    ReferenceId = choice.ReferenceId,
                     ObjectKind = GenerationReferenceObjectKind.Asset,
                     LogicalObjectId = choice.Asset.Id,
                     Role = choice.Role,
@@ -1498,6 +1499,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 var reference = draft.References.FirstOrDefault(item =>
                     item.ObjectKind == GenerationReferenceObjectKind.Asset && item.LogicalObjectId == choice.Asset.Id);
                 choice.IsSelected = reference is not null;
+                choice.ReferenceId = reference?.ReferenceId ?? choice.ReferenceId;
                 choice.Role = reference?.Role;
                 choice.Order = reference?.Order ?? choice.Order;
                 choice.Label = reference?.Label;
@@ -2038,6 +2040,7 @@ public sealed class GenerationReferenceChoice
         Order = order;
     }
 
+    public Guid ReferenceId { get; set; } = Guid.NewGuid();
     public ProjectAsset Asset { get; set; }
     public IReadOnlyList<GenerationReferenceRole?> AvailableRoles => _availableRoles;
     public bool IsSelected { get; set; }

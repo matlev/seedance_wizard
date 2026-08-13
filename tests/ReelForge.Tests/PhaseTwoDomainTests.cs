@@ -108,6 +108,158 @@ public sealed class PhaseTwoDomainTests : IDisposable
         Assert.Contains(errors, error => error.Contains("pin an exact revision", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void CommittingAnchorChangesCurrentRevisionWithoutMutatingHistory()
+    {
+        var source = CreatePhysicalAsset();
+        var anchor = new FrameAnchor { DisplayLabel = "Interesting look" };
+        var project = new VideoProject { Assets = [source], Anchors = [anchor] };
+
+        var first = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            source.Id, new string('b', 64), 0, 30, 1, 30, 30));
+        var pinned = new AnchorRevisionReference { AnchorId = anchor.Id, AnchorRevisionId = first.Id };
+        var second = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            source.Id, new string('b', 64), 0, 45, 1, 30, 45));
+
+        Assert.Equal(second.Id, anchor.CurrentRevisionId);
+        Assert.Equal(first.Id, second.PreviousRevisionId);
+        Assert.Equal(1, first.RevisionNumber);
+        Assert.Equal(2, second.RevisionNumber);
+        Assert.Equal(first.Id, pinned.AnchorRevisionId);
+        Assert.Equal(30, first.PresentationTimestamp);
+        Assert.Empty(ProjectInvariantValidator.Validate(project));
+    }
+
+    [Fact]
+    public void ExactAnchorRevisionRequiresCompleteMediaNativePosition()
+    {
+        var source = CreatePhysicalAsset();
+        var revision = new FrameAnchorRevision
+        {
+            AnchorId = Guid.NewGuid(),
+            RevisionNumber = 1,
+            SourceAssetId = source.Id,
+            TimingPrecision = AnchorTimingPrecision.ExactPresentationTimestamp,
+            PresentationTimestamp = 15,
+            TimeBaseNumerator = 1,
+            TimeBaseDenominator = 30
+        };
+        var anchor = new FrameAnchor { Id = revision.AnchorId, CurrentRevisionId = revision.Id };
+        var project = new VideoProject { Assets = [source], Anchors = [anchor], AnchorRevisions = [revision] };
+
+        var errors = ProjectInvariantValidator.Validate(project);
+
+        Assert.Contains(errors, error => error.Contains("invalid exact presentation timing", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void RepeatedLogicalReferenceIsDistinguishedByStableOccurrenceId()
+    {
+        var source = CreatePhysicalAsset();
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var generation = new GenerationRecord
+        {
+            RequestSnapshot = new GenerationRequestSnapshot
+            {
+                ProviderId = "fake",
+                ModelVersion = "fake-v1",
+                Prompt = "Use one source in two roles",
+                References = Array.AsReadOnly(new[]
+                {
+                    new GenerationReferenceSnapshot
+                    {
+                        ReferenceId = firstId,
+                        ObjectKind = GenerationReferenceObjectKind.Asset,
+                        LogicalObjectId = source.Id,
+                        Role = GenerationReferenceRole.Character
+                    },
+                    new GenerationReferenceSnapshot
+                    {
+                        ReferenceId = secondId,
+                        ObjectKind = GenerationReferenceObjectKind.Asset,
+                        LogicalObjectId = source.Id,
+                        Role = GenerationReferenceRole.Motion
+                    }
+                })
+            }
+        };
+        var project = new VideoProject { Assets = [source], Generations = [generation] };
+
+        Assert.DoesNotContain(ProjectInvariantValidator.Validate(project),
+            error => error.Contains("reference ID", StringComparison.OrdinalIgnoreCase));
+
+        var duplicateGeneration = new GenerationRecord
+        {
+            RequestSnapshot = new GenerationRequestSnapshot
+            {
+                ProviderId = "fake",
+                ModelVersion = "fake-v1",
+                Prompt = "duplicate occurrence",
+                References = Array.AsReadOnly(generation.RequestSnapshot.References.Select(reference =>
+                    new GenerationReferenceSnapshot
+                    {
+                        ReferenceId = firstId,
+                        ObjectKind = reference.ObjectKind,
+                        LogicalObjectId = reference.LogicalObjectId,
+                        Role = reference.Role
+                    }).ToArray())
+            }
+        };
+        var duplicateProject = new VideoProject
+        {
+            Assets = [source],
+            Generations = [duplicateGeneration]
+        };
+
+        Assert.Contains(ProjectInvariantValidator.Validate(duplicateProject),
+            error => error.Contains("duplicate reference ID", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void RemovingReferencedAnchorArchivesItWhileUnreferencedAnchorIsDeleted()
+    {
+        var source = CreatePhysicalAsset();
+        var referenced = new FrameAnchor();
+        var disposable = new FrameAnchor();
+        var virtualAsset = new ProjectAsset
+        {
+            MediaType = MediaType.Image,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState()
+        };
+        var project = new VideoProject
+        {
+            Assets = [source, virtualAsset],
+            Anchors = [referenced, disposable]
+        };
+        var referencedRevision = project.CommitAnchorRevision(referenced.Id, new ExactFramePosition(
+            source.Id, new string('b', 64), 0, 30, 1, 30, 30));
+        project.CommitAnchorRevision(disposable.Id, new ExactFramePosition(
+            source.Id, new string('b', 64), 0, 60, 1, 30, 60));
+        project.CommitRecipe(virtualAsset.Id, new ExtractFrameRecipe
+        {
+            Source = new AssetRevisionReference { AssetId = source.Id },
+            Anchor = new AnchorRevisionReference
+            {
+                AnchorId = referenced.Id,
+                AnchorRevisionId = referencedRevision.Id
+            }
+        });
+
+        var referencedResult = project.RemoveOrArchiveAnchor(referenced.Id);
+        var disposableResult = project.RemoveOrArchiveAnchor(disposable.Id);
+
+        Assert.Equal(AnchorRemovalDisposition.Archived, referencedResult);
+        Assert.True(referenced.IsArchived);
+        Assert.Contains(project.AnchorRevisions, revision => revision.Id == referencedRevision.Id);
+        Assert.Equal(AnchorRemovalDisposition.Removed, disposableResult);
+        Assert.DoesNotContain(project.Anchors, anchor => anchor.Id == disposable.Id);
+        Assert.DoesNotContain(project.AnchorRevisions, revision => revision.AnchorId == disposable.Id);
+        Assert.Empty(ProjectInvariantValidator.Validate(project));
+    }
+
     private static GenerationRecord CreateGeneration(
         Guid id,
         Guid parentId,

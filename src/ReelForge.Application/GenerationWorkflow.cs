@@ -245,8 +245,10 @@ public sealed class GenerationWorkflow
         Resolution = source.RequestSnapshot.Resolution,
         References = source.RequestSnapshot.References.Select(reference => new GenerationReferenceDraft
         {
+            ReferenceId = Guid.NewGuid(),
             ObjectKind = reference.ObjectKind,
             LogicalObjectId = reference.LogicalObjectId,
+            AnchorRevisionId = reference.Anchor?.AnchorRevisionId,
             Role = reference.Role,
             Order = reference.Order,
             Label = reference.Label,
@@ -457,12 +459,33 @@ public sealed class GenerationWorkflow
     {
         if (reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor)
         {
-            if (project.Anchors.All(anchor => anchor.Id != reference.LogicalObjectId))
+            var anchor = project.Anchors.SingleOrDefault(candidate => candidate.Id == reference.LogicalObjectId);
+            if (anchor is null)
                 throw new InvalidOperationException($"Frame anchor '{reference.LogicalObjectId}' no longer exists.");
+            var revisionId = reference.AnchorRevisionId ?? anchor.CurrentRevisionId
+                ?? throw new InvalidOperationException($"Frame anchor '{reference.LogicalObjectId}' has no committed revision.");
+            var revision = project.AnchorRevisions.SingleOrDefault(candidate =>
+                    candidate.Id == revisionId && candidate.AnchorId == anchor.Id)
+                ?? throw new InvalidOperationException($"Frame anchor revision '{revisionId}' no longer exists.");
             return new GenerationReferenceSnapshot
             {
+                ReferenceId = reference.ReferenceId,
                 ObjectKind = reference.ObjectKind,
                 LogicalObjectId = reference.LogicalObjectId,
+                ContentHash = revision.SourceContentHash,
+                Anchor = new FrameAnchorReferenceSnapshot
+                {
+                    AnchorRevisionId = revision.Id,
+                    SourceAssetId = revision.SourceAssetId,
+                    SourceContentHash = revision.SourceContentHash,
+                    VideoStreamIndex = revision.VideoStreamIndex,
+                    TimingPrecision = revision.TimingPrecision,
+                    PresentationTimestamp = revision.PresentationTimestamp,
+                    TimeBaseNumerator = revision.TimeBaseNumerator,
+                    TimeBaseDenominator = revision.TimeBaseDenominator,
+                    LegacyTimestampSeconds = revision.LegacyTimestampSeconds,
+                    FrameNumber = revision.FrameNumber
+                },
                 Role = reference.Role,
                 Order = reference.Order ?? index,
                 Label = reference.Label,
@@ -482,6 +505,7 @@ public sealed class GenerationWorkflow
 
         return new GenerationReferenceSnapshot
         {
+            ReferenceId = reference.ReferenceId,
             ObjectKind = reference.ObjectKind,
             LogicalObjectId = reference.LogicalObjectId,
             RecipeRevisionId = asset.Virtual?.CurrentRecipeRevisionId,
@@ -553,8 +577,10 @@ public sealed class GenerationWorkflow
         Resolution = source.Resolution,
         References = source.References.Select(reference => new GenerationReferenceDraft
         {
+            ReferenceId = reference.ReferenceId,
             ObjectKind = reference.ObjectKind,
             LogicalObjectId = reference.LogicalObjectId,
+            AnchorRevisionId = reference.AnchorRevisionId,
             Role = reference.Role,
             Order = reference.Order,
             Label = reference.Label,

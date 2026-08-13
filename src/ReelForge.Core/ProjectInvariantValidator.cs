@@ -20,12 +20,14 @@ public static class ProjectInvariantValidator
 
         AddDuplicateErrors(project.Assets.Select(asset => asset.Id), "asset", errors);
         AddDuplicateErrors(project.Anchors.Select(anchor => anchor.Id), "anchor", errors);
+        AddDuplicateErrors(project.AnchorRevisions.Select(revision => revision.Id), "anchor revision", errors);
         AddDuplicateErrors(project.RecipeRevisions.Select(revision => revision.Id), "recipe revision", errors);
         AddDuplicateErrors(project.RecipeDrafts.Select(draft => draft.Id), "recipe draft", errors);
         AddDuplicateErrors(project.Generations.Select(generation => generation.Id), "generation", errors);
 
         var assets = project.Assets.GroupBy(asset => asset.Id).ToDictionary(group => group.Key, group => group.First());
         var anchors = project.Anchors.GroupBy(anchor => anchor.Id).ToDictionary(group => group.Key, group => group.First());
+        var anchorRevisions = project.AnchorRevisions.GroupBy(revision => revision.Id).ToDictionary(group => group.Key, group => group.First());
         var revisions = project.RecipeRevisions.GroupBy(revision => revision.Id).ToDictionary(group => group.Key, group => group.First());
         var generations = project.Generations.GroupBy(generation => generation.Id).ToDictionary(group => group.Key, group => group.First());
 
@@ -58,15 +60,20 @@ public static class ProjectInvariantValidator
 
         foreach (var anchor in project.Anchors)
         {
-            if (!assets.TryGetValue(anchor.AssetId, out var source) || source.MediaType != MediaType.Video)
-                errors.Add($"Anchor '{anchor.Id}' must reference an existing video asset.");
-            if (anchor.TimestampSeconds < 0 || double.IsNaN(anchor.TimestampSeconds) || double.IsInfinity(anchor.TimestampSeconds))
-                errors.Add($"Anchor '{anchor.Id}' has an invalid timestamp.");
+            if (anchor.CurrentRevisionId is null ||
+                !anchorRevisions.TryGetValue(anchor.CurrentRevisionId.Value, out var current) ||
+                current.AnchorId != anchor.Id)
+                errors.Add($"Anchor '{anchor.Id}' must reference its current committed revision.");
+            else if (project.AnchorRevisions.Any(revision =>
+                         revision.AnchorId == anchor.Id && revision.RevisionNumber > current.RevisionNumber))
+                errors.Add($"Anchor '{anchor.Id}' current revision pointer does not reference its latest revision.");
         }
 
-        ValidateRecipeRevisions(project, assets, anchors, revisions, errors);
-        ValidateGenerationDraft(project, assets, anchors, generations, errors);
-        ValidateGenerations(project, assets, anchors, revisions, generations, errors);
+        ValidateAnchorRevisions(project, assets, anchors, anchorRevisions, errors);
+
+        ValidateRecipeRevisions(project, assets, anchors, anchorRevisions, revisions, errors);
+        ValidateGenerationDraft(project, assets, anchors, anchorRevisions, generations, errors);
+        ValidateGenerations(project, assets, anchors, anchorRevisions, revisions, generations, errors);
         ValidateTimeline(project, assets, revisions, errors);
         return errors;
     }
@@ -75,6 +82,7 @@ public static class ProjectInvariantValidator
         VideoProject project,
         Dictionary<Guid, ProjectAsset> assets,
         Dictionary<Guid, FrameAnchor> anchors,
+        Dictionary<Guid, FrameAnchorRevision> anchorRevisions,
         Dictionary<Guid, GenerationRecord> generations,
         List<string> errors)
     {
@@ -86,13 +94,72 @@ public static class ProjectInvariantValidator
         if (draft.ParentGenerationId is { } parentId && !generations.ContainsKey(parentId))
             errors.Add("The current generation draft references a missing parent generation.");
 
+        AddDuplicateErrors(draft.References.Select(reference => reference.ReferenceId), "generation draft reference", errors);
         foreach (var reference in draft.References)
         {
+            if (reference.ReferenceId == Guid.Empty)
+                errors.Add("The current generation draft contains an empty reference ID.");
             if (reference.ObjectKind == GenerationReferenceObjectKind.Asset && !assets.ContainsKey(reference.LogicalObjectId))
                 errors.Add($"The current generation draft references missing asset '{reference.LogicalObjectId}'.");
-            if (reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor && !anchors.ContainsKey(reference.LogicalObjectId))
-                errors.Add($"The current generation draft references missing anchor '{reference.LogicalObjectId}'.");
+            if (reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor)
+            {
+                if (!anchors.TryGetValue(reference.LogicalObjectId, out var anchor))
+                    errors.Add($"The current generation draft references missing anchor '{reference.LogicalObjectId}'.");
+                else if (reference.AnchorRevisionId is { } revisionId &&
+                         (!anchorRevisions.TryGetValue(revisionId, out var revision) || revision.AnchorId != anchor.Id))
+                    errors.Add($"The current generation draft references missing anchor revision '{revisionId}'.");
+            }
         }
+    }
+
+    private static void ValidateAnchorRevisions(
+        VideoProject project,
+        Dictionary<Guid, ProjectAsset> assets,
+        Dictionary<Guid, FrameAnchor> anchors,
+        Dictionary<Guid, FrameAnchorRevision> revisions,
+        List<string> errors)
+    {
+        foreach (var revision in project.AnchorRevisions)
+        {
+            if (!anchors.ContainsKey(revision.AnchorId))
+                errors.Add($"Anchor revision '{revision.Id}' belongs to missing anchor '{revision.AnchorId}'.");
+            if (!assets.TryGetValue(revision.SourceAssetId, out var source) ||
+                source.StorageKind != AssetStorageKind.Physical || source.MediaType != MediaType.Video)
+                errors.Add($"Anchor revision '{revision.Id}' must reference a durable physical video asset.");
+            if (revision.RevisionNumber < 1)
+                errors.Add($"Anchor revision '{revision.Id}' has an invalid revision number.");
+            if (revision.SourceContentHash is not null && !IsSha256(revision.SourceContentHash))
+                errors.Add($"Anchor revision '{revision.Id}' has an invalid source SHA-256 value.");
+            if (revision.RevisionNumber == 1 && revision.PreviousRevisionId is not null)
+                errors.Add($"Anchor revision '{revision.Id}' first revision cannot have a predecessor.");
+            if (revision.RevisionNumber > 1 &&
+                (revision.PreviousRevisionId is not { } previousId ||
+                 !revisions.TryGetValue(previousId, out var previous) ||
+                 previous.AnchorId != revision.AnchorId ||
+                 previous.RevisionNumber != revision.RevisionNumber - 1))
+                errors.Add($"Anchor revision '{revision.Id}' has an invalid predecessor.");
+
+            if (revision.TimingPrecision == AnchorTimingPrecision.ExactPresentationTimestamp)
+            {
+                if (revision.VideoStreamIndex is null or < 0 || revision.PresentationTimestamp is null or < 0 ||
+                    revision.TimeBaseNumerator is null or <= 0 || revision.TimeBaseDenominator is null or <= 0 ||
+                    revision.LegacyTimestampSeconds is not null || !IsSha256(revision.SourceContentHash))
+                    errors.Add($"Anchor revision '{revision.Id}' has invalid exact presentation timing.");
+            }
+            else if (revision.LegacyTimestampSeconds is null or < 0 ||
+                     double.IsNaN(revision.LegacyTimestampSeconds.Value) ||
+                     double.IsInfinity(revision.LegacyTimestampSeconds.Value) ||
+                     revision.PresentationTimestamp is not null || revision.TimeBaseNumerator is not null ||
+                     revision.TimeBaseDenominator is not null || revision.VideoStreamIndex is not null)
+            {
+                errors.Add($"Anchor revision '{revision.Id}' has invalid legacy timestamp timing.");
+            }
+        }
+
+        foreach (var duplicate in project.AnchorRevisions
+                     .GroupBy(revision => (revision.AnchorId, revision.RevisionNumber))
+                     .Where(group => group.Count() > 1))
+            errors.Add($"Anchor '{duplicate.Key.AnchorId}' has duplicate revision number {duplicate.Key.RevisionNumber}.");
     }
 
     public static void ThrowIfInvalid(VideoProject project)
@@ -105,6 +172,7 @@ public static class ProjectInvariantValidator
         VideoProject project,
         Dictionary<Guid, ProjectAsset> assets,
         Dictionary<Guid, FrameAnchor> anchors,
+        Dictionary<Guid, FrameAnchorRevision> anchorRevisions,
         Dictionary<Guid, RecipeRevision> revisions,
         List<string> errors)
     {
@@ -126,10 +194,10 @@ public static class ProjectInvariantValidator
             foreach (var source in GetRecipeSources(revision.Recipe))
                 ValidateAssetRevisionReference(source, assets, revisions, $"Recipe revision '{revision.Id}'", errors);
 
-            foreach (var anchorId in GetRecipeAnchors(revision.Recipe))
-                if (!anchors.ContainsKey(anchorId)) errors.Add($"Recipe revision '{revision.Id}' references missing anchor '{anchorId}'.");
+            foreach (var anchorReference in GetRecipeAnchors(revision.Recipe))
+                ValidateAnchorRevisionReference(anchorReference, anchors, anchorRevisions, $"Recipe revision '{revision.Id}'", errors);
 
-            ValidateRecipeSemantics(revision, anchors, errors);
+            ValidateRecipeSemantics(revision, anchorRevisions, errors);
         }
 
         foreach (var duplicate in project.RecipeRevisions
@@ -160,20 +228,22 @@ public static class ProjectInvariantValidator
 
     private static void ValidateRecipeSemantics(
         RecipeRevision revision,
-        Dictionary<Guid, FrameAnchor> anchors,
+        Dictionary<Guid, FrameAnchorRevision> anchorRevisions,
         List<string> errors)
     {
         switch (revision.Recipe)
         {
             case TrimRecipe trim:
-                ValidateBoundary(trim.Start, trim.Source.AssetId, revision.Id, anchors, errors);
-                ValidateBoundary(trim.End, trim.Source.AssetId, revision.Id, anchors, errors);
-                var startSeconds = ResolveBoundarySeconds(trim.Start, anchors);
-                var endSeconds = ResolveBoundarySeconds(trim.End, anchors);
+                ValidateBoundary(trim.Start, trim.Source.AssetId, revision.Id, anchorRevisions, errors);
+                ValidateBoundary(trim.End, trim.Source.AssetId, revision.Id, anchorRevisions, errors);
+                var startSeconds = ResolveBoundarySeconds(trim.Start, anchorRevisions);
+                var endSeconds = ResolveBoundarySeconds(trim.End, anchorRevisions);
                 if (startSeconds is { } start && endSeconds is { } end && end <= start)
                     errors.Add($"Recipe revision '{revision.Id}' trim end must follow its start.");
                 break;
-            case ExtractFrameRecipe frame when anchors.TryGetValue(frame.AnchorId, out var anchor) && anchor.AssetId != frame.Source.AssetId:
+            case ExtractFrameRecipe frame when
+                anchorRevisions.TryGetValue(frame.Anchor.AnchorRevisionId, out var anchorRevision) &&
+                anchorRevision.SourceAssetId != frame.Source.AssetId:
                 errors.Add($"Recipe revision '{revision.Id}' frame anchor must belong to its source asset.");
                 break;
         }
@@ -183,25 +253,39 @@ public static class ProjectInvariantValidator
         RecipeBoundary boundary,
         Guid sourceAssetId,
         Guid revisionId,
-        Dictionary<Guid, FrameAnchor> anchors,
+        Dictionary<Guid, FrameAnchorRevision> anchorRevisions,
         List<string> errors)
     {
         if (boundary.Kind == RecipeBoundaryKind.Anchor &&
-            boundary.AnchorId is { } anchorId &&
-            anchors.TryGetValue(anchorId, out var anchor) &&
-            anchor.AssetId != sourceAssetId)
+            boundary.Anchor is { } anchor &&
+            anchorRevisions.TryGetValue(anchor.AnchorRevisionId, out var anchorRevision) &&
+            anchorRevision.SourceAssetId != sourceAssetId)
             errors.Add($"Recipe revision '{revisionId}' trim anchor must belong to its source asset.");
+        if (boundary.Kind == RecipeBoundaryKind.Anchor &&
+            boundary.Edge == AnchorBoundaryEdge.LegacyUnspecified &&
+            boundary.Anchor is { } legacyAnchor &&
+            anchorRevisions.TryGetValue(legacyAnchor.AnchorRevisionId, out var legacyRevision) &&
+            legacyRevision.TimingPrecision != AnchorTimingPrecision.LegacyTimestampSeconds)
+            errors.Add($"Recipe revision '{revisionId}' can use an unspecified frame edge only with a migrated legacy anchor.");
+        if (boundary.Kind == RecipeBoundaryKind.Anchor &&
+            (boundary.Anchor is null || boundary.Edge is null))
+            errors.Add($"Recipe revision '{revisionId}' anchor boundary requires a pinned revision and frame edge.");
+        if (boundary.Kind != RecipeBoundaryKind.Anchor && (boundary.Anchor is not null || boundary.Edge is not null))
+            errors.Add($"Recipe revision '{revisionId}' has anchor data on a non-anchor boundary.");
         if (boundary.Kind == RecipeBoundaryKind.Timestamp &&
             (boundary.TimestampSeconds is null || boundary.TimestampSeconds < 0 ||
              double.IsNaN(boundary.TimestampSeconds.Value) || double.IsInfinity(boundary.TimestampSeconds.Value)))
             errors.Add($"Recipe revision '{revisionId}' has an invalid timestamp boundary.");
     }
 
-    private static double? ResolveBoundarySeconds(RecipeBoundary boundary, Dictionary<Guid, FrameAnchor> anchors) => boundary.Kind switch
+    private static double? ResolveBoundarySeconds(
+        RecipeBoundary boundary,
+        Dictionary<Guid, FrameAnchorRevision> anchorRevisions) => boundary.Kind switch
     {
         RecipeBoundaryKind.SourceStart => 0,
         RecipeBoundaryKind.Timestamp => boundary.TimestampSeconds,
-        RecipeBoundaryKind.Anchor when boundary.AnchorId is { } id && anchors.TryGetValue(id, out var anchor) => anchor.TimestampSeconds,
+        RecipeBoundaryKind.Anchor when boundary.Edge == AnchorBoundaryEdge.BeforeFrame && boundary.Anchor is { } anchor &&
+            anchorRevisions.TryGetValue(anchor.AnchorRevisionId, out var revision) => revision.TimestampSeconds,
         _ => null
     };
 
@@ -224,6 +308,7 @@ public static class ProjectInvariantValidator
         VideoProject project,
         Dictionary<Guid, ProjectAsset> assets,
         Dictionary<Guid, FrameAnchor> anchors,
+        Dictionary<Guid, FrameAnchorRevision> anchorRevisions,
         Dictionary<Guid, RecipeRevision> revisions,
         Dictionary<Guid, GenerationRecord> generations,
         List<string> errors)
@@ -235,10 +320,18 @@ public static class ProjectInvariantValidator
             if (generation.ParentGenerationId is { } parentId && (!generations.ContainsKey(parentId) || parentId == generation.Id))
                 errors.Add($"Generation '{generation.Id}' has an invalid parent.");
 
+            var duplicateReferenceIds = generation.RequestSnapshot.References
+                .GroupBy(reference => reference.ReferenceId)
+                .Where(group => group.Key == Guid.Empty || group.Count() > 1);
+            foreach (var duplicate in duplicateReferenceIds)
+                errors.Add($"Generation '{generation.Id}' has invalid or duplicate reference ID '{duplicate.Key}'.");
+
             foreach (var reference in generation.RequestSnapshot.References)
             {
                 if (reference.ObjectKind == GenerationReferenceObjectKind.Asset)
                 {
+                    if (reference.Anchor is not null)
+                        errors.Add($"Generation '{generation.Id}' asset reference '{reference.ReferenceId}' cannot include anchor state.");
                     if (!assets.TryGetValue(reference.LogicalObjectId, out var asset))
                         errors.Add($"Generation '{generation.Id}' references missing asset '{reference.LogicalObjectId}'.");
                     else if (asset.StorageKind == AssetStorageKind.Virtual)
@@ -251,8 +344,24 @@ public static class ProjectInvariantValidator
                     else if (reference.RecipeRevisionId is not null)
                         errors.Add($"Generation '{generation.Id}' cannot assign a recipe revision to physical asset '{asset.Id}'.");
                 }
-                else if (!anchors.ContainsKey(reference.LogicalObjectId))
-                    errors.Add($"Generation '{generation.Id}' references missing anchor '{reference.LogicalObjectId}'.");
+                else
+                {
+                    if (!anchors.TryGetValue(reference.LogicalObjectId, out var anchor))
+                        errors.Add($"Generation '{generation.Id}' references missing anchor '{reference.LogicalObjectId}'.");
+                    if (reference.Anchor is null)
+                    {
+                        errors.Add($"Generation '{generation.Id}' must pin exact state for anchor '{reference.LogicalObjectId}'.");
+                    }
+                    else if (!anchorRevisions.TryGetValue(reference.Anchor.AnchorRevisionId, out var anchorRevision) ||
+                             anchorRevision.AnchorId != reference.LogicalObjectId)
+                    {
+                        errors.Add($"Generation '{generation.Id}' references missing anchor revision '{reference.Anchor.AnchorRevisionId}'.");
+                    }
+                    else
+                    {
+                        ValidateAnchorSnapshot(reference, anchorRevision, generation.Id, errors);
+                    }
+                }
             }
 
             foreach (var outputId in generation.OutputAssetIds)
@@ -340,6 +449,40 @@ public static class ProjectInvariantValidator
             errors.Add($"{owner} cannot assign a recipe revision to physical asset '{source.Id}'.");
     }
 
+    private static void ValidateAnchorRevisionReference(
+        AnchorRevisionReference reference,
+        Dictionary<Guid, FrameAnchor> anchors,
+        Dictionary<Guid, FrameAnchorRevision> revisions,
+        string owner,
+        List<string> errors)
+    {
+        if (!anchors.ContainsKey(reference.AnchorId))
+            errors.Add($"{owner} references missing anchor '{reference.AnchorId}'.");
+        if (!revisions.TryGetValue(reference.AnchorRevisionId, out var revision) || revision.AnchorId != reference.AnchorId)
+            errors.Add($"{owner} references missing anchor revision '{reference.AnchorRevisionId}'.");
+    }
+
+    private static void ValidateAnchorSnapshot(
+        GenerationReferenceSnapshot reference,
+        FrameAnchorRevision revision,
+        Guid generationId,
+        List<string> errors)
+    {
+        var snapshot = reference.Anchor!;
+        if (snapshot.SourceAssetId != revision.SourceAssetId ||
+            !string.Equals(snapshot.SourceContentHash, revision.SourceContentHash, StringComparison.OrdinalIgnoreCase) ||
+            snapshot.VideoStreamIndex != revision.VideoStreamIndex ||
+            snapshot.TimingPrecision != revision.TimingPrecision ||
+            snapshot.PresentationTimestamp != revision.PresentationTimestamp ||
+            snapshot.TimeBaseNumerator != revision.TimeBaseNumerator ||
+            snapshot.TimeBaseDenominator != revision.TimeBaseDenominator ||
+            snapshot.LegacyTimestampSeconds != revision.LegacyTimestampSeconds ||
+            snapshot.FrameNumber != revision.FrameNumber)
+            errors.Add($"Generation '{generationId}' anchor reference '{reference.ReferenceId}' does not match its pinned revision.");
+        if (!string.Equals(reference.ContentHash, snapshot.SourceContentHash, StringComparison.OrdinalIgnoreCase))
+            errors.Add($"Generation '{generationId}' anchor reference '{reference.ReferenceId}' has inconsistent source identity.");
+    }
+
     private static IEnumerable<AssetRevisionReference> GetRecipeSources(AssetRecipe recipe) => recipe switch
     {
         TrimRecipe trim => [trim.Source],
@@ -347,10 +490,10 @@ public static class ProjectInvariantValidator
         _ => throw new NotSupportedException($"Recipe type '{recipe.GetType().Name}' is not supported.")
     };
 
-    private static IEnumerable<Guid> GetRecipeAnchors(AssetRecipe recipe) => recipe switch
+    private static IEnumerable<AnchorRevisionReference> GetRecipeAnchors(AssetRecipe recipe) => recipe switch
     {
-        TrimRecipe trim => new[] { trim.Start.AnchorId, trim.End.AnchorId }.OfType<Guid>(),
-        ExtractFrameRecipe frame when frame.AnchorId != Guid.Empty => [frame.AnchorId],
+        TrimRecipe trim => new[] { trim.Start.Anchor, trim.End.Anchor }.OfType<AnchorRevisionReference>(),
+        ExtractFrameRecipe frame when frame.Anchor.AnchorId != Guid.Empty && frame.Anchor.AnchorRevisionId != Guid.Empty => [frame.Anchor],
         _ => []
     };
 

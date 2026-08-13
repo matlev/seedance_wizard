@@ -591,7 +591,7 @@ The coordinator is application-scoped rather than project-view-scoped. It contin
 
 ## Project schema and migration
 
-The implemented project schema is version 2. Version 1 gave `ProjectAsset.RelativePath` physical-path semantics and had no persisted anchor collection or virtual recipe discriminator. Phase 2A introduced the explicit version-1/version-2 DTO and transactional migration chain below.
+The implemented project schema is version 3. Version 1 gave `ProjectAsset.RelativePath` physical-path semantics and had no persisted anchor collection or virtual recipe discriminator. Phase 2A introduced the explicit version-1/version-2 DTOs; Phase 2C.1 added an explicit version-3 DTO and extended the transactional migration chain below.
 
 Implemented version 2 changes:
 
@@ -623,8 +623,8 @@ Migration strategy:
 8. Preserve the version-1 request values as the historical snapshot. The migration cannot prove that the in-memory request had never been mutated before its last save, so it preserves rather than embellishes the recorded state.
 9. Convert the singular output asset ID into a one-element output collection and preserve the asset's existing generation provenance where present.
 10. Add an empty anchor catalog because version 1 never persisted anchors at project level.
-11. Validate the migrated asset/recipe/generation graphs and referenced files, report missing durable files without deleting metadata, and save version 2 only through an explicit/transactional migration path.
-12. For this safe metadata-only version-1 to version-2 migration, create `project.backup-v1.json` first, migrate automatically, atomically save the selected project file, and report the upgrade. Never overwrite the known-good project if backup or migration fails. New projects use a project-named `.rfp` file; legacy `project.json` files remain supported and save in place.
+11. Validate the migrated asset/recipe/generation graphs and referenced files, report missing durable files without deleting metadata, and save the current schema only through an explicit/transactional migration path.
+12. For safe metadata-only version-1 migration, create `project.backup-v1.json` first, migrate automatically to the current schema, atomically save the selected project file, and report the upgrade. Never overwrite the known-good project if backup or migration fails. New projects use a project-named `.rfp` file; legacy `project.json` files remain supported and save in place.
 
 The migration policy is hybrid: safe/reversible metadata migrations such as v2 → v3 run automatically after a versioned backup; destructive, expensive, lossy, media-rewriting, or risky folder-layout migrations require an explanation and explicit user confirmation after backup.
 
@@ -651,7 +651,7 @@ Version 2 to version 3 migration is safe metadata migration and therefore follow
 3. Convert each version-2 anchor into a stable logical anchor plus immutable revision 1.
 4. Preserve the original `TimestampSeconds` as legacy timing; never invent a presentation timestamp, time base, stream index, or exact-frame guarantee not present in version 2.
 5. Carry the source asset's verified SHA-256 into revision 1 when available; otherwise retain a degraded/pending identity state without blocking project open.
-6. Rewrite version-2 recipe anchor IDs to the corresponding revision-1 reference while retaining legacy timing precision.
+6. Rewrite version-2 recipe anchor IDs to the corresponding revision-1 reference while retaining legacy timing precision. Because version 2 did not store whether an anchor boundary included or excluded its selected frame, preserve such boundaries as `LegacyUnspecified`; never fabricate `BeforeFrame` or `AfterFrame` semantics.
 7. Assign a new stable `ReferenceId` to each existing draft and historical generation-reference occurrence while preserving its original order and values.
 8. Resolve historical anchor references to revision 1 and freeze the legacy timing/source fields available at migration time without embellishment.
 9. Validate references, revision chains, lineage, source media state, and dependency rules before atomically saving schema 3.

@@ -15,10 +15,13 @@ public enum GenerationReferenceObjectKind { Asset, FrameAnchor }
 public enum GenerationReferenceRole { GeneralReference, StartFrame, EndFrame, Character, Style, Environment, Motion, Audio }
 public enum GenerationRelationshipType { RetryOf, VariantOf, ContinueAfter, ContinueBefore, BasedOn }
 public enum RecipeBoundaryKind { SourceStart, SourceEnd, Anchor, Timestamp }
+public enum AnchorBoundaryEdge { BeforeFrame, AfterFrame, LegacyUnspecified }
+public enum AnchorTimingPrecision { ExactPresentationTimestamp, LegacyTimestampSeconds }
+public enum AnchorRemovalDisposition { Removed, Archived }
 
 public sealed class VideoProject
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -30,6 +33,7 @@ public sealed class VideoProject
     public List<RecipeRevision> RecipeRevisions { get; set; } = [];
     public List<RecipeDraft> RecipeDrafts { get; set; } = [];
     public List<FrameAnchor> Anchors { get; set; } = [];
+    public List<FrameAnchorRevision> AnchorRevisions { get; set; } = [];
     public GenerationDraft? CurrentGenerationDraft { get; set; }
     public List<GenerationRecord> Generations { get; set; } = [];
     public Timeline Timeline { get; set; } = new();
@@ -85,6 +89,83 @@ public sealed class VideoProject
         Touch();
         return revision;
     }
+
+    public FrameAnchorRevision CommitAnchorRevision(Guid anchorId, ExactFramePosition position)
+    {
+        ArgumentNullException.ThrowIfNull(position);
+        var anchor = Anchors.SingleOrDefault(candidate => candidate.Id == anchorId)
+            ?? throw new InvalidOperationException($"Frame anchor '{anchorId}' does not exist.");
+        var source = Assets.SingleOrDefault(candidate => candidate.Id == position.SourceAssetId)
+            ?? throw new InvalidOperationException($"Anchor source asset '{position.SourceAssetId}' does not exist.");
+        if (source.StorageKind != AssetStorageKind.Physical || source.MediaType != MediaType.Video)
+            throw new InvalidOperationException("Frame anchors currently require a durable physical video source.");
+        if (position.VideoStreamIndex < 0 || position.PresentationTimestamp < 0 ||
+            position.TimeBaseNumerator <= 0 || position.TimeBaseDenominator <= 0)
+            throw new InvalidOperationException("An exact frame position requires a valid stream, PTS, and rational time base.");
+        if (!IsSha256(position.SourceContentHash))
+            throw new InvalidOperationException("An exact frame position requires a verified source SHA-256 hash.");
+        if (source.Physical?.ContentIdentity is not { Status: ContentHashStatus.Verified, Sha256: { } sourceHash } ||
+            !sourceHash.Equals(position.SourceContentHash, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The exact frame position must match the source video's verified content identity.");
+
+        var previous = anchor.CurrentRevisionId is { } currentId
+            ? AnchorRevisions.SingleOrDefault(candidate => candidate.Id == currentId)
+                ?? throw new InvalidOperationException($"Current anchor revision '{currentId}' does not exist.")
+            : null;
+        var revision = new FrameAnchorRevision
+        {
+            AnchorId = anchorId,
+            RevisionNumber = (previous?.RevisionNumber ?? 0) + 1,
+            PreviousRevisionId = previous?.Id,
+            SourceAssetId = position.SourceAssetId,
+            SourceContentHash = position.SourceContentHash,
+            VideoStreamIndex = position.VideoStreamIndex,
+            TimingPrecision = AnchorTimingPrecision.ExactPresentationTimestamp,
+            PresentationTimestamp = position.PresentationTimestamp,
+            TimeBaseNumerator = position.TimeBaseNumerator,
+            TimeBaseDenominator = position.TimeBaseDenominator,
+            FrameNumber = position.FrameNumber
+        };
+        AnchorRevisions.Add(revision);
+        anchor.CurrentRevisionId = revision.Id;
+        Touch();
+        return revision;
+    }
+
+    public AnchorRemovalDisposition RemoveOrArchiveAnchor(Guid anchorId)
+    {
+        var anchor = Anchors.SingleOrDefault(candidate => candidate.Id == anchorId)
+            ?? throw new InvalidOperationException($"Frame anchor '{anchorId}' does not exist.");
+        var isReferenced = RecipeRevisions.Any(revision => RecipeReferencesAnchor(revision.Recipe, anchorId)) ||
+            RecipeDrafts.Any(draft => RecipeReferencesAnchor(draft.EditableRecipe, anchorId)) ||
+            CurrentGenerationDraft?.References.Any(reference =>
+                reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor &&
+                reference.LogicalObjectId == anchorId) == true ||
+            Generations.Any(generation => generation.RequestSnapshot.References.Any(reference =>
+                reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor &&
+                reference.LogicalObjectId == anchorId));
+        if (isReferenced)
+        {
+            anchor.IsArchived = true;
+            Touch();
+            return AnchorRemovalDisposition.Archived;
+        }
+
+        AnchorRevisions.RemoveAll(revision => revision.AnchorId == anchorId);
+        Anchors.Remove(anchor);
+        Touch();
+        return AnchorRemovalDisposition.Removed;
+    }
+
+    private static bool RecipeReferencesAnchor(AssetRecipe recipe, Guid anchorId) => recipe switch
+    {
+        TrimRecipe trim => trim.Start.Anchor?.AnchorId == anchorId || trim.End.Anchor?.AnchorId == anchorId,
+        ExtractFrameRecipe frame => frame.Anchor.AnchorId == anchorId,
+        _ => false
+    };
+
+    private static bool IsSha256(string? value) =>
+        value is { Length: 64 } && value.All(character => Uri.IsHexDigit(character));
 }
 
 public sealed class ProjectAsset
@@ -186,7 +267,7 @@ public sealed record TrimRecipe : AssetRecipe
 public sealed record ExtractFrameRecipe : AssetRecipe
 {
     public AssetRevisionReference Source { get; init; } = new();
-    public Guid AnchorId { get; init; }
+    public AnchorRevisionReference Anchor { get; init; } = new();
     public string? ImageProfile { get; init; }
 }
 
@@ -196,13 +277,20 @@ public sealed record AssetRevisionReference
     public Guid? RecipeRevisionId { get; init; }
 }
 
+public sealed record AnchorRevisionReference
+{
+    public Guid AnchorId { get; init; }
+    public Guid AnchorRevisionId { get; init; }
+}
+
 public sealed record RecipeBoundary
 {
     public static RecipeBoundary SourceStart { get; } = new() { Kind = RecipeBoundaryKind.SourceStart };
     public static RecipeBoundary SourceEnd { get; } = new() { Kind = RecipeBoundaryKind.SourceEnd };
 
     public RecipeBoundaryKind Kind { get; init; }
-    public Guid? AnchorId { get; init; }
+    public AnchorRevisionReference? Anchor { get; init; }
+    public AnchorBoundaryEdge? Edge { get; init; }
     public double? TimestampSeconds { get; init; }
 }
 
@@ -268,8 +356,10 @@ public sealed class GenerationDraft
 
 public sealed class GenerationReferenceDraft
 {
+    public Guid ReferenceId { get; set; } = Guid.NewGuid();
     public GenerationReferenceObjectKind ObjectKind { get; set; } = GenerationReferenceObjectKind.Asset;
     public Guid LogicalObjectId { get; set; }
+    public Guid? AnchorRevisionId { get; set; }
     public GenerationReferenceRole? Role { get; set; }
     public int? Order { get; set; }
     public string? Label { get; set; }
@@ -292,15 +382,31 @@ public sealed class GenerationRequestSnapshot
 
 public sealed class GenerationReferenceSnapshot
 {
+    public Guid ReferenceId { get; init; } = Guid.NewGuid();
     public GenerationReferenceObjectKind ObjectKind { get; init; }
     public Guid LogicalObjectId { get; init; }
     public Guid? RecipeRevisionId { get; init; }
+    public FrameAnchorReferenceSnapshot? Anchor { get; init; }
     public string? ContentHash { get; init; }
     public GenerationReferenceRole? Role { get; init; }
     public int? Order { get; init; }
     public string? Label { get; init; }
     public string? Notes { get; init; }
     public MaterializationReceipt? Materialization { get; init; }
+}
+
+public sealed record FrameAnchorReferenceSnapshot
+{
+    public Guid AnchorRevisionId { get; init; }
+    public Guid SourceAssetId { get; init; }
+    public string? SourceContentHash { get; init; }
+    public int? VideoStreamIndex { get; init; }
+    public AnchorTimingPrecision TimingPrecision { get; init; }
+    public long? PresentationTimestamp { get; init; }
+    public int? TimeBaseNumerator { get; init; }
+    public int? TimeBaseDenominator { get; init; }
+    public double? LegacyTimestampSeconds { get; init; }
+    public long? FrameNumber { get; init; }
 }
 
 public sealed class MaterializationReceipt
@@ -411,10 +517,45 @@ public sealed class TimelineClip
 public sealed class FrameAnchor
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid AssetId { get; set; }
-    public long? FrameNumber { get; set; }
-    public double TimestampSeconds { get; set; }
-    public string? TimeBase { get; set; }
-    public string? Label { get; set; }
+    public Guid? CurrentRevisionId { get; set; }
+    public string? DisplayLabel { get; set; }
     public string? Notes { get; set; }
+    public bool IsArchived { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
+public sealed class FrameAnchorRevision
+{
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid AnchorId { get; init; }
+    public int RevisionNumber { get; init; }
+    public Guid? PreviousRevisionId { get; init; }
+    public Guid SourceAssetId { get; init; }
+    public string? SourceContentHash { get; init; }
+    public int? VideoStreamIndex { get; init; }
+    public AnchorTimingPrecision TimingPrecision { get; init; }
+    public long? PresentationTimestamp { get; init; }
+    public int? TimeBaseNumerator { get; init; }
+    public int? TimeBaseDenominator { get; init; }
+    public double? LegacyTimestampSeconds { get; init; }
+    public long? FrameNumber { get; init; }
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+
+    public double? TimestampSeconds => TimingPrecision switch
+    {
+        AnchorTimingPrecision.ExactPresentationTimestamp when
+            PresentationTimestamp is { } pts && TimeBaseNumerator is { } numerator && TimeBaseDenominator is > 0 =>
+            pts * (double)numerator / TimeBaseDenominator.Value,
+        AnchorTimingPrecision.LegacyTimestampSeconds => LegacyTimestampSeconds,
+        _ => null
+    };
+}
+
+public sealed record ExactFramePosition(
+    Guid SourceAssetId,
+    string SourceContentHash,
+    int VideoStreamIndex,
+    long PresentationTimestamp,
+    int TimeBaseNumerator,
+    int TimeBaseDenominator,
+    long? FrameNumber = null);
