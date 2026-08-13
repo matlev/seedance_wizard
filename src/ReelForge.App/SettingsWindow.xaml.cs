@@ -1,8 +1,10 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 using ReelForge.Application;
+using ReelForge.Infrastructure;
 
 namespace ReelForge.App;
 
@@ -13,6 +15,7 @@ public partial class SettingsWindow : Window
     private readonly ApplicationConfigurationValidator _validator;
     private readonly IMediaToolDiscovery _mediaToolDiscovery;
     private readonly ITemporaryAssetHost _temporaryAssetHost;
+    private readonly FileApplicationDiagnosticLog _diagnosticLog;
     private readonly Dictionary<string, string> _pendingValues = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextBox> _visibleEditors = new(StringComparer.Ordinal);
     private Task<bool>? _activeCommit;
@@ -26,7 +29,8 @@ public partial class SettingsWindow : Window
         ApplicationSettings settings,
         ISecretStore secretStore,
         IMediaToolDiscovery mediaToolDiscovery,
-        ITemporaryAssetHost temporaryAssetHost)
+        ITemporaryAssetHost temporaryAssetHost,
+        FileApplicationDiagnosticLog diagnosticLog)
     {
         InitializeComponent();
         _editor = new ApplicationSettingsEditor(settingsStore, settings);
@@ -34,6 +38,7 @@ public partial class SettingsWindow : Window
         _validator = new ApplicationConfigurationValidator(secretStore);
         _mediaToolDiscovery = mediaToolDiscovery;
         _temporaryAssetHost = temporaryAssetHost;
+        _diagnosticLog = diagnosticLog;
         GeneralCategory.IsSelected = true;
         StateChanged += SettingsWindow_StateChanged;
     }
@@ -165,7 +170,8 @@ public partial class SettingsWindow : Window
         var panel = CreateFieldPanel(requirement);
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition());
-        var supportsBrowse = requirement.Key is "MediaTools.FfmpegPath" or "MediaTools.FfprobePath" or "General.ProjectsRoot";
+        var supportsBrowse = requirement.Key is "MediaTools.FfmpegPath" or "MediaTools.FfprobePath" or
+            "General.ProjectsRoot" or "General.LogDirectory";
         if (supportsBrowse) row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var textBox = new TextBox
         {
@@ -351,10 +357,46 @@ public partial class SettingsWindow : Window
             while (_pendingValues.Count > 0)
             {
                 var valuesBeingCommitted = _pendingValues.ToArray();
+                var logDirectoryValue = valuesBeingCommitted
+                    .FirstOrDefault(pair => pair.Key == "General.LogDirectory").Value;
+                string? resolvedLogDirectory = null;
+                var moveExistingLogs = false;
+                if (logDirectoryValue is not null)
+                {
+                    resolvedLogDirectory = FileApplicationDiagnosticLog.ResolveLogDirectory(logDirectoryValue);
+                    if (!PathsEqual(_diagnosticLog.LogDirectory, resolvedLogDirectory))
+                    {
+                        var existingLogs = FileApplicationDiagnosticLog.FindExistingLogs(_diagnosticLog.LogDirectory);
+                        if (existingLogs.Count > 0)
+                        {
+                            moveExistingLogs = MessageBox.Show(
+                                this,
+                                $"There are existing logs in the previous location \"{_diagnosticLog.LogDirectory}\". " +
+                                $"Would you like to move them to the new location \"{resolvedLogDirectory}\"?\n\n" +
+                                "This helps prevent accidental, orphaned artifacts.",
+                                "Move existing logs?",
+                                MessageBoxButton.YesNo,
+                                MessageBoxImage.Question,
+                                MessageBoxResult.Yes) == MessageBoxResult.Yes;
+                        }
+                    }
+                }
                 foreach (var (key, value) in valuesBeingCommitted)
                     _editor.Update(key, value);
 
                 savedAny |= await _editor.CommitAsync().ConfigureAwait(true);
+                if (resolvedLogDirectory is not null && !PathsEqual(_diagnosticLog.LogDirectory, resolvedLogDirectory))
+                {
+                    try
+                    {
+                        await _diagnosticLog.RelocateAsync(resolvedLogDirectory, moveExistingLogs).ConfigureAwait(true);
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+                    {
+                        PersistenceStatusText.Text =
+                            $"The log setting was saved, but existing logs could not be relocated: {exception.Message}";
+                    }
+                }
                 foreach (var (key, value) in valuesBeingCommitted)
                 {
                     if (_pendingValues.TryGetValue(key, out var current) && current.Equals(value, StringComparison.Ordinal))
@@ -364,7 +406,8 @@ public partial class SettingsWindow : Window
 
             if (savedAny)
             {
-                PersistenceStatusText.Text = "Changes saved to the local application settings file.";
+                if (!PersistenceStatusText.Text.StartsWith("The log setting was saved", StringComparison.Ordinal))
+                    PersistenceStatusText.Text = "Changes saved to the local application settings file.";
             }
             return true;
         }
@@ -420,9 +463,15 @@ public partial class SettingsWindow : Window
     {
         if ((sender as FrameworkElement)?.Tag is not ConfigurationRequirement requirement ||
             !_visibleEditors.TryGetValue(requirement.Key, out var textBox)) return;
-        if (requirement.Key == "General.ProjectsRoot")
+        if (requirement.Key is "General.ProjectsRoot" or "General.LogDirectory")
         {
-            var dialog = new OpenFolderDialog { Title = "Select the default ReelForge projects folder", Multiselect = false };
+            var dialog = new OpenFolderDialog
+            {
+                Title = requirement.Key == "General.ProjectsRoot"
+                    ? "Select the default ReelForge projects folder"
+                    : "Select the ReelForge diagnostic log folder",
+                Multiselect = false
+            };
             if (dialog.ShowDialog(this) == true) textBox.Text = dialog.FolderName;
             return;
         }
@@ -466,4 +515,10 @@ public partial class SettingsWindow : Window
     }
 
     private sealed record BooleanChoice(ConfigurationRequirement Requirement, bool Enabled);
+
+    private static bool PathsEqual(string first, string second) =>
+        string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(first)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(second)),
+            StringComparison.OrdinalIgnoreCase);
 }

@@ -179,6 +179,25 @@ public sealed class ApplicationSettingsTests
             ApplicationSettingsAccessor.Set(settings, "General.UndoSendSeconds", "31"));
     }
 
+    [Fact]
+    public void LogDirectoryDefaultsToCurrentDiagnosticLocationAndExpandsEnvironmentVariables()
+    {
+        var settings = new ApplicationSettings();
+
+        Assert.Equal(FileApplicationDiagnosticLog.GetDefaultLogDirectory(), settings.General.LogDirectory);
+
+        ApplicationSettingsAccessor.Set(settings, "General.LogDirectory", @"%LOCALAPPDATA%\ReelForge\Alternate Logs");
+
+        Assert.Equal(
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ReelForge",
+                "Alternate Logs"),
+            settings.General.LogDirectory);
+        Assert.Throws<ArgumentException>(() =>
+            ApplicationSettingsAccessor.Set(settings, "General.LogDirectory", " "));
+    }
+
     private static ApplicationSettings ConfiguredR2Settings()
     {
         var settings = new ApplicationSettings();

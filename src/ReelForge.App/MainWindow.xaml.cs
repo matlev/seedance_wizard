@@ -41,7 +41,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private GenerationWorkflow _generationWorkflow = null!;
     private IProviderAssetPreparationService? _providerPreparation;
     private readonly ISecretStore _secretStore;
-    private readonly IApplicationDiagnosticLog _diagnosticLog;
+    private readonly FileApplicationDiagnosticLog _diagnosticLog;
     private readonly List<HttpClient> _providerHttpClients = [];
     private readonly HttpClient _r2HttpClient;
     private readonly HttpClient _downloadHttpClient;
@@ -95,7 +95,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _workspace = new ProjectWorkspace(_projectStore, _assetImporter);
         _assetTransferService = new ProjectAssetTransferService(_projectStore, _assetImporter);
         _secretStore = new WindowsCredentialStore();
-        _diagnosticLog = new FileApplicationDiagnosticLog();
+        _diagnosticLog = new FileApplicationDiagnosticLog(_applicationSettings.General.LogDirectory);
         _r2HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _downloadHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _outputIngestion = new HttpGeneratedOutputIngestionService(_downloadHttpClient, _mediaInspector);
@@ -497,7 +497,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _applicationSettings.Clone(),
             _secretStore,
             _mediaToolDiscovery,
-            _temporaryAssetHost)
+            _temporaryAssetHost,
+            _diagnosticLog)
         {
             Owner = this
         };

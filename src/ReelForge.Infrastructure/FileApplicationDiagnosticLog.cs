@@ -7,13 +7,14 @@ public sealed class FileApplicationDiagnosticLog : IApplicationDiagnosticLog, ID
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private string _logDirectory;
 
     public FileApplicationDiagnosticLog(string? logDirectory = null)
     {
-        LogDirectory = Path.GetFullPath(logDirectory ?? GetDefaultLogDirectory());
+        _logDirectory = ResolveLogDirectory(logDirectory);
     }
 
-    public string LogDirectory { get; }
+    public string LogDirectory => Volatile.Read(ref _logDirectory);
 
     public async Task<DiagnosticLogReference?> WriteErrorAsync(
         string category,
@@ -23,7 +24,6 @@ public sealed class FileApplicationDiagnosticLog : IApplicationDiagnosticLog, ID
     {
         var timestamp = DateTimeOffset.UtcNow;
         var eventId = Guid.NewGuid().ToString("N");
-        var filePath = Path.Combine(LogDirectory, $"reelforge-{timestamp:yyyy-MM-dd}.jsonl");
         var entry = new DiagnosticLogEntry(
             timestamp,
             eventId,
@@ -34,19 +34,20 @@ public sealed class FileApplicationDiagnosticLog : IApplicationDiagnosticLog, ID
 
         try
         {
-            Directory.CreateDirectory(LogDirectory);
             var line = JsonSerializer.Serialize(entry, JsonOptions) + Environment.NewLine;
             await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                var logDirectory = _logDirectory;
+                Directory.CreateDirectory(logDirectory);
+                var filePath = Path.Combine(logDirectory, $"reelforge-{timestamp:yyyy-MM-dd}.jsonl");
                 await File.AppendAllTextAsync(filePath, line, cancellationToken).ConfigureAwait(false);
+                return new DiagnosticLogReference(eventId, filePath);
             }
             finally
             {
                 _writeLock.Release();
             }
-
-            return new DiagnosticLogReference(eventId, filePath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -56,10 +57,66 @@ public sealed class FileApplicationDiagnosticLog : IApplicationDiagnosticLog, ID
     }
 
     public static string GetDefaultLogDirectory()
+        => ApplicationStoragePaths.GetDefaultLogDirectory();
+
+    public static string ResolveLogDirectory(string? configuredPath) =>
+        ApplicationStoragePaths.ResolveDirectory(configuredPath, GetDefaultLogDirectory());
+
+    public static IReadOnlyList<string> FindExistingLogs(string directory)
     {
-        var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localApplicationData, "ReelForge", "Logs");
+        var resolved = ResolveLogDirectory(directory);
+        return Directory.Exists(resolved)
+            ? Directory.EnumerateFiles(resolved, "reelforge-*.jsonl", SearchOption.TopDirectoryOnly).ToArray()
+            : [];
     }
+
+    public async Task RelocateAsync(
+        string newDirectory,
+        bool moveExistingLogs,
+        CancellationToken cancellationToken = default)
+    {
+        var resolved = ResolveLogDirectory(newDirectory);
+        await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var oldDirectory = _logDirectory;
+            if (PathEquals(oldDirectory, resolved)) return;
+            if (moveExistingLogs)
+            {
+                Directory.CreateDirectory(resolved);
+                foreach (var sourcePath in FindExistingLogs(oldDirectory))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var destinationPath = GetCollisionSafeDestination(resolved, Path.GetFileName(sourcePath));
+                    File.Move(sourcePath, destinationPath);
+                }
+            }
+            Volatile.Write(ref _logDirectory, resolved);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private static string GetCollisionSafeDestination(string directory, string fileName)
+    {
+        var destination = Path.Combine(directory, fileName);
+        if (!File.Exists(destination)) return destination;
+        var stem = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+        for (var suffix = 1; ; suffix++)
+        {
+            destination = Path.Combine(directory, $"{stem}-moved-{suffix}{extension}");
+            if (!File.Exists(destination)) return destination;
+        }
+    }
+
+    private static bool PathEquals(string first, string second) =>
+        string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(first)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(second)),
+            StringComparison.OrdinalIgnoreCase);
 
     public void Dispose() => _writeLock.Dispose();
 
