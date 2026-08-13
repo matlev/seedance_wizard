@@ -3,6 +3,7 @@
 Status: accepted direction; Phases 2A and 2B complete; Phase 2C implementation in progress
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
+Generate/Edit workspace revision: 2026-08-13
 
 This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific physical-reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, and their application boundaries are implemented. Virtual-recipe rendering, frame-anchor materialization, and general cache planning remain later Milestone 2 phases.
 
@@ -27,6 +28,16 @@ durable physical media + persisted recipes + edit state
 ```
 
 The project is authoritative; the cache is not. Deleting the entire `cache/` directory must never delete an asset definition, anchor, edit, generation record, or provenance required to reproduce the project.
+
+## Generate and Edit workspaces
+
+One open ReelForge project is presented through two application-level workspaces. **Generate** creates and prepares media: prompt authoring, provider configuration, generation history, job monitoring, reference selection, Saved Frames, and Saved Clips. **Edit** assembles and transforms the same project media through a logical Working Composition. Switching workspaces never reopens, clones, or changes the project.
+
+The shared left-side concept is **Project Media**, a presentation union rather than a new persistence type. Physical and virtual `ProjectAsset` values and logical `FrameAnchor` Saved Frames appear as peers while retaining their distinct domain identities. A Saved Clip is a virtual video asset backed by an immutable trim-recipe revision. A Saved Frame remains an anchor and never masquerades as an image asset. A future Working Composition is a logical recipe/draft, not an evolving physical MP4.
+
+The Generate viewer shows currently previewed media. The Edit viewer shows the Working Composition by default. A completed generation may auto-preview only when its owning project is open, Generate is active, and no explicit Select Frame or Make Clip operation owns the viewer. Otherwise ReelForge reports completion through the global Jobs surface without stealing the user's context.
+
+FFmpeg-driven tools are explicit operations. Selecting a video previews and inspects it but does not index its decoded frames. The normally quiet Generate lower panel offers **Select Frame** and **Make Clip**; only entering one of those modes begins cancellable precision work. Jobs remains application-global and workspace-neutral, with room to track future render/materialization work as well as generation.
 
 ## Dependency direction
 
@@ -385,13 +396,15 @@ The final retention policy is intentionally unresolved. A future `IMaterializati
 
 The virtual source remains intact after promotion. Future recipe edits produce a new cache identity and do not silently overwrite the promoted physical file.
 
-### Main-video durability
+### Viewer selection and Working Composition
 
-`MainVideoAssetId` may point only to a durable physical video asset. Making a virtual asset or retained materialization the main video invokes durable promotion first; it cannot leave the project dependent on cache storage. Demoting a main video changes only the designation—the file remains an ordinary durable project asset. Deleting the main video requires the user to select another durable video or explicitly leave the project without one; the application must not silently promote or delete another asset.
+The starred Main Video concept is removed. Generate has only currently previewed media; this is ephemeral UI selection, not privileged domain state. Per-project viewer selection and the last workspace are machine-local preferences. The project persists the identity of its Working Composition because that composition is durable creative state.
+
+The initial Working Composition is one project-designated virtual composition identified by ID so multiple named compositions can be added later without restructuring the project root. Its active edit is a mutable recipe draft. A submitted generation, export, or historical dependency freezes an immutable recipe revision. Preview materializations are disposable and export is the explicit durable-file boundary.
 
 ## Timeline implications
 
-Timeline clips should continue to reference logical asset IDs, so either physical or virtual media can be used. The persisted timeline should grow conceptually to include track identity/order, in/out boundaries, timeline position, audio enablement, and later gain/fade/transition properties.
+The existing floating-point `TimelineClip` model is provisional and must not become the editor foundation. A composition segment references a logical asset plus an exact physical or virtual revision and expresses video ranges through source edges or pinned exact-position revisions with `BeforeFrame`/`AfterFrame` intent. Audio will require an appropriate rational/sample-based boundary rather than pretending every boundary is a video frame.
 
 Preview and export compile the current timeline state into a render plan. They do not rewrite source assets or persist FFmpeg intermediates as project assets. If a timeline composition is exposed as an asset elsewhere, it should be represented by an immutable/snapshotted composition recipe or by explicit version semantics; referencing a mutable live timeline directly would make old generation provenance non-reproducible.
 
@@ -650,7 +663,7 @@ At the first externally supported beta/public project-format baseline, compatibi
 3. **Drafts:** zero or one autosaved mutable `GenerationDraft` per project; drafts are not history. Submission creates an immutable record.
 4. **Generation identity:** one submitted provider request/job per generation, with provider/model selected per request and zero or more durable output asset IDs.
 5. **Reference roles:** optional provider-neutral roles are `GeneralReference`, `StartFrame`, `EndFrame`, `Character`, `Style`, `Environment`, `Motion`, and `Audio`, plus separate user label/notes.
-6. **Main video:** always a durable physical project asset. Promotion precedes selection; demotion does not make media ephemeral; deletion prompts for replacement or leaves no main video.
+6. **Viewer and composition:** Generate uses ephemeral currently previewed media; Edit uses a project-owned logical Working Composition. There is no starred Main Video domain role.
 7. **Pre-release format:** maintain one current development format and reject obsolete files clearly; establish migrations only after the first supported beta/public format baseline.
 8. **Missing resources/history:** submitted generations persist until explicitly deleted. Missing physical media is reported as missing project state and never causes silent history deletion.
 9. **Materialization retention:** intentionally unresolved; logical recipes/provenance remain authoritative under every future policy.
@@ -671,13 +684,16 @@ At the first externally supported beta/public project-format baseline, compatibi
 10. **Materialization:** canonical preview and provider preparation resolve the same decoded frame, while purpose-specific derivative encoding may differ and remains evidenced.
 11. **Reference occurrences:** every generation reference has its own stable `ReferenceId`; providers consume transient prepared media descriptors rather than project assets or anchor objects.
 12. **Continuation:** mode recommendations remain explicit; multiple parent outputs require selection; an imported video may use continuation UX without false generation lineage.
-13. **UI:** the central lower workspace hosts the initial local contact strip; old anchor revisions stay outside the ordinary workflow.
+13. **UI:** exact frame work is activated explicitly through Select Frame; the lower Generate workspace is otherwise a quiet media-preparation surface. Old anchor revisions stay outside the ordinary workflow.
 14. **Promotion:** a logical Saved Frame is sufficient for Phase 2C cherry-picking; saving a standalone durable image remains later work.
 15. **Acceptance provider:** AtlasCloud MiniMax H3 is the first optional human-run paid anchor continuation; automated tests make no live or paid calls.
+16. **Exact positions versus Saved Frames:** clip boundaries use the same exact-position semantics, but not every exact position is automatically a user-facing Saved Frame. Internal boundary state must not clutter Project Media and may be promoted later.
+17. **Saved Clips:** a Saved Clip is a virtual video asset backed by an immutable trim recipe. Narrow trim materialization for Preview and ProviderUpload moves into revised 2C; concat, normalization, full composition rendering, and generalized export remain later work.
+18. **Navigation:** the exact-frame browser progressively loads a bounded sliding window around the user's approximate playhead and does not require eager full-video indexing.
 
 ## Remaining questions and recommended defaults
 
-The Phase 2C anchor questions are settled. Remaining cross-phase items are:
+The Phase 2C product-direction questions are settled. Remaining cross-phase items are:
 
 1. **Virtual-video anchor mapping:** define only after Phase 2D establishes recipe time mapping; Phase 2C is physical-video-only.
 2. **Materialization retention:** retain the policy boundary without selecting minimal/balanced/persistent behavior.
@@ -685,7 +701,8 @@ The Phase 2C anchor questions are settled. Remaining cross-phase items are:
 4. **External exports:** default to export history without making reconstruction depend on an external path; decide catalog behavior with export UX.
 5. **Provider cancellation:** distinguish local polling cancellation from remote cancellation and expose the latter only when verified.
 6. **Saved-frame promotion:** direct logical Saved Frame use satisfies Phase 2C; general Save Frame as Asset UI remains with later promotion/export work.
+7. **Boundary representation:** clip-only boundaries remain hidden from Project Media whether implemented as internal anchors or a more general exact-position reference; explicit promotion creates a user-facing Saved Frame.
 
 ## Phase gate
 
-Phases 2A and 2B are complete. Phase 2C.1 through 2C.7 are approved for implementation with the single current development format, immutable exact-timing anchor revisions, occurrence-identified provider references, and `BeforeFrame`/`AfterFrame` editing boundaries. AtlasCloud MiniMax H3 is the selected first optional human-run paid anchor-continuation acceptance route because its submission/upload/polling/ingestion path is already proven; automated verification remains network-isolated. BytePlus paid acceptance is a separate provider-confidence exercise. Phase 2D virtual-recipe rendering and generalized promotion/export remain separate implementation gates.
+Phases 2A and 2B are complete. Revised Phase 2C is approved around the Generate/Edit shell, Project Media projection, explicit progressive Select Frame workflow, first-class Saved Frames, Saved Clip creation, and narrow trim materialization. AtlasCloud MiniMax H3 remains the first optional human-run paid reference acceptance route; automated verification remains network-isolated. Full timeline editing, concat, normalization, composition rendering, and generalized promotion/export remain separate gates.

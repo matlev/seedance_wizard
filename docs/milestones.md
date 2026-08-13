@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phases 2A/2B complete; Phase 2C frame/continuation implementation is in progress, with Phase 2C.1 delivered.
+Status: Milestone 1 and Milestone 2 Phases 2A/2B complete; the Phase 2C exact-media foundation is delivered and its approved Generate/Edit UX revision is in progress.
 
 ## Product priority
 
@@ -136,9 +136,44 @@ Phase acceptance checks:
 - retry creates a distinct potentially billable job and never overwrites the original failure;
 - clearing materialization cache does not affect job history, output assets, or logical references.
 
-### Phase 2C — frame and continuation workflow
+### Phase 2C — Generate/Edit workspace and media preparation
 
-Approved scope. Enable the core generate → inspect → Saved Frame/anchor → continue loop while establishing anchors as reusable media-editing boundaries rather than generation-specific screenshots.
+Approved revised scope. Preserve the exact-frame/anchor/provider foundation while replacing the prototype's always-on precision workspace with explicit Generate/Edit workspaces, shared Project Media, progressive Select Frame navigation, and non-destructive Saved Clips.
+
+#### Phase 2C.8 — workspace and Project Media revision
+
+1. Remove the starred Main Video UX and domain field; Generate tracks only ephemeral currently previewed media.
+2. Add application-level Generate/Edit switching without reopening the project.
+3. Keep Jobs global and workspace-neutral in the top application chrome.
+4. Project physical assets, virtual assets, and Saved Frames into one grouped Project Media presentation without merging their domain types.
+5. Display physical images/videos/audio, materialized Saved Frames, and materialized Saved Clips in the shared viewer.
+6. Auto-preview a completed output only when its project is open, Generate is active, and Select Frame/Make Clip is not active.
+7. Establish an intentional Edit empty/start state without implementing the full timeline.
+
+#### Phase 2C.9 — explicit progressive Select Frame
+
+1. Selecting a video performs ordinary preview/inspection only; it does not start frame indexing.
+2. Replace the permanent Precision Frames surface with default Media Preparation actions: Select Frame and Make Clip.
+3. Remove the spacing selector and frame-browser Continue After/Before actions.
+4. Load a bounded exact-frame window around the approximate player position and progressively prefetch adjacent decoded frames near either edge.
+5. Preserve frame-by-frame arrow navigation, exact First Frame, final decodable Last Frame, cancellation, deterministic extraction, and disposable caches.
+6. Move Saved Frames into Project Media with thumbnail, source navigation, metadata, degraded state, and exact-revision behavior.
+
+#### Phase 2C.10 — Saved Clips and narrow trim materialization
+
+1. Create Saved Clips for SourceStart→anchor, anchor→SourceEnd, and anchor→anchor using natural `BeforeFrame`/`AfterFrame` intent.
+2. Do not automatically expose clip-only exact boundaries as user-facing Saved Frames; retain explicit future promotion.
+3. Commit each Saved Clip as a virtual video asset plus immutable trim-recipe revision without a permanent subclip MP4.
+4. Pull forward only the trim recipe compiler/materializer required for Preview and ProviderUpload.
+5. Reuse deterministic cache, active leases, source verification, provider-neutral preparation, AtlasCloud upload, and BytePlus/R2 hosting.
+6. Pin the selected virtual recipe revision in generation drafts and immutable snapshots.
+
+#### Phase 2C.11 — visual references and acceptance
+
+1. Give reference choices thumbnails, media-type identity, human labels, hover preview, and click-to-view behavior while retaining the checkbox grid temporarily.
+2. Verify workspace switching, Project Media persistence, progressive long-video navigation, Saved Frame reopening, all three Saved Clip boundary cases, and non-disruptive background completion.
+3. Prove Saved Clip preview/provider preparation through network-isolated tests that cannot submit paid generation.
+4. Keep full Add Reference picking, multitrack editing, composition rendering, audio tooling, and generalized export outside this surgical pass.
 
 #### Phase 2C.1 — anchor semantics and current project format
 
@@ -228,15 +263,14 @@ Phase acceptance checks:
 
 ### Phase 2D — basic recipe-based media operations
 
-1. Add virtual trims for source-start → anchor, anchor → source-end, and anchor → anchor.
-2. Persist trims as recipes without eagerly retaining MP4s.
-3. Reuse and expand existing media encoding inspection.
-4. Add compatibility analysis as data/planning, not an eager normalization side effect.
-5. Add typed normalize/match recipes and purpose-specific materialization.
-6. Add concat recipes accepting physical and virtual inputs, with explicit compatibility decisions.
-7. Add lazy frame-extraction recipes.
-8. Add explicit Export, Save as Asset, and Keep Rendered Copy promotion actions.
-9. Permit retention-policy experiments without changing logical asset IDs, recipes, or generation provenance.
+1. Expand the narrow Phase 2C Saved Clip compiler into general recipe planning and recursive virtual-source time mapping.
+2. Reuse and expand existing media encoding inspection.
+3. Add compatibility analysis as data/planning, not an eager normalization side effect.
+4. Add typed normalize/match recipes and purpose-specific materialization.
+5. Add concat recipes accepting physical and virtual inputs, with explicit compatibility decisions.
+6. Add lazy frame-extraction recipes.
+7. Add explicit Export, Save as Asset, and Keep Rendered Copy promotion actions.
+8. Permit retention-policy experiments without changing logical asset IDs, recipes, or generation provenance.
 
 Phase acceptance checks:
 
