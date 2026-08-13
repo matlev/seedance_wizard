@@ -90,6 +90,93 @@ public sealed class SavedClipService
         }
     }
 
+    public async Task DeleteAsync(Guid savedClipAssetId, CancellationToken cancellationToken = default)
+    {
+        var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
+        var clip = project.Assets.SingleOrDefault(asset => asset.Id == savedClipAssetId)
+            ?? throw new InvalidOperationException("The Saved Clip no longer exists.");
+        if (clip.Virtual?.Kind != VirtualAssetKind.SavedClip)
+            throw new InvalidOperationException("Only a Saved Clip can be removed through this operation.");
+
+        var dependencies = FindExternalDependencies(project, clip.Id);
+        if (dependencies.Count > 0)
+            throw new InvalidOperationException(
+                $"'{clip.EffectiveDisplayName}' cannot be deleted because it is used by {string.Join(", ", dependencies)}.");
+
+        var assets = project.Assets.ToList();
+        var revisions = project.RecipeRevisions.ToList();
+        var drafts = project.RecipeDrafts.ToList();
+        var anchors = project.Anchors.ToList();
+        var anchorRevisions = project.AnchorRevisions.ToList();
+        var modifiedAt = project.ModifiedAt;
+        try
+        {
+            var ownedRevisions = project.RecipeRevisions
+                .Where(revision => revision.VirtualAssetId == clip.Id)
+                .ToArray();
+            var boundaryAnchorIds = ownedRevisions
+                .SelectMany(revision => GetAnchorReferences(revision.Recipe))
+                .Select(reference => reference.AnchorId)
+                .Distinct()
+                .ToArray();
+            project.RecipeDrafts.RemoveAll(draft => draft.VirtualAssetId == clip.Id);
+            project.RecipeRevisions.RemoveAll(revision => revision.VirtualAssetId == clip.Id);
+            project.Assets.Remove(clip);
+            foreach (var anchorId in boundaryAnchorIds)
+            {
+                if (project.Anchors.Any(anchor => anchor.Id == anchorId))
+                    project.RemoveOrArchiveAnchor(anchorId);
+            }
+            await _workspace.SaveAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            project.Assets = assets;
+            project.RecipeRevisions = revisions;
+            project.RecipeDrafts = drafts;
+            project.Anchors = anchors;
+            project.AnchorRevisions = anchorRevisions;
+            project.ModifiedAt = modifiedAt;
+            throw;
+        }
+    }
+
+    private static List<string> FindExternalDependencies(VideoProject project, Guid clipId)
+    {
+        var dependencies = new List<string>();
+        if (project.CurrentGenerationDraft?.References.Any(reference =>
+                reference.ObjectKind == GenerationReferenceObjectKind.Asset &&
+                reference.LogicalObjectId == clipId) == true)
+            dependencies.Add("the current generation draft");
+        if (project.Generations.Any(generation => generation.RequestSnapshot.References.Any(reference =>
+                reference.ObjectKind == GenerationReferenceObjectKind.Asset &&
+                reference.LogicalObjectId == clipId)))
+            dependencies.Add("submitted generation history");
+        if (project.RecipeRevisions.Any(revision =>
+                revision.VirtualAssetId != clipId && RecipeReferencesAsset(revision.Recipe, clipId)) ||
+            project.RecipeDrafts.Any(draft =>
+                draft.VirtualAssetId != clipId && RecipeReferencesAsset(draft.EditableRecipe, clipId)))
+            dependencies.Add("another media recipe");
+        if (project.Assets.Any(asset => asset.Id != clipId &&
+                asset.Provenance?.SourceAssetIds.Contains(clipId) == true))
+            dependencies.Add("derived media history");
+        return dependencies;
+    }
+
+    private static bool RecipeReferencesAsset(AssetRecipe recipe, Guid assetId) => recipe switch
+    {
+        TrimRecipe trim => trim.Source.AssetId == assetId,
+        ExtractFrameRecipe frame => frame.Source.AssetId == assetId,
+        CompositionRecipe composition => composition.Segments.Any(segment => segment.Source.AssetId == assetId),
+        _ => false
+    };
+
+    private static IEnumerable<AnchorRevisionReference> GetAnchorReferences(AssetRecipe recipe) => recipe switch
+    {
+        TrimRecipe trim => new[] { trim.Start.Anchor, trim.End.Anchor }.OfType<AnchorRevisionReference>(),
+        _ => []
+    };
+
     private static RecipeBoundary CreateBoundary(VideoProject project, ClipBoundarySelection selection)
     {
         if (selection.Kind == ClipBoundaryKind.SourceStart) return RecipeBoundary.SourceStart;

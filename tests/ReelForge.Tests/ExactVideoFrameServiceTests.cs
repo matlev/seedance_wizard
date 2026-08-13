@@ -44,7 +44,7 @@ public sealed class ExactVideoFrameServiceTests : IDisposable
         var frames = await service.IndexWindowAsync("long source.mp4", 120, 2);
 
         Assert.Single(frames);
-        Assert.Contains("118%+4", runner.Request!.Arguments);
+        Assert.Contains("118%122", runner.Request!.Arguments);
         Assert.Equal("long source.mp4", runner.Request.Arguments[^1]);
     }
 

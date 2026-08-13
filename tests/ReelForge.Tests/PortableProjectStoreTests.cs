@@ -216,6 +216,35 @@ public sealed class PortableProjectStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task DeletingSavedClipRemovesItsRecipeAndPrivateBoundaries()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Delete clip");
+        var source = CreatePhysicalAsset("source.mp4", "assets/videos/source.mp4");
+        source.DurationSeconds = 12;
+        workspace.Project!.AddAsset(source);
+        await workspace.SaveAsync();
+        var service = new SavedClipService(workspace);
+        var position = new ExactFramePosition(source.Id, new string('a', 64), 0, 450, 1, 100, 135);
+        var clip = await service.CreateAsync(
+            "Temporary clip",
+            source.Id,
+            ClipBoundarySelection.AtFrame(position, AnchorBoundaryEdge.BeforeFrame),
+            ClipBoundarySelection.SourceEnd);
+
+        await service.DeleteAsync(clip.Id);
+
+        Assert.Equal(source.Id, Assert.Single(workspace.Project.Assets).Id);
+        Assert.Empty(workspace.Project.RecipeRevisions);
+        Assert.Empty(workspace.Project.RecipeDrafts);
+        Assert.Empty(workspace.Project.Anchors);
+        Assert.Empty(workspace.Project.AnchorRevisions);
+        var (reopened, _) = await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath);
+        Assert.Equal(source.Id, Assert.Single(reopened.Assets).Id);
+        Assert.Empty(ProjectInvariantValidator.Validate(reopened));
+    }
+
+    [Fact]
     public async Task WorkingCompositionPersistsPinnedInitialSegmentWithoutLegacyTimelineState()
     {
         var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());

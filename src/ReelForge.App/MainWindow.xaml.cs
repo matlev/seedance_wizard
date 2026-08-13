@@ -1265,7 +1265,45 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void DeleteAsset_Click(object sender, RoutedEventArgs e)
     {
-        if (GetSelectedAsset() is not { } asset || _workspace.Project is null) return;
+        if (AssetsList.SelectedItem is not ProjectMediaListItem selected || _workspace.Project is null) return;
+        if (selected.Anchor is { } anchor)
+        {
+            await ConfirmAndRemoveSavedFrameAsync(anchor, selected.DisplayName);
+            return;
+        }
+        if (selected.Asset is not { } asset) return;
+        if (asset.Virtual?.Kind == VirtualAssetKind.SavedClip)
+        {
+            var deleteClip = MessageBox.Show(
+                this,
+                $"Delete Saved Clip '{asset.EffectiveDisplayName}' from this project?\n\n" +
+                "Its non-destructive recipe and private boundaries will be removed. The source video is unchanged.",
+                "Delete Saved Clip",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
+            if (deleteClip != MessageBoxResult.Yes) return;
+            await RunUiActionAsync($"Deleting {asset.EffectiveDisplayName}…", async () =>
+            {
+                await new SavedClipService(_workspace).DeleteAsync(asset.Id);
+                AssetsList.SelectedItem = null;
+                ClearMediaPreview();
+                RefreshProjectCollections();
+                InspectorText.Text = "Select project media or a generation to inspect its details and history.";
+                StatusText.Text = $"Deleted Saved Clip '{asset.EffectiveDisplayName}'. The source video was unchanged.";
+            });
+            return;
+        }
+        if (asset.StorageKind == AssetStorageKind.Virtual)
+        {
+            MessageBox.Show(
+                this,
+                "This virtual project item cannot be deleted from Project Media yet.",
+                "Delete project media",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
         var usage = GetAssetUsage(_workspace.Project, asset);
         if (usage.Count > 0)
         {
@@ -1392,7 +1430,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private static IReadOnlyList<string> GetAssetUsage(VideoProject project, ProjectAsset asset)
     {
         var usage = new List<string>();
-        if (asset.StorageKind == AssetStorageKind.Virtual) usage.Add("virtual-asset recipe history");
         if (project.CurrentGenerationDraft?.References.Any(reference =>
                 reference.ObjectKind == GenerationReferenceObjectKind.Asset && reference.LogicalObjectId == asset.Id) == true)
             usage.Add("the current generation draft");
@@ -1404,8 +1441,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (project.AnchorRevisions.Any(revision => revision.SourceAssetId == asset.Id)) usage.Add("saved frames");
         if (project.Assets.Any(candidate => candidate.Id != asset.Id && candidate.Provenance?.SourceAssetIds.Contains(asset.Id) == true))
             usage.Add("derived-asset history");
-        if (project.RecipeRevisions.Any(revision => RecipeReferencesAsset(revision.Recipe, asset.Id)) ||
-            project.RecipeDrafts.Any(draft => RecipeReferencesAsset(draft.EditableRecipe, asset.Id)))
+        if (project.RecipeRevisions.Any(revision =>
+                revision.VirtualAssetId != asset.Id && RecipeReferencesAsset(revision.Recipe, asset.Id)) ||
+            project.RecipeDrafts.Any(draft =>
+                draft.VirtualAssetId != asset.Id && RecipeReferencesAsset(draft.EditableRecipe, asset.Id)))
             usage.Add("media recipes");
         return usage.Distinct(StringComparer.Ordinal).ToArray();
     }
@@ -2070,6 +2109,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         VideoPreview.Source = new Uri(absolutePath, UriKind.Absolute);
         VideoPreview.Visibility = Visibility.Visible;
+        PlaybackControlsBorder.Visibility = Visibility.Visible;
         PlaybackButton.IsEnabled = true;
     }
 
@@ -2102,6 +2142,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 PreviewPlaceholder.Visibility = Visibility.Collapsed;
                 VideoPreview.Source = new Uri(_activePreviewLease.Path, UriKind.Absolute);
                 VideoPreview.Visibility = Visibility.Visible;
+                PlaybackControlsBorder.Visibility = Visibility.Visible;
                 PlaybackButton.IsEnabled = true;
                 StatusText.Text = $"Selected Saved Clip {asset.EffectiveDisplayName}.";
             }
@@ -2130,6 +2171,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         VideoPreview.Source = null;
         ReleaseActivePreviewLease();
         VideoPreview.Visibility = Visibility.Collapsed;
+        PlaybackControlsBorder.Visibility = Visibility.Collapsed;
         PlaybackButton.IsEnabled = false;
         ImagePreview.Source = null;
         ImagePreview.Visibility = Visibility.Collapsed;
@@ -2376,6 +2418,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void ResetFrameWorkspace()
     {
         _mediaPreparationMode = MediaPreparationMode.None;
+        if (PrecisionFramePanel is not null)
+        {
+            PrecisionFramePanel.Visibility = Visibility.Collapsed;
+            PrecisionFramePanel.ScrollToTop();
+        }
+        if (MediaPreparationHome is not null) MediaPreparationHome.Visibility = Visibility.Visible;
         _frameBrowserDebounceTimer?.Stop();
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
@@ -2970,18 +3018,26 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private async void RemoveSavedFrame_Click(object sender, RoutedEventArgs e)
     {
         if (_workspace.Project is null || SavedFramesList.SelectedItem is not SavedFrameListItem item) return;
+        await ConfirmAndRemoveSavedFrameAsync(item.Anchor, item.DisplayLabel);
+    }
+
+    private async Task ConfirmAndRemoveSavedFrameAsync(FrameAnchor anchor, string displayLabel)
+    {
+        if (_workspace.Project is null) return;
         var result = MessageBox.Show(
             this,
-            $"Remove Saved Frame '{item.DisplayLabel}'? Referenced frames are archived so existing history remains exact.",
+            $"Delete Saved Frame '{displayLabel}' from Project Media?\n\n" +
+            "If generation or recipe history references it, ReelForge hides it while retaining the exact historical position.",
             "Remove Saved Frame",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question,
             MessageBoxResult.No);
         if (result != MessageBoxResult.Yes) return;
-        var disposition = _workspace.Project.RemoveOrArchiveAnchor(item.Anchor.Id);
+        var disposition = _workspace.Project.RemoveOrArchiveAnchor(anchor.Id);
         await _workspace.SaveAsync();
         RefreshProjectCollections();
-        await RefreshSavedFramesAsync(CancellationToken.None);
+        if (_mediaPreparationMode != MediaPreparationMode.None && _frameSourceAssetId is not null)
+            await RefreshSavedFramesAsync(CancellationToken.None);
         StatusText.Text = disposition == AnchorRemovalDisposition.Archived
             ? "The referenced Saved Frame was archived; existing history still resolves it."
             : "Saved Frame removed.";

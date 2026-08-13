@@ -159,9 +159,10 @@ public sealed class ExactVideoFrameService : IExactVideoFrameService, IDisposabl
         var ffprobePath = _ffprobePath ?? throw new MediaToolUnavailableException(
             "ffprobe is not configured. Configure it in Settings > Media Tools to browse exact frames.");
         var startSeconds = Math.Max(0, centerSeconds - radiusSeconds);
-        var durationSeconds = radiusSeconds * 2;
-        var interval = $"{startSeconds.ToString("0.######", CultureInfo.InvariantCulture)}%+" +
-                       durationSeconds.ToString("0.######", CultureInfo.InvariantCulture);
+        var endSeconds = centerSeconds + radiusSeconds;
+        // An absolute end prevents an earlier keyframe seek from shortening the far side of the requested window.
+        var interval = $"{startSeconds.ToString("0.######", CultureInfo.InvariantCulture)}%" +
+                       endSeconds.ToString("0.######", CultureInfo.InvariantCulture);
         var arguments = new[]
         {
             "-v", "error",

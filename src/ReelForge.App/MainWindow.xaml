@@ -176,7 +176,7 @@
                                 <MenuItem Header="Copy to Project…" Click="CopyAssetToProject_Click" />
                                 <MenuItem Header="Move to Project…" Click="MoveAssetToProject_Click" />
                                 <Separator />
-                                <MenuItem Header="Delete…" Foreground="#FF9B9B" Click="DeleteAsset_Click" />
+                                <MenuItem Header="Delete from Project…" Foreground="#FF9B9B" Click="DeleteAsset_Click" />
                             </ContextMenu>
                         </ListBox.ContextMenu>
                         <ListBox.ItemTemplate>
@@ -256,7 +256,8 @@
                             <Image x:Name="ImagePreview" Visibility="Collapsed" Stretch="Uniform" />
                         </Grid>
                     </Border>
-                    <Border VerticalAlignment="Bottom" Margin="22" Padding="8" CornerRadius="4" Background="#CC191C25">
+                    <Border x:Name="PlaybackControlsBorder" VerticalAlignment="Bottom" Margin="22" Padding="8"
+                            CornerRadius="4" Background="#CC191C25" Visibility="Collapsed">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -313,7 +314,10 @@
                                     ToolTip="Create a non-destructive Saved Clip using exact boundaries" />
                         </StackPanel>
                     </StackPanel>
-                    <Grid x:Name="PrecisionFramePanel" Margin="14" Visibility="Collapsed">
+                    <ScrollViewer x:Name="PrecisionFramePanel" Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  CanContentScroll="False">
+                    <Grid Margin="14,14,6,14">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -369,7 +373,7 @@
                         </Border>
                         <TextBlock x:Name="SavedFramesHeading" Grid.Row="3" Text="SAVED FRAMES" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,5" />
-                        <Grid x:Name="SavedFramesWorkspace" Grid.Row="4">
+                        <Grid x:Name="SavedFramesWorkspace" Grid.Row="4" MinHeight="140">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="300" />
@@ -435,6 +439,7 @@
                             </Grid>
                         </Border>
                     </Grid>
+                    </ScrollViewer>
                     </Grid>
                 </Border>
                 <Border x:Name="EditLowerWorkspace" Grid.Row="2" Visibility="Collapsed"
