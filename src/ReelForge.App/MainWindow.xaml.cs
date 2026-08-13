@@ -71,6 +71,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _suppressProjectMediaSelection;
     private int _pendingKeyboardFrameSteps;
     private bool _isKeyboardFrameNavigationRunning;
+    private bool _previewWasMutedBeforeMediaPreparation;
     private double _volumeBeforeMute = 1;
     private bool _isJobsPanelOpen;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
@@ -1089,7 +1090,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void EnterMediaPreparationMode(MediaPreparationMode mode, ProjectAsset asset)
     {
+        if (_mediaPreparationMode == MediaPreparationMode.None)
+            _previewWasMutedBeforeMediaPreparation = VideoPreview.IsMuted;
         _mediaPreparationMode = mode;
+        VideoPreview.IsMuted = true;
+        MuteButton.IsEnabled = false;
+        MuteButton.Content = "Muted";
+        MuteButton.ToolTip = "Precision frame navigation is silent";
+        VolumeSlider.IsEnabled = false;
         MediaPreparationHome.Visibility = Visibility.Collapsed;
         PrecisionFramePanel.Visibility = Visibility.Visible;
         var makingClip = mode == MediaPreparationMode.MakeClip;
@@ -2417,7 +2425,16 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void ResetFrameWorkspace()
     {
+        var wasPreparingMedia = _mediaPreparationMode != MediaPreparationMode.None;
         _mediaPreparationMode = MediaPreparationMode.None;
+        if (wasPreparingMedia && VideoPreview is not null)
+        {
+            VideoPreview.IsMuted = _previewWasMutedBeforeMediaPreparation || VolumeSlider.Value <= 0;
+            MuteButton.IsEnabled = true;
+            MuteButton.Content = VideoPreview.IsMuted ? "Unmute" : "Mute";
+            MuteButton.ToolTip = "Mute or unmute preview audio";
+            VolumeSlider.IsEnabled = true;
+        }
         if (PrecisionFramePanel is not null)
         {
             PrecisionFramePanel.Visibility = Visibility.Collapsed;
@@ -2437,6 +2454,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _contactFrames.Clear();
         _savedFrames.Clear();
         if (ContactFramesEmptyText is null) return;
+        SelectFrameButton.IsEnabled = false;
+        MakeClipButton.IsEnabled = false;
+        StartEditButton.IsEnabled = false;
+        MediaPreparationSelectionText.Text = "Select a physical video in Project Media";
         ContactFramesEmptyText.Text = "Select a video to browse exact decoded frames.";
         ContactFramesEmptyText.Visibility = Visibility.Visible;
         SavedFramesEmptyText.Visibility = Visibility.Visible;
