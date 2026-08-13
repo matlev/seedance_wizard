@@ -297,7 +297,23 @@
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" />
 
                 <Border x:Name="GenerateLowerWorkspace" Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-                    <Grid Margin="14">
+                    <Grid>
+                    <StackPanel x:Name="MediaPreparationHome" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
+                        <TextBlock Text="MEDIA PREPARATION" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="MediaPreparationSelectionText" Text="Select a video in Project Media"
+                                   Style="{StaticResource ApplicationTextBlockStyle}" FontSize="18" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" Margin="0,13,0,6" />
+                        <TextBlock Text="Choose an operation when you want ReelForge to perform precise media work. Ordinary preview does not index or extract frames."
+                                   TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0">
+                            <Button x:Name="SelectFrameButton" Content="Select Frame" Click="SelectFrame_Click" IsEnabled="False"
+                                    ToolTip="Inspect exact decoded frames around the current playhead" />
+                            <Button x:Name="MakeClipButton" Content="Make Clip" IsEnabled="False"
+                                    ToolTip="Create a non-destructive Saved Clip using exact boundaries" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Grid x:Name="PrecisionFramePanel" Margin="14" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -306,27 +322,18 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <DockPanel>
-                            <TextBlock Text="PRECISION FRAMES" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                            <Button DockPanel.Dock="Left" Content="← Media preparation" Click="ExitFrameSelection_Click" Margin="0,0,10,0" />
+                            <TextBlock Text="SELECT FRAME" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center" />
                             <TextBlock x:Name="FrameWorkspaceStatusText" Text="Select a physical video" HorizontalAlignment="Right"
                                        Foreground="{StaticResource MutedTextBrush}" />
                         </DockPanel>
                         <DockPanel Grid.Row="1" Margin="0,8,0,6">
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                <TextBlock Text="Spacing" Style="{StaticResource ApplicationTextBlockStyle}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                <ComboBox x:Name="FrameSpacingComboBox" Width="92" SelectionChanged="FrameSpacing_SelectionChanged">
-                                    <ComboBoxItem Content="1 frame" Tag="frames:1" />
-                                    <ComboBoxItem Content="0.25 sec" Tag="seconds:0.25" IsSelected="True" />
-                                    <ComboBoxItem Content="0.5 sec" Tag="seconds:0.5" />
-                                    <ComboBoxItem Content="1 sec" Tag="seconds:1" />
-                                </ComboBox>
-                            </StackPanel>
                             <WrapPanel>
                                 <Button Content="First frame" Click="SelectFirstFrame_Click" Margin="0,0,6,0" />
                                 <Button Content="Last frame" Click="SelectLastFrame_Click" Margin="0,0,6,0" />
                                 <Button Content="Save selected frame" Click="SaveSelectedFrame_Click"
-                                        Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,0,6,0" />
-                                <Button Content="Continue after" Tag="ContinueAfter" Click="ContinueFromSelectedFrame_Click" Margin="0,0,6,0" />
-                                <Button Content="Continue before" Tag="ContinueBefore" Click="ContinueFromSelectedFrame_Click" />
+                                        Background="{StaticResource AccentBrush}" Foreground="White" />
                             </WrapPanel>
                         </DockPanel>
                         <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Background="#11141B">
@@ -399,6 +406,7 @@
                                 </WrapPanel>
                             </StackPanel>
                         </Grid>
+                    </Grid>
                     </Grid>
                 </Border>
                 <Border x:Name="EditLowerWorkspace" Grid.Row="2" Visibility="Collapsed"

@@ -975,9 +975,41 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 if (_workspace.Project?.Id != selectedProjectId) return;
                 InspectorText.Text = FormatAssetInspector(asset);
                 ShowAssetPreview(asset);
-                await LoadFrameWorkspaceAsync(asset, selectedProjectId);
+                ConfigureMediaPreparationFor(asset);
                 StatusText.Text = $"Selected {asset.FileName}.";
             });
+    }
+
+    private void ConfigureMediaPreparationFor(ProjectAsset asset)
+    {
+        var canPrepare = asset is
+        {
+            StorageKind: AssetStorageKind.Physical,
+            MediaType: MediaType.Video,
+            Physical.Availability: not PhysicalAssetAvailability.Missing
+        };
+        SelectFrameButton.IsEnabled = canPrepare;
+        MakeClipButton.IsEnabled = canPrepare;
+        MediaPreparationSelectionText.Text = canPrepare
+            ? asset.EffectiveDisplayName
+            : "Select a physical video in Project Media";
+    }
+
+    private async void SelectFrame_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedAsset() is not { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Video } asset)
+            return;
+        MediaPreparationHome.Visibility = Visibility.Collapsed;
+        PrecisionFramePanel.Visibility = Visibility.Visible;
+        await LoadFrameWorkspaceAsync(asset, _workspace.Project?.Id);
+    }
+
+    private void ExitFrameSelection_Click(object sender, RoutedEventArgs e)
+    {
+        ResetFrameWorkspace();
+        PrecisionFramePanel.Visibility = Visibility.Collapsed;
+        MediaPreparationHome.Visibility = Visibility.Visible;
+        if (GetSelectedAsset() is { } asset) ConfigureMediaPreparationFor(asset);
     }
 
     private void GenerationsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1617,30 +1649,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
-    private async void ContinueFromSelectedFrame_Click(object sender, RoutedEventArgs e)
-    {
-        if (_workspace.Project is null ||
-            sender is not Button { Tag: string relationshipName } ||
-            !Enum.TryParse<GenerationRelationshipType>(relationshipName, out var relationship) ||
-            ContactFramesList.SelectedItem is not FrameContactListItem selected ||
-            _frameSourceAssetId is not { } sourceAssetId ||
-            string.IsNullOrWhiteSpace(_frameSourceContentHash))
-        {
-            StatusText.Text = "Select an exact frame before creating a continuation draft.";
-            return;
-        }
-        var sourceAsset = _workspace.Project.Assets.Single(asset => asset.Id == sourceAssetId);
-        var parent = sourceAsset.Provenance?.GenerationId is { } generationId
-            ? _workspace.Project.Generations.SingleOrDefault(generation => generation.Id == generationId)
-            : null;
-        await RunUiActionAsync("Preparing continuation frame…", () => CreateContinuationDraftAsync(
-            sourceAsset,
-            selected.Frame,
-            _frameSourceContentHash!,
-            relationship,
-            parent));
-    }
-
     private async Task<(IReadOnlyList<VideoPresentationFrame> Frames, string ContentHash)> IndexSourceFramesAsync(
         ProjectAsset sourceAsset,
         CancellationToken cancellationToken)
@@ -2262,41 +2270,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private IReadOnlyList<VideoPresentationFrame> SelectContactFrames(double centerSeconds)
     {
         if (_indexedFrames.Count == 0) return [];
-        var selected = new Dictionary<long, VideoPresentationFrame>();
-        var spacing = GetFrameSpacing();
         var center = _indexedFrames.MinBy(frame => Math.Abs(frame.TimestampSeconds - centerSeconds))!;
-        if (spacing.FrameCount is { } frameCount)
-        {
-            var centerIndex = _indexedFrames.ToList().IndexOf(center);
-            for (var offset = -4; offset <= 4; offset++)
-            {
-                var index = Math.Clamp(centerIndex + offset * frameCount, 0, _indexedFrames.Count - 1);
-                var frame = _indexedFrames[index];
-                selected[frame.PresentationTimestamp] = frame;
-            }
-        }
-        else
-        {
-            for (var offset = -4; offset <= 4; offset++)
-            {
-                var target = Math.Max(0, center.TimestampSeconds + offset * spacing.Seconds);
-                var frame = _indexedFrames.MinBy(candidate => Math.Abs(candidate.TimestampSeconds - target))!;
-                selected[frame.PresentationTimestamp] = frame;
-            }
-        }
-
-        return selected.Values.OrderBy(frame => frame.PresentationTimestamp).ToArray();
-    }
-
-    private (int? FrameCount, double Seconds) GetFrameSpacing()
-    {
-        var tag = (FrameSpacingComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "seconds:0.25";
-        var parts = tag.Split(':', 2);
-        if (parts[0] == "frames" && int.TryParse(parts[1], CultureInfo.InvariantCulture, out var frames))
-            return (Math.Max(1, frames), 0);
-        return (null, double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
-            ? Math.Max(0.01, seconds)
-            : 0.25);
+        var centerIndex = _indexedFrames.ToList().IndexOf(center);
+        var start = Math.Max(0, Math.Min(centerIndex - 4, _indexedFrames.Count - 9));
+        var count = Math.Min(9, _indexedFrames.Count - start);
+        return _indexedFrames.Skip(start).Take(count).ToArray();
     }
 
     private async Task<FrameContactListItem> CreateContactItemAsync(
@@ -2395,12 +2373,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         bitmap.EndInit();
         bitmap.Freeze();
         return bitmap;
-    }
-
-    private void FrameSpacing_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!IsLoaded || _indexedFrames.Count == 0) return;
-        ScheduleContactFrameRefresh();
     }
 
     private void ContactFramesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -2581,6 +2553,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         GenerationsList.SelectedItem = null;
         _referenceChoices.Clear();
         ResetFrameWorkspace();
+        PrecisionFramePanel.Visibility = Visibility.Collapsed;
+        MediaPreparationHome.Visibility = Visibility.Visible;
+        SelectFrameButton.IsEnabled = false;
+        MakeClipButton.IsEnabled = false;
+        MediaPreparationSelectionText.Text = "Select a video in Project Media";
 
         InspectorText.Text = "Select an asset or generation to inspect its details and history.";
         PromptTextBox.Text = string.Empty;
