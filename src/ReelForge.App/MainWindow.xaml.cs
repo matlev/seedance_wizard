@@ -20,6 +20,8 @@ using ReelForge.Infrastructure;
 
 namespace ReelForge.App;
 
+internal enum MediaPreparationMode { None, SelectFrame, MakeClip }
+
 public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 {
     private readonly ObservableCollection<ProjectMediaListItem> _assets = [];
@@ -68,12 +70,16 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private double _volumeBeforeMute = 1;
     private bool _isJobsPanelOpen;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
+    private MediaPreparationMode _mediaPreparationMode;
+    private ClipBoundarySelection _clipStart = ClipBoundarySelection.SourceStart;
+    private ClipBoundarySelection _clipEnd = ClipBoundarySelection.SourceEnd;
     private bool _restoringProjectUiState;
     private bool _dismissingViewedJobs;
     private CancellationTokenSource? _frameBrowserCancellation;
     private IReadOnlyList<VideoPresentationFrame> _indexedFrames = [];
     private Guid? _frameSourceAssetId;
     private string? _frameSourceContentHash;
+    private MaterializedMediaLease? _activePreviewLease;
     private bool _disposed;
 
     public MainWindow()
@@ -169,6 +175,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _frameBrowserDebounceTimer.Stop();
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
+        ReleaseActivePreviewLease();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Dispose();
         _pendingSubmissionDelays.Clear();
@@ -951,6 +958,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (item.Asset is not { } asset) return;
         if (!_restoringProjectUiState) await SaveProjectUiStateAsync("asset", asset.Id);
 
+        if (asset.StorageKind == AssetStorageKind.Virtual)
+        {
+            InspectorText.Text = FormatAssetInspector(asset);
+            ConfigureMediaPreparationFor(asset);
+            await ShowVirtualAssetPreviewAsync(asset, item, selectedProjectId);
+            return;
+        }
+
         await RunUiActionAsync(
             $"Inspecting {asset.FileName}…",
             async () =>
@@ -1009,9 +1024,35 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         if (GetSelectedAsset() is not { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Video } asset)
             return;
+        EnterMediaPreparationMode(MediaPreparationMode.SelectFrame, asset);
+        await LoadFrameWorkspaceAsync(asset, _workspace.Project?.Id);
+    }
+
+    private async void MakeClip_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedAsset() is not { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Video } asset)
+            return;
+        _clipStart = ClipBoundarySelection.SourceStart;
+        _clipEnd = ClipBoundarySelection.SourceEnd;
+        ClipNameTextBox.Text = $"{Path.GetFileNameWithoutExtension(asset.EffectiveDisplayName)} clip";
+        EnterMediaPreparationMode(MediaPreparationMode.MakeClip, asset);
+        UpdateClipBoundarySummary();
+        await LoadFrameWorkspaceAsync(asset, _workspace.Project?.Id);
+    }
+
+    private void EnterMediaPreparationMode(MediaPreparationMode mode, ProjectAsset asset)
+    {
+        _mediaPreparationMode = mode;
         MediaPreparationHome.Visibility = Visibility.Collapsed;
         PrecisionFramePanel.Visibility = Visibility.Visible;
-        await LoadFrameWorkspaceAsync(asset, _workspace.Project?.Id);
+        var makingClip = mode == MediaPreparationMode.MakeClip;
+        PrecisionOperationTitle.Text = makingClip ? "MAKE CLIP" : "SELECT FRAME";
+        FrameSelectionActions.Visibility = makingClip ? Visibility.Collapsed : Visibility.Visible;
+        ClipSelectionActions.Visibility = makingClip ? Visibility.Visible : Visibility.Collapsed;
+        SavedFramesHeading.Visibility = makingClip ? Visibility.Collapsed : Visibility.Visible;
+        SavedFramesWorkspace.Visibility = makingClip ? Visibility.Collapsed : Visibility.Visible;
+        ClipEditorWorkspace.Visibility = makingClip ? Visibility.Visible : Visibility.Collapsed;
+        FrameWorkspaceStatusText.Text = asset.EffectiveDisplayName;
     }
 
     private void ExitFrameSelection_Click(object sender, RoutedEventArgs e)
@@ -1926,13 +1967,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         ClearMediaPreview();
         PreviewPlaceholder.Visibility = Visibility.Collapsed;
 
-        if (asset.StorageKind == AssetStorageKind.Virtual)
-        {
-            PreviewPlaceholder.Text = "Virtual asset preview will be materialized on demand in a later Milestone 2 phase.";
-            PreviewPlaceholder.Visibility = Visibility.Visible;
-            return;
-        }
-
         var absolutePath = _workspace.GetAbsoluteAssetPath(asset);
         if (!File.Exists(absolutePath))
         {
@@ -1959,6 +1993,53 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         PlaybackButton.IsEnabled = true;
     }
 
+    private async Task ShowVirtualAssetPreviewAsync(
+        ProjectAsset asset,
+        ProjectMediaListItem selectedItem,
+        Guid? selectedProjectId)
+    {
+        if (_workspace.Project is null || _workspace.Location is null) return;
+        await RunUiActionAsync($"Preparing {asset.EffectiveDisplayName}…", async () =>
+        {
+            MaterializedMediaLease? lease = null;
+            try
+            {
+                lease = await _mediaMaterializer.MaterializeAsync(
+                    _workspace.Project,
+                    _workspace.Location,
+                    new MaterializationRequest(
+                        new AssetMaterializationTarget(asset.Id, asset.Virtual?.CurrentRecipeRevisionId),
+                        MaterializationPurpose.Preview));
+                if (_workspace.Project?.Id != selectedProjectId || AssetsList.SelectedItem != selectedItem)
+                {
+                    await lease.DisposeAsync();
+                    return;
+                }
+
+                ClearMediaPreview();
+                _activePreviewLease = lease;
+                lease = null;
+                PreviewPlaceholder.Visibility = Visibility.Collapsed;
+                VideoPreview.Source = new Uri(_activePreviewLease.Path, UriKind.Absolute);
+                VideoPreview.Visibility = Visibility.Visible;
+                PlaybackButton.IsEnabled = true;
+                StatusText.Text = $"Selected Saved Clip {asset.EffectiveDisplayName}.";
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                if (_workspace.Project?.Id != selectedProjectId) return;
+                ClearMediaPreview();
+                PreviewPlaceholder.Text = $"Saved Clip preview unavailable\n\n{exception.Message}";
+                PreviewPlaceholder.Visibility = Visibility.Visible;
+                StatusText.Text = $"Could not prepare {asset.EffectiveDisplayName}.";
+            }
+            finally
+            {
+                if (lease is not null) await lease.DisposeAsync();
+            }
+        });
+    }
+
     private void ClearMediaPreview()
     {
         VideoPreview.Stop();
@@ -1967,6 +2048,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _resumePlaybackAfterScrub = false;
         if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
         VideoPreview.Source = null;
+        ReleaseActivePreviewLease();
         VideoPreview.Visibility = Visibility.Collapsed;
         PlaybackButton.IsEnabled = false;
         ImagePreview.Source = null;
@@ -1977,6 +2059,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         PositionSlider.Maximum = 1;
         PositionSlider.Value = 0;
         TimeText.Text = "00:00 / 00:00";
+    }
+
+    private void ReleaseActivePreviewLease()
+    {
+        var lease = Interlocked.Exchange(ref _activePreviewLease, null);
+        if (lease is not null) lease.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     private async void VideoPreview_MediaOpened(object sender, RoutedEventArgs e)
@@ -2207,6 +2295,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void ResetFrameWorkspace()
     {
+        _mediaPreparationMode = MediaPreparationMode.None;
         _frameBrowserDebounceTimer?.Stop();
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
@@ -2221,6 +2310,15 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         ContactFramesEmptyText.Visibility = Visibility.Visible;
         SavedFramesEmptyText.Visibility = Visibility.Visible;
         FrameWorkspaceStatusText.Text = "Select a physical video";
+        if (PrecisionOperationTitle is not null)
+        {
+            PrecisionOperationTitle.Text = "SELECT FRAME";
+            FrameSelectionActions.Visibility = Visibility.Visible;
+            ClipSelectionActions.Visibility = Visibility.Collapsed;
+            SavedFramesHeading.Visibility = Visibility.Visible;
+            SavedFramesWorkspace.Visibility = Visibility.Visible;
+            ClipEditorWorkspace.Visibility = Visibility.Collapsed;
+        }
         ClearSavedFrameEditor();
     }
 
@@ -2532,6 +2630,95 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             await RefreshSavedFramesAsync(CancellationToken.None);
             SavedFramesList.SelectedItem = _savedFrames.FirstOrDefault(item => item.Revision.Id == revision.Id);
             StatusText.Text = $"Saved exact frame at {FormatFrameTimestamp(revision.TimestampSeconds)}.";
+        });
+    }
+
+    private void UseSourceStart_Click(object sender, RoutedEventArgs e)
+    {
+        _clipStart = ClipBoundarySelection.SourceStart;
+        UpdateClipBoundarySummary();
+    }
+
+    private void UseSourceEnd_Click(object sender, RoutedEventArgs e)
+    {
+        _clipEnd = ClipBoundarySelection.SourceEnd;
+        UpdateClipBoundarySummary();
+    }
+
+    private void SetClipStart_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetSelectedClipFrame(out var position)) return;
+        _clipStart = ClipBoundarySelection.AtFrame(position, AnchorBoundaryEdge.BeforeFrame);
+        UpdateClipBoundarySummary();
+    }
+
+    private void SetClipEnd_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetSelectedClipFrame(out var position)) return;
+        _clipEnd = ClipBoundarySelection.AtFrame(position, AnchorBoundaryEdge.AfterFrame);
+        UpdateClipBoundarySummary();
+    }
+
+    private bool TryGetSelectedClipFrame(out ExactFramePosition position)
+    {
+        if (ContactFramesList.SelectedItem is not FrameContactListItem selected ||
+            _frameSourceAssetId is not { } sourceAssetId ||
+            string.IsNullOrWhiteSpace(_frameSourceContentHash))
+        {
+            StatusText.Text = "Select an exact frame before setting this clip boundary.";
+            position = null!;
+            return false;
+        }
+
+        position = new ExactFramePosition(
+            sourceAssetId,
+            _frameSourceContentHash,
+            selected.Frame.VideoStreamIndex,
+            selected.Frame.PresentationTimestamp,
+            selected.Frame.TimeBaseNumerator,
+            selected.Frame.TimeBaseDenominator,
+            selected.Frame.FrameNumber);
+        return true;
+    }
+
+    private void UpdateClipBoundarySummary()
+    {
+        if (ClipBoundarySummaryText is null) return;
+        ClipBoundarySummaryText.Text =
+            $"Start: {FormatClipBoundary(_clipStart)}\nEnd: {FormatClipBoundary(_clipEnd)}";
+    }
+
+    private static string FormatClipBoundary(ClipBoundarySelection boundary) => boundary.Kind switch
+    {
+        ClipBoundaryKind.SourceStart => "video beginning",
+        ClipBoundaryKind.SourceEnd => "video end",
+        ClipBoundaryKind.ExactFrame when boundary.ExactPosition is { } position =>
+            $"{FormatFrameTimestamp(position.PresentationTimestamp * (double)position.TimeBaseNumerator / position.TimeBaseDenominator)} " +
+            $"({boundary.Edge})",
+        _ => "not set"
+    };
+
+    private async void SaveClip_Click(object sender, RoutedEventArgs e)
+    {
+        if (_mediaPreparationMode != MediaPreparationMode.MakeClip ||
+            _frameSourceAssetId is not { } sourceAssetId)
+            return;
+        if (string.IsNullOrWhiteSpace(ClipNameTextBox.Text))
+        {
+            StatusText.Text = "Enter a name for the Saved Clip.";
+            ClipNameTextBox.Focus();
+            return;
+        }
+
+        await RunUiActionAsync("Saving non-destructive clip…", async () =>
+        {
+            var clip = await new SavedClipService(_workspace).CreateAsync(
+                ClipNameTextBox.Text,
+                sourceAssetId,
+                _clipStart,
+                _clipEnd);
+            RefreshProjectCollections(clip.Id);
+            StatusText.Text = $"Saved Clip '{clip.EffectiveDisplayName}' created without copying source media.";
         });
     }
 
