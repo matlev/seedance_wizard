@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phases 2A/2B complete; the Phase 2C exact-media foundation and approved Generate/Edit UX implementation are delivered pending human visual/E2E acceptance.
+Status: Milestone 1 and Milestone 2 Phases 2A/2B/2C complete; Phase 2D basic recipe-based media operations are next.
 
 ## Product priority
 
@@ -138,7 +138,7 @@ Phase acceptance checks:
 
 ### Phase 2C — Generate/Edit workspace and media preparation
 
-Delivered revised scope pending human acceptance. The exact-frame/anchor/provider foundation is preserved behind explicit Generate/Edit workspaces, shared Project Media, progressive Select Frame navigation, non-destructive Saved Clips, guarded output preview, visual references, and one project-owned Working Composition shell.
+Complete. Human visual/E2E acceptance covered workspace switching and persistence, progressive Saved Frame creation, all Saved Clip workflows, cache reconstruction, missing-source behavior, reference preparation, short-clip replay, and concurrent UI-settings persistence. The exact-frame/anchor/provider foundation is preserved behind explicit Generate/Edit workspaces, shared Project Media, progressive Select Frame navigation, non-destructive Saved Clips, guarded output preview, visual references, and one project-owned Working Composition shell.
 
 #### Phase 2C.8 — workspace and Project Media revision
 
@@ -241,7 +241,7 @@ Delivered initial UX: generation-history continuation resolves a sole output aut
 
 #### Phase 2C.7 — verification and acceptance
 
-Automated verification delivered; human visual/E2E acceptance remains. Tests cover exact index parsing, deterministic cache reconstruction, duplicate-work coalescing, cancellation cleanup, exact FFmpeg arguments, Saved Frame materialization/preparation/snapshot persistence, duplicate occurrences, provider boundary-role mapping, and current-format anchor invariants. All test authorization remains network-isolated and incapable of paid submission.
+Automated and human visual/E2E acceptance are complete. Tests cover exact index parsing, deterministic cache reconstruction, duplicate-work coalescing, cancellation cleanup, exact FFmpeg arguments, Saved Frame materialization/preparation/snapshot persistence, duplicate occurrences, provider boundary-role mapping, and current-format anchor invariants. All test authorization remains network-isolated and incapable of paid submission.
 
 1. Add incompatible-format, immutable-revision, dependency, exact-frame/VFR, cache reconstruction, failure cleanup, provider-preparation, duplicate-reference, and continuation-lineage tests.
 2. Keep every automated provider path network-isolated and incapable of paid calls.
