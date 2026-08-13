@@ -440,16 +440,29 @@
                 <Border x:Name="EditLowerWorkspace" Grid.Row="2" Visibility="Collapsed"
                         Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
                     <Grid Margin="18">
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480">
+                        <StackPanel x:Name="EditEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480">
                             <TextBlock Text="WORKING COMPOSITION" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" />
                             <TextBlock Text="No composition yet." Style="{StaticResource ApplicationTextBlockStyle}"
                                        FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,7" />
                             <TextBlock Text="Choose a starting video or Saved Clip from Project Media. The editor will build a logical composition without copying or destructively changing the source."
                                        TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
-                            <Button x:Name="StartEditButton" Content="Start Edit" IsEnabled="False"
+                            <Button x:Name="StartEditButton" Content="Start Edit" Click="StartEdit_Click" IsEnabled="False"
                                     HorizontalAlignment="Center" Margin="0,16,0,0"
                                     ToolTip="Select a video or Saved Clip in Project Media first" />
+                        </StackPanel>
+                        <StackPanel x:Name="WorkingCompositionState" Visibility="Collapsed"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
+                            <TextBlock Text="WORKING COMPOSITION" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" />
+                            <TextBlock x:Name="WorkingCompositionNameText" Text="Working Composition"
+                                       Style="{StaticResource ApplicationTextBlockStyle}" FontSize="19" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" Margin="0,14,0,7" />
+                            <TextBlock x:Name="WorkingCompositionSummaryText" TextWrapping="Wrap" TextAlignment="Center"
+                                       Foreground="{StaticResource MutedTextBrush}" />
+                            <TextBlock Text="The exact composition recipe is project state. Timeline editing and multi-segment rendering arrive in the next editor slice."
+                                       TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}"
+                                       FontSize="11" Margin="0,8,0,0" />
                         </StackPanel>
                     </Grid>
                 </Border>

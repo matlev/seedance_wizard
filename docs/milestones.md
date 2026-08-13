@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phases 2A/2B complete; the Phase 2C exact-media foundation is delivered and its approved Generate/Edit UX revision is in progress.
+Status: Milestone 1 and Milestone 2 Phases 2A/2B complete; the Phase 2C exact-media foundation and approved Generate/Edit UX implementation are delivered pending human visual/E2E acceptance.
 
 ## Product priority
 
@@ -138,7 +138,7 @@ Phase acceptance checks:
 
 ### Phase 2C — Generate/Edit workspace and media preparation
 
-Approved revised scope. Preserve the exact-frame/anchor/provider foundation while replacing the prototype's always-on precision workspace with explicit Generate/Edit workspaces, shared Project Media, progressive Select Frame navigation, and non-destructive Saved Clips.
+Delivered revised scope pending human acceptance. The exact-frame/anchor/provider foundation is preserved behind explicit Generate/Edit workspaces, shared Project Media, progressive Select Frame navigation, non-destructive Saved Clips, guarded output preview, visual references, and one project-owned Working Composition shell.
 
 #### Phase 2C.8 — workspace and Project Media revision
 
@@ -149,6 +149,7 @@ Approved revised scope. Preserve the exact-frame/anchor/provider foundation whil
 5. Display physical images/videos/audio, materialized Saved Frames, and materialized Saved Clips in the shared viewer.
 6. Auto-preview a completed output only when its project is open, Generate is active, and Select Frame/Make Clip is not active.
 7. Establish an intentional Edit empty/start state without implementing the full timeline.
+8. Replace the obsolete floating-point timeline root with one project-owned, ID-addressed Working Composition whose segments pin exact asset/recipe identities.
 
 #### Phase 2C.9 — explicit progressive Select Frame
 

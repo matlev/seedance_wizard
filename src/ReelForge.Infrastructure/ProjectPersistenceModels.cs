@@ -17,9 +17,9 @@ internal sealed class ProjectFileDto
     public List<RecipeDraftDto> RecipeDrafts { get; set; } = [];
     public List<FrameAnchorDto> Anchors { get; set; } = [];
     public List<FrameAnchorRevisionDto> AnchorRevisions { get; set; } = [];
+    public Guid? WorkingCompositionAssetId { get; set; }
     public GenerationDraftDto? CurrentGenerationDraft { get; set; }
     public List<GenerationRecordDto> Generations { get; set; } = [];
-    public TimelineDto Timeline { get; set; } = new();
 }
 
 internal sealed class ProjectAssetDto
@@ -107,20 +107,6 @@ internal sealed class GenerationErrorDto
     public string? TechnicalDetails { get; set; }
 }
 
-internal sealed class TimelineDto { public List<TimelineClipDto> Clips { get; set; } = []; }
-
-internal sealed class TimelineClipDto
-{
-    public Guid Id { get; set; }
-    public Guid SourceAssetId { get; set; }
-    public Guid? SourceRecipeRevisionId { get; set; }
-    public double InPointSeconds { get; set; }
-    public double OutPointSeconds { get; set; }
-    public double TimelinePositionSeconds { get; set; }
-    public int Track { get; set; }
-    public bool AudioEnabled { get; set; }
-}
-
 internal sealed class RecipeRevisionDto
 {
     public Guid Id { get; set; }
@@ -147,7 +133,17 @@ internal sealed class AssetRecipeDto
     public RecipeBoundaryDto? Start { get; set; }
     public RecipeBoundaryDto? End { get; set; }
     public AnchorRevisionReferenceDto? Anchor { get; set; }
+    public List<CompositionSegmentDto> Segments { get; set; } = [];
     public string? Profile { get; set; }
+}
+
+internal sealed class CompositionSegmentDto
+{
+    public Guid Id { get; set; }
+    public AssetRevisionReferenceDto Source { get; set; } = new();
+    public RecipeBoundaryDto Start { get; set; } = new();
+    public RecipeBoundaryDto End { get; set; } = new();
+    public bool AudioEnabled { get; set; }
 }
 
 internal sealed class RecipeBoundaryDto
@@ -289,22 +285,9 @@ internal static class ProjectPersistenceMapper
         RecipeDrafts = source.RecipeDrafts.Select(ToDto).ToList(),
         Anchors = source.Anchors.Select(ToDto).ToList(),
         AnchorRevisions = source.AnchorRevisions.Select(ToDto).ToList(),
+        WorkingCompositionAssetId = source.WorkingCompositionAssetId,
         CurrentGenerationDraft = ToDto(source.CurrentGenerationDraft),
-        Generations = source.Generations.Select(ToDto).ToList(),
-        Timeline = new TimelineDto
-        {
-            Clips = source.Timeline.Clips.Select(clip => new TimelineClipDto
-            {
-                Id = clip.Id,
-                SourceAssetId = clip.SourceAssetId,
-                SourceRecipeRevisionId = clip.SourceRecipeRevisionId,
-                InPointSeconds = clip.InPointSeconds,
-                OutPointSeconds = clip.OutPointSeconds,
-                TimelinePositionSeconds = clip.TimelinePositionSeconds,
-                Track = clip.Track,
-                AudioEnabled = clip.AudioEnabled
-            }).ToList()
-        }
+        Generations = source.Generations.Select(ToDto).ToList()
     };
 
     public static VideoProject FromDto(ProjectFileDto source) => new()
@@ -318,22 +301,9 @@ internal static class ProjectPersistenceMapper
         RecipeDrafts = source.RecipeDrafts.Select(FromDto).ToList(),
         Anchors = source.Anchors.Select(FromDto).ToList(),
         AnchorRevisions = source.AnchorRevisions.Select(FromDto).ToList(),
+        WorkingCompositionAssetId = source.WorkingCompositionAssetId,
         CurrentGenerationDraft = FromDto(source.CurrentGenerationDraft),
-        Generations = source.Generations.Select(FromDto).ToList(),
-        Timeline = new Timeline
-        {
-            Clips = source.Timeline.Clips.Select(clip => new TimelineClip
-            {
-                Id = clip.Id,
-                SourceAssetId = clip.SourceAssetId,
-                SourceRecipeRevisionId = clip.SourceRecipeRevisionId,
-                InPointSeconds = clip.InPointSeconds,
-                OutPointSeconds = clip.OutPointSeconds,
-                TimelinePositionSeconds = clip.TimelinePositionSeconds,
-                Track = clip.Track,
-                AudioEnabled = clip.AudioEnabled
-            }).ToList()
-        }
+        Generations = source.Generations.Select(FromDto).ToList()
     };
 
     private static ProjectAssetDto ToDto(ProjectAsset source) => new()
@@ -503,6 +473,18 @@ internal static class ProjectPersistenceMapper
             Anchor = ToDto(frame.Anchor),
             Profile = frame.ImageProfile
         },
+        CompositionRecipe composition => new AssetRecipeDto
+        {
+            Type = "composition",
+            Segments = composition.Segments.Select(segment => new CompositionSegmentDto
+            {
+                Id = segment.Id,
+                Source = ToDto(segment.Source),
+                Start = ToDto(segment.Start),
+                End = ToDto(segment.End),
+                AudioEnabled = segment.AudioEnabled
+            }).ToList()
+        },
         _ => throw new NotSupportedException($"Recipe type '{source.GetType().Name}' is not supported.")
     };
 
@@ -520,6 +502,17 @@ internal static class ProjectPersistenceMapper
             Source = FromDto(source.Source),
             Anchor = FromDto(source.Anchor) ?? new AnchorRevisionReference(),
             ImageProfile = source.Profile
+        },
+        "composition" => new CompositionRecipe
+        {
+            Segments = source.Segments.Select(segment => new CompositionSegment
+            {
+                Id = segment.Id,
+                Source = FromDto(segment.Source),
+                Start = FromDto(segment.Start) ?? RecipeBoundary.SourceStart,
+                End = FromDto(segment.End) ?? RecipeBoundary.SourceEnd,
+                AudioEnabled = segment.AudioEnabled
+            }).ToList()
         },
         _ => throw new InvalidDataException($"Recipe type '{source.Type}' is not supported.")
     };

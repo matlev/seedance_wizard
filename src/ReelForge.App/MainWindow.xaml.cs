@@ -389,6 +389,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (isGenerate && RightPanelTabs.SelectedItem == EditToolsTab) RightPanelTabs.SelectedItem = GenerateTab;
         if (!isGenerate) RightPanelTabs.SelectedItem = EditToolsTab;
         ExpandedPromptPanel.Visibility = Visibility.Collapsed;
+        RefreshEditWorkspaceState();
+        if (!isGenerate && _workspace.Project?.WorkingCompositionAssetId is { } compositionId)
+        {
+            var item = _assets.FirstOrDefault(candidate => candidate.Asset?.Id == compositionId);
+            if (item is not null && AssetsList.SelectedItem != item) AssetsList.SelectedItem = item;
+        }
     }
 
     private async void JobsChrome_Click(object sender, RoutedEventArgs e) =>
@@ -1016,9 +1022,43 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         };
         SelectFrameButton.IsEnabled = canPrepare;
         MakeClipButton.IsEnabled = canPrepare;
+        StartEditButton.IsEnabled = _workspace.Project?.WorkingCompositionAssetId is null &&
+                                    asset.MediaType == MediaType.Video &&
+                                    (asset.StorageKind == AssetStorageKind.Physical ||
+                                     asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
         MediaPreparationSelectionText.Text = canPrepare
             ? asset.EffectiveDisplayName
             : "Select a physical video in Project Media";
+    }
+
+    private async void StartEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedAsset() is not { } source) return;
+        await RunUiActionAsync("Creating Working Composition…", async () =>
+        {
+            var composition = await new WorkingCompositionService(_workspace).CreateInitialAsync(source.Id);
+            RefreshProjectCollections(composition.Id);
+            RefreshEditWorkspaceState();
+            StatusText.Text = $"Working Composition started from {source.EffectiveDisplayName}.";
+        });
+    }
+
+    private void RefreshEditWorkspaceState()
+    {
+        if (EditEmptyState is null) return;
+        var composition = _workspace.Project?.WorkingCompositionAssetId is { } compositionId
+            ? _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == compositionId)
+            : null;
+        var hasComposition = composition is not null;
+        EditEmptyState.Visibility = hasComposition ? Visibility.Collapsed : Visibility.Visible;
+        WorkingCompositionState.Visibility = hasComposition ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasComposition) return;
+        WorkingCompositionNameText.Text = composition!.EffectiveDisplayName;
+        var revision = _workspace.Project!.RecipeRevisions.Single(candidate =>
+            candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
+        var recipe = (CompositionRecipe)revision.Recipe;
+        WorkingCompositionSummaryText.Text =
+            $"{recipe.Segments.Count} exact, revision-pinned segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • recipe revision {revision.RevisionNumber}";
     }
 
     private async void SelectFrame_Click(object sender, RoutedEventArgs e)
@@ -1356,7 +1396,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (project.Generations.Any(generation => generation.OutputAssetIds.Contains(asset.Id)))
             usage.Add("generated-output history");
         if (project.AnchorRevisions.Any(revision => revision.SourceAssetId == asset.Id)) usage.Add("saved frames");
-        if (project.Timeline.Clips.Any(clip => clip.SourceAssetId == asset.Id)) usage.Add("the timeline");
         if (project.Assets.Any(candidate => candidate.Id != asset.Id && candidate.Provenance?.SourceAssetIds.Contains(asset.Id) == true))
             usage.Add("derived-asset history");
         if (project.RecipeRevisions.Any(revision => RecipeReferencesAsset(revision.Recipe, asset.Id)) ||
@@ -1369,6 +1408,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         TrimRecipe trim => trim.Source.AssetId == assetId,
         ExtractFrameRecipe frame => frame.Source.AssetId == assetId,
+        CompositionRecipe composition => composition.Segments.Any(segment => segment.Source.AssetId == assetId),
         _ => false
     };
 
@@ -2894,7 +2934,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         MediaPreparationHome.Visibility = Visibility.Visible;
         SelectFrameButton.IsEnabled = false;
         MakeClipButton.IsEnabled = false;
+        StartEditButton.IsEnabled = false;
         MediaPreparationSelectionText.Text = "Select a video in Project Media";
+        RefreshEditWorkspaceState();
 
         InspectorText.Text = "Select an asset or generation to inspect its details and history.";
         PromptTextBox.Text = string.Empty;
@@ -2979,6 +3021,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _generations.Add(generation);
 
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} media items";
+        RefreshEditWorkspaceState();
         if (selectedAssetId is { } id)
             AssetsList.SelectedItem = _assets.FirstOrDefault(item => item.Asset?.Id == id);
     }
@@ -3261,10 +3304,10 @@ public sealed class ProjectMediaListItem
                                      ? Asset.FileName
                                      : Asset.EffectiveDisplayName);
     public string KindText => Anchor is not null ? "Saved Frame" : Asset!.StorageKind == AssetStorageKind.Virtual
-        ? IsSavedClip ? "Saved Clip" : $"Virtual {Asset.MediaType}"
+        ? IsSavedClip ? "Saved Clip" : IsComposition ? "Working Composition" : $"Virtual {Asset.MediaType}"
         : Asset.MediaType.ToString();
     public string GroupName => Anchor is not null ? "SAVED FRAMES" : Asset!.StorageKind == AssetStorageKind.Virtual
-        ? IsSavedClip ? "SAVED CLIPS" : "VIRTUAL MEDIA"
+        ? IsSavedClip ? "SAVED CLIPS" : IsComposition ? "COMPOSITIONS" : "VIRTUAL MEDIA"
         : Asset.MediaType switch
         {
             MediaType.Video => "VIDEOS",
@@ -3279,10 +3322,11 @@ public sealed class ProjectMediaListItem
         "AUDIO" => 2,
         "SAVED FRAMES" => 3,
         "SAVED CLIPS" => 4,
-        _ => 5
+        "COMPOSITIONS" => 5,
+        _ => 6
     };
     public string Glyph => Anchor is not null ? "▣" : Asset!.StorageKind == AssetStorageKind.Virtual
-        ? "✂"
+        ? IsComposition ? "▤" : "✂"
         : Asset.MediaType switch
         {
             MediaType.Video => "▶",
@@ -3291,6 +3335,7 @@ public sealed class ProjectMediaListItem
             _ => "•"
         };
     private bool IsSavedClip => Asset?.Virtual?.Kind == VirtualAssetKind.SavedClip;
+    private bool IsComposition => Asset?.Virtual?.Kind == VirtualAssetKind.Composition;
 }
 
 public sealed class GenerationReferenceChoice

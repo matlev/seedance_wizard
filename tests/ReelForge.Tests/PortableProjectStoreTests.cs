@@ -215,6 +215,38 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Empty(ProjectInvariantValidator.Validate(reopened));
     }
 
+    [Fact]
+    public async Task WorkingCompositionPersistsPinnedInitialSegmentWithoutLegacyTimelineState()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Composition shell");
+        var source = CreatePhysicalAsset("source.mp4", "assets/videos/source.mp4");
+        workspace.Project!.AddAsset(source);
+        await workspace.SaveAsync();
+
+        var composition = await new WorkingCompositionService(workspace).CreateInitialAsync(source.Id);
+
+        Assert.Equal(composition.Id, workspace.Project.WorkingCompositionAssetId);
+        Assert.Equal(VirtualAssetKind.Composition, composition.Virtual?.Kind);
+        var revision = Assert.Single(workspace.Project.RecipeRevisions);
+        var recipe = Assert.IsType<CompositionRecipe>(revision.Recipe);
+        var segment = Assert.Single(recipe.Segments);
+        Assert.Equal(source.Id, segment.Source.AssetId);
+        Assert.Null(segment.Source.RecipeRevisionId);
+        Assert.Equal(RecipeBoundaryKind.SourceStart, segment.Start.Kind);
+        Assert.Equal(RecipeBoundaryKind.SourceEnd, segment.End.Kind);
+        var draft = Assert.Single(workspace.Project.RecipeDrafts);
+        Assert.Equal(revision.Id, draft.BasedOnRevisionId);
+        Assert.NotSame(recipe, draft.EditableRecipe);
+
+        var json = await File.ReadAllTextAsync(workspace.Location!.ProjectFilePath);
+        Assert.DoesNotContain("timeline", json, StringComparison.OrdinalIgnoreCase);
+        var (reopened, _) = await new PortableProjectStore().OpenAsync(workspace.Location.ProjectFilePath);
+        Assert.Equal(composition.Id, reopened.WorkingCompositionAssetId);
+        Assert.IsType<CompositionRecipe>(Assert.Single(reopened.RecipeRevisions).Recipe);
+        Assert.Empty(ProjectInvariantValidator.Validate(reopened));
+    }
+
     private static ProjectAsset CreatePhysicalAsset(
         string fileName,
         string relativePath,

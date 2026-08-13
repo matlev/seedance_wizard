@@ -118,6 +118,45 @@ public sealed class MaterializationTargetTests : IDisposable
         Assert.Contains("3.1", runner.TrimRequest!.Arguments);
     }
 
+    [Fact]
+    public async Task InitialWorkingCompositionPreviewsItsPinnedSingleSourceDirectly()
+    {
+        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(composition);
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment
+                {
+                    Source = new AssetRevisionReference { AssetId = sourceAsset.Id },
+                    Start = RecipeBoundary.SourceStart,
+                    End = RecipeBoundary.SourceEnd
+                }
+            ]
+        });
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", new TrimRunner(), new StubExactFrameService([]), Path.Combine(_root, "cache"));
+
+        await using var preview = await materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(composition.Id, revision.Id),
+                MaterializationPurpose.Preview));
+
+        Assert.True(preview.IsDurableSource);
+        Assert.EndsWith("source.mp4", preview.Path, StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task<(VideoProject Project, ProjectLocation Location, ProjectAsset Asset)> CreateProjectSourceAsync()
     {
         var relativePath = Path.Combine("assets", "videos", "source.mp4");

@@ -86,6 +86,11 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         var revision = project.RecipeRevisions.SingleOrDefault(candidate =>
                 candidate.Id == revisionId && candidate.VirtualAssetId == asset.Id)
             ?? throw new InvalidOperationException($"Recipe revision '{revisionId}' no longer exists.");
+        if (revision.Recipe is CompositionRecipe composition)
+        {
+            return await MaterializeInitialCompositionAsync(
+                project, location, composition, request, cancellationToken).ConfigureAwait(false);
+        }
         if (revision.Recipe is not TrimRecipe trim)
             throw new NotSupportedException(
                 $"Recipe '{revision.Recipe.GetType().Name}' is not part of the current Saved Clip materialization slice.");
@@ -164,6 +169,30 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         {
             cacheLock.Release();
         }
+    }
+
+    private Task<MaterializedMediaLease> MaterializeInitialCompositionAsync(
+        VideoProject project,
+        ProjectLocation location,
+        CompositionRecipe composition,
+        MaterializationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (composition.Segments is not [var segment] ||
+            segment.Start.Kind != RecipeBoundaryKind.SourceStart ||
+            segment.End.Kind != RecipeBoundaryKind.SourceEnd)
+            throw new NotSupportedException(
+                "Composition rendering is not part of this milestone. The initial one-source Working Composition can be previewed directly.");
+        return MaterializeAsync(
+            project,
+            location,
+            request with
+            {
+                Target = new AssetMaterializationTarget(
+                    segment.Source.AssetId,
+                    segment.Source.RecipeRevisionId)
+            },
+            cancellationToken);
     }
 
     private async Task<double> ResolveBoundarySecondsAsync(

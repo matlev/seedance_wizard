@@ -28,6 +28,12 @@ public static class ProjectInvariantValidator
         var revisions = project.RecipeRevisions.GroupBy(revision => revision.Id).ToDictionary(group => group.Key, group => group.First());
         var generations = project.Generations.GroupBy(generation => generation.Id).ToDictionary(group => group.Key, group => group.First());
 
+        if (project.WorkingCompositionAssetId is { } workingCompositionId &&
+            (!assets.TryGetValue(workingCompositionId, out var workingComposition) ||
+             workingComposition.StorageKind != AssetStorageKind.Virtual ||
+             workingComposition.Virtual?.Kind != VirtualAssetKind.Composition))
+            errors.Add("The Working Composition ID must reference a virtual composition asset in this project.");
+
         foreach (var asset in project.Assets)
         {
             if (asset.StorageKind == AssetStorageKind.Physical)
@@ -67,7 +73,6 @@ public static class ProjectInvariantValidator
         ValidateRecipeRevisions(project, assets, anchors, anchorRevisions, revisions, errors);
         ValidateGenerationDraft(project, assets, anchors, anchorRevisions, generations, errors);
         ValidateGenerations(project, assets, anchors, anchorRevisions, revisions, generations, errors);
-        ValidateTimeline(project, assets, revisions, errors);
         return errors;
     }
 
@@ -225,6 +230,21 @@ public static class ProjectInvariantValidator
                 anchorRevision.SourceAssetId != frame.Source.AssetId:
                 errors.Add($"Recipe revision '{revision.Id}' frame anchor must belong to its source asset.");
                 break;
+            case CompositionRecipe composition:
+                if (composition.Segments.Count == 0)
+                    errors.Add($"Recipe revision '{revision.Id}' composition must contain at least one segment.");
+                foreach (var segment in composition.Segments)
+                {
+                    ValidateBoundary(segment.Start, segment.Source.AssetId, revision.Id, anchorRevisions, errors);
+                    ValidateBoundary(segment.End, segment.Source.AssetId, revision.Id, anchorRevisions, errors);
+                    var segmentStart = ResolveBoundarySeconds(segment.Start, anchorRevisions);
+                    var segmentEnd = ResolveBoundarySeconds(segment.End, anchorRevisions);
+                    if (segmentStart is { } compositionStart &&
+                        segmentEnd is { } compositionEnd &&
+                        compositionEnd <= compositionStart)
+                        errors.Add($"Recipe revision '{revision.Id}' composition segment '{segment.Id}' end must follow its start.");
+                }
+                break;
         }
     }
 
@@ -372,32 +392,6 @@ public static class ProjectInvariantValidator
         states[id] = 2;
     }
 
-    private static void ValidateTimeline(
-        VideoProject project,
-        Dictionary<Guid, ProjectAsset> assets,
-        Dictionary<Guid, RecipeRevision> revisions,
-        List<string> errors)
-    {
-        foreach (var clip in project.Timeline.Clips)
-        {
-            if (!assets.TryGetValue(clip.SourceAssetId, out var asset))
-            {
-                errors.Add($"Timeline clip '{clip.Id}' references missing asset '{clip.SourceAssetId}'.");
-                continue;
-            }
-
-            if (asset.StorageKind == AssetStorageKind.Virtual)
-            {
-                if (clip.SourceRecipeRevisionId is null ||
-                    !revisions.TryGetValue(clip.SourceRecipeRevisionId.Value, out var revision) ||
-                    revision.VirtualAssetId != asset.Id)
-                    errors.Add($"Timeline clip '{clip.Id}' must pin an exact virtual recipe revision.");
-            }
-            else if (clip.SourceRecipeRevisionId is not null)
-                errors.Add($"Timeline clip '{clip.Id}' cannot pin a recipe revision for a physical asset.");
-        }
-    }
-
     private static void ValidateAssetRevisionReference(
         AssetRevisionReference reference,
         Dictionary<Guid, ProjectAsset> assets,
@@ -458,6 +452,7 @@ public static class ProjectInvariantValidator
     {
         TrimRecipe trim => [trim.Source],
         ExtractFrameRecipe frame => [frame.Source],
+        CompositionRecipe composition => composition.Segments.Select(segment => segment.Source),
         _ => throw new NotSupportedException($"Recipe type '{recipe.GetType().Name}' is not supported.")
     };
 
@@ -465,6 +460,9 @@ public static class ProjectInvariantValidator
     {
         TrimRecipe trim => new[] { trim.Start.Anchor, trim.End.Anchor }.OfType<AnchorRevisionReference>(),
         ExtractFrameRecipe frame when frame.Anchor.AnchorId != Guid.Empty && frame.Anchor.AnchorRevisionId != Guid.Empty => [frame.Anchor],
+        CompositionRecipe composition => composition.Segments
+            .SelectMany(segment => new[] { segment.Start.Anchor, segment.End.Anchor })
+            .OfType<AnchorRevisionReference>(),
         _ => []
     };
 

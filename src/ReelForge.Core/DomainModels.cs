@@ -30,9 +30,9 @@ public sealed class VideoProject
     public List<RecipeDraft> RecipeDrafts { get; set; } = [];
     public List<FrameAnchor> Anchors { get; set; } = [];
     public List<FrameAnchorRevision> AnchorRevisions { get; set; } = [];
+    public Guid? WorkingCompositionAssetId { get; set; }
     public GenerationDraft? CurrentGenerationDraft { get; set; }
     public List<GenerationRecord> Generations { get; set; } = [];
-    public Timeline Timeline { get; set; } = new();
 
     public void Touch() => ModifiedAt = DateTimeOffset.UtcNow;
 
@@ -148,6 +148,8 @@ public sealed class VideoProject
     {
         TrimRecipe trim => trim.Start.Anchor?.AnchorId == anchorId || trim.End.Anchor?.AnchorId == anchorId,
         ExtractFrameRecipe frame => frame.Anchor.AnchorId == anchorId,
+        CompositionRecipe composition => composition.Segments.Any(segment =>
+            segment.Start.Anchor?.AnchorId == anchorId || segment.End.Anchor?.AnchorId == anchorId),
         _ => false
     };
 
@@ -254,6 +256,20 @@ public sealed record ExtractFrameRecipe : AssetRecipe
     public AssetRevisionReference Source { get; init; } = new();
     public AnchorRevisionReference Anchor { get; init; } = new();
     public string? ImageProfile { get; init; }
+}
+
+public sealed record CompositionRecipe : AssetRecipe
+{
+    public List<CompositionSegment> Segments { get; init; } = [];
+}
+
+public sealed record CompositionSegment
+{
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public AssetRevisionReference Source { get; init; } = new();
+    public RecipeBoundary Start { get; init; } = RecipeBoundary.SourceStart;
+    public RecipeBoundary End { get; init; } = RecipeBoundary.SourceEnd;
+    public bool AudioEnabled { get; init; } = true;
 }
 
 public sealed record AssetRevisionReference
@@ -549,20 +565,6 @@ public sealed class GenerationSubmission
     public string ProviderJobId { get; init; } = string.Empty;
     public GenerationStatus Status { get; init; } = GenerationStatus.Queued;
     public Dictionary<string, string> ResponseMetadata { get; init; } = new(StringComparer.Ordinal);
-}
-
-public sealed class Timeline { public List<TimelineClip> Clips { get; set; } = []; }
-
-public sealed class TimelineClip
-{
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid SourceAssetId { get; set; }
-    public Guid? SourceRecipeRevisionId { get; set; }
-    public double InPointSeconds { get; set; }
-    public double OutPointSeconds { get; set; }
-    public double TimelinePositionSeconds { get; set; }
-    public int Track { get; set; }
-    public bool AudioEnabled { get; set; } = true;
 }
 
 public sealed class FrameAnchor

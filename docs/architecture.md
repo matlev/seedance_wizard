@@ -90,7 +90,7 @@ See [MiniMax H3 local execution research](minimax-h3-local-research.md) for the 
 | `AssetOrigin.EditorDerived` and `ExtractedFrame` | Can describe how an artifact originated | They classify an already materialized file; they do not persist an executable recipe. |
 | `AssetProvenance` | Links source IDs, generation IDs, operation names, and parameters | Stringly typed provenance cannot safely serve as the recipe itself. Provenance should describe history; a typed recipe should define reproduction. |
 | `FrameAnchor` | Has an ID, source asset, timestamp, frame number, and label | `VideoProject` has no anchor collection, so anchors are not currently durable project state. Frame number is mandatory even when unreliable. Notes and time-basis semantics are absent. |
-| `Timeline` / `TimelineClip` | Already references assets by ID and stores non-destructive in/out positions | No tracks or recipe/render-plan boundary; current code assumes an asset can be resolved directly to a path. |
+| `CompositionRecipe` / `CompositionSegment` | Project-owned Working Composition with revision-pinned sources and exact recipe boundaries | Multitrack editing, audio-specific timing, general rendering, and export remain later slices. |
 | `PortableProjectStore` | Development-format marker, portable relative paths, atomic save | Intentionally rejects obsolete development formats. It creates `cache/` but does not yet define deletion or reconstruction semantics. |
 | `AssetImportService` | Copies user media into durable project storage and inspects it | Correct for physical imports, but it should not be reused for virtual outputs or cache promotion without explicit semantics. |
 | `ProjectWorkspace.GetAbsoluteAssetPath` | Centralizes relative-path resolution | Cannot represent a virtual asset. Consumers must request materialization rather than assume all assets have paths. |
@@ -402,9 +402,9 @@ The starred Main Video concept is removed. Generate has only currently previewed
 
 The initial Working Composition is one project-designated virtual composition identified by ID so multiple named compositions can be added later without restructuring the project root. Its active edit is a mutable recipe draft. A submitted generation, export, or historical dependency freezes an immutable recipe revision. Preview materializations are disposable and export is the explicit durable-file boundary.
 
-## Timeline implications
+## Composition and future timeline implications
 
-The existing floating-point `TimelineClip` model is provisional and must not become the editor foundation. A composition segment references a logical asset plus an exact physical or virtual revision and expresses video ranges through source edges or pinned exact-position revisions with `BeforeFrame`/`AfterFrame` intent. Audio will require an appropriate rational/sample-based boundary rather than pretending every boundary is a video frame.
+The obsolete floating-point `TimelineClip` model has been removed rather than becoming the editor foundation. A `CompositionSegment` references a logical asset plus an exact physical or virtual revision and expresses video ranges through source edges or pinned exact-position revisions with `BeforeFrame`/`AfterFrame` intent. Audio will require an appropriate rational/sample-based boundary rather than pretending every boundary is a video frame.
 
 Preview and export compile the current timeline state into a render plan. They do not rewrite source assets or persist FFmpeg intermediates as project assets. If a timeline composition is exposed as an asset elsewhere, it should be represented by an immutable/snapshotted composition recipe or by explicit version semantics; referencing a mutable live timeline directly would make old generation provenance non-reproducible.
 
