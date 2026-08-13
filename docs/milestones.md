@@ -290,6 +290,14 @@ In progress. ReelForge now has a provider-neutral recursive render-plan tree wit
 4. Persist every discrete composition edit and reconstruct the same current revision after reopening the project.
 5. Render or reuse the committed multi-segment composition preview through the shared materializer without creating an authoritative intermediate asset.
 
+Human acceptance path:
+
+1. Open a project containing at least two physical videos or Saved Clips, enter Edit, and start the Working Composition if necessary.
+2. Select another video or Saved Clip in Project Media and use **Add selected media**; verify the ordered segment list updates.
+3. Move the selected segment up and down, remove a non-final segment, and verify each action immediately updates the displayed recipe revision.
+4. Preview a composition containing differently encoded or silent media; verify the result plays in list order with stable dimensions and synchronized audio/silence.
+5. Close and reopen ReelForge; verify the same current composition order returns and preview can be rendered or reused again.
+
 1. Expand the narrow Phase 2C Saved Clip compiler into general recipe planning and recursive virtual-source time mapping.
 2. Reuse and expand existing media encoding inspection.
 3. Add compatibility analysis as data/planning, not an eager normalization side effect.
