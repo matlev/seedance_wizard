@@ -67,6 +67,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _isScrubbing;
     private bool _resumePlaybackAfterScrub;
     private bool _suppressFrameSelectionPrefetch;
+    private bool _suppressProjectMediaSelection;
     private double _volumeBeforeMute = 1;
     private bool _isJobsPanelOpen;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
@@ -947,6 +948,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void AssetsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_suppressProjectMediaSelection) return;
         if (AssetsList.SelectedItem is not ProjectMediaListItem item)
         {
             return;
@@ -2948,6 +2950,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void RefreshProjectCollections(Guid? selectedAssetId = null)
     {
         if (_workspace.Project is null) return;
+        var hasExplicitSelection = selectedAssetId.HasValue;
+        selectedAssetId ??= (AssetsList.SelectedItem as ProjectMediaListItem)?.Asset?.Id;
+        var selectedAnchorId = (AssetsList.SelectedItem as ProjectMediaListItem)?.Anchor?.Id;
         var existingChoices = _referenceChoices.ToList();
         _assets.Clear();
         _generations.Clear();
@@ -3022,8 +3027,21 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} media items";
         RefreshEditWorkspaceState();
-        if (selectedAssetId is { } id)
-            AssetsList.SelectedItem = _assets.FirstOrDefault(item => item.Asset?.Id == id);
+        var selection = selectedAssetId is { } id
+            ? _assets.FirstOrDefault(item => item.Asset?.Id == id)
+            : selectedAnchorId is { } anchorId
+                ? _assets.FirstOrDefault(item => item.Anchor?.Id == anchorId)
+                : null;
+        var preserveActiveOperation = !hasExplicitSelection && _mediaPreparationMode != MediaPreparationMode.None;
+        if (preserveActiveOperation) _suppressProjectMediaSelection = true;
+        try
+        {
+            AssetsList.SelectedItem = selection;
+        }
+        finally
+        {
+            _suppressProjectMediaSelection = false;
+        }
     }
 
     private string GetSelectedOutputFormat() =>
