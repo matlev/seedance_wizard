@@ -155,7 +155,7 @@ Delivered: stable anchors, immutable exact revisions, pinned recipe/history refe
 
 #### Phase 2C.2 — provider-neutral materialization and prepared references
 
-In progress: typed asset/anchor materialization targets and occurrence-keyed prepared references are implemented. Physical anchor sources are hash-verified before extraction; exact decoded-frame realization and its canonical receipts complete with Phase 2C.3.
+Delivered: typed asset/anchor materialization targets, occurrence-keyed prepared references, source hash verification, exact decoded-frame realization, and persisted per-occurrence materialization receipts are implemented. Provider-ready URLs/upload IDs remain transient while receipts retain the logical source hash, extracted-byte hash, pinned anchor/recipe plan identity, media encoding, provider scope/reference ID, and expiry when available.
 
 1. Generalize materialization targets from asset-only requests to typed asset-revision or anchor-revision targets.
 2. Replace asset-ID-only provider overrides with occurrence-keyed transient prepared references carrying media type, role, order, and provider representation.
@@ -175,6 +175,8 @@ Delivered engine slice: exact decoded presentation-frame indexing and PTS-select
 
 #### Phase 2C.4 — frame browser and Saved Frames UI
 
+Delivered initial workspace: selecting a physical video indexes exact decoded presentation frames, replaces the Timeline placeholder with a nine-position contact strip, supports frame/quarter-second/half-second/second spacing, refreshes around the playhead with debounced cancellation, extracts the center frame first, and provides first/final decoded-frame shortcuts. Named Saved Frames persist independently from disposable thumbnails, can be revisited/jumped to/edited, and use dependency-safe removal or archive.
+
 1. Replace the central lower Timeline placeholder with an initial precision-frame workspace, without claiming the full timeline editor is implemented.
 2. Add a local contact strip centered near the playhead, initially approximately nine frames with selectable spacing/range.
 3. Debounce navigation, extract the center/selected frame first, opportunistically prefetch a bounded neighborhood, and cancel stale work.
@@ -182,6 +184,8 @@ Delivered engine slice: exact decoded presentation-frame indexing and PTS-select
 5. Keep Saved Frames visually distinct from physical Project Assets. Historical revisions remain resolvable through history/dependency details but do not receive a general revision browser in Phase 2C.
 
 #### Phase 2C.5 — generation-reference integration
+
+Delivered: the reference grid now combines physical assets and Saved Frames, freezes an exact anchor revision at submission, supports duplicate occurrences with independent IDs/roles/order/labels/notes, validates Saved Frames as image references, and routes their extracted PNGs through the existing AtlasCloud or BytePlus preparation service. Offline acceptance coverage proves extraction, preparation, immutable snapshotting, typed receipts, persistence, and provider input without network access.
 
 1. Select Saved Frames directly as logical references with explicit role, order, label, and notes.
 2. Support duplicate occurrences of the same logical object through distinct `ReferenceId` values.
@@ -191,6 +195,8 @@ Delivered engine slice: exact decoded presentation-frame indexing and PTS-select
 
 #### Phase 2C.6 — Continue After and Continue Before UX
 
+Delivered initial UX: generation-history continuation resolves a sole output automatically and requires explicit output selection for multi-output generations. ReelForge chooses the final decoded frame for Continue After or first decoded frame for Continue Before, shows the canonical extracted image and exact PTS/time-base before confirmation, creates a Saved Frame, assigns `StartFrame`/`EndFrame`, recommends a compatible visible mode, and preserves lineage only for generated sources. The precision workspace also creates continuation drafts from imported media without inventing a parent generation.
+
 1. Require explicit source-output selection when a parent generation has multiple outputs.
 2. Preselect the first/final decoded frame as appropriate, show its canonical extracted preview, and require confirmation before creating/using the anchor.
 3. Recommend a compatible I2V or R2V mode while keeping provider/model/mode visible and user-selectable.
@@ -198,6 +204,8 @@ Delivered engine slice: exact decoded presentation-frame indexing and PTS-select
 5. Record parent plus `ContinueAfter`/`ContinueBefore` only when the source actually originates from a generation; imported-video continuation UX uses the explicit anchor reference without invented lineage.
 
 #### Phase 2C.7 — verification and acceptance
+
+Automated verification delivered; human visual/E2E acceptance remains. Tests cover exact index parsing, deterministic cache reconstruction, duplicate-work coalescing, cancellation cleanup, exact FFmpeg arguments, Saved Frame materialization/preparation/snapshot persistence, duplicate occurrences, provider boundary-role mapping, and current-format anchor invariants. All test authorization remains network-isolated and incapable of paid submission.
 
 1. Add incompatible-format, immutable-revision, dependency, exact-frame/VFR, cache reconstruction, failure cleanup, provider-preparation, duplicate-reference, and continuation-lineage tests.
 2. Keep every automated provider path network-isolated and incapable of paid calls.

@@ -72,10 +72,9 @@ public sealed class AtlasCloudMiniMaxH3Provider : IAsyncVideoGenerationProvider,
             errors.Add($"AtlasCloud MiniMax H3 parameter '{parameter}' is not supported by this adapter.");
         }
 
-        var references = request.ReferenceAssetIds
-            .Select(id => projectAssets.FirstOrDefault(asset => asset.Id == id))
-            .OfType<ProjectAsset>()
-            .ToList();
+        var references = GenerationRequestReferenceResolver.Resolve(request, projectAssets)
+            .OrderBy(reference => reference.Order)
+            .ToArray();
 
         switch (request.Mode)
         {
@@ -85,8 +84,11 @@ public sealed class AtlasCloudMiniMaxH3Provider : IAsyncVideoGenerationProvider,
             case GenerationMode.ImageToVideo:
                 if (!request.AspectRatio.Equals("adaptive", StringComparison.OrdinalIgnoreCase))
                     errors.Add("AtlasCloud MiniMax H3 image-to-video requires the adaptive aspect ratio.");
-                if (references.Count is < 1 or > 2 || references.Any(asset => asset.MediaType != MediaType.Image))
+                if (references.Length is < 1 or > 2 || references.Any(asset => asset.MediaType != MediaType.Image))
                     errors.Add("AtlasCloud MiniMax H3 image-to-video requires one or two image references.");
+                if (references.Any(reference => reference.Role == GenerationReferenceRole.EndFrame) &&
+                    references.All(reference => reference.Role == GenerationReferenceRole.EndFrame))
+                    errors.Add("AtlasCloud MiniMax H3 requires a start-frame image when an end-frame image is supplied.");
                 break;
             case GenerationMode.ReferenceToVideo:
                 if (!references.Any(asset => asset.MediaType is MediaType.Image or MediaType.Video))
@@ -95,15 +97,15 @@ public sealed class AtlasCloudMiniMaxH3Provider : IAsyncVideoGenerationProvider,
         }
 
         var resolvedReferences = new List<string>();
-        for (var index = 0; index < references.Count; index++)
+        for (var index = 0; index < references.Length; index++)
         {
             var asset = references[index];
-            var resolved = GetPreparedRepresentation(request, index, asset.Id)
-                ?? _assetReferenceResolver.Resolve(ProviderId, asset)
-                  ?? _assetReferenceResolver.Resolve(AtlasCloudSeedance25Provider.ProviderId, asset);
+            var resolved = asset.PreparedRepresentation
+                ?? (asset.Asset is null ? null : _assetReferenceResolver.Resolve(ProviderId, asset.Asset))
+                ?? (asset.Asset is null ? null : _assetReferenceResolver.Resolve(AtlasCloudSeedance25Provider.ProviderId, asset.Asset));
             if (string.IsNullOrWhiteSpace(resolved))
             {
-                errors.Add($"{asset.FileName} has no prepared AtlasCloud reference.");
+                errors.Add($"{asset.DisplayName} has no prepared AtlasCloud reference.");
                 continue;
             }
 
@@ -113,8 +115,8 @@ public sealed class AtlasCloudMiniMaxH3Provider : IAsyncVideoGenerationProvider,
             if (!valid)
             {
                 errors.Add(request.Mode == GenerationMode.ImageToVideo
-                    ? $"{asset.FileName} must use an HTTPS URL or supported image Base64 data URL for MiniMax H3 image-to-video."
-                    : $"{asset.FileName} must use an HTTPS URL for MiniMax H3 reference-to-video.");
+                    ? $"{asset.DisplayName} must use an HTTPS URL or supported image Base64 data URL for MiniMax H3 image-to-video."
+                    : $"{asset.DisplayName} must use an HTTPS URL for MiniMax H3 reference-to-video.");
                 continue;
             }
 
@@ -135,9 +137,11 @@ public sealed class AtlasCloudMiniMaxH3Provider : IAsyncVideoGenerationProvider,
 
         if (request.Mode == GenerationMode.ImageToVideo)
         {
-            payload["image"] = resolvedReferences[0];
-            if (references.Count == 2)
-                payload["end_image"] = resolvedReferences[1];
+            var firstIndex = Array.FindIndex(references, reference => reference.Role != GenerationReferenceRole.EndFrame);
+            payload["image"] = resolvedReferences[firstIndex];
+            var endIndex = Array.FindIndex(references, reference => reference.Role == GenerationReferenceRole.EndFrame);
+            if (endIndex < 0 && references.Length == 2) endIndex = firstIndex == 0 ? 1 : 0;
+            if (endIndex >= 0) payload["end_image"] = resolvedReferences[endIndex];
         }
         else if (request.Mode == GenerationMode.ReferenceToVideo)
         {

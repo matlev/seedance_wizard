@@ -121,32 +121,34 @@ public sealed class BytePlusModelArkSeedance25Provider :
         foreach (var parameter in request.ProviderParameters.Keys.Where(key => !SupportedParameterNames.Contains(key)))
             errors.Add($"BytePlus parameter '{parameter}' is not supported by this adapter.");
 
-        var references = request.ReferenceAssetIds
-            .Select(id => projectAssets.FirstOrDefault(asset => asset.Id == id))
-            .OfType<ProjectAsset>()
-            .ToList();
+        var references = GenerationRequestReferenceResolver.Resolve(request, projectAssets)
+            .OrderBy(reference => reference.Order)
+            .ToArray();
         if (request.Mode == GenerationMode.ImageToVideo)
         {
             if (!request.AspectRatio.Equals("adaptive", StringComparison.OrdinalIgnoreCase))
                 errors.Add("BytePlus Seedance 2.5 first-frame video generation requires the adaptive ratio.");
-            if (references.Count is < 1 or > 2 || references.Any(asset => asset.MediaType != MediaType.Image))
+            if (references.Length is < 1 or > 2 || references.Any(asset => asset.MediaType != MediaType.Image))
                 errors.Add("BytePlus image-to-video requires one or two image references and no video or audio references.");
+            if (references.Any(reference => reference.Role == GenerationReferenceRole.EndFrame) &&
+                references.All(reference => reference.Role == GenerationReferenceRole.EndFrame))
+                errors.Add("BytePlus first/last-frame generation requires a first-frame image when a last-frame image is supplied.");
         }
 
         var resolvedReferences = new List<string>();
-        for (var index = 0; index < references.Count; index++)
+        for (var index = 0; index < references.Length; index++)
         {
             var asset = references[index];
-            var resolved = GetPreparedRepresentation(request, index, asset.Id)
-                ?? _assetReferenceResolver.Resolve(ProviderId, asset);
+            var resolved = asset.PreparedRepresentation
+                ?? (asset.Asset is null ? null : _assetReferenceResolver.Resolve(ProviderId, asset.Asset));
             if (string.IsNullOrWhiteSpace(resolved))
             {
-                errors.Add($"{asset.FileName} has no prepared BytePlus reference.");
+                errors.Add($"{asset.DisplayName} has no prepared BytePlus reference.");
                 continue;
             }
             if (!IsSupportedRepresentation(asset.MediaType, resolved))
             {
-                errors.Add($"{asset.FileName} has an unsupported BytePlus reference representation.");
+                errors.Add($"{asset.DisplayName} has an unsupported BytePlus reference representation.");
                 continue;
             }
             resolvedReferences.Add(resolved);
@@ -163,7 +165,7 @@ public sealed class BytePlusModelArkSeedance25Provider :
                 ["text"] = request.Prompt
             }
         };
-        for (var index = 0; index < references.Count; index++)
+        for (var index = 0; index < references.Length; index++)
         {
             var asset = references[index];
             var typeName = asset.MediaType switch
@@ -173,15 +175,19 @@ public sealed class BytePlusModelArkSeedance25Provider :
                 MediaType.Audio => "audio_url",
                 _ => throw new InvalidOperationException($"Unsupported reference media type '{asset.MediaType}'.")
             };
-            var role = request.Mode == GenerationMode.ImageToVideo
-                ? index == 0 ? "first_frame" : "last_frame"
-                : asset.MediaType switch
+            var role = asset.Role switch
+            {
+                GenerationReferenceRole.StartFrame => "first_frame",
+                GenerationReferenceRole.EndFrame => "last_frame",
+                _ when request.Mode == GenerationMode.ImageToVideo => index == 0 ? "first_frame" : "last_frame",
+                _ => asset.MediaType switch
                 {
                     MediaType.Image => "reference_image",
                     MediaType.Video => "reference_video",
                     MediaType.Audio => "reference_audio",
                     _ => throw new InvalidOperationException($"Unsupported reference media type '{asset.MediaType}'.")
-                };
+                }
+            };
             content.Add(new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["type"] = typeName,

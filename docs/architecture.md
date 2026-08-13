@@ -471,7 +471,11 @@ Role is optional where appropriate. A separate optional user-facing label/notes 
 
 The materialization receipt is useful for audit, retry optimization, and diagnosing exactly what bytes were sent. It supplements the logical reference and must remain meaningful when its local file is gone. Secrets, signed URLs, and other expiring credentials must not be persisted as unrestricted diagnostics.
 
+Each submitted generation stores materialization receipts by reference occurrence ID on the generation record. This keeps duplicate uses of one logical asset or Saved Frame distinct. For an anchor occurrence, the receipt plan identity is the immutable anchor revision; the receipt separately preserves the source-video hash and the produced extracted-image hash. Provider reference IDs/scopes and expiry metadata may be retained, but the actual signed URL or data URL is not authoritative project state.
+
 Exact Saved Frame realization uses ffprobe to enumerate decoded presentation timestamps from the selected video stream and FFmpeg's `select=eq(pts,...)` filter to extract the pinned presentation frame. The current cache key includes the verified source SHA-256, immutable anchor revision, stream/PTS/time-base tuple, materialization purpose/profile, extraction-algorithm version, and detected FFmpeg version. Cache files are disposable PNG derivatives written through unique temporary files and atomically committed; deleting them never changes project state and the same anchor revision can reconstruct them.
+
+Presentation timestamps are signed media-native values; ReelForge does not reject a valid decoded frame merely because its container timeline begins before zero. UI playback time may clamp that leading display position to zero, while the anchor continues to preserve the exact signed PTS.
 
 ### Snapshot immutability
 

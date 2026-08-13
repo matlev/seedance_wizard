@@ -136,7 +136,7 @@ public static class ProjectInvariantValidator
                  previous.RevisionNumber != revision.RevisionNumber - 1))
                 errors.Add($"Anchor revision '{revision.Id}' has an invalid predecessor.");
 
-            if (revision.VideoStreamIndex < 0 || revision.PresentationTimestamp < 0 ||
+            if (revision.VideoStreamIndex < 0 ||
                 revision.TimeBaseNumerator <= 0 || revision.TimeBaseDenominator <= 0)
                 errors.Add($"Anchor revision '{revision.Id}' has invalid presentation timing.");
         }

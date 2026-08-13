@@ -84,7 +84,7 @@ public sealed class GenerationWorkflow
         }
 
         var snapshot = CreateSnapshot(provider, draft, _workspace.Project!);
-        var request = CreateProviderRequest(snapshot);
+        var request = CreateProviderRequest(snapshot, _workspace.Project!.Assets);
         var validationErrors = provider.Capabilities.Validate(request, _workspace.Project!.Assets);
         if (validationErrors.Count > 0) throw new GenerationValidationException(validationErrors);
         ValidateLineage(draft, _workspace.Project);
@@ -128,7 +128,7 @@ public sealed class GenerationWorkflow
         }
 
         var snapshot = record.RequestSnapshot;
-        var request = CreateProviderRequest(snapshot);
+        var request = CreateProviderRequest(snapshot, _workspace.Project!.Assets);
 
         try
         {
@@ -274,16 +274,25 @@ public sealed class GenerationWorkflow
         if (_providerPreparation is null || authorization is null)
             throw new InvalidOperationException("This provider requires a configured reference preparation service.");
 
+        request.PreparedReferences.Clear();
+
         foreach (var reference in snapshot.References.OrderBy(reference => reference.Order ?? int.MaxValue))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (reference.ObjectKind != GenerationReferenceObjectKind.Asset)
-                throw new NotSupportedException("Frame-anchor provider preparation arrives in Phase 2C.");
-
-            var asset = _workspace.Project!.Assets.Single(candidate => candidate.Id == reference.LogicalObjectId);
-            if (TryGetReusableProviderReference(provider.Capabilities.ProviderId, asset, reference, out var reusableReference))
+            var asset = reference.ObjectKind == GenerationReferenceObjectKind.Asset
+                ? _workspace.Project!.Assets.Single(candidate => candidate.Id == reference.LogicalObjectId)
+                : null;
+            if (asset is not null &&
+                TryGetReusableProviderReference(provider.Capabilities.ProviderId, asset, reference, out var reusableReference))
             {
                 request.PreparedReferences.Add(CreatePreparedReference(reference, asset.MediaType, reusableReference));
+                record.ReferenceMaterializations[reference.ReferenceId] = new MaterializationReceipt
+                {
+                    PlanHash = reference.RecipeRevisionId?.ToString("N"),
+                    SourceContentHash = reference.ContentHash,
+                    ProviderReferenceId = reusableReference,
+                    ProviderScope = "reused-provider-reference"
+                };
                 record.ResponseMetadata[$"reference.{reference.ReferenceId:N}.preparation"] = "reused-provider-reference";
                 continue;
             }
@@ -296,7 +305,12 @@ public sealed class GenerationWorkflow
                     _workspace.Project!,
                     _workspace.Location!,
                     new MaterializationRequest(
-                        new AssetMaterializationTarget(reference.LogicalObjectId, reference.RecipeRevisionId),
+                        reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor
+                            ? new AnchorMaterializationTarget(
+                                reference.LogicalObjectId,
+                                reference.Anchor?.AnchorRevisionId
+                                ?? throw new InvalidOperationException("A Saved Frame snapshot must pin an exact revision."))
+                            : new AssetMaterializationTarget(reference.LogicalObjectId, reference.RecipeRevisionId),
                         MaterializationPurpose.ProviderUpload,
                         MaterializationRetentionPreference.Ephemeral),
                     cancellationToken)
@@ -304,7 +318,20 @@ public sealed class GenerationWorkflow
             var prepared = await _providerPreparation
                 .PrepareAsync(provider.Capabilities.ProviderId, reference, media, authorization, cancellationToken)
                 .ConfigureAwait(false);
-            request.PreparedReferences.Add(CreatePreparedReference(reference, asset.MediaType, prepared.ProviderRepresentation));
+            record.ReferenceMaterializations[reference.ReferenceId] = new MaterializationReceipt
+            {
+                PlanHash = reference.Anchor?.AnchorRevisionId.ToString("N") ?? reference.RecipeRevisionId?.ToString("N"),
+                SourceContentHash = reference.ContentHash,
+                ProducedContentHash = media.ContentIdentity.Sha256,
+                Encoding = media.Encoding,
+                ProviderReferenceId = prepared.Receipt?.ProviderReferenceId,
+                ProviderScope = prepared.Receipt?.ProviderScope,
+                ProviderReferenceExpiresAt = prepared.Receipt?.ProviderReferenceExpiresAt
+            };
+            request.PreparedReferences.Add(CreatePreparedReference(
+                reference,
+                reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor ? MediaType.Image : asset!.MediaType,
+                prepared.ProviderRepresentation));
             record.ResponseMetadata[$"reference.{reference.ReferenceId:N}.preparation"] =
                 prepared.Receipt?.ProviderScope ?? "prepared";
         }
@@ -526,7 +553,9 @@ public sealed class GenerationWorkflow
         };
     }
 
-    private static GenerationRequest CreateProviderRequest(GenerationRequestSnapshot snapshot) => new()
+    private static GenerationRequest CreateProviderRequest(
+        GenerationRequestSnapshot snapshot,
+        IReadOnlyCollection<ProjectAsset> assets) => new()
     {
         Prompt = snapshot.Prompt,
         Mode = snapshot.Mode,
@@ -537,6 +566,16 @@ public sealed class GenerationWorkflow
             .Where(reference => reference.ObjectKind == GenerationReferenceObjectKind.Asset)
             .Select(reference => reference.LogicalObjectId)
             .ToList(),
+        PreparedReferences = snapshot.References.Select(reference => new PreparedGenerationReference(
+            reference.ReferenceId,
+            reference.ObjectKind,
+            reference.LogicalObjectId,
+            reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor
+                ? MediaType.Image
+                : assets.Single(asset => asset.Id == reference.LogicalObjectId).MediaType,
+            reference.Role,
+            reference.Order ?? 0,
+            string.Empty)).ToList(),
         ProviderParameters = new Dictionary<string, string>(snapshot.ProviderParameters, StringComparer.Ordinal)
     };
 

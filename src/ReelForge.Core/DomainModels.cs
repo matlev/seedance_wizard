@@ -95,7 +95,7 @@ public sealed class VideoProject
             ?? throw new InvalidOperationException($"Anchor source asset '{position.SourceAssetId}' does not exist.");
         if (source.StorageKind != AssetStorageKind.Physical || source.MediaType != MediaType.Video)
             throw new InvalidOperationException("Frame anchors currently require a durable physical video source.");
-        if (position.VideoStreamIndex < 0 || position.PresentationTimestamp < 0 ||
+        if (position.VideoStreamIndex < 0 ||
             position.TimeBaseNumerator <= 0 || position.TimeBaseDenominator <= 0)
             throw new InvalidOperationException("An exact frame position requires a valid stream, PTS, and rational time base.");
         if (!IsSha256(position.SourceContentHash))
@@ -339,6 +339,64 @@ public sealed record PreparedGenerationReference(
     int Order,
     string ProviderRepresentation);
 
+public sealed record GenerationRequestReference(
+    Guid ReferenceId,
+    GenerationReferenceObjectKind LogicalObjectKind,
+    Guid LogicalObjectId,
+    MediaType MediaType,
+    GenerationReferenceRole? Role,
+    int Order,
+    string DisplayName,
+    string? PreparedRepresentation,
+    ProjectAsset? Asset);
+
+public static class GenerationRequestReferenceResolver
+{
+    public static IReadOnlyList<GenerationRequestReference> Resolve(
+        GenerationRequest request,
+        IReadOnlyCollection<ProjectAsset> assets)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(assets);
+        if (request.PreparedReferences.Count > 0)
+        {
+            return request.PreparedReferences.Select(reference =>
+            {
+                var asset = reference.LogicalObjectKind == GenerationReferenceObjectKind.Asset
+                    ? assets.FirstOrDefault(candidate => candidate.Id == reference.LogicalObjectId)
+                    : null;
+                return new GenerationRequestReference(
+                    reference.ReferenceId,
+                    reference.LogicalObjectKind,
+                    reference.LogicalObjectId,
+                    reference.MediaType,
+                    reference.Role,
+                    reference.Order,
+                    asset?.EffectiveDisplayName ?? "Saved Frame",
+                    string.IsNullOrWhiteSpace(reference.ProviderRepresentation)
+                        ? null
+                        : reference.ProviderRepresentation,
+                    asset);
+            }).ToArray();
+        }
+
+        return request.ReferenceAssetIds.Select((id, index) =>
+        {
+            var asset = assets.FirstOrDefault(candidate => candidate.Id == id);
+            return new GenerationRequestReference(
+                Guid.Empty,
+                GenerationReferenceObjectKind.Asset,
+                id,
+                asset?.MediaType ?? MediaType.Image,
+                null,
+                index,
+                asset?.EffectiveDisplayName ?? $"Missing asset {index + 1}",
+                null,
+                asset);
+        }).ToArray();
+    }
+}
+
 public sealed class GenerationDraft
 {
     public string? ProviderId { get; set; }
@@ -430,6 +488,7 @@ public sealed class GenerationRecord
     public DateTimeOffset? CompletedAt { get; set; }
     public List<Guid> OutputAssetIds { get; set; } = [];
     public Dictionary<string, string> ResponseMetadata { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<Guid, MaterializationReceipt> ReferenceMaterializations { get; set; } = [];
     public GenerationError? Error { get; set; }
     public Guid? ParentGenerationId { get; init; }
     public GenerationRelationshipType? RelationshipType { get; init; }
@@ -470,14 +529,14 @@ public sealed record GenerationProviderCapabilities(
         if (!Resolutions.Contains(request.Resolution, StringComparer.OrdinalIgnoreCase))
             errors.Add($"Resolution '{request.Resolution}' is not supported.");
 
-        var selectedAssets = request.ReferenceAssetIds.Select(id => assets.FirstOrDefault(asset => asset.Id == id)).ToList();
-        if (selectedAssets.Any(asset => asset is null)) errors.Add("One or more reference assets no longer exist in the project.");
-        var references = selectedAssets.OfType<ProjectAsset>().ToList();
+        var references = GenerationRequestReferenceResolver.Resolve(request, assets);
+        if (references.Any(reference => reference.LogicalObjectKind == GenerationReferenceObjectKind.Asset && reference.Asset is null))
+            errors.Add("One or more reference assets no longer exist in the project.");
         ValidateReferenceCount(references, MediaType.Image, MaximumImageReferences, errors);
         ValidateReferenceCount(references, MediaType.Video, MaximumVideoReferences, errors);
         ValidateReferenceCount(references, MediaType.Audio, MaximumAudioReferences, errors);
-        foreach (var unsupported in references.Where(asset => !SupportedReferenceTypes.Contains(asset.MediaType)))
-            errors.Add($"{unsupported.EffectiveDisplayName} cannot be used as a {unsupported.MediaType} reference.");
+        foreach (var unsupported in references.Where(reference => !SupportedReferenceTypes.Contains(reference.MediaType)))
+            errors.Add($"{unsupported.DisplayName} cannot be used as a {unsupported.MediaType} reference.");
         if (request.Mode == GenerationMode.TextToVideo && references.Count > 0)
             errors.Add("Text-to-video requests cannot include reference assets.");
         if (request.Mode != GenerationMode.TextToVideo && references.Count == 0)
@@ -485,9 +544,9 @@ public sealed record GenerationProviderCapabilities(
         return errors;
     }
 
-    private static void ValidateReferenceCount(IReadOnlyCollection<ProjectAsset> assets, MediaType type, int maximum, List<string> errors)
+    private static void ValidateReferenceCount(IReadOnlyCollection<GenerationRequestReference> references, MediaType type, int maximum, List<string> errors)
     {
-        var count = assets.Count(asset => asset.MediaType == type);
+        var count = references.Count(reference => reference.MediaType == type);
         if (count > maximum) errors.Add($"At most {maximum} {type.ToString().ToLowerInvariant()} reference(s) are supported.");
     }
 }

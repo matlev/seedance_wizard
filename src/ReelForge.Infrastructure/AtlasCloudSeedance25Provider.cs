@@ -1,4 +1,4 @@
-﻿using ReelForge.Application;
+using ReelForge.Application;
 using ReelForge.Core;
 
 namespace ReelForge.Infrastructure;
@@ -94,10 +94,9 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
             errors.Add($"AtlasCloud parameter '{parameter}' is not supported by this adapter.");
         }
 
-        var references = request.ReferenceAssetIds
-            .Select(id => projectAssets.FirstOrDefault(asset => asset.Id == id))
-            .OfType<ProjectAsset>()
-            .ToList();
+        var references = GenerationRequestReferenceResolver.Resolve(request, projectAssets)
+            .OrderBy(reference => reference.Order)
+            .ToArray();
 
         if (request.Mode == GenerationMode.ImageToVideo)
         {
@@ -106,21 +105,26 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
                 errors.Add("AtlasCloud Seedance 2.5 image-to-video currently requires the adaptive ratio.");
             }
 
-            if (references.Count is < 1 or > 2 || references.Any(asset => asset.MediaType != MediaType.Image))
+            if (references.Length is < 1 or > 2 || references.Any(asset => asset.MediaType != MediaType.Image))
             {
                 errors.Add("AtlasCloud image-to-video requires one or two image references and no video or audio references.");
+            }
+            if (references.Any(reference => reference.Role == GenerationReferenceRole.EndFrame) &&
+                references.All(reference => reference.Role == GenerationReferenceRole.EndFrame))
+            {
+                errors.Add("AtlasCloud Seedance image-to-video requires a start-frame image when a last-frame image is supplied.");
             }
         }
 
         var resolvedReferences = new List<string>();
-        for (var index = 0; index < references.Count; index++)
+        for (var index = 0; index < references.Length; index++)
         {
             var asset = references[index];
-            var resolved = GetPreparedRepresentation(request, index, asset.Id)
-                ?? _assetReferenceResolver.Resolve(ProviderId, asset);
+            var resolved = asset.PreparedRepresentation
+                ?? (asset.Asset is null ? null : _assetReferenceResolver.Resolve(ProviderId, asset.Asset));
             if (string.IsNullOrWhiteSpace(resolved))
             {
-                errors.Add($"{asset.FileName} has no AtlasCloud reference URL, Base64 value, or uploaded asset reference.");
+                errors.Add($"{asset.DisplayName} has no AtlasCloud reference URL, Base64 value, or uploaded asset reference.");
             }
             else
             {
@@ -148,10 +152,13 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
 
         if (request.Mode == GenerationMode.ImageToVideo)
         {
-            payload["image"] = resolvedReferences[0];
-            if (references.Count == 2)
+            var firstIndex = Array.FindIndex(references, reference => reference.Role != GenerationReferenceRole.EndFrame);
+            payload["image"] = resolvedReferences[firstIndex];
+            var lastIndex = Array.FindIndex(references, reference => reference.Role == GenerationReferenceRole.EndFrame);
+            if (lastIndex < 0 && references.Length == 2) lastIndex = firstIndex == 0 ? 1 : 0;
+            if (lastIndex >= 0)
             {
-                payload["last_image"] = resolvedReferences[1];
+                payload["last_image"] = resolvedReferences[lastIndex];
             }
         }
         else if (request.Mode == GenerationMode.ReferenceToVideo)
@@ -167,7 +174,7 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
     private static void AddReferenceArray(
         Dictionary<string, object?> payload,
         string fieldName,
-        IReadOnlyList<ProjectAsset> references,
+        IReadOnlyList<GenerationRequestReference> references,
         List<string> resolvedReferences,
         MediaType mediaType)
     {

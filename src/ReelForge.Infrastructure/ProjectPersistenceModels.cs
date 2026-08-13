@@ -229,6 +229,7 @@ internal sealed class GenerationRecordDto
     public DateTimeOffset? CompletedAt { get; set; }
     public List<Guid> OutputAssetIds { get; set; } = [];
     public Dictionary<string, string> ResponseMetadata { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<Guid, MaterializationReceiptDto> ReferenceMaterializations { get; set; } = [];
     public GenerationErrorDto? Error { get; set; }
     public Guid? ParentGenerationId { get; set; }
     public GenerationRelationshipType? RelationshipType { get; set; }
@@ -678,6 +679,9 @@ internal static class ProjectPersistenceMapper
         CompletedAt = source.CompletedAt,
         OutputAssetIds = [.. source.OutputAssetIds],
         ResponseMetadata = Copy(source.ResponseMetadata),
+        ReferenceMaterializations = source.ReferenceMaterializations.ToDictionary(
+            pair => pair.Key,
+            pair => ToDto(pair.Value)!),
         Error = ToDto(source.Error),
         ParentGenerationId = source.ParentGenerationId,
         RelationshipType = source.RelationshipType
@@ -694,6 +698,9 @@ internal static class ProjectPersistenceMapper
         CompletedAt = source.CompletedAt,
         OutputAssetIds = [.. source.OutputAssetIds],
         ResponseMetadata = Copy(source.ResponseMetadata),
+        ReferenceMaterializations = source.ReferenceMaterializations.ToDictionary(
+            pair => pair.Key,
+            pair => FromDto(pair.Value)!),
         Error = FromDto(source.Error),
         ParentGenerationId = source.ParentGenerationId,
         RelationshipType = source.RelationshipType

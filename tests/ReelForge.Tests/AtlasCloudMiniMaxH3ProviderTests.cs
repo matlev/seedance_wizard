@@ -119,6 +119,40 @@ public sealed class AtlasCloudMiniMaxH3ProviderTests
     }
 
     [Fact]
+    public void SavedFrameRolesControlImageToVideoBoundaryFields()
+    {
+        var provider = CreateProvider(new RecordingHandler(HttpStatusCode.OK, "{}"));
+        var startAnchorId = Guid.NewGuid();
+        var endAnchorId = Guid.NewGuid();
+        var request = new GenerationRequest
+        {
+            Prompt = "Move between two exact saved frames.",
+            Mode = GenerationMode.ImageToVideo,
+            DurationSeconds = 8,
+            AspectRatio = "adaptive",
+            Resolution = "768P",
+            PreparedReferences =
+            [
+                new PreparedGenerationReference(
+                    Guid.NewGuid(), GenerationReferenceObjectKind.FrameAnchor, endAnchorId, MediaType.Image,
+                    GenerationReferenceRole.EndFrame, 0, "https://uploads.example/end.png"),
+                new PreparedGenerationReference(
+                    Guid.NewGuid(), GenerationReferenceObjectKind.FrameAnchor, startAnchorId, MediaType.Image,
+                    GenerationReferenceRole.StartFrame, 1, "https://uploads.example/start.png")
+            ]
+        };
+
+        var payload = provider.BuildPayload(request, []);
+
+        Assert.Equal("https://uploads.example/start.png", payload["image"]);
+        Assert.Equal("https://uploads.example/end.png", payload["end_image"]);
+
+        request.PreparedReferences.RemoveAt(1);
+        var error = Assert.Throws<GenerationValidationException>(() => provider.BuildPayload(request, []));
+        Assert.Contains(error.Errors, message => message.Contains("start-frame", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void ReferenceToVideoRejectsAudioOnlyAndNonHttpsReferences()
     {
         var audio = CreateAsset(MediaType.Audio, "beat.wav", "https://assets.example/beat.wav");

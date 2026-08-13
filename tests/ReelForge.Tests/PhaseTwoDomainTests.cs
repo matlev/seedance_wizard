@@ -153,6 +153,20 @@ public sealed class PhaseTwoDomainTests : IDisposable
     }
 
     [Fact]
+    public void ExactAnchorRevisionPreservesValidNegativePresentationTimestamp()
+    {
+        var source = CreatePhysicalAsset();
+        var anchor = new FrameAnchor();
+        var project = new VideoProject { Assets = [source], Anchors = [anchor] };
+
+        var revision = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            source.Id, new string('b', 64), 0, -2, 1, 24));
+
+        Assert.Equal(-2, revision.PresentationTimestamp);
+        Assert.Empty(ProjectInvariantValidator.Validate(project));
+    }
+
+    [Fact]
     public void RepeatedLogicalReferenceIsDistinguishedByStableOccurrenceId()
     {
         var source = CreatePhysicalAsset();

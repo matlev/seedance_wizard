@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -24,6 +25,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ObservableCollection<GenerationRecord> _generations = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
     private readonly ObservableCollection<GenerationJobListItem> _jobs = [];
+    private readonly ObservableCollection<FrameContactListItem> _contactFrames = [];
+    private readonly ObservableCollection<SavedFrameListItem> _savedFrames = [];
     private readonly HashSet<Guid> _viewedTerminalJobIds = [];
     private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
     private readonly SemaphoreSlim _submissionGate = new(1, 1);
@@ -52,6 +55,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly DispatcherTimer _positionTimer;
     private readonly DispatcherTimer _draftAutosaveTimer;
     private readonly DispatcherTimer _jobElapsedTimer;
+    private readonly DispatcherTimer _frameBrowserDebounceTimer;
     private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressDraftAutosave;
     private bool _suppressPromptSynchronization;
@@ -60,6 +64,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private double _volumeBeforeMute = 1;
     private bool _jobsTabWasSelected;
     private bool _dismissingViewedJobs;
+    private CancellationTokenSource? _frameBrowserCancellation;
+    private IReadOnlyList<VideoPresentationFrame> _indexedFrames = [];
+    private Guid? _frameSourceAssetId;
+    private string? _frameSourceContentHash;
     private bool _disposed;
 
     public MainWindow()
@@ -108,6 +116,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         GenerationsList.ItemsSource = _generations;
         ReferenceAssetsGrid.ItemsSource = _referenceChoices;
         JobsList.ItemsSource = _jobs;
+        ContactFramesList.ItemsSource = _contactFrames;
+        SavedFramesList.ItemsSource = _savedFrames;
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _positionTimer.Tick += (_, _) => UpdatePlaybackPosition();
         _positionTimer.Start();
@@ -118,6 +128,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _jobElapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _jobElapsedTimer.Tick += (_, _) => RefreshJobElapsedTimes();
         _jobElapsedTimer.Start();
+
+        _frameBrowserDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _frameBrowserDebounceTimer.Tick += FrameBrowserDebounceTimer_Tick;
 
         MediaToolsText.Text = _mediaTools.Summary;
         Loaded += MainWindow_Loaded;
@@ -137,6 +150,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _jobCoordinator.JobStatusChanged -= JobCoordinator_JobStatusChanged;
         _jobCoordinator.Stop();
         _jobElapsedTimer.Stop();
+        _frameBrowserDebounceTimer.Stop();
+        _frameBrowserCancellation?.Cancel();
+        _frameBrowserCancellation?.Dispose();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Dispose();
         _pendingSubmissionDelays.Clear();
@@ -658,6 +674,21 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void ReferenceChoiceChanged(object sender, RoutedEventArgs e) =>
         Dispatcher.BeginInvoke(ScheduleDraftAutosave, DispatcherPriority.Background);
 
+    private void DuplicateReferenceOccurrence_Click(object sender, RoutedEventArgs e)
+    {
+        if (ReferenceAssetsGrid.SelectedItem is not GenerationReferenceChoice selected)
+        {
+            GenerationStatusText.Text = "Select a reference row to add another occurrence.";
+            return;
+        }
+        var duplicate = selected.Duplicate(_referenceChoices.Count);
+        _referenceChoices.Add(duplicate);
+        ReferenceAssetsGrid.SelectedItem = duplicate;
+        ReferenceAssetsGrid.ScrollIntoView(duplicate);
+        ScheduleDraftAutosave();
+        GenerationStatusText.Text = $"Added another occurrence of {duplicate.DisplayName}.";
+    }
+
     private void ScheduleDraftAutosave()
     {
         if (_suppressDraftAutosave || _workspace is null || _workspace.Project is null || _draftAutosaveTimer is null) return;
@@ -813,6 +844,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         var selectedProjectId = _workspace.Project?.Id;
         GenerationsList.SelectedItem = null;
+        ResetFrameWorkspace();
 
         await RunUiActionAsync(
             $"Inspecting {asset.FileName}…",
@@ -826,6 +858,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     if (_workspace.Project?.Id != selectedProjectId) return;
                     InspectorText.Text = FormatAssetInspector(asset);
                     ShowAssetPreview(asset);
+                    FrameWorkspaceStatusText.Text = "Source media is missing";
                     StatusText.Text = $"{asset.FileName} is missing from its recorded project location.";
                     return;
                 }
@@ -846,6 +879,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 if (_workspace.Project?.Id != selectedProjectId) return;
                 InspectorText.Text = FormatAssetInspector(asset);
                 ShowAssetPreview(asset);
+                await LoadFrameWorkspaceAsync(asset, selectedProjectId);
                 StatusText.Text = $"Selected {asset.FileName}.";
             });
     }
@@ -1414,11 +1448,204 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             !Enum.TryParse<GenerationRelationshipType>(relationshipName, out var relationship))
             return;
 
+        if (relationship is GenerationRelationshipType.ContinueAfter or GenerationRelationshipType.ContinueBefore)
+        {
+            await PrepareGenerationBoundaryContinuationAsync(source, relationship);
+            return;
+        }
+
         var draft = GenerationWorkflow.CreateDerivedDraft(source, relationship);
         LoadDraftIntoUi(draft);
         await _generationWorkflow.SaveDraftAsync(draft);
         GenerationStatusText.Text =
             $"Drafted {relationship} from generation {source.Id}. Review it, then use the submission button.";
+    }
+
+    private async Task PrepareGenerationBoundaryContinuationAsync(
+        GenerationRecord sourceGeneration,
+        GenerationRelationshipType relationship)
+    {
+        if (_workspace.Project is null) return;
+        var outputs = sourceGeneration.OutputAssetIds
+            .Select(id => _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == id))
+            .OfType<ProjectAsset>()
+            .Where(asset => asset.MediaType == MediaType.Video && asset.StorageKind == AssetStorageKind.Physical)
+            .ToArray();
+        if (outputs.Length == 0)
+        {
+            GenerationStatusText.Text = "This generation has no durable video output to continue from.";
+            return;
+        }
+
+        ProjectAsset sourceAsset;
+        if (outputs.Length == 1)
+        {
+            sourceAsset = outputs[0];
+        }
+        else
+        {
+            var selection = new GenerationOutputSelectionDialog(outputs) { Owner = this };
+            if (selection.ShowDialog() != true || selection.SelectedOutput is null) return;
+            sourceAsset = selection.SelectedOutput;
+        }
+
+        await RunUiActionAsync("Finding the exact continuation boundary…", async () =>
+        {
+            var (frames, contentHash) = await IndexSourceFramesAsync(sourceAsset, CancellationToken.None);
+            var frame = relationship == GenerationRelationshipType.ContinueAfter ? frames[^1] : frames[0];
+            await CreateContinuationDraftAsync(sourceAsset, frame, contentHash, relationship, sourceGeneration);
+        });
+    }
+
+    private async void ContinueFromSelectedFrame_Click(object sender, RoutedEventArgs e)
+    {
+        if (_workspace.Project is null ||
+            sender is not Button { Tag: string relationshipName } ||
+            !Enum.TryParse<GenerationRelationshipType>(relationshipName, out var relationship) ||
+            ContactFramesList.SelectedItem is not FrameContactListItem selected ||
+            _frameSourceAssetId is not { } sourceAssetId ||
+            string.IsNullOrWhiteSpace(_frameSourceContentHash))
+        {
+            StatusText.Text = "Select an exact frame before creating a continuation draft.";
+            return;
+        }
+        var sourceAsset = _workspace.Project.Assets.Single(asset => asset.Id == sourceAssetId);
+        var parent = sourceAsset.Provenance?.GenerationId is { } generationId
+            ? _workspace.Project.Generations.SingleOrDefault(generation => generation.Id == generationId)
+            : null;
+        await RunUiActionAsync("Preparing continuation frame…", () => CreateContinuationDraftAsync(
+            sourceAsset,
+            selected.Frame,
+            _frameSourceContentHash!,
+            relationship,
+            parent));
+    }
+
+    private async Task<(IReadOnlyList<VideoPresentationFrame> Frames, string ContentHash)> IndexSourceFramesAsync(
+        ProjectAsset sourceAsset,
+        CancellationToken cancellationToken)
+    {
+        if (_workspace.Project is null || _workspace.Location is null)
+            throw new InvalidOperationException("Open a project first.");
+        await using var source = await new PhysicalAssetMaterializer().MaterializeAsync(
+            _workspace.Project,
+            _workspace.Location,
+            new MaterializationRequest(new AssetMaterializationTarget(sourceAsset.Id), MaterializationPurpose.Preview),
+            cancellationToken);
+        var contentHash = source.ContentIdentity.Sha256
+            ?? throw new InvalidDataException("The continuation source has no verified content identity.");
+        var frames = await _exactFrameService.IndexAsync(source.Path, cancellationToken);
+        await _workspace.SaveAsync(cancellationToken);
+        return (frames, contentHash);
+    }
+
+    private async Task CreateContinuationDraftAsync(
+        ProjectAsset sourceAsset,
+        VideoPresentationFrame frame,
+        string sourceContentHash,
+        GenerationRelationshipType relationship,
+        GenerationRecord? parentGeneration)
+    {
+        if (_workspace.Project is null || _workspace.Location is null) return;
+        var sourcePath = _workspace.GetAbsoluteAssetPath(sourceAsset);
+        var transientRevision = CreateTransientFrameRevision(sourceAsset.Id, sourceContentHash, frame);
+        await using var preview = await _exactFrameService.ExtractAsync(
+            sourcePath,
+            sourceContentHash,
+            transientRevision,
+            MaterializationPurpose.Preview,
+            "continuation-confirmation");
+        var heading = relationship == GenerationRelationshipType.ContinueAfter
+            ? "Continue after this exact frame?"
+            : "Continue before this exact frame?";
+        var confirmation = new FrameConfirmationDialog(
+            LoadBitmap(preview.Path),
+            heading,
+            sourceAsset.EffectiveDisplayName,
+            frame.TimestampSeconds,
+            frame.PresentationTimestamp,
+            frame.TimeBaseNumerator,
+            frame.TimeBaseDenominator)
+        {
+            Owner = this
+        };
+        if (confirmation.ShowDialog() != true) return;
+
+        var anchor = new FrameAnchor
+        {
+            DisplayLabel = relationship == GenerationRelationshipType.ContinueAfter
+                ? $"Final frame of {sourceAsset.EffectiveDisplayName}"
+                : $"First frame of {sourceAsset.EffectiveDisplayName}"
+        };
+        _workspace.Project.Anchors.Add(anchor);
+        var revision = _workspace.Project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            sourceAsset.Id,
+            sourceContentHash,
+            frame.VideoStreamIndex,
+            frame.PresentationTimestamp,
+            frame.TimeBaseNumerator,
+            frame.TimeBaseDenominator,
+            frame.FrameNumber));
+
+        var draft = parentGeneration is null
+            ? CaptureDraftFromUi()
+            : GenerationWorkflow.CreateDerivedDraft(parentGeneration, relationship);
+        if (parentGeneration is null)
+        {
+            draft.ParentGenerationId = null;
+            draft.RelationshipType = null;
+        }
+        draft.References =
+        [
+            new GenerationReferenceDraft
+            {
+                ObjectKind = GenerationReferenceObjectKind.FrameAnchor,
+                LogicalObjectId = anchor.Id,
+                AnchorRevisionId = revision.Id,
+                Role = relationship == GenerationRelationshipType.ContinueAfter
+                    ? GenerationReferenceRole.StartFrame
+                    : GenerationReferenceRole.EndFrame,
+                Order = 0,
+                Label = anchor.DisplayLabel
+            }
+        ];
+        RecommendContinuationMode(draft, relationship);
+        await _workspace.SaveAsync();
+        RefreshProjectCollections();
+        LoadDraftIntoUi(draft);
+        await _generationWorkflow.SaveDraftAsync(draft);
+        if (_frameSourceAssetId == sourceAsset.Id) await RefreshSavedFramesAsync(CancellationToken.None);
+        RightPanelTabs.SelectedIndex = 1;
+        GenerationStatusText.Text = parentGeneration is null
+            ? "Continuation draft created from imported media. No generation parent was invented."
+            : $"Drafted {relationship} from generation {parentGeneration.Id}. Review the exact Saved Frame reference before submitting.";
+    }
+
+    private void RecommendContinuationMode(GenerationDraft draft, GenerationRelationshipType relationship)
+    {
+        var provider = _providerChoices.FirstOrDefault(choice =>
+                           choice.Provider.Capabilities.ProviderId.Equals(draft.ProviderId, StringComparison.Ordinal))
+                       ?.Provider ?? _generationProvider;
+        if (relationship == GenerationRelationshipType.ContinueBefore &&
+            provider.Capabilities.Modes.Contains(GenerationMode.ReferenceToVideo))
+        {
+            draft.Mode = GenerationMode.ReferenceToVideo;
+            return;
+        }
+        if (provider.Capabilities.Modes.Contains(GenerationMode.ImageToVideo))
+        {
+            draft.Mode = GenerationMode.ImageToVideo;
+            if (provider.Capabilities.AspectRatios.Contains("adaptive", StringComparer.OrdinalIgnoreCase))
+                draft.AspectRatio = provider.Capabilities.AspectRatios.First(ratio =>
+                    ratio.Equals("adaptive", StringComparison.OrdinalIgnoreCase));
+            return;
+        }
+        if (provider.Capabilities.Modes.Contains(GenerationMode.ReferenceToVideo))
+        {
+            draft.Mode = GenerationMode.ReferenceToVideo;
+            return;
+        }
+        throw new InvalidOperationException($"{provider.Capabilities.DisplayName} does not support a continuation-compatible image reference mode.");
     }
 
     private async void ClearLineage_Click(object sender, RoutedEventArgs e)
@@ -1443,8 +1670,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 .Select(choice => new GenerationReferenceDraft
                 {
                     ReferenceId = choice.ReferenceId,
-                    ObjectKind = GenerationReferenceObjectKind.Asset,
-                    LogicalObjectId = choice.Asset.Id,
+                    ObjectKind = choice.ObjectKind,
+                    LogicalObjectId = choice.LogicalObjectId,
+                    AnchorRevisionId = choice.AnchorRevisionId,
                     Role = choice.Role,
                     Order = choice.Order,
                     Label = NullIfWhiteSpace(choice.Label),
@@ -1505,16 +1733,44 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             WatermarkCheckBox.IsChecked = ReadDraftBoolean(draft, "watermark", null, false);
             SelectOutputFormat(draft.ProviderParameters.GetValueOrDefault("output_format", "mp4"));
 
+            foreach (var group in draft.References.GroupBy(reference =>
+                         (reference.ObjectKind, reference.LogicalObjectId)))
+            {
+                var matching = _referenceChoices.Where(choice =>
+                    choice.ObjectKind == group.Key.ObjectKind &&
+                    choice.LogicalObjectId == group.Key.LogicalObjectId).ToList();
+                if (matching.Count == 0) continue;
+                while (matching.Count < group.Count())
+                {
+                    var duplicate = matching[0].Duplicate(_referenceChoices.Count);
+                    duplicate.IsSelected = false;
+                    _referenceChoices.Add(duplicate);
+                    matching.Add(duplicate);
+                }
+            }
+
             foreach (var choice in _referenceChoices)
             {
-                var reference = draft.References.FirstOrDefault(item =>
-                    item.ObjectKind == GenerationReferenceObjectKind.Asset && item.LogicalObjectId == choice.Asset.Id);
-                choice.IsSelected = reference is not null;
-                choice.ReferenceId = reference?.ReferenceId ?? choice.ReferenceId;
-                choice.Role = reference?.Role;
-                choice.Order = reference?.Order ?? choice.Order;
-                choice.Label = reference?.Label;
-                choice.Notes = reference?.Notes;
+                choice.IsSelected = false;
+                choice.Role = null;
+                choice.Label = null;
+                choice.Notes = null;
+            }
+            foreach (var reference in draft.References.OrderBy(item => item.Order))
+            {
+                var choice = _referenceChoices.FirstOrDefault(item =>
+                                 item.ReferenceId == reference.ReferenceId) ??
+                             _referenceChoices.FirstOrDefault(item =>
+                                 !item.IsSelected && item.ObjectKind == reference.ObjectKind &&
+                                 item.LogicalObjectId == reference.LogicalObjectId);
+                if (choice is null) continue;
+                choice.IsSelected = true;
+                choice.ReferenceId = reference.ReferenceId;
+                choice.AnchorRevisionId = reference.AnchorRevisionId ?? choice.AnchorRevisionId;
+                choice.Role = reference.Role;
+                choice.Order = reference.Order ?? choice.Order;
+                choice.Label = reference.Label;
+                choice.Notes = reference.Notes;
             }
             ReferenceAssetsGrid.Items.Refresh();
             LineageText.Text = draft.ParentGenerationId is { } parent
@@ -1653,6 +1909,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
         VideoPreview.Play();
         SetPlaybackState(true);
+        ScheduleContactFrameRefresh();
         e.Handled = true;
     }
 
@@ -1737,6 +1994,435 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         TimeText.Text = $"{FormatTime(current)} / {FormatTime(duration)}";
     }
 
+    private async Task LoadFrameWorkspaceAsync(ProjectAsset asset, Guid? selectedProjectId)
+    {
+        if (asset.MediaType != MediaType.Video || asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
+        {
+            FrameWorkspaceStatusText.Text = "Select a physical video";
+            return;
+        }
+
+        var path = _workspace.GetAbsoluteAssetPath(asset);
+        if (!File.Exists(path))
+        {
+            FrameWorkspaceStatusText.Text = "Source media is missing";
+            return;
+        }
+
+        var cancellation = ReplaceFrameBrowserCancellation();
+        _frameSourceAssetId = asset.Id;
+        FrameWorkspaceStatusText.Text = "Indexing decoded frames…";
+        ContactFramesEmptyText.Text = "Reading exact presentation frames…";
+        try
+        {
+            await using var verifiedSource = await new PhysicalAssetMaterializer().MaterializeAsync(
+                _workspace.Project!,
+                _workspace.Location!,
+                new MaterializationRequest(new AssetMaterializationTarget(asset.Id), MaterializationPurpose.Preview),
+                cancellation.Token);
+            if (_workspace.Project?.Id != selectedProjectId || _frameSourceAssetId != asset.Id) return;
+            _frameSourceContentHash = verifiedSource.ContentIdentity.Sha256
+                ?? throw new InvalidDataException("The selected video does not have a verified SHA-256 identity.");
+            _indexedFrames = await _exactFrameService.IndexAsync(path, cancellation.Token);
+            if (_workspace.Project?.Id != selectedProjectId || _frameSourceAssetId != asset.Id) return;
+            await _workspace.SaveAsync(cancellation.Token);
+
+            FrameWorkspaceStatusText.Text = $"{_indexedFrames.Count:N0} decoded frames";
+            ContactFramesEmptyText.Visibility = Visibility.Collapsed;
+            await RefreshContactFramesAsync(VideoPreview.Position.TotalSeconds, cancellation.Token);
+            await RefreshSavedFramesAsync(cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (_frameSourceAssetId != asset.Id) return;
+            FrameWorkspaceStatusText.Text = "Frame browser unavailable";
+            ContactFramesEmptyText.Text = exception.Message;
+            ContactFramesEmptyText.Visibility = Visibility.Visible;
+            StatusText.Text = $"Precision frame browsing is unavailable: {exception.Message}";
+        }
+    }
+
+    private CancellationTokenSource ReplaceFrameBrowserCancellation()
+    {
+        _frameBrowserCancellation?.Cancel();
+        _frameBrowserCancellation?.Dispose();
+        _frameBrowserCancellation = new CancellationTokenSource();
+        return _frameBrowserCancellation;
+    }
+
+    private void ResetFrameWorkspace()
+    {
+        _frameBrowserDebounceTimer?.Stop();
+        _frameBrowserCancellation?.Cancel();
+        _frameBrowserCancellation?.Dispose();
+        _frameBrowserCancellation = null;
+        _indexedFrames = [];
+        _frameSourceAssetId = null;
+        _frameSourceContentHash = null;
+        _contactFrames.Clear();
+        _savedFrames.Clear();
+        if (ContactFramesEmptyText is null) return;
+        ContactFramesEmptyText.Text = "Select a video to browse exact decoded frames.";
+        ContactFramesEmptyText.Visibility = Visibility.Visible;
+        SavedFramesEmptyText.Visibility = Visibility.Visible;
+        FrameWorkspaceStatusText.Text = "Select a physical video";
+        ClearSavedFrameEditor();
+    }
+
+    private void ScheduleContactFrameRefresh()
+    {
+        if (_indexedFrames.Count == 0 || _frameSourceAssetId is null) return;
+        _frameBrowserDebounceTimer.Stop();
+        _frameBrowserDebounceTimer.Start();
+    }
+
+    private async void FrameBrowserDebounceTimer_Tick(object? sender, EventArgs e)
+    {
+        _frameBrowserDebounceTimer.Stop();
+        if (_indexedFrames.Count == 0 || _frameSourceAssetId is null) return;
+        var cancellation = ReplaceFrameBrowserCancellation();
+        try
+        {
+            await RefreshContactFramesAsync(VideoPreview.Position.TotalSeconds, cancellation.Token);
+            await RefreshSavedFramesAsync(cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"Could not refresh precision frames: {exception.Message}";
+        }
+    }
+
+    private async Task RefreshContactFramesAsync(double centerSeconds, CancellationToken cancellationToken)
+    {
+        if (_workspace.Project is null || _workspace.Location is null ||
+            _frameSourceAssetId is not { } sourceAssetId ||
+            string.IsNullOrWhiteSpace(_frameSourceContentHash) || _indexedFrames.Count == 0) return;
+        var source = _workspace.Project.Assets.Single(asset => asset.Id == sourceAssetId);
+        var path = _workspace.GetAbsoluteAssetPath(source);
+        var selectedFrames = SelectContactFrames(centerSeconds);
+        if (selectedFrames.Count == 0) return;
+
+        _contactFrames.Clear();
+        ContactFramesEmptyText.Visibility = Visibility.Collapsed;
+        var center = selectedFrames.MinBy(frame => Math.Abs(frame.TimestampSeconds - centerSeconds))!;
+        var centerItem = await CreateContactItemAsync(path, sourceAssetId, center, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        _contactFrames.Add(centerItem);
+        ContactFramesList.SelectedItem = centerItem;
+
+        var remaining = selectedFrames.Where(frame => frame != center)
+            .Select(frame => CreateContactItemAsync(path, sourceAssetId, frame, cancellationToken))
+            .ToArray();
+        var neighbors = await Task.WhenAll(remaining);
+        cancellationToken.ThrowIfCancellationRequested();
+        var all = neighbors.Append(centerItem).OrderBy(item => item.Frame.PresentationTimestamp).ToArray();
+        _contactFrames.Clear();
+        foreach (var item in all) _contactFrames.Add(item);
+        ContactFramesList.SelectedItem = _contactFrames.First(item => item.Frame == center);
+        ContactFramesList.ScrollIntoView(ContactFramesList.SelectedItem);
+    }
+
+    private IReadOnlyList<VideoPresentationFrame> SelectContactFrames(double centerSeconds)
+    {
+        if (_indexedFrames.Count == 0) return [];
+        var selected = new Dictionary<long, VideoPresentationFrame>();
+        var spacing = GetFrameSpacing();
+        var center = _indexedFrames.MinBy(frame => Math.Abs(frame.TimestampSeconds - centerSeconds))!;
+        if (spacing.FrameCount is { } frameCount)
+        {
+            var centerIndex = _indexedFrames.ToList().IndexOf(center);
+            for (var offset = -4; offset <= 4; offset++)
+            {
+                var index = Math.Clamp(centerIndex + offset * frameCount, 0, _indexedFrames.Count - 1);
+                var frame = _indexedFrames[index];
+                selected[frame.PresentationTimestamp] = frame;
+            }
+        }
+        else
+        {
+            for (var offset = -4; offset <= 4; offset++)
+            {
+                var target = Math.Max(0, center.TimestampSeconds + offset * spacing.Seconds);
+                var frame = _indexedFrames.MinBy(candidate => Math.Abs(candidate.TimestampSeconds - target))!;
+                selected[frame.PresentationTimestamp] = frame;
+            }
+        }
+
+        return selected.Values.OrderBy(frame => frame.PresentationTimestamp).ToArray();
+    }
+
+    private (int? FrameCount, double Seconds) GetFrameSpacing()
+    {
+        var tag = (FrameSpacingComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "seconds:0.25";
+        var parts = tag.Split(':', 2);
+        if (parts[0] == "frames" && int.TryParse(parts[1], CultureInfo.InvariantCulture, out var frames))
+            return (Math.Max(1, frames), 0);
+        return (null, double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
+            ? Math.Max(0.01, seconds)
+            : 0.25);
+    }
+
+    private async Task<FrameContactListItem> CreateContactItemAsync(
+        string sourcePath,
+        Guid sourceAssetId,
+        VideoPresentationFrame frame,
+        CancellationToken cancellationToken)
+    {
+        var revision = CreateTransientFrameRevision(sourceAssetId, _frameSourceContentHash!, frame);
+        await using var lease = await _exactFrameService.ExtractAsync(
+            sourcePath,
+            _frameSourceContentHash!,
+            revision,
+            MaterializationPurpose.Thumbnail,
+            "contact-strip",
+            cancellationToken);
+        return new FrameContactListItem(frame, LoadBitmap(lease.Path));
+    }
+
+    private static FrameAnchorRevision CreateTransientFrameRevision(
+        Guid sourceAssetId,
+        string sourceContentHash,
+        VideoPresentationFrame frame)
+    {
+        var identityBytes = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('|',
+            sourceContentHash,
+            frame.VideoStreamIndex,
+            frame.PresentationTimestamp,
+            frame.TimeBaseNumerator,
+            frame.TimeBaseDenominator)));
+        return new FrameAnchorRevision
+        {
+            Id = new Guid(identityBytes.AsSpan(0, 16)),
+            AnchorId = Guid.Empty,
+            RevisionNumber = 0,
+            SourceAssetId = sourceAssetId,
+            SourceContentHash = sourceContentHash,
+            VideoStreamIndex = frame.VideoStreamIndex,
+            PresentationTimestamp = frame.PresentationTimestamp,
+            TimeBaseNumerator = frame.TimeBaseNumerator,
+            TimeBaseDenominator = frame.TimeBaseDenominator,
+            FrameNumber = frame.FrameNumber
+        };
+    }
+
+    private async Task RefreshSavedFramesAsync(CancellationToken cancellationToken)
+    {
+        if (_workspace.Project is null || _workspace.Location is null ||
+            _frameSourceAssetId is not { } sourceAssetId || string.IsNullOrWhiteSpace(_frameSourceContentHash)) return;
+        var project = _workspace.Project;
+        var source = project.Assets.Single(asset => asset.Id == sourceAssetId);
+        var sourcePath = _workspace.GetAbsoluteAssetPath(source);
+        var selectedAnchorId = (SavedFramesList.SelectedItem as SavedFrameListItem)?.Anchor.Id;
+        var results = new List<SavedFrameListItem>();
+        foreach (var anchor in project.Anchors.Where(anchor => !anchor.IsArchived))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (anchor.CurrentRevisionId is not { } revisionId) continue;
+            var revision = project.AnchorRevisions.SingleOrDefault(candidate => candidate.Id == revisionId);
+            if (revision is null || revision.SourceAssetId != sourceAssetId) continue;
+            BitmapSource? thumbnail = null;
+            string? error = null;
+            try
+            {
+                await using var lease = await _exactFrameService.ExtractAsync(
+                    sourcePath,
+                    _frameSourceContentHash!,
+                    revision,
+                    MaterializationPurpose.Thumbnail,
+                    "saved-frame",
+                    cancellationToken);
+                thumbnail = LoadBitmap(lease.Path);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                error = exception.Message;
+            }
+            results.Add(new SavedFrameListItem(anchor, revision, thumbnail, error));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        _savedFrames.Clear();
+        foreach (var item in results.OrderBy(item => item.Revision.PresentationTimestamp)) _savedFrames.Add(item);
+        SavedFramesEmptyText.Visibility = _savedFrames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        SavedFramesList.SelectedItem = selectedAnchorId is { } id
+            ? _savedFrames.FirstOrDefault(item => item.Anchor.Id == id)
+            : null;
+    }
+
+    private static BitmapSource LoadBitmap(string path)
+    {
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.UriSource = new Uri(path, UriKind.Absolute);
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private void FrameSpacing_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || _indexedFrames.Count == 0) return;
+        ScheduleContactFrameRefresh();
+    }
+
+    private void ContactFramesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ContactFramesList.SelectedItem is not FrameContactListItem item || VideoPreview.Source is null) return;
+        SeekPreview(item.Frame.TimestampSeconds);
+    }
+
+    private void SelectFirstFrame_Click(object sender, RoutedEventArgs e) => SelectBoundaryFrame(first: true);
+
+    private void SelectLastFrame_Click(object sender, RoutedEventArgs e) => SelectBoundaryFrame(first: false);
+
+    private void SelectBoundaryFrame(bool first)
+    {
+        if (_indexedFrames.Count == 0)
+        {
+            StatusText.Text = "Select a physical video and wait for exact frame indexing first.";
+            return;
+        }
+        var frame = first ? _indexedFrames[0] : _indexedFrames[^1];
+        SeekPreview(frame.TimestampSeconds);
+        ScheduleContactFrameRefresh();
+        StatusText.Text = first ? "Selected the first decoded presentation frame." : "Selected the final decodable presentation frame.";
+    }
+
+    private async void SaveSelectedFrame_Click(object sender, RoutedEventArgs e)
+    {
+        if (_workspace.Project is null || ContactFramesList.SelectedItem is not FrameContactListItem selected ||
+            _frameSourceAssetId is not { } sourceAssetId || string.IsNullOrWhiteSpace(_frameSourceContentHash))
+        {
+            StatusText.Text = "Select a frame in the precision strip before saving it.";
+            return;
+        }
+
+        await RunUiActionAsync("Saving exact frame position…", async () =>
+        {
+            var anchor = new FrameAnchor
+            {
+                DisplayLabel = $"Saved frame {FormatFrameTimestamp(selected.Frame.TimestampSeconds)}"
+            };
+            _workspace.Project.Anchors.Add(anchor);
+            var revision = _workspace.Project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+                sourceAssetId,
+                _frameSourceContentHash!,
+                selected.Frame.VideoStreamIndex,
+                selected.Frame.PresentationTimestamp,
+                selected.Frame.TimeBaseNumerator,
+                selected.Frame.TimeBaseDenominator,
+                selected.Frame.FrameNumber));
+            await _workspace.SaveAsync();
+            RefreshProjectCollections();
+            await RefreshSavedFramesAsync(CancellationToken.None);
+            SavedFramesList.SelectedItem = _savedFrames.FirstOrDefault(item => item.Revision.Id == revision.Id);
+            StatusText.Text = $"Saved exact frame at {FormatFrameTimestamp(revision.TimestampSeconds)}.";
+        });
+    }
+
+    private void SavedFramesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SavedFramesList.SelectedItem is not SavedFrameListItem item)
+        {
+            ClearSavedFrameEditor();
+            return;
+        }
+        SavedFrameLabelTextBox.IsEnabled = true;
+        SavedFrameNotesTextBox.IsEnabled = true;
+        UpdateSavedFrameButton.IsEnabled = true;
+        JumpToSavedFrameButton.IsEnabled = true;
+        RemoveSavedFrameButton.IsEnabled = true;
+        SavedFrameLabelTextBox.Text = item.Anchor.DisplayLabel ?? string.Empty;
+        SavedFrameNotesTextBox.Text = item.Anchor.Notes ?? string.Empty;
+        InspectorText.Text = FormatSavedFrameInspector(item);
+    }
+
+    private void ClearSavedFrameEditor()
+    {
+        if (SavedFrameLabelTextBox is null) return;
+        SavedFrameLabelTextBox.Text = string.Empty;
+        SavedFrameNotesTextBox.Text = string.Empty;
+        SavedFrameLabelTextBox.IsEnabled = false;
+        SavedFrameNotesTextBox.IsEnabled = false;
+        UpdateSavedFrameButton.IsEnabled = false;
+        JumpToSavedFrameButton.IsEnabled = false;
+        RemoveSavedFrameButton.IsEnabled = false;
+    }
+
+    private async void UpdateSavedFrame_Click(object sender, RoutedEventArgs e)
+    {
+        if (_workspace.Project is null || SavedFramesList.SelectedItem is not SavedFrameListItem item) return;
+        item.Anchor.DisplayLabel = NullIfWhiteSpace(SavedFrameLabelTextBox.Text)
+            ?? $"Saved frame {FormatFrameTimestamp(item.Revision.TimestampSeconds)}";
+        item.Anchor.Notes = NullIfWhiteSpace(SavedFrameNotesTextBox.Text);
+        _workspace.Project.Touch();
+        await _workspace.SaveAsync();
+        SavedFramesList.Items.Refresh();
+        var sourceName = _workspace.Project.Assets
+            .SingleOrDefault(asset => asset.Id == item.Revision.SourceAssetId)?.EffectiveDisplayName;
+        foreach (var choice in _referenceChoices.Where(choice =>
+                     choice.ObjectKind == GenerationReferenceObjectKind.FrameAnchor &&
+                     choice.LogicalObjectId == item.Anchor.Id))
+            choice.UpdateAnchor(item.Anchor, item.Revision, sourceName);
+        ReferenceAssetsGrid.Items.Refresh();
+        InspectorText.Text = FormatSavedFrameInspector(item);
+        StatusText.Text = "Saved Frame details updated.";
+    }
+
+    private void JumpToSavedFrame_Click(object sender, RoutedEventArgs e)
+    {
+        if (SavedFramesList.SelectedItem is not SavedFrameListItem item) return;
+        SeekPreview(item.Revision.TimestampSeconds);
+        ScheduleContactFrameRefresh();
+        StatusText.Text = $"Jumped to {FormatFrameTimestamp(item.Revision.TimestampSeconds)}.";
+    }
+
+    private async void RemoveSavedFrame_Click(object sender, RoutedEventArgs e)
+    {
+        if (_workspace.Project is null || SavedFramesList.SelectedItem is not SavedFrameListItem item) return;
+        var result = MessageBox.Show(
+            this,
+            $"Remove Saved Frame '{item.DisplayLabel}'? Referenced frames are archived so existing history remains exact.",
+            "Remove Saved Frame",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question,
+            MessageBoxResult.No);
+        if (result != MessageBoxResult.Yes) return;
+        var disposition = _workspace.Project.RemoveOrArchiveAnchor(item.Anchor.Id);
+        await _workspace.SaveAsync();
+        RefreshProjectCollections();
+        await RefreshSavedFramesAsync(CancellationToken.None);
+        StatusText.Text = disposition == AnchorRemovalDisposition.Archived
+            ? "The referenced Saved Frame was archived; existing history still resolves it."
+            : "Saved Frame removed.";
+    }
+
+    private static string FormatSavedFrameInspector(SavedFrameListItem item)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine(item.DisplayLabel);
+        builder.AppendLine($"Saved Frame: {item.Anchor.Id}");
+        builder.AppendLine($"Revision: {item.Revision.RevisionNumber} ({item.Revision.Id})");
+        builder.AppendLine($"Position: {FormatFrameTimestamp(item.Revision.TimestampSeconds)}");
+        builder.AppendLine($"Stream: {item.Revision.VideoStreamIndex}");
+        builder.AppendLine($"Presentation timestamp: {item.Revision.PresentationTimestamp}");
+        builder.AppendLine($"Time base: {item.Revision.TimeBaseNumerator}/{item.Revision.TimeBaseDenominator}");
+        builder.AppendLine($"Source SHA-256: {item.Revision.SourceContentHash}");
+        if (!string.IsNullOrWhiteSpace(item.Anchor.Notes)) builder.AppendLine($"Notes: {item.Anchor.Notes}");
+        if (!string.IsNullOrWhiteSpace(item.Error)) builder.AppendLine($"Preview unavailable: {item.Error}");
+        return builder.ToString();
+    }
+
+    private static string FormatFrameTimestamp(double seconds) =>
+        TimeSpan.FromSeconds(Math.Max(0, seconds)).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
+
     private void RefreshProjectUi()
     {
         if (_workspace.Project is null)
@@ -1762,6 +2448,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         AssetsList.SelectedItem = null;
         GenerationsList.SelectedItem = null;
         _referenceChoices.Clear();
+        ResetFrameWorkspace();
 
         InspectorText.Text = "Select an asset or generation to inspect its details and history.";
         PromptTextBox.Text = string.Empty;
@@ -1773,7 +2460,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void RefreshProjectCollections(Guid? selectedAssetId = null)
     {
         if (_workspace.Project is null) return;
-        var existingChoices = _referenceChoices.ToDictionary(choice => choice.Asset.Id);
+        var existingChoices = _referenceChoices.ToList();
         _assets.Clear();
         _generations.Clear();
         _referenceChoices.Clear();
@@ -1781,14 +2468,45 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         foreach (var asset in _workspace.Project.Assets)
         {
             _assets.Add(new ProjectAssetListItem(asset, _workspace.Project.MainVideoAssetId == asset.Id));
-            if (existingChoices.TryGetValue(asset.Id, out var existing))
+            var matching = existingChoices.Where(choice =>
+                choice.ObjectKind == GenerationReferenceObjectKind.Asset && choice.LogicalObjectId == asset.Id).ToArray();
+            if (matching.Length > 0)
             {
-                existing.Asset = asset;
-                _referenceChoices.Add(existing);
+                foreach (var existing in matching)
+                {
+                    existing.UpdateAsset(asset);
+                    _referenceChoices.Add(existing);
+                }
             }
             else
             {
                 _referenceChoices.Add(new GenerationReferenceChoice(asset, _referenceChoices.Count));
+            }
+        }
+
+        foreach (var anchor in _workspace.Project.Anchors.Where(anchor => !anchor.IsArchived))
+        {
+            if (anchor.CurrentRevisionId is not { } revisionId) continue;
+            var revision = _workspace.Project.AnchorRevisions.SingleOrDefault(candidate => candidate.Id == revisionId);
+            if (revision is null) continue;
+            var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == revision.SourceAssetId);
+            var matching = existingChoices.Where(choice =>
+                choice.ObjectKind == GenerationReferenceObjectKind.FrameAnchor && choice.LogicalObjectId == anchor.Id).ToArray();
+            if (matching.Length > 0)
+            {
+                foreach (var existing in matching)
+                {
+                    existing.UpdateAnchor(anchor, revision, source?.EffectiveDisplayName);
+                    _referenceChoices.Add(existing);
+                }
+            }
+            else
+            {
+                _referenceChoices.Add(new GenerationReferenceChoice(
+                    anchor,
+                    revision,
+                    source?.EffectiveDisplayName,
+                    _referenceChoices.Count));
             }
         }
 
@@ -1965,6 +2683,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             builder.AppendLine(
                 $"  [{reference.Order}] {reference.ObjectKind} {reference.LogicalObjectId} • {reference.Role?.ToString() ?? "general"}" +
                 (string.IsNullOrWhiteSpace(reference.Label) ? string.Empty : $" • {reference.Label}"));
+            if (generation.ReferenceMaterializations.TryGetValue(reference.ReferenceId, out var receipt))
+            {
+                builder.AppendLine($"      prepared bytes: {receipt.ProducedContentHash ?? "—"}");
+                builder.AppendLine($"      preparation: {receipt.ProviderScope ?? "local"}");
+            }
         }
 
         foreach (var pair in generation.ResponseMetadata)
@@ -2017,6 +2740,43 @@ public sealed class GenerationProviderChoice
     public string DisplayName => Provider.Capabilities.DisplayName;
 }
 
+public sealed class FrameContactListItem
+{
+    public FrameContactListItem(VideoPresentationFrame frame, BitmapSource thumbnail)
+    {
+        Frame = frame;
+        Thumbnail = thumbnail;
+    }
+
+    public VideoPresentationFrame Frame { get; }
+    public BitmapSource Thumbnail { get; }
+    public string TimestampText => TimeSpan.FromSeconds(Math.Max(0, Frame.TimestampSeconds))
+        .ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
+}
+
+public sealed class SavedFrameListItem
+{
+    public SavedFrameListItem(
+        FrameAnchor anchor,
+        FrameAnchorRevision revision,
+        BitmapSource? thumbnail,
+        string? error)
+    {
+        Anchor = anchor;
+        Revision = revision;
+        Thumbnail = thumbnail;
+        Error = error;
+    }
+
+    public FrameAnchor Anchor { get; }
+    public FrameAnchorRevision Revision { get; }
+    public BitmapSource? Thumbnail { get; }
+    public string? Error { get; }
+    public string DisplayLabel => Anchor.DisplayLabel ?? "Saved Frame";
+    public string TimestampText => TimeSpan.FromSeconds(Math.Max(0, Revision.TimestampSeconds))
+        .ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
+}
+
 public sealed class ProjectAssetListItem
 {
     public ProjectAssetListItem(ProjectAsset asset, bool isMainVideo)
@@ -2045,18 +2805,57 @@ public sealed class GenerationReferenceChoice
 
     public GenerationReferenceChoice(ProjectAsset asset, int order)
     {
-        Asset = asset;
+        UpdateAsset(asset);
+        Order = order;
+    }
+
+    public GenerationReferenceChoice(
+        FrameAnchor anchor,
+        FrameAnchorRevision revision,
+        string? sourceDisplayName,
+        int order)
+    {
+        UpdateAnchor(anchor, revision, sourceDisplayName);
         Order = order;
     }
 
     public Guid ReferenceId { get; set; } = Guid.NewGuid();
-    public ProjectAsset Asset { get; set; }
+    public GenerationReferenceObjectKind ObjectKind { get; private set; }
+    public Guid LogicalObjectId { get; private set; }
+    public Guid? AnchorRevisionId { get; set; }
+    public string DisplayName { get; private set; } = string.Empty;
     public IReadOnlyList<GenerationReferenceRole?> AvailableRoles => _availableRoles;
     public bool IsSelected { get; set; }
     public GenerationReferenceRole? Role { get; set; }
     public int Order { get; set; }
     public string? Label { get; set; }
     public string? Notes { get; set; }
+
+    public void UpdateAsset(ProjectAsset asset)
+    {
+        ObjectKind = GenerationReferenceObjectKind.Asset;
+        LogicalObjectId = asset.Id;
+        AnchorRevisionId = null;
+        DisplayName = asset.EffectiveDisplayName;
+    }
+
+    public void UpdateAnchor(FrameAnchor anchor, FrameAnchorRevision revision, string? sourceDisplayName)
+    {
+        ObjectKind = GenerationReferenceObjectKind.FrameAnchor;
+        LogicalObjectId = anchor.Id;
+        AnchorRevisionId = revision.Id;
+        DisplayName = $"Saved Frame • {anchor.DisplayLabel ?? "Untitled"}" +
+                      (string.IsNullOrWhiteSpace(sourceDisplayName) ? string.Empty : $" ({sourceDisplayName})");
+    }
+
+    public GenerationReferenceChoice Duplicate(int order)
+    {
+        var duplicate = (GenerationReferenceChoice)MemberwiseClone();
+        duplicate.ReferenceId = Guid.NewGuid();
+        duplicate.Order = order;
+        duplicate.IsSelected = true;
+        return duplicate;
+    }
 }
 
 public sealed class GenerationJobListItem : INotifyPropertyChanged

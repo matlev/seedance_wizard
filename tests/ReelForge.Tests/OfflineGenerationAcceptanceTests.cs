@@ -77,6 +77,85 @@ public sealed class OfflineGenerationAcceptanceTests : IDisposable
     }
 
     [Fact]
+    public async Task SavedFrameReferenceIsExtractedPreparedAndFrozenWithoutNetwork()
+    {
+        Directory.CreateDirectory(_temporaryRoot);
+        var inspector = new FixtureMediaInspector();
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new AssetImportService(inspector));
+        await workspace.CreateAsync(_temporaryRoot, "Saved Frame fixture project");
+        var source = Assert.Single(await workspace.ImportAssetsAsync([FixturePath]));
+        var anchor = new FrameAnchor { DisplayLabel = "Final pose" };
+        workspace.Project!.Anchors.Add(anchor);
+        var revision = workspace.Project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            source.Id,
+            source.Physical!.ContentIdentity.Sha256!,
+            0,
+            243,
+            1,
+            24,
+            243));
+        await workspace.SaveAsync();
+        var provider = ScriptedFixtureProvider.ForSuccessfulSubmission();
+        var preparation = new RecordingReferencePreparation();
+        var ingestion = new HttpGeneratedOutputIngestionService(
+            new HttpClient(new FixtureOutputHandler(FixturePath)),
+            inspector);
+        var workflow = new GenerationWorkflow(
+            workspace,
+            new PhysicalAssetMaterializer(exactFrameService: new FixtureExactFrameService()),
+            ingestion,
+            preparation);
+        var draft = new GenerationDraft
+        {
+            ProviderId = provider.Capabilities.ProviderId,
+            ModelVersion = provider.Capabilities.ModelVersion,
+            Prompt = "Continue from this exact final pose",
+            Mode = GenerationMode.ReferenceToVideo,
+            DurationSeconds = 10,
+            AspectRatio = "16:9",
+            Resolution = "768P",
+            References =
+            [
+                new GenerationReferenceDraft
+                {
+                    ObjectKind = GenerationReferenceObjectKind.FrameAnchor,
+                    LogicalObjectId = anchor.Id,
+                    AnchorRevisionId = revision.Id,
+                    Role = GenerationReferenceRole.StartFrame,
+                    Order = 0,
+                    Label = "Continuation frame"
+                }
+            ]
+        };
+
+        var generation = await workflow.RunAsync(
+            provider,
+            draft,
+            TestAuthorization(provider),
+            new GenerationWorkflowOptions { PollInterval = TimeSpan.Zero, PollTimeout = TimeSpan.FromSeconds(5) });
+
+        var submittedReference = Assert.Single(provider.SubmittedRequest!.PreparedReferences);
+        Assert.Equal(GenerationReferenceObjectKind.FrameAnchor, submittedReference.LogicalObjectKind);
+        Assert.Equal(MediaType.Image, submittedReference.MediaType);
+        Assert.Equal(GenerationReferenceRole.StartFrame, submittedReference.Role);
+        var frozen = Assert.Single(generation.RequestSnapshot.References);
+        Assert.Equal(revision.Id, frozen.Anchor?.AnchorRevisionId);
+        Assert.Equal(243, frozen.Anchor?.PresentationTimestamp);
+        Assert.Equal(FixtureSha256, frozen.Anchor?.SourceContentHash, ignoreCase: true);
+        Assert.Equal(GenerationReferenceObjectKind.FrameAnchor, preparation.LogicalReference?.ObjectKind);
+        var receipt = generation.ReferenceMaterializations[frozen.ReferenceId];
+        Assert.Equal(revision.Id.ToString("N"), receipt.PlanHash);
+        Assert.Equal(FixtureSha256, receipt.SourceContentHash, ignoreCase: true);
+        Assert.Equal(FixtureSha256, receipt.ProducedContentHash, ignoreCase: true);
+        Assert.Equal("offline-reference", receipt.ProviderReferenceId);
+
+        var (reopened, _) = await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath);
+        Assert.Equal(
+            receipt.ProducedContentHash,
+            Assert.Single(reopened.Generations).ReferenceMaterializations[frozen.ReferenceId].ProducedContentHash);
+    }
+
+    [Fact]
     public async Task RetryCreatesDistinctHistoryAndDoesNotOverwriteFailure()
     {
         var context = await CreateReferenceWorkflowAsync();
@@ -410,6 +489,30 @@ public sealed class OfflineGenerationAcceptanceTests : IDisposable
                     ProviderReferenceId = "offline-reference",
                     ProviderScope = "mock-upload"
                 }));
+        }
+    }
+
+    private sealed class FixtureExactFrameService : IExactVideoFrameService
+    {
+        public Task<IReadOnlyList<VideoPresentationFrame>> IndexAsync(
+            string mediaPath,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<VideoPresentationFrame>>([]);
+
+        public Task<MaterializedMediaLease> ExtractAsync(
+            string mediaPath,
+            string sourceContentHash,
+            FrameAnchorRevision revision,
+            MaterializationPurpose purpose,
+            string? profile = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new MaterializedMediaLease(
+                FixturePath,
+                new ContentIdentity { Sha256 = FixtureSha256, Status = ContentHashStatus.Verified },
+                new MediaEncodingMetadata { ContainerFormat = "png" },
+                isDurableSource: false));
         }
     }
 
