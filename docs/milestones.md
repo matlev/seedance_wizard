@@ -165,6 +165,8 @@ In progress: typed asset/anchor materialization targets and occurrence-keyed pre
 
 #### Phase 2C.3 — exact frame indexing and extraction
 
+Delivered engine slice: exact decoded presentation-frame indexing and PTS-selected PNG extraction are implemented for physical video sources. Cache identity includes source content, immutable anchor revision, exact stream/timing coordinates, purpose/profile, extraction algorithm, and the detected FFmpeg version. Duplicate extraction is coalesced, cache commits are atomic, cancellation artifacts are removed, and deleted derivatives reconstruct without changing anchor state. The Phase 2C.4 UI is the first user-facing consumer.
+
 1. Add cancellable FFmpeg/ffprobe-backed exact-frame discovery and extraction for physical video sources.
 2. Define First Frame and Last Frame using decoded presentation frames; Last Frame is the final decodable presentation frame rather than `duration - epsilon`.
 3. Use deterministic cache keys based on source content, stream/PTS/time base, anchor revision, purpose/profile, and renderer fingerprint.

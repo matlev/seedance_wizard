@@ -223,6 +223,29 @@ public static class FfmpegCommandBuilder
         ];
     }
 
+    public static IReadOnlyList<string> BuildExtractExactFrameArguments(
+        string inputPath,
+        string outputPath,
+        int videoStreamIndex,
+        long presentationTimestamp)
+    {
+        ValidateMediaPath(inputPath, nameof(inputPath));
+        ValidateMediaPath(outputPath, nameof(outputPath));
+        ArgumentOutOfRangeException.ThrowIfNegative(videoStreamIndex);
+
+        return
+        [
+            "-hide_banner", "-y",
+            "-i", inputPath,
+            "-map", $"0:{videoStreamIndex}",
+            "-vf", $"select=eq(pts\\,{presentationTimestamp.ToString(CultureInfo.InvariantCulture)})",
+            "-frames:v", "1",
+            "-fps_mode", "vfr",
+            "-update", "1",
+            outputPath
+        ];
+    }
+
     private static string FormatSeconds(double seconds) =>
         seconds.ToString("0.###", CultureInfo.InvariantCulture);
 

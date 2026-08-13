@@ -45,14 +45,14 @@ public sealed class MaterializationTargetTests : IDisposable
             var revision = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
                 asset.Id, source.ContentIdentity.Sha256!, 0, 30, 1, 30, 30));
 
-            var exception = await Assert.ThrowsAsync<NotSupportedException>(() => materializer.MaterializeAsync(
+            var exception = await Assert.ThrowsAsync<MediaToolUnavailableException>(() => materializer.MaterializeAsync(
                 project,
                 location,
                 new MaterializationRequest(
                     new AnchorMaterializationTarget(anchor.Id, revision.Id),
                     MaterializationPurpose.FrameExtraction)));
 
-            Assert.Contains("source was verified", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("FFmpeg", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
     }
 

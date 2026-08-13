@@ -471,6 +471,8 @@ Role is optional where appropriate. A separate optional user-facing label/notes 
 
 The materialization receipt is useful for audit, retry optimization, and diagnosing exactly what bytes were sent. It supplements the logical reference and must remain meaningful when its local file is gone. Secrets, signed URLs, and other expiring credentials must not be persisted as unrestricted diagnostics.
 
+Exact Saved Frame realization uses ffprobe to enumerate decoded presentation timestamps from the selected video stream and FFmpeg's `select=eq(pts,...)` filter to extract the pinned presentation frame. The current cache key includes the verified source SHA-256, immutable anchor revision, stream/PTS/time-base tuple, materialization purpose/profile, extraction-algorithm version, and detected FFmpeg version. Cache files are disposable PNG derivatives written through unique temporary files and atomically committed; deleting them never changes project state and the same anchor revision can reconstruct them.
+
 ### Snapshot immutability
 
 The current `GenerationRecord.Request` stores the supplied mutable `GenerationRequest` object directly. The proposed submission use case should instead deep-copy or construct a snapshot at the submission boundary before materialization or network work begins. Failed and cancelled submissions retain that snapshot and their own error/job state.

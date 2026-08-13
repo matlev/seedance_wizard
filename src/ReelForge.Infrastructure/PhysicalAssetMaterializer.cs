@@ -6,10 +6,14 @@ namespace ReelForge.Infrastructure;
 public sealed class PhysicalAssetMaterializer : IMediaMaterializer
 {
     private readonly IContentHashService _contentHashService;
+    private readonly IExactVideoFrameService? _exactFrameService;
 
-    public PhysicalAssetMaterializer(IContentHashService? contentHashService = null)
+    public PhysicalAssetMaterializer(
+        IContentHashService? contentHashService = null,
+        IExactVideoFrameService? exactFrameService = null)
     {
         _contentHashService = contentHashService ?? new Sha256ContentHashService();
+        _exactFrameService = exactFrameService;
     }
 
     public async Task<MaterializedMediaLease> MaterializeAsync(
@@ -26,7 +30,7 @@ public sealed class PhysicalAssetMaterializer : IMediaMaterializer
             AssetMaterializationTarget assetTarget => await MaterializeAssetAsync(
                 project, location, assetTarget, cancellationToken).ConfigureAwait(false),
             AnchorMaterializationTarget anchorTarget => await ResolveAnchorSourceAsync(
-                project, location, anchorTarget, cancellationToken).ConfigureAwait(false),
+                project, location, anchorTarget, request.Purpose, request.Profile, cancellationToken).ConfigureAwait(false),
             _ => throw new NotSupportedException($"Materialization target '{request.Target.GetType().Name}' is not supported.")
         };
     }
@@ -56,6 +60,8 @@ public sealed class PhysicalAssetMaterializer : IMediaMaterializer
         VideoProject project,
         ProjectLocation location,
         AnchorMaterializationTarget target,
+        MaterializationPurpose purpose,
+        string? profile,
         CancellationToken cancellationToken)
     {
         var anchor = project.Anchors.SingleOrDefault(candidate => candidate.Id == target.AnchorId)
@@ -69,8 +75,18 @@ public sealed class PhysicalAssetMaterializer : IMediaMaterializer
         await using var verifiedSource = await OpenVerifiedPhysicalAssetAsync(
                 source, location, revision.SourceContentHash, cancellationToken)
             .ConfigureAwait(false);
-        throw new NotSupportedException(
-            "The anchor source was verified, but exact frame extraction is not available until Phase 2C.3.");
+        if (_exactFrameService is null)
+            throw new MediaToolUnavailableException(
+                "Exact Saved Frame extraction requires configured FFmpeg and ffprobe executables.");
+
+        return await _exactFrameService.ExtractAsync(
+                verifiedSource.Path,
+                revision.SourceContentHash,
+                revision,
+                purpose,
+                profile,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<MaterializedMediaLease> OpenVerifiedPhysicalAssetAsync(

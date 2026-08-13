@@ -35,4 +35,16 @@ public sealed class FfmpegCommandBuilderTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             FfmpegCommandBuilder.BuildFrameAccurateTrimArguments("input.mp4", "output.mp4", 10, 5));
     }
+
+    [Fact]
+    public void ExactFrameExtractionSelectsPresentationTimestampOnPinnedStream()
+    {
+        var arguments = FfmpegCommandBuilder.BuildExtractExactFrameArguments(
+            "input.mp4", "output.png", 2, 90123);
+
+        Assert.Equal("0:2", arguments[5]);
+        Assert.Equal("select=eq(pts\\,90123)", arguments[7]);
+        Assert.Equal("vfr", arguments[11]);
+        Assert.Equal("1", arguments[13]);
+    }
 }

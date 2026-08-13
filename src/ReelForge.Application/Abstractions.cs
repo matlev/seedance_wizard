@@ -125,6 +125,32 @@ public interface IMediaMaterializer
         CancellationToken cancellationToken = default);
 }
 
+public sealed record VideoPresentationFrame(
+    int VideoStreamIndex,
+    long PresentationTimestamp,
+    int TimeBaseNumerator,
+    int TimeBaseDenominator,
+    long? FrameNumber = null)
+{
+    public double TimestampSeconds =>
+        PresentationTimestamp * (double)TimeBaseNumerator / TimeBaseDenominator;
+}
+
+public interface IExactVideoFrameService
+{
+    Task<IReadOnlyList<VideoPresentationFrame>> IndexAsync(
+        string mediaPath,
+        CancellationToken cancellationToken = default);
+
+    Task<MaterializedMediaLease> ExtractAsync(
+        string mediaPath,
+        string sourceContentHash,
+        FrameAnchorRevision revision,
+        MaterializationPurpose purpose,
+        string? profile = null,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IMaterializationRetentionPolicy
 {
     MaterializationRetentionPreference Resolve(
