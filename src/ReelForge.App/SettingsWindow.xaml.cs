@@ -125,13 +125,6 @@ public partial class SettingsWindow : Window
                     : CreateValueEditor(requirement));
             }
 
-            if (section == ApplicationConfigurationCatalog.MediaToolsSection)
-            {
-                var detectButton = new Button { Content = "Auto-detect from PATH", HorizontalAlignment = HorizontalAlignment.Left };
-                detectButton.Click += AutoDetectMediaTools_Click;
-                SettingsPanel.Children.Add(detectButton);
-            }
-
             if (section == ApplicationConfigurationCatalog.R2Section)
             {
                 var testButton = new Button
@@ -174,7 +167,9 @@ public partial class SettingsWindow : Window
         row.ColumnDefinitions.Add(new ColumnDefinition());
         var supportsBrowse = requirement.Key is "MediaTools.FfmpegPath" or "MediaTools.FfprobePath" or
             "General.ProjectsRoot" or "General.LogDirectory";
+        var supportsAutoDetect = requirement.Key is "MediaTools.FfmpegPath" or "MediaTools.FfprobePath";
         if (supportsBrowse) row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        if (supportsAutoDetect) row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var textBox = new TextBox
         {
             Text = _pendingValues.TryGetValue(requirement.Key, out var pending)
@@ -195,6 +190,21 @@ public partial class SettingsWindow : Window
             browse.Click += BrowseSetting_Click;
             Grid.SetColumn(browse, 1);
             row.Children.Add(browse);
+        }
+
+        if (supportsAutoDetect)
+        {
+            var executableName = requirement.Key == "MediaTools.FfmpegPath" ? "FFmpeg" : "ffprobe";
+            var detect = new Button
+            {
+                Content = "Auto-detect",
+                Tag = requirement,
+                Margin = new Thickness(7, 0, 0, 0),
+                ToolTip = $"Auto-detect {executableName} from PATH."
+            };
+            detect.Click += AutoDetectMediaTool_Click;
+            Grid.SetColumn(detect, 2);
+            row.Children.Add(detect);
         }
 
         panel.Children.Add(row);
@@ -578,12 +588,19 @@ public partial class SettingsWindow : Window
         if (fileDialog.ShowDialog(this) == true) textBox.Text = fileDialog.FileName;
     }
 
-    private async void AutoDetectMediaTools_Click(object sender, RoutedEventArgs e)
+    private async void AutoDetectMediaTool_Click(object sender, RoutedEventArgs e)
     {
+        if ((sender as FrameworkElement)?.Tag is not ConfigurationRequirement requirement ||
+            !_visibleEditors.TryGetValue(requirement.Key, out var editor)) return;
+
         var detected = _mediaToolDiscovery.Discover();
-        if (_visibleEditors.TryGetValue("MediaTools.FfmpegPath", out var ffmpeg)) ffmpeg.Text = detected.FfmpegPath ?? string.Empty;
-        if (_visibleEditors.TryGetValue("MediaTools.FfprobePath", out var ffprobe)) ffprobe.Text = detected.FfprobePath ?? string.Empty;
-        PersistenceStatusText.Text = detected.Summary;
+        var isFfmpeg = requirement.Key == "MediaTools.FfmpegPath";
+        var executableName = isFfmpeg ? "FFmpeg" : "ffprobe";
+        var detectedPath = isFfmpeg ? detected.FfmpegPath : detected.FfprobePath;
+        if (detectedPath is not null) editor.Text = detectedPath;
+        PersistenceStatusText.Text = detectedPath is null
+            ? $"{executableName} was not found on PATH. The current setting was left unchanged."
+            : $"{executableName} was auto-detected at {detectedPath}.";
         await CommitVisibleAsync().ConfigureAwait(true);
     }
 
