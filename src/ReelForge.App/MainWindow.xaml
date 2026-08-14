@@ -173,6 +173,8 @@
                         <ListBox.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Change filename…" Click="RenameAsset_Click" />
+                                <MenuItem Header="Save as Asset…" Click="SaveSelectedMediaAsAsset_Click" />
+                                <MenuItem Header="Export…" Click="ExportSelectedMedia_Click" />
                                 <MenuItem Header="Copy to Project…" Click="CopyAssetToProject_Click" />
                                 <MenuItem Header="Move to Project…" Click="MoveAssetToProject_Click" />
                                 <Separator />

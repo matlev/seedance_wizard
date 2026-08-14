@@ -290,6 +290,7 @@ In progress. ReelForge now has a provider-neutral recursive render-plan tree wit
 4. Persist every discrete composition edit and reconstruct the same current revision after reopening the project.
 5. Render or reuse the committed multi-segment composition preview through the shared materializer without creating an authoritative intermediate asset.
 6. Expose distinct durable actions: **Save as asset** copies the exact committed rendition into project media with SHA-256 identity and pinned provenance, while **Export** writes an MP4 to a user-selected destination without changing the project catalog.
+7. Offer the same explicit Project Media actions for Saved Clips and Saved Frames. Frame promotion creates a durable PNG whose provenance pins the exact anchor revision; it does not replace or delete the logical Saved Frame.
 
 Human acceptance path:
 

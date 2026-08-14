@@ -358,6 +358,8 @@ The first editor-facing consumer is deliberately narrower than a timeline. The E
 
 The same committed composition offers two explicit durable exits. **Save as asset** copies the `FinalExport` materialization atomically into `assets/videos`, verifies its SHA-256 and encoding, and only then adds a physical `Promoted` asset whose provenance pins the virtual source and recipe revision. **Export** atomically writes the materialization to a user-selected MP4 path without changing project state. Neither action replaces or mutates the virtual Working Composition.
 
+These actions also apply at the Project Media boundary. A Saved Clip may be promoted or exported from its pinned current recipe revision. A Saved Frame may be promoted to a physical PNG or exported while retaining the exact anchor and anchor revision in provenance parameters. Promotion never converts, removes, or makes the logical source dependent on the physical copy.
+
 ## Disposable cache
 
 Recommended layout:

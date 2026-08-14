@@ -1191,11 +1191,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         await RunUiActionAsync("Saving rendered composition as a project asset…", async () =>
         {
-            var service = new RenderedAssetPromotionService(
-                _workspace,
-                _mediaMaterializer,
-                new Sha256ContentHashService(),
-                _mediaInspector);
+            var service = CreateRenderedAssetPromotionService();
             var asset = await service.SaveAsAssetAsync(composition.Id, revision.Id, dialog.FileName);
             RefreshProjectCollections(asset.Id);
             StatusText.Text = $"Saved rendered copy as {asset.FileName}.";
@@ -1220,11 +1216,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         await RunUiActionAsync("Exporting Working Composition…", async () =>
         {
-            var service = new RenderedAssetPromotionService(
-                _workspace,
-                _mediaMaterializer,
-                new Sha256ContentHashService(),
-                _mediaInspector);
+            var service = CreateRenderedAssetPromotionService();
             var path = await service.ExportAsync(composition.Id, revision.Id, dialog.FileName);
             StatusText.Text = $"Exported Working Composition to {path}.";
         });
@@ -1405,6 +1397,108 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 StatusText.Text = $"Renamed stored media file to {asset.FileName}.";
             });
     }
+
+    private async void SaveSelectedMediaAsAsset_Click(object sender, RoutedEventArgs e)
+    {
+        if (AssetsList.SelectedItem is not ProjectMediaListItem item || _workspace.Project is null) return;
+        var service = CreateRenderedAssetPromotionService();
+        if (item.Anchor is { } anchor && item.AnchorRevision is { } anchorRevision)
+        {
+            var defaultName = $"{MakeSafeFileName(item.DisplayName)}.png";
+            var dialog = new AssetNameDialog(
+                defaultName,
+                title: "Save Saved Frame as an asset",
+                heading: "SAVE FRAME AS ASSET",
+                description: "Create a durable PNG in Project Media from this exact Saved Frame revision. The Saved Frame remains available as a logical reference.",
+                confirmLabel: "Save as asset") { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            await RunUiActionAsync("Saving Saved Frame as a project asset…", async () =>
+            {
+                var promoted = await service.SaveFrameAsAssetAsync(anchor.Id, anchorRevision.Id, dialog.FileName);
+                RefreshProjectCollections(promoted.Id);
+                StatusText.Text = $"Saved {item.DisplayName} as {promoted.FileName}.";
+            });
+            return;
+        }
+
+        if (item.Asset is not { StorageKind: AssetStorageKind.Virtual, MediaType: MediaType.Video } asset ||
+            asset.Virtual?.CurrentRecipeRevisionId is not { } recipeRevisionId)
+        {
+            MessageBox.Show(this, "Choose a Saved Frame, Saved Clip, or Working Composition to save a rendered project asset.",
+                "Save as Asset", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var videoDialog = new AssetNameDialog(
+            $"{MakeSafeFileName(asset.EffectiveDisplayName)}.mp4",
+            title: "Save rendered media as an asset",
+            heading: "SAVE AS ASSET",
+            description: "Create a durable physical video in Project Media from this exact recipe revision. The virtual source remains intact.",
+            confirmLabel: "Save as asset") { Owner = this };
+        if (videoDialog.ShowDialog() != true) return;
+        await RunUiActionAsync($"Saving {asset.EffectiveDisplayName} as a project asset…", async () =>
+        {
+            var promoted = await service.SaveAsAssetAsync(asset.Id, recipeRevisionId, videoDialog.FileName);
+            RefreshProjectCollections(promoted.Id);
+            StatusText.Text = $"Saved rendered copy as {promoted.FileName}.";
+        });
+    }
+
+    private async void ExportSelectedMedia_Click(object sender, RoutedEventArgs e)
+    {
+        if (AssetsList.SelectedItem is not ProjectMediaListItem item || _workspace.Project is null) return;
+        var service = CreateRenderedAssetPromotionService();
+        var exportsDirectory = Path.Combine(_workspace.Location!.RootDirectory, "exports");
+        if (item.Anchor is { } anchor && item.AnchorRevision is { } anchorRevision)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Title = "Export Saved Frame",
+                Filter = "PNG image|*.png",
+                DefaultExt = ".png",
+                AddExtension = true,
+                OverwritePrompt = true,
+                FileName = $"{MakeSafeFileName(item.DisplayName)}.png",
+                InitialDirectory = exportsDirectory
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            await RunUiActionAsync("Exporting Saved Frame…", async () =>
+            {
+                var path = await service.ExportFrameAsync(anchor.Id, anchorRevision.Id, dialog.FileName);
+                StatusText.Text = $"Exported Saved Frame to {path}.";
+            });
+            return;
+        }
+
+        if (item.Asset is not { StorageKind: AssetStorageKind.Virtual, MediaType: MediaType.Video } asset ||
+            asset.Virtual?.CurrentRecipeRevisionId is not { } recipeRevisionId)
+        {
+            MessageBox.Show(this, "Choose a Saved Frame, Saved Clip, or Working Composition to export rendered media.",
+                "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var videoDialog = new SaveFileDialog
+        {
+            Title = $"Export {asset.EffectiveDisplayName}",
+            Filter = "MP4 video|*.mp4",
+            DefaultExt = ".mp4",
+            AddExtension = true,
+            OverwritePrompt = true,
+            FileName = $"{MakeSafeFileName(asset.EffectiveDisplayName)}.mp4",
+            InitialDirectory = exportsDirectory
+        };
+        if (videoDialog.ShowDialog(this) != true) return;
+        await RunUiActionAsync($"Exporting {asset.EffectiveDisplayName}…", async () =>
+        {
+            var path = await service.ExportAsync(asset.Id, recipeRevisionId, videoDialog.FileName);
+            StatusText.Text = $"Exported {asset.EffectiveDisplayName} to {path}.";
+        });
+    }
+
+    private RenderedAssetPromotionService CreateRenderedAssetPromotionService() => new(
+        _workspace,
+        _mediaMaterializer,
+        new Sha256ContentHashService(),
+        _mediaInspector);
 
     private async Task ShowSavedFramePreviewAsync(ProjectMediaListItem item, Guid? selectedProjectId)
     {

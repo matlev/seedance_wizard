@@ -96,6 +96,40 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
         Assert.Empty(Directory.EnumerateFiles(Path.GetDirectoryName(destination)!, "*.partial"));
     }
 
+    [Fact]
+    public async Task SavedFramePromotionCreatesPhysicalPngWithPinnedAnchorProvenance()
+    {
+        var (workspace, _, _, renderedPath) = await CreateCompositionAsync();
+        var source = workspace.Project!.Assets.Single(asset => asset.StorageKind == AssetStorageKind.Physical);
+        var anchor = new FrameAnchor { DisplayLabel = "Chosen expression" };
+        workspace.Project.Anchors.Add(anchor);
+        var revision = workspace.Project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            source.Id,
+            source.Physical!.ContentIdentity.Sha256!,
+            0,
+            90,
+            1,
+            30,
+            90));
+        await workspace.SaveAsync();
+        var materializer = new StubMaterializer(renderedPath);
+        var service = new RenderedAssetPromotionService(
+            workspace,
+            materializer,
+            new Sha256ContentHashService(),
+            new StubInspector());
+
+        var promoted = await service.SaveFrameAsAssetAsync(anchor.Id, revision.Id, "expression.png");
+
+        Assert.Equal(MediaType.Image, promoted.MediaType);
+        Assert.Equal(AssetOrigin.ExtractedFrame, promoted.Origin);
+        Assert.Equal("promoted-saved-frame", promoted.Provenance!.Operation);
+        Assert.Equal(anchor.Id.ToString("N"), promoted.Provenance.Parameters["anchorId"]);
+        Assert.Equal(revision.Id.ToString("N"), promoted.Provenance.Parameters["anchorRevisionId"]);
+        Assert.IsType<AnchorMaterializationTarget>(materializer.LastRequest!.Target);
+        Assert.True(File.Exists(workspace.GetAbsoluteAssetPath(promoted)));
+    }
+
     private async Task<(ProjectWorkspace Workspace, ProjectAsset Composition, RecipeRevision Revision, string RenderedPath)>
         CreateCompositionAsync()
     {
@@ -146,16 +180,21 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
 
     private sealed class StubMaterializer(string path) : IMediaMaterializer
     {
+        public MaterializationRequest? LastRequest { get; private set; }
+
         public Task<MaterializedMediaLease> MaterializeAsync(
             VideoProject project,
             ProjectLocation location,
             MaterializationRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new MaterializedMediaLease(
+            CancellationToken cancellationToken = default)
+        {
+            LastRequest = request;
+            return Task.FromResult(new MaterializedMediaLease(
                 path,
                 new ContentIdentity { Sha256 = new string('b', 64), Status = ContentHashStatus.Verified },
                 null,
                 isDurableSource: false));
+        }
     }
 
     private sealed class StubInspector : IMediaInspectionService
