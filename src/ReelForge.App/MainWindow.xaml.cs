@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -93,6 +94,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private string? _frameSourceContentHash;
     private MaterializedMediaLease? _activePreviewLease;
     private bool _disposed;
+    private bool _isMediaImportInProgress;
 
     public MainWindow()
     {
@@ -941,14 +943,107 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             return;
         }
 
-        await RunUiActionAsync(
-            $"Importing {dialog.FileNames.Length} asset(s)…",
-            async () =>
-            {
-                var imported = await _workspace.ImportAssetsAsync(dialog.FileNames);
-                RefreshProjectCollections();
-                StatusText.Text = $"Imported {imported.Count} asset(s).";
-            });
+        await ImportMediaFilesAsync(dialog.FileNames);
+    }
+
+    private void MainWindow_PreviewDragEnter(object sender, DragEventArgs e) => UpdateMediaDropFeedback(e);
+
+    private void MainWindow_PreviewDragOver(object sender, DragEventArgs e) => UpdateMediaDropFeedback(e);
+
+    private void MainWindow_PreviewDragLeave(object sender, DragEventArgs e)
+    {
+        HideMediaDropOverlay();
+        e.Handled = true;
+    }
+
+    private async void MainWindow_PreviewDrop(object sender, DragEventArgs e)
+    {
+        var droppedFiles = GetDroppedFiles(e.Data);
+        var supportedFiles = droppedFiles.Where(AssetImportService.IsSupportedMediaFile).ToArray();
+        var skippedCount = droppedFiles.Count - supportedFiles.Length;
+        var canImport = _workspace.Project is not null && !_isMediaImportInProgress && supportedFiles.Length > 0;
+
+        e.Effects = canImport ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+        HideMediaDropOverlay();
+
+        if (!canImport) return;
+        await ImportMediaFilesAsync(supportedFiles, skippedCount);
+    }
+
+    private void UpdateMediaDropFeedback(DragEventArgs e)
+    {
+        var droppedFiles = GetDroppedFiles(e.Data);
+        var supportedCount = droppedFiles.Count(AssetImportService.IsSupportedMediaFile);
+        var skippedCount = droppedFiles.Count - supportedCount;
+        var canImport = _workspace.Project is not null && !_isMediaImportInProgress && supportedCount > 0;
+
+        e.Effects = canImport ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+
+        if (!canImport)
+        {
+            HideMediaDropOverlay();
+            return;
+        }
+
+        var mediaDescription = supportedCount == 1 ? "1 media file" : $"{supportedCount} media files";
+        var ignoredDescription = skippedCount == 0
+            ? string.Empty
+            : $" {skippedCount} unsupported {(skippedCount == 1 ? "item" : "items")} will be skipped.";
+        ShowMediaDropOverlay($"Drop to add {mediaDescription} to {_workspace.Project!.Name}.{ignoredDescription}");
+    }
+
+    private async Task ImportMediaFilesAsync(IReadOnlyCollection<string> filePaths, int skippedCount = 0)
+    {
+        if (_workspace.Project is null || filePaths.Count == 0 || _isMediaImportInProgress) return;
+
+        _isMediaImportInProgress = true;
+        SetProjectActionsEnabled(false);
+        try
+        {
+            await RunUiActionAsync(
+                $"Importing {filePaths.Count} asset(s)…",
+                async () =>
+                {
+                    var imported = await _workspace.ImportAssetsAsync(filePaths);
+                    RefreshProjectCollections();
+                    StatusText.Text = skippedCount == 0
+                        ? $"Imported {imported.Count} asset(s)."
+                        : $"Imported {imported.Count} asset(s); skipped {skippedCount} unsupported item(s).";
+                });
+        }
+        finally
+        {
+            _isMediaImportInProgress = false;
+            SetProjectActionsEnabled(true);
+        }
+    }
+
+    private void ShowMediaDropOverlay(string message)
+    {
+        MediaDropHintText.Text = message;
+        MediaDropOverlay.Visibility = Visibility.Visible;
+        ApplicationContent.Effect ??= new BlurEffect { Radius = 4, KernelType = KernelType.Gaussian };
+    }
+
+    private void HideMediaDropOverlay()
+    {
+        if (MediaDropOverlay is null || ApplicationContent is null) return;
+        MediaDropOverlay.Visibility = Visibility.Collapsed;
+        ApplicationContent.Effect = null;
+    }
+
+    private static IReadOnlyList<string> GetDroppedFiles(IDataObject data)
+    {
+        if (!data.GetDataPresent(DataFormats.FileDrop) ||
+            data.GetData(DataFormats.FileDrop) is not string[] paths)
+            return [];
+
+        return paths
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private async void AssetsList_SelectionChanged(object sender, SelectionChangedEventArgs e)

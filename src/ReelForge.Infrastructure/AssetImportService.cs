@@ -144,6 +144,14 @@ public sealed class AssetImportService : IAssetImportService
         throw new NotSupportedException($"'{extension}' is not a supported image, video, or audio extension.");
     }
 
+    public static bool IsSupportedMediaFile(string path)
+    {
+        var extension = Path.GetExtension(path);
+        return ImageExtensions.Contains(extension) ||
+               VideoExtensions.Contains(extension) ||
+               AudioExtensions.Contains(extension);
+    }
+
     private static async Task CopyFileAsync(
         string sourcePath,
         string destinationPath,

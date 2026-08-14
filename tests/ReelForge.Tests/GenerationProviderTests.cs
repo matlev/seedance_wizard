@@ -52,4 +52,16 @@ public sealed class GenerationProviderTests
     {
         Assert.Equal(expected, AssetImportService.DetermineMediaType(path));
     }
+
+    [Theory]
+    [InlineData("portrait.PNG", true)]
+    [InlineData("clip with spaces.MP4", true)]
+    [InlineData("score.wav", true)]
+    [InlineData("project.rfp", false)]
+    [InlineData("notes.txt", false)]
+    [InlineData("extensionless", false)]
+    public void AssetImportReportsWhetherAFileCanBeDropped(string path, bool expected)
+    {
+        Assert.Equal(expected, AssetImportService.IsSupportedMediaFile(path));
+    }
 }
