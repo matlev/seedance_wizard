@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phases 2A/2B/2C complete; Phase 2D basic recipe-based media operations are in progress.
+Status: Milestone 1 and Milestone 2 Phases 2A/2B/2C/2D complete; Phase 2E timeline work is next.
 
 ## Product priority
 
@@ -264,7 +264,7 @@ Phase acceptance checks:
 
 ### Phase 2D — basic recipe-based media operations
 
-In progress. ReelForge now has a provider-neutral recursive render-plan tree with deterministic plan identities, explicit compatibility analysis, normalized multi-segment concat, and a user-testable composition workflow. The Edit workspace can add selected physical videos or Saved Clips, reorder/remove segments through immutable recipe revisions, persist the result, preview it, and export it. A default-off application preference can retain modified-media representations as permanent project-owned files without changing their logical Project Media grouping. Virtual-video anchor time mapping and the full timeline remain subsequent work.
+Complete. ReelForge now has a provider-neutral recursive render-plan tree with deterministic plan identities, explicit compatibility analysis, normalized multi-segment concat, and a user-tested composition workflow. The Edit workspace can add selected physical videos or Saved Clips, reorder/remove segments through immutable recipe revisions, persist the result, preview it, and export it. A default-off application preference can retain modified-media representations as permanent project-owned files without changing their logical Project Media grouping. Human acceptance covered mixed-format and mixed-audio normalization/export, modified-media persistence, composition editing and reconstruction, and cache-backed replay. Virtual-video anchor time mapping is intentionally deferred to the Phase 2E timeline-position design rather than being hidden inside 2D materialization.
 
 #### Phase 2D.1 — recursive planning and virtual sources
 
@@ -302,15 +302,6 @@ Human acceptance path:
 6. Enable **Persist modified media on disk**, preview a Saved Frame, Saved Clip, and composition, and verify permanent representations appear under `assets/modified/` without duplicate Project Media rows.
 7. Close and reopen ReelForge; verify the same current composition order returns and preview can use or reconstruct its representation again.
 
-1. Expand the narrow Phase 2C Saved Clip compiler into general recipe planning and recursive virtual-source time mapping.
-2. Reuse and expand existing media encoding inspection.
-3. Add compatibility analysis as data/planning, not an eager normalization side effect.
-4. Add typed normalize/match recipes and purpose-specific materialization.
-5. Add concat recipes accepting physical and virtual inputs, with explicit compatibility decisions.
-6. Add lazy frame-extraction recipes.
-7. Add explicit Export plus an advanced persistent-representation preference without exposing physical-versus-virtual promotion as routine user vocabulary.
-8. Permit retention-policy experiments without changing logical asset IDs, recipes, or generation provenance.
-
 Phase acceptance checks:
 
 - a virtual trim used for generation is recorded as the logical reference, never as `cache\*.mp4`;
@@ -318,7 +309,7 @@ Phase acceptance checks:
 - source/anchor/recipe/profile/renderer changes invalidate the relevant representation;
 - cancellation and failed FFmpeg runs leave no authoritative partial file;
 - clearing all materializations leaves recipes openable and reproducible;
-- a promoted rendition becomes a physical asset while its virtual source remains intact.
+- enabling modified-media persistence creates durable project-owned representations without duplicating or replacing their logical Project Media entries.
 
 ### Phase 2E — timeline
 

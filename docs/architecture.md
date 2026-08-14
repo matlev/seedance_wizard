@@ -1,11 +1,11 @@
 ﻿# Architecture
 
-Status: accepted direction; Phases 2A and 2B complete; Phase 2C implementation in progress
+Status: accepted direction; Phases 2A through 2D complete; Phase 2E timeline work is next
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 Generate/Edit workspace revision: 2026-08-13
 
-This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific physical-reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, and their application boundaries are implemented. Virtual-recipe rendering, frame-anchor materialization, and general cache planning remain later Milestone 2 phases.
+This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, exact physical-video frame materialization, recursive virtual-recipe rendering, compatible/normalized composition rendering, and their application boundaries are implemented. Full timeline editing and virtual-video exact-position mapping remain later Milestone 2 work.
 
 ## Architectural direction
 
@@ -33,7 +33,7 @@ The project is authoritative; the cache is not. Deleting the entire `cache/` dir
 
 One open ReelForge project is presented through two application-level workspaces. **Generate** creates and prepares media: prompt authoring, provider configuration, generation history, job monitoring, reference selection, Saved Frames, and Saved Clips. **Edit** assembles and transforms the same project media through a logical Working Composition. Switching workspaces never reopens, clones, or changes the project.
 
-The shared left-side concept is **Project Media**, a presentation union rather than a new persistence type. Physical and virtual `ProjectAsset` values and logical `FrameAnchor` Saved Frames appear as peers while retaining their distinct domain identities. A Saved Clip is a virtual video asset backed by an immutable trim-recipe revision. A Saved Frame remains an anchor and never masquerades as an image asset. A future Working Composition is a logical recipe/draft, not an evolving physical MP4.
+The shared left-side concept is **Project Media**, a presentation union rather than a new persistence type. Physical and virtual `ProjectAsset` values and logical `FrameAnchor` Saved Frames appear as peers while retaining their distinct domain identities. A Saved Clip is a virtual video asset backed by an immutable trim-recipe revision. A Saved Frame remains an anchor and never masquerades as an image asset. The Working Composition is a logical recipe/draft, not an evolving physical MP4.
 
 The Generate viewer shows currently previewed media. The Edit viewer shows the Working Composition by default. A completed generation may auto-preview only when its owning project is open, Generate is active, and no explicit Select Frame or Make Clip operation owns the viewer. Otherwise ReelForge reports completion through the global Jobs surface without stealing the user's context.
 
@@ -282,7 +282,7 @@ An uncommitted anchor draft may move freely. Once an anchor revision is committe
 
 An unreferenced anchor may be deleted. Once any generation, committed recipe, timeline/composition, export, or other authoritative object pins one of its revisions, Delete archives the logical anchor from ordinary working UI while retaining all required history. Missing or hash-mismatched source media leaves the anchor visible in a degraded state and blocks materialization; it never deletes descendants or provenance.
 
-Phase 2C limits anchors to durable physical video assets. Virtual-video anchors wait until Phase 2D defines recipe time mapping. Any imported or generated physical video may be anchored. An imported source can use the Continue After/Before workflow without inventing generation lineage.
+Anchors currently require durable physical video assets. Phase 2D established recursive recipe rendering but deliberately did not redefine anchor provenance around virtual timeline positions. Virtual-video anchors therefore wait for the Phase 2E timeline-position design. Any imported or generated physical video may be anchored. An imported source can use the Continue After/Before workflow without inventing generation lineage.
 
 ### Editing-boundary semantics
 
@@ -350,7 +350,7 @@ The UI, provider adapters, and timeline must not decide whether FFmpeg is requir
 
 Phase 2D begins that generalization with `RecipeRenderPlanner`. A virtual asset request is first expanded into a provider-neutral tree of physical sources, pinned trim revisions, extract-frame revisions, and ordered composition segments. Each node has a deterministic identity derived from its authoritative payload and transitive dependency identities; the enclosing plan additionally includes materialization purpose and profile. The planner rejects unpinned virtual dependencies, missing revisions, incompatible media types, and cycles before an external process runs.
 
-The first executor slice recursively materializes nested trim nodes, preserving an active lease on every dependency until its consumer finishes. This permits a Saved Clip to use another pinned Saved Clip and permits the initial single-segment Working Composition to resolve a virtual source. It deliberately does not disguise recursive intermediate rendering as optimized planning: multi-segment concat, normalization decisions, operation fusion, and virtual-source anchor time mapping remain later Phase 2D work.
+The first executor slice recursively materializes nested trim nodes, preserving an active lease on every dependency until its consumer finishes. This permits a Saved Clip to use another pinned Saved Clip and permits the Working Composition to resolve virtual sources. Later Phase 2D slices added explicit compatibility analysis, multi-segment concat, and normalization. Operation fusion remains an optimization opportunity, while virtual-source anchor mapping waits for Phase 2E timeline-position semantics.
 
 The next executor slice treats media compatibility as an explicit result rather than an eager side effect. Ordered composition inputs are `Compatible`, `RequiresNormalization`, or `Unknown`, with differences in video codec, dimensions, pixel format, frame rate, audio presence, codec, sample rate, channel count, and layout retained as planning data. Missing metadata is inspected from the realized media when possible. Compatible sets use a timestamp-resetting concat graph. Mismatched sets normalize video to a common even-sized canvas, square pixels, frame rate, and pixel format; audio is resampled to a common stereo profile, while silent or audio-disabled segments receive duration-matched silence. Composition renders use deterministic cache identity, active dependency leases, unique temporary output, atomic commit, and failure cleanup.
 
@@ -689,7 +689,7 @@ At the first externally supported beta/public project-format baseline, compatibi
 3. **Timing:** new revisions use video stream index, integer presentation timestamp, and rational time base; frame number is informational.
 4. **Exactness:** every anchor revision stores stream index, integer presentation timestamp, rational time base, and source content identity; approximate timing is not admitted into the current model.
 5. **Metadata:** display label, notes, and archived state remain mutable on the logical anchor; submitted references freeze their own label/notes.
-6. **Targets:** Phase 2C anchors any imported or generated durable physical video; virtual-video anchors wait for Phase 2D time mapping.
+6. **Targets:** any imported or generated durable physical video may be anchored; virtual-video anchors wait for Phase 2E timeline-position mapping.
 7. **Deletion:** unreferenced anchors may be deleted; referenced anchors are archived/tombstoned and their pinned revisions remain resolvable.
 8. **Boundaries:** editing references an anchor revision plus `BeforeFrame` or `AfterFrame`, normalized internally to `[start,end)`.
 9. **Last frame:** Last Frame means the final decodable presentation frame; `AfterFrame` on it resolves to `SourceEnd`.
@@ -707,14 +707,12 @@ At the first externally supported beta/public project-format baseline, compatibi
 
 The Phase 2C product-direction questions are settled. Remaining cross-phase items are:
 
-1. **Virtual-video anchor mapping:** define only after Phase 2D establishes recipe time mapping; Phase 2C is physical-video-only.
-2. **Materialization retention:** retain the policy boundary without selecting minimal/balanced/persistent behavior.
+1. **Virtual-video anchor mapping:** Phase 2D established recursive render planning without changing physical-source anchor provenance. Define virtual exact positions together with Phase 2E timeline-position semantics.
+2. **Materialization retention:** the current cache-limit and default-off durable modified-media preference are implemented; automatic cleanup strategy beyond that boundary remains open.
 3. **Missing-source recovery:** Phase 2C preserves degraded state and blocks materialization; user-driven relinking/recovery remains later work.
-4. **External exports:** default to export history without making reconstruction depend on an external path; decide catalog behavior with export UX.
-5. **Provider cancellation:** distinguish local polling cancellation from remote cancellation and expose the latter only when verified.
-6. **Saved-frame persistence:** direct logical Saved Frame use remains primary; advanced disk persistence retains a PNG representation without adding a duplicate Project Media item.
-7. **Boundary representation:** clip-only boundaries remain hidden from Project Media whether implemented as internal anchors or a more general exact-position reference; explicit promotion creates a user-facing Saved Frame.
+4. **Provider cancellation:** distinguish local polling cancellation from remote cancellation and expose the latter only when verified.
+5. **Boundary representation:** clip-only boundaries remain hidden from Project Media whether implemented as internal anchors or a more general exact-position reference; an explicit Saved Frame remains the user-facing bookmark.
 
 ## Phase gate
 
-Phases 2A, 2B, and revised 2C are complete. Phase 2C human acceptance covered the Generate/Edit shell, Project Media projection, explicit progressive Select Frame workflow, first-class Saved Frames, Saved Clip creation and replay, cache reconstruction, missing-source handling, reference preparation, and narrow trim materialization. AtlasCloud MiniMax H3 remains the first optional human-run paid reference acceptance route; automated verification remains network-isolated. General recipe planning, concat, normalization, composition rendering, and promotion/export move to Phase 2D; full multitrack editing remains a separate later gate.
+Phases 2A through 2D are complete. Phase 2C human acceptance covered the Generate/Edit shell, Project Media projection, exact Saved Frames, Saved Clips, cache reconstruction, missing-source handling, reference preparation, and trim materialization. Phase 2D acceptance covered recursive virtual planning, compatibility analysis, normalized multi-segment composition rendering, immutable composition edits, export, and optional durable modified-media representations. AtlasCloud MiniMax H3 remains the first optional human-run paid reference acceptance route; automated verification remains network-isolated. Full timeline editing and virtual-video exact-position semantics move to Phase 2E.

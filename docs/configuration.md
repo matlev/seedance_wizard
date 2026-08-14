@@ -82,7 +82,7 @@ R2 keys are content-addressed as `references/sha256/<first-two-hex>/<sha256>.<ex
 
 The signed URL is a transient bearer token. It is never written into project history, application settings, hosted-object metadata, or diagnostic errors. Receipts may retain the hosting provider, content hash, object key, and expiration time. The original logical reference remains the authoritative provenance.
 
-The current materializer can execute this flow for physical project assets. The host and BytePlus preparation accept materialized virtual-asset revisions and frame anchors without changing provenance; their actual FFmpeg materializers remain scheduled for Milestone 2D and 2C respectively.
+The current materializer executes this flow for physical assets, pinned virtual-asset revisions, and frame anchors on durable physical videos. Hosting and provider preparation receive transient realized media without changing the logical provenance recorded in the project. Exact positions on virtual videos remain deferred to the Phase 2E timeline-position design.
 
 ## Provider requirements
 
