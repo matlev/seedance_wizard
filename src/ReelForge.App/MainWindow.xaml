@@ -121,7 +121,6 @@
                     <TextBlock Text="REELFORGE" Style="{StaticResource ApplicationTextBlockStyle}" FontSize="16" VerticalAlignment="Center" Margin="4,0,18,0" />
                     <Button x:Name="NewProjectButton" Content="New project" Click="NewProject_Click" />
                     <Button x:Name="OpenProjectButton" Content="Open" Click="OpenProject_Click" />
-                    <Button x:Name="SaveProjectButton" Content="Save" Click="SaveProject_Click" />
                     <Button x:Name="ImportAssetsButton" Content="Import assets" Click="ImportAssets_Click" />
                     <Button x:Name="SettingsButton" Content="Settings" Click="Settings_Click" />
                 </StackPanel>

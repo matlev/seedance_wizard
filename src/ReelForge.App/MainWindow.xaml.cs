@@ -921,17 +921,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }
     }
 
-    private async void SaveProject_Click(object sender, RoutedEventArgs e)
-    {
-        await RunUiActionAsync(
-            "Saving project…",
-            async () =>
-            {
-                await _workspace.SaveAsync();
-                StatusText.Text = "Project saved.";
-            });
-    }
-
     private async void ImportAssets_Click(object sender, RoutedEventArgs e)
     {
         if (!EnsureProjectOpen())
@@ -1990,7 +1979,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         NewProjectButton.IsEnabled = isEnabled;
         OpenProjectButton.IsEnabled = isEnabled;
-        SaveProjectButton.IsEnabled = isEnabled;
         ImportAssetsButton.IsEnabled = isEnabled;
         SettingsButton.IsEnabled = isEnabled;
         ProviderComboBox.IsEnabled = isEnabled;
