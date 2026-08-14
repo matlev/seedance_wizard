@@ -356,6 +356,8 @@ The next executor slice treats media compatibility as an explicit result rather 
 
 The first editor-facing consumer is deliberately narrower than a timeline. The Edit workspace projects the current immutable Working Composition revision as an ordered list. Add, move, and remove are discrete commits that create a new revision and refresh a mutable draft based on it; earlier revisions remain unchanged. Virtual segment sources pin their exact recipe revision. Preview requests the current composition revision from the shared materializer, so the project persists logical sources and order while the rendered MP4 remains disposable cache state.
 
+The same committed composition offers two explicit durable exits. **Save as asset** copies the `FinalExport` materialization atomically into `assets/videos`, verifies its SHA-256 and encoding, and only then adds a physical `Promoted` asset whose provenance pins the virtual source and recipe revision. **Export** atomically writes the materialization to a user-selected MP4 path without changing project state. Neither action replaces or mutates the virtual Working Composition.
+
 ## Disposable cache
 
 Recommended layout:

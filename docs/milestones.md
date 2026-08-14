@@ -289,6 +289,7 @@ In progress. ReelForge now has a provider-neutral recursive render-plan tree wit
 3. Move and remove segments through new immutable composition revisions; retain at least one segment.
 4. Persist every discrete composition edit and reconstruct the same current revision after reopening the project.
 5. Render or reuse the committed multi-segment composition preview through the shared materializer without creating an authoritative intermediate asset.
+6. Expose distinct durable actions: **Save as asset** copies the exact committed rendition into project media with SHA-256 identity and pinned provenance, while **Export** writes an MP4 to a user-selected destination without changing the project catalog.
 
 Human acceptance path:
 
@@ -296,7 +297,9 @@ Human acceptance path:
 2. Select another video or Saved Clip in Project Media and use **Add selected media**; verify the ordered segment list updates.
 3. Move the selected segment up and down, remove a non-final segment, and verify each action immediately updates the displayed recipe revision.
 4. Preview a composition containing differently encoded or silent media; verify the result plays in list order with stable dimensions and synchronized audio/silence.
-5. Close and reopen ReelForge; verify the same current composition order returns and preview can be rendered or reused again.
+5. Use **Save as asset** and verify a physical promoted MP4 appears in Project Media while the Working Composition remains intact.
+6. Use **Export** and verify the selected MP4 is written without adding another Project Media item.
+7. Close and reopen ReelForge; verify the same current composition order and promoted asset return, and preview can be rendered or reused again.
 
 1. Expand the narrow Phase 2C Saved Clip compiler into general recipe planning and recursive virtual-source time mapping.
 2. Reuse and expand existing media encoding inspection.

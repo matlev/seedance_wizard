@@ -1173,6 +1173,63 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
+    private async void SaveCompositionAsAsset_Click(object sender, RoutedEventArgs e)
+    {
+        if (_workspace.Project is null) return;
+        var (composition, revision, _) = new WorkingCompositionService(_workspace).GetCurrent();
+        var defaultName = $"{MakeSafeFileName(_workspace.Project.Name)} composition.mp4";
+        var dialog = new AssetNameDialog(
+            defaultName,
+            title: "Save rendered composition",
+            heading: "SAVE RENDERED COPY",
+            description: "Render this exact composition revision as a durable physical video in Project Media. The logical Working Composition remains editable.",
+            confirmLabel: "Save as asset")
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        await RunUiActionAsync("Saving rendered composition as a project asset…", async () =>
+        {
+            var service = new RenderedAssetPromotionService(
+                _workspace,
+                _mediaMaterializer,
+                new Sha256ContentHashService(),
+                _mediaInspector);
+            var asset = await service.SaveAsAssetAsync(composition.Id, revision.Id, dialog.FileName);
+            RefreshProjectCollections(asset.Id);
+            StatusText.Text = $"Saved rendered copy as {asset.FileName}.";
+        });
+    }
+
+    private async void ExportComposition_Click(object sender, RoutedEventArgs e)
+    {
+        if (_workspace.Project is null) return;
+        var (composition, revision, _) = new WorkingCompositionService(_workspace).GetCurrent();
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export Working Composition",
+            Filter = "MP4 video|*.mp4",
+            DefaultExt = ".mp4",
+            AddExtension = true,
+            OverwritePrompt = true,
+            FileName = $"{MakeSafeFileName(_workspace.Project.Name)} composition.mp4",
+            InitialDirectory = Path.Combine(_workspace.Location!.RootDirectory, "exports")
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        await RunUiActionAsync("Exporting Working Composition…", async () =>
+        {
+            var service = new RenderedAssetPromotionService(
+                _workspace,
+                _mediaMaterializer,
+                new Sha256ContentHashService(),
+                _mediaInspector);
+            var path = await service.ExportAsync(composition.Id, revision.Id, dialog.FileName);
+            StatusText.Text = $"Exported Working Composition to {path}.";
+        });
+    }
+
     private void CompositionSegmentsList_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
         UpdateCompositionActionState();
 
@@ -1190,11 +1247,20 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         MoveCompositionSegmentDownButton.IsEnabled = index >= 0 && index < _compositionSegments.Count - 1;
         RemoveCompositionSegmentButton.IsEnabled = index >= 0 && _compositionSegments.Count > 1;
         PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0;
+        SaveCompositionAsAssetButton.IsEnabled = _compositionSegments.Count > 0;
+        ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0;
     }
 
     private static CompositionRecipe AssertCompositionRecipe(RecipeRevision revision) =>
         revision.Recipe as CompositionRecipe
         ?? throw new InvalidDataException("The Working Composition update did not produce a composition recipe.");
+
+    private static string MakeSafeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+        var safe = new string(value.Select(character => invalid.Contains(character) ? '_' : character).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(safe) ? "Working Composition" : safe;
+    }
 
     private async void SelectFrame_Click(object sender, RoutedEventArgs e)
     {

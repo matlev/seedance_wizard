@@ -14,9 +14,18 @@ public partial class AssetNameDialog : Window
     };
     private readonly string _extension;
 
-    public AssetNameDialog(string currentFileName)
+    public AssetNameDialog(
+        string currentFileName,
+        string? title = null,
+        string? heading = null,
+        string? description = null,
+        string? confirmLabel = null)
     {
         InitializeComponent();
+        if (title is not null) Title = title;
+        if (heading is not null) HeadingText.Text = heading;
+        if (description is not null) DescriptionText.Text = description;
+        if (confirmLabel is not null) ConfirmButton.Content = confirmLabel;
         _extension = Path.GetExtension(currentFileName);
         FileNameStemTextBox.Text = Path.GetFileNameWithoutExtension(currentFileName);
         ExtensionText.Text = $"{_extension} (file type locked)";

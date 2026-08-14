@@ -12,8 +12,8 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <TextBlock Text="CHANGE FILENAME" Style="{StaticResource ApplicationTextBlockStyle}" FontSize="16" />
-        <TextBlock Grid.Row="1" Text="Rename the stored media file. Its file type and contents stay unchanged."
+        <TextBlock x:Name="HeadingText" Text="CHANGE FILENAME" Style="{StaticResource ApplicationTextBlockStyle}" FontSize="16" />
+        <TextBlock x:Name="DescriptionText" Grid.Row="1" Text="Rename the stored media file. Its file type and contents stay unchanged."
                    TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,12" />
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
@@ -30,7 +30,7 @@
                    Visibility="Collapsed" />
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button Content="Cancel" IsCancel="True" />
-            <Button Content="Rename" IsDefault="True" Background="{StaticResource AccentBrush}" Foreground="White"
+            <Button x:Name="ConfirmButton" Content="Rename" IsDefault="True" Background="{StaticResource AccentBrush}" Foreground="White"
                     Click="Update_Click" />
         </StackPanel>
     </Grid>

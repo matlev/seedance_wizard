@@ -467,6 +467,12 @@
                                         Content="Preview composition" Click="PreviewComposition_Click"
                                         Background="{StaticResource AccentBrush}" Foreground="White"
                                         ToolTip="Render or reuse a cached preview of the committed composition" />
+                                <Button x:Name="SaveCompositionAsAssetButton" DockPanel.Dock="Right"
+                                        Content="Save as asset" Click="SaveCompositionAsAsset_Click"
+                                        ToolTip="Create a durable physical video in Project Media from this committed composition" />
+                                <Button x:Name="ExportCompositionButton" DockPanel.Dock="Right"
+                                        Content="Export…" Click="ExportComposition_Click"
+                                        ToolTip="Write this committed composition to a durable MP4 outside Project Media" />
                                 <StackPanel>
                                     <TextBlock Text="WORKING COMPOSITION" FontSize="12" FontWeight="SemiBold"
                                                Foreground="{StaticResource MutedTextBrush}" />
