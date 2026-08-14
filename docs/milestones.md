@@ -322,7 +322,7 @@ In progress. The first slices project the committed Working Composition into a h
 3. Use the timeline as the sole segment-selection surface rather than duplicating its content in a secondary list.
 4. Map composition-preview playback through the projected segment spans and invalidate stale preview state after recipe edits.
 5. Remove the redundant text projection beneath the visual timeline; the timeline is the composition interaction surface.
-6. Insert physical videos or Saved Clips at the visual drop position and retain direct block selection after switching Project Media items.
+6. Insert physical videos or Saved Clips at the visual drop position and retain direct block selection after switching Project Media items. Project Media drags use a compact fixed-size insertion token and leave committed segment geometry, ruler timestamps, and total duration unchanged until drop.
 7. Place physical audio on a separate timed row, persist it in immutable composition revisions, and mix it with source-video audio during preview/export.
 8. Keep clip widths, ruler ticks, scroll position, and playhead position out of the `.rfp` schema.
 9. Reorder video segments directly by dragging timeline blocks; neighboring blocks reflow during the transient preview and only a non-no-op mouse release commits one immutable recipe revision.

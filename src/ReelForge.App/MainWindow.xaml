@@ -519,17 +519,23 @@
                                                 PreviewMouseLeftButtonUp="CompositionTimelineCanvas_PreviewMouseLeftButtonUp"
                                                 LostMouseCapture="CompositionTimelineCanvas_LostMouseCapture" />
                                     </ScrollViewer>
-                                    <Border x:Name="CompositionTimelineDropHint" Grid.Row="1" Visibility="Collapsed"
-                                            IsHitTestVisible="False" Background="#CC171B25" BorderBrush="{StaticResource AccentBrush}"
-                                            BorderThickness="2" CornerRadius="4" Margin="2">
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="+" Foreground="White" FontSize="28" FontWeight="SemiBold"
-                                                       HorizontalAlignment="Center" />
-                                            <TextBlock x:Name="CompositionTimelineDropHintText" Foreground="White"
-                                                       FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"
-                                                       MaxWidth="460" />
-                                        </StackPanel>
-                                    </Border>
+                                    <Canvas x:Name="CompositionTimelineDropHint" Grid.Row="1" Visibility="Collapsed"
+                                            IsHitTestVisible="False" ClipToBounds="True" Margin="2">
+                                        <Border x:Name="CompositionTimelineDropMarker" Width="2" Height="57"
+                                                Background="{StaticResource AccentBrush}" />
+                                        <Border x:Name="CompositionTimelineDropToken" Width="96" Height="36"
+                                                Background="#E83E3669" BorderBrush="{StaticResource AccentBrush}"
+                                                BorderThickness="2" CornerRadius="4" Padding="6,3">
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock Text="+" DockPanel.Dock="Left" Margin="0,0,5,0"
+                                                           Foreground="White" FontSize="17" FontWeight="SemiBold"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock x:Name="CompositionTimelineDropHintText" Foreground="White"
+                                                           FontWeight="SemiBold" FontSize="10"
+                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            </DockPanel>
+                                        </Border>
+                                    </Canvas>
                                 </Grid>
                             </Border>
                             <Grid Grid.Row="2" Margin="0,10,0,0">

@@ -115,4 +115,25 @@ public sealed class CompositionTimelineLayoutTests
         Assert.Equal(2, result.InsertionIndex);
         Assert.Equal([second, third, first], result.OrderedSegmentIds);
     }
+
+    [Fact]
+    public void ExternalVideoDropUsesCommittedSegmentMidpointsAndBoundaries()
+    {
+        var result = CompositionTimelineLayout.Calculate(
+            [
+                new CompositionTimelineSegmentInput(Guid.NewGuid(), 2),
+                new CompositionTimelineSegmentInput(Guid.NewGuid(), 8)
+            ],
+            viewportWidth: 600,
+            minimumSegmentWidth: 100,
+            pixelsPerSecond: 20);
+
+        Assert.Equal(0, result.GetVideoInsertionIndex(-1));
+        Assert.Equal(0, result.GetVideoInsertionIndex(result.Segments[0].Width / 2 - 1));
+        Assert.Equal(1, result.GetVideoInsertionIndex(result.Segments[0].Width / 2 + 1));
+        Assert.Equal(2, result.GetVideoInsertionIndex(10_000));
+        Assert.Equal(0, result.GetVideoInsertionX(0));
+        Assert.Equal(result.Segments[1].Left, result.GetVideoInsertionX(1));
+        Assert.Equal(result.ContentWidth, result.GetVideoInsertionX(2));
+    }
 }

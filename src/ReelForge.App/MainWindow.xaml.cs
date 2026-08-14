@@ -2011,9 +2011,25 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }
 
         var x = e.GetPosition(CompositionTimelineCanvas).X;
-        CompositionTimelineDropHintText.Text = asset!.MediaType == MediaType.Video
-            ? $"Drop to insert {asset.EffectiveDisplayName} at position {GetCompositionVideoInsertionIndex(x) + 1}"
-            : $"Drop to place {asset.EffectiveDisplayName} at {FormatTimelineTime(_compositionTimelineLayout!.GetTimeAtX(x))}";
+        var viewportX = x - CompositionTimelineScrollViewer.HorizontalOffset;
+        var overlayWidth = Math.Max(1, CompositionTimelineScrollViewer.ViewportWidth);
+        var tokenWidth = CompositionTimelineDropToken.Width;
+        var tokenLeft = Math.Clamp(viewportX - tokenWidth / 2, 0, Math.Max(0, overlayWidth - tokenWidth));
+        var isVideo = asset!.MediaType == MediaType.Video;
+        var markerX = isVideo
+            ? _compositionTimelineLayout!.GetVideoInsertionX(GetCompositionVideoInsertionIndex(x))
+            : x;
+        var markerViewportX = Math.Clamp(
+            markerX - CompositionTimelineScrollViewer.HorizontalOffset,
+            0,
+            Math.Max(0, overlayWidth - CompositionTimelineDropMarker.Width));
+
+        CompositionTimelineDropHintText.Text = asset.EffectiveDisplayName;
+        CompositionTimelineDropMarker.Height = isVideo ? 57 : 34;
+        Canvas.SetLeft(CompositionTimelineDropMarker, markerViewportX);
+        Canvas.SetTop(CompositionTimelineDropMarker, isVideo ? 25 : 86);
+        Canvas.SetLeft(CompositionTimelineDropToken, tokenLeft);
+        Canvas.SetTop(CompositionTimelineDropToken, isVideo ? 35 : 85);
         CompositionTimelineDropHint.Visibility = Visibility.Visible;
     }
 
@@ -2031,15 +2047,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     }
 
     private int GetCompositionVideoInsertionIndex(double x)
-    {
-        if (_compositionTimelineLayout is null) return _compositionSegments.Count;
-        for (var index = 0; index < _compositionTimelineLayout.Segments.Count; index++)
-        {
-            var span = _compositionTimelineLayout.Segments[index];
-            if (x < span.Left + span.Width / 2) return index;
-        }
-        return _compositionTimelineLayout.Segments.Count;
-    }
+        => _compositionTimelineLayout?.GetVideoInsertionIndex(x) ?? _compositionSegments.Count;
 
     private void HideCompositionTimelineDropFeedback()
     {

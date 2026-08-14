@@ -40,6 +40,26 @@ public sealed record CompositionTimelineLayoutResult(
             : Math.Clamp((clamped - segment.Left) / segment.Width, 0, 1);
         return segment.StartSeconds + segment.DurationSeconds * progress;
     }
+
+    public int GetVideoInsertionIndex(double x)
+    {
+        for (var index = 0; index < Segments.Count; index++)
+        {
+            var segment = Segments[index];
+            if (x < segment.Left + segment.Width / 2) return index;
+        }
+
+        return Segments.Count;
+    }
+
+    public double GetVideoInsertionX(int insertionIndex)
+    {
+        if (Segments.Count == 0) return 0;
+        var boundedIndex = Math.Clamp(insertionIndex, 0, Segments.Count);
+        return boundedIndex == Segments.Count
+            ? ContentWidth
+            : Segments[boundedIndex].Left;
+    }
 }
 
 public sealed record CompositionTimelineReorderPreview(
