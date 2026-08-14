@@ -328,6 +328,41 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Single(service.GetCurrent().Recipe.Segments);
     }
 
+    [Fact]
+    public async Task WorkingCompositionPersistsInsertedVideoAndTimedAudio()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Composition media tracks");
+        var first = CreatePhysicalAsset("first.mp4", "assets/videos/first.mp4");
+        var inserted = CreatePhysicalAsset("inserted.mp4", "assets/videos/inserted.mp4");
+        var audio = CreatePhysicalAsset("music.wav", "assets/audio/music.wav");
+        audio.MediaType = MediaType.Audio;
+        workspace.Project!.AddAsset(first);
+        workspace.Project.AddAsset(inserted);
+        workspace.Project.AddAsset(audio);
+        await workspace.SaveAsync();
+        var service = new WorkingCompositionService(workspace);
+        await service.CreateInitialAsync(first.Id);
+
+        await service.AddSegmentAsync(inserted.Id, insertionIndex: 0);
+        var audioRevision = await service.AddAudioClipAsync(audio.Id, TimeSpan.FromSeconds(2.5));
+        var audioClipId = Assert.Single(Assert.IsType<CompositionRecipe>(audioRevision.Recipe).AudioClips).Id;
+
+        var reopened = (await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath)).Project;
+        var composition = reopened.Assets.Single(asset => asset.Id == reopened.WorkingCompositionAssetId);
+        var recipe = Assert.IsType<CompositionRecipe>(reopened.RecipeRevisions.Single(revision =>
+            revision.Id == composition.Virtual!.CurrentRecipeRevisionId).Recipe);
+        Assert.Equal([inserted.Id, first.Id], recipe.Segments.Select(segment => segment.Source.AssetId));
+        var audioClip = Assert.Single(recipe.AudioClips);
+        Assert.Equal(audio.Id, audioClip.Source.AssetId);
+        Assert.Equal(TimeSpan.FromSeconds(2.5), audioClip.TimelineStart);
+
+        var reopenedWorkspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await reopenedWorkspace.OpenAsync(workspace.Location.ProjectFilePath);
+        await new WorkingCompositionService(reopenedWorkspace).RemoveItemAsync(audioClipId);
+        Assert.Empty(new WorkingCompositionService(reopenedWorkspace).GetCurrent().Recipe.AudioClips);
+    }
+
     private static ProjectAsset CreatePhysicalAsset(
         string fileName,
         string relativePath,

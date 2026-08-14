@@ -73,6 +73,38 @@ public sealed class FfmpegCommandBuilderTests
     }
 
     [Fact]
+    public void AudioOverlayPreservesBaseAudioAndDelaysDroppedClips()
+    {
+        var arguments = FfmpegCommandBuilder.BuildAudioOverlayArguments(
+            "composition.mp4",
+            videoHasAudio: true,
+            [new AudioOverlayInput(@"C:\Project media\music.mp3", TimeSpan.FromSeconds(2.345))],
+            "mixed.mp4");
+
+        Assert.Equal(2, arguments.Count(argument => argument == "-i"));
+        var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.Contains("[0:a:0]asetpts=PTS-STARTPTS[baseaudio]", graph, StringComparison.Ordinal);
+        Assert.Contains("[1:a:0]adelay=2345:all=1", graph, StringComparison.Ordinal);
+        Assert.Contains("amix=inputs=2:duration=longest", graph, StringComparison.Ordinal);
+        Assert.Contains("-shortest", arguments);
+        Assert.Equal("mixed.mp4", arguments[^1]);
+    }
+
+    [Fact]
+    public void AudioOverlayWorksWhenVideoHasNoAudio()
+    {
+        var arguments = FfmpegCommandBuilder.BuildAudioOverlayArguments(
+            "composition.mp4",
+            videoHasAudio: false,
+            [new AudioOverlayInput("voice.wav", TimeSpan.Zero)],
+            "mixed.mp4");
+
+        var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.DoesNotContain("[0:a:0]", graph, StringComparison.Ordinal);
+        Assert.Contains("[overlay0]anull[aout]", graph, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void NormalizedConcatMatchesVideoAndCreatesSilenceForDisabledAudio()
     {
         var arguments = FfmpegCommandBuilder.BuildNormalizedConcatArguments(

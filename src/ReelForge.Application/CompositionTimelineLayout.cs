@@ -28,6 +28,18 @@ public sealed record CompositionTimelineLayoutResult(
             : Math.Clamp((clamped - segment.StartSeconds) / segment.DurationSeconds, 0, 1);
         return segment.Left + segment.Width * progress;
     }
+
+    public double GetTimeAtX(double x)
+    {
+        if (Segments.Count == 0 || ProjectedDurationSeconds <= 0 || ContentWidth <= 0) return 0;
+        var clamped = Math.Clamp(x, 0, ContentWidth);
+        var segment = Segments.FirstOrDefault(candidate => clamped < candidate.Left + candidate.Width) ??
+                      Segments[^1];
+        var progress = segment.Width <= 0
+            ? 0
+            : Math.Clamp((clamped - segment.Left) / segment.Width, 0, 1);
+        return segment.StartSeconds + segment.DurationSeconds * progress;
+    }
 }
 
 public static class CompositionTimelineLayout

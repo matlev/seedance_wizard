@@ -97,12 +97,36 @@ public sealed class WorkingCompositionService
         }
     }
 
-    public async Task<RecipeRevision> AddSegmentAsync(
+    public Task<RecipeRevision> AddSegmentAsync(
         Guid sourceAssetId,
         CancellationToken cancellationToken = default) =>
-        await UpdateAsync(
-            segments => segments.Add(CreateSegment(RequireVideoSource(sourceAssetId))),
-            cancellationToken).ConfigureAwait(false);
+        AddSegmentAsync(sourceAssetId, insertionIndex: null, cancellationToken);
+
+    public async Task<RecipeRevision> AddSegmentAsync(
+        Guid sourceAssetId,
+        int? insertionIndex,
+        CancellationToken cancellationToken = default) =>
+        await UpdateAsync(recipe =>
+        {
+            var segment = CreateSegment(RequireVideoSource(sourceAssetId));
+            var index = Math.Clamp(insertionIndex ?? recipe.Segments.Count, 0, recipe.Segments.Count);
+            recipe.Segments.Insert(index, segment);
+        }, cancellationToken).ConfigureAwait(false);
+
+    public async Task<RecipeRevision> AddAudioClipAsync(
+        Guid sourceAssetId,
+        TimeSpan timelineStart,
+        CancellationToken cancellationToken = default) =>
+        await UpdateAsync(recipe =>
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(timelineStart, TimeSpan.Zero);
+            var source = RequireAudioSource(sourceAssetId);
+            recipe.AudioClips.Add(new CompositionAudioClip
+            {
+                Source = new AssetRevisionReference { AssetId = source.Id },
+                TimelineStartTicks = timelineStart.Ticks
+            });
+        }, cancellationToken).ConfigureAwait(false);
 
     public async Task<RecipeRevision> MoveSegmentAsync(
         Guid segmentId,
@@ -111,8 +135,9 @@ public sealed class WorkingCompositionService
     {
         if (offset is not (-1 or 1))
             throw new ArgumentOutOfRangeException(nameof(offset), "A composition segment can move one position at a time.");
-        return await UpdateAsync(segments =>
+        return await UpdateAsync(recipe =>
         {
+            var segments = recipe.Segments;
             var index = segments.FindIndex(segment => segment.Id == segmentId);
             if (index < 0) throw new InvalidOperationException("The selected composition segment no longer exists.");
             var target = index + offset;
@@ -124,12 +149,25 @@ public sealed class WorkingCompositionService
     public async Task<RecipeRevision> RemoveSegmentAsync(
         Guid segmentId,
         CancellationToken cancellationToken = default) =>
-        await UpdateAsync(segments =>
+        await UpdateAsync(recipe =>
         {
+            var segments = recipe.Segments;
             if (segments.Count == 1)
                 throw new InvalidOperationException("A Working Composition must contain at least one segment.");
             if (segments.RemoveAll(segment => segment.Id == segmentId) == 0)
                 throw new InvalidOperationException("The selected composition segment no longer exists.");
+        }, cancellationToken).ConfigureAwait(false);
+
+    public async Task<RecipeRevision> RemoveItemAsync(
+        Guid itemId,
+        CancellationToken cancellationToken = default) =>
+        await UpdateAsync(recipe =>
+        {
+            if (recipe.AudioClips.RemoveAll(clip => clip.Id == itemId) > 0) return;
+            if (recipe.Segments.Count == 1)
+                throw new InvalidOperationException("A Working Composition must contain at least one video segment.");
+            if (recipe.Segments.RemoveAll(segment => segment.Id == itemId) == 0)
+                throw new InvalidOperationException("The selected composition item no longer exists.");
         }, cancellationToken).ConfigureAwait(false);
 
     public (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent()
@@ -149,14 +187,14 @@ public sealed class WorkingCompositionService
     }
 
     private async Task<RecipeRevision> UpdateAsync(
-        Action<List<CompositionSegment>> update,
+        Action<CompositionRecipe> update,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(update);
         var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
         var (asset, _, currentRecipe) = GetCurrent();
-        var segments = currentRecipe.Segments.Select(CloneSegment).ToList();
-        update(segments);
+        var recipe = CloneRecipe(currentRecipe);
+        update(recipe);
 
         var revisionCount = project.RecipeRevisions.Count;
         var oldCurrentRevisionId = asset.Virtual!.CurrentRecipeRevisionId;
@@ -166,20 +204,19 @@ public sealed class WorkingCompositionService
         var oldDraftRecipe = existingDraft?.EditableRecipe;
         try
         {
-            var recipe = new CompositionRecipe { Segments = segments };
             var revision = project.CommitRecipe(asset.Id, recipe);
             asset.Provenance ??= new AssetProvenance { Operation = "working-composition" };
-            asset.Provenance.SourceAssetIds = segments.Select(segment => segment.Source.AssetId).Distinct().ToList();
+            asset.Provenance.SourceAssetIds = recipe.Segments.Select(segment => segment.Source.AssetId)
+                .Concat(recipe.AudioClips.Select(clip => clip.Source.AssetId))
+                .Distinct()
+                .ToList();
             if (existingDraft is null)
             {
                 existingDraft = new RecipeDraft { VirtualAssetId = asset.Id };
                 project.RecipeDrafts.Add(existingDraft);
             }
             existingDraft.BasedOnRevisionId = revision.Id;
-            existingDraft.EditableRecipe = new CompositionRecipe
-            {
-                Segments = segments.Select(CloneSegment).ToList()
-            };
+            existingDraft.EditableRecipe = CloneRecipe(recipe);
             existingDraft.ModifiedAt = DateTimeOffset.UtcNow;
             await _workspace.SaveAsync(cancellationToken).ConfigureAwait(false);
             return revision;
@@ -215,6 +252,16 @@ public sealed class WorkingCompositionService
         return source;
     }
 
+    private ProjectAsset RequireAudioSource(Guid sourceAssetId)
+    {
+        var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
+        var source = project.Assets.SingleOrDefault(asset => asset.Id == sourceAssetId)
+            ?? throw new InvalidOperationException("The selected audio source no longer exists.");
+        if (source.StorageKind != AssetStorageKind.Physical || source.MediaType != MediaType.Audio)
+            throw new InvalidOperationException("Add a physical audio file to the Working Composition.");
+        return source;
+    }
+
     private static CompositionSegment CreateSegment(ProjectAsset source) => new()
     {
         Source = new AssetRevisionReference
@@ -236,5 +283,16 @@ public sealed class WorkingCompositionService
         Start = segment.Start with { },
         End = segment.End with { },
         AudioEnabled = segment.AudioEnabled
+    };
+
+    private static CompositionRecipe CloneRecipe(CompositionRecipe recipe) => new()
+    {
+        Segments = recipe.Segments.Select(CloneSegment).ToList(),
+        AudioClips = recipe.AudioClips.Select(clip => new CompositionAudioClip
+        {
+            Id = clip.Id,
+            Source = clip.Source with { },
+            TimelineStartTicks = clip.TimelineStartTicks
+        }).ToList()
     };
 }

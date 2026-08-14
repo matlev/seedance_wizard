@@ -167,7 +167,8 @@ public sealed class SavedClipService
     {
         TrimRecipe trim => trim.Source.AssetId == assetId,
         ExtractFrameRecipe frame => frame.Source.AssetId == assetId,
-        CompositionRecipe composition => composition.Segments.Any(segment => segment.Source.AssetId == assetId),
+        CompositionRecipe composition => composition.Segments.Any(segment => segment.Source.AssetId == assetId) ||
+                                         composition.AudioClips.Any(clip => clip.Source.AssetId == assetId),
         _ => false
     };
 

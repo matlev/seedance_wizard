@@ -313,7 +313,7 @@ Phase acceptance checks:
 
 ### Phase 2E — timeline
 
-In progress. The first slice projects the committed Working Composition into a horizontal duration-aware timeline without introducing a second persistence model. Segment blocks retain a readable minimum size, expand proportionally by known duration, own segment selection directly, and display a playhead for the currently rendered composition revision. Unknown durations are clearly identified as estimated. Timeline geometry remains disposable UI state derived from immutable recipes.
+In progress. The first slices project the committed Working Composition into a horizontal duration-aware timeline without introducing a second persistence model. Segment blocks retain a readable minimum size, expand proportionally by known duration, own segment selection directly, and display a playhead for the currently rendered composition revision. Unknown durations are clearly identified as estimated. Timeline geometry remains disposable UI state derived from immutable recipes. Project Media video and physical-audio files can now be dragged into the timeline; images are excluded. Video drops insert ordered segments while audio drops persist an independent tick-precise start time and render through delayed FFmpeg mixing.
 
 #### Phase 2E.1 — visual composition timeline foundation
 
@@ -321,11 +321,14 @@ In progress. The first slice projects the committed Working Composition into a h
 2. Keep short segments selectable without pretending all segments have equal duration.
 3. Use the timeline as the sole segment-selection surface rather than duplicating its content in a secondary list.
 4. Map composition-preview playback through the projected segment spans and invalidate stale preview state after recipe edits.
+5. Remove the redundant text projection beneath the visual timeline; the timeline is the composition interaction surface.
+6. Insert physical videos or Saved Clips at the visual drop position and retain direct block selection after switching Project Media items.
+7. Place physical audio on a separate timed row, persist it in immutable composition revisions, and mix it with source-video audio during preview/export.
 5. Keep clip widths, ruler ticks, scroll position, and playhead position out of the `.rfp` schema.
 
 Subsequent timeline work:
 
-1. Add tracks, ordering, clip properties, audio enablement, and basic gain/fade metadata.
+1. Extend the initial sequential-video plus timed-audio model with additional tracks, clip properties, audio enablement, and basic gain/fade metadata.
 2. Let timeline clips reference physical or virtual assets by logical ID.
 3. Compile preview and export through the shared materialization planner.
 4. Capture immutable composition snapshots for provider requests and historical exports.

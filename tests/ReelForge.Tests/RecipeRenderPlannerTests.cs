@@ -166,6 +166,42 @@ public sealed class RecipeRenderPlannerTests
         Assert.Contains(node.Compatibility.Issues, issue => issue.Property.Contains("width", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void CompositionPlanPinsTimedAudioClipsIntoItsHash()
+    {
+        var video = PhysicalVideo();
+        var audio = PhysicalAudio();
+        var composition = VirtualVideo("Composition");
+        composition.Virtual!.Kind = VirtualAssetKind.Composition;
+        var project = new VideoProject { Assets = [video, audio, composition] };
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = video.Id } }
+            ],
+            AudioClips =
+            [
+                new CompositionAudioClip
+                {
+                    Source = new AssetRevisionReference { AssetId = audio.Id },
+                    TimelineStartTicks = TimeSpan.FromSeconds(3).Ticks
+                }
+            ]
+        });
+
+        var plan = RecipeRenderPlanner.Plan(
+            project,
+            new AssetMaterializationTarget(composition.Id, revision.Id),
+            MaterializationPurpose.Preview);
+        var node = Assert.IsType<CompositionRenderPlanNode>(plan.Root);
+
+        var clip = Assert.Single(node.AudioClips);
+        Assert.Equal(audio.Id, clip.Source.AssetId);
+        Assert.Equal(TimeSpan.FromSeconds(3).Ticks, clip.TimelineStartTicks);
+        Assert.NotEqual(node.Segments[0].SegmentHash, clip.ClipHash);
+    }
+
     private static ProjectAsset PhysicalVideo() => new()
     {
         DisplayName = "Source",
@@ -190,6 +226,23 @@ public sealed class RecipeRenderPlannerTests
         StorageKind = AssetStorageKind.Virtual,
         Physical = null,
         Virtual = new VirtualAssetState { Kind = VirtualAssetKind.SavedClip }
+    };
+
+    private static ProjectAsset PhysicalAudio() => new()
+    {
+        DisplayName = "Music",
+        FileName = "music.wav",
+        MediaType = MediaType.Audio,
+        StorageKind = AssetStorageKind.Physical,
+        Physical = new PhysicalAssetStorage
+        {
+            RelativePath = Path.Combine("assets", "audio", "music.wav"),
+            ContentIdentity = new ContentIdentity
+            {
+                Status = ContentHashStatus.Verified,
+                Sha256 = new string('c', 64)
+            }
+        }
     };
 
     private static RecipeBoundary Timestamp(double seconds) => new()

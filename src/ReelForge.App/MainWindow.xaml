@@ -164,7 +164,9 @@
                         </Grid.RowDefinitions>
                         <TextBlock Text="PROJECT MEDIA" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,2,4,8" />
                         <ListBox x:Name="AssetsList" Grid.Row="1" SelectionChanged="AssetsList_SelectionChanged"
-                                 PreviewMouseRightButtonDown="AssetsList_PreviewMouseRightButtonDown">
+                                 PreviewMouseRightButtonDown="AssetsList_PreviewMouseRightButtonDown"
+                                 PreviewMouseLeftButtonDown="AssetsList_PreviewMouseLeftButtonDown"
+                                 PreviewMouseMove="AssetsList_PreviewMouseMove">
                         <ListBox.GroupStyle>
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
@@ -486,9 +488,13 @@
                                                Foreground="{StaticResource MutedTextBrush}" />
                                 </StackPanel>
                             </DockPanel>
-                            <Border Grid.Row="1" MinHeight="132" Margin="0,0,0,8" Padding="8,6,8,4"
+                            <Border x:Name="CompositionTimelineBorder" Grid.Row="1" MinHeight="168" Margin="0,0,0,8" Padding="8,6,8,4"
                                     Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1" CornerRadius="4">
+                                    BorderThickness="1" CornerRadius="4" AllowDrop="True"
+                                    PreviewDragEnter="CompositionTimeline_PreviewDragEnter"
+                                    PreviewDragOver="CompositionTimeline_PreviewDragOver"
+                                    PreviewDragLeave="CompositionTimeline_PreviewDragLeave"
+                                    PreviewDrop="CompositionTimeline_PreviewDrop">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -504,9 +510,20 @@
                                                   HorizontalScrollBarVisibility="Auto"
                                                   VerticalScrollBarVisibility="Disabled"
                                                   SizeChanged="CompositionTimelineScrollViewer_SizeChanged">
-                                        <Canvas x:Name="CompositionTimelineCanvas" Height="88"
+                                        <Canvas x:Name="CompositionTimelineCanvas" Height="124"
                                                 Background="#0B0D12" ClipToBounds="True" />
                                     </ScrollViewer>
+                                    <Border x:Name="CompositionTimelineDropHint" Grid.Row="1" Visibility="Collapsed"
+                                            IsHitTestVisible="False" Background="#CC171B25" BorderBrush="{StaticResource AccentBrush}"
+                                            BorderThickness="2" CornerRadius="4" Margin="2">
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="+" Foreground="White" FontSize="28" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center" />
+                                            <TextBlock x:Name="CompositionTimelineDropHintText" Foreground="White"
+                                                       FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"
+                                                       MaxWidth="460" />
+                                        </StackPanel>
+                                    </Border>
                                 </Grid>
                             </Border>
                             <Grid Grid.Row="2" Margin="0,10,0,0">

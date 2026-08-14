@@ -134,6 +134,7 @@ internal sealed class AssetRecipeDto
     public RecipeBoundaryDto? End { get; set; }
     public AnchorRevisionReferenceDto? Anchor { get; set; }
     public List<CompositionSegmentDto> Segments { get; set; } = [];
+    public List<CompositionAudioClipDto> AudioClips { get; set; } = [];
     public string? Profile { get; set; }
 }
 
@@ -144,6 +145,13 @@ internal sealed class CompositionSegmentDto
     public RecipeBoundaryDto Start { get; set; } = new();
     public RecipeBoundaryDto End { get; set; } = new();
     public bool AudioEnabled { get; set; }
+}
+
+internal sealed class CompositionAudioClipDto
+{
+    public Guid Id { get; set; }
+    public AssetRevisionReferenceDto Source { get; set; } = new();
+    public long TimelineStartTicks { get; set; }
 }
 
 internal sealed class RecipeBoundaryDto
@@ -483,6 +491,12 @@ internal static class ProjectPersistenceMapper
                 Start = ToDto(segment.Start),
                 End = ToDto(segment.End),
                 AudioEnabled = segment.AudioEnabled
+            }).ToList(),
+            AudioClips = composition.AudioClips.Select(clip => new CompositionAudioClipDto
+            {
+                Id = clip.Id,
+                Source = ToDto(clip.Source),
+                TimelineStartTicks = clip.TimelineStartTicks
             }).ToList()
         },
         _ => throw new NotSupportedException($"Recipe type '{source.GetType().Name}' is not supported.")
@@ -512,6 +526,12 @@ internal static class ProjectPersistenceMapper
                 Start = FromDto(segment.Start) ?? RecipeBoundary.SourceStart,
                 End = FromDto(segment.End) ?? RecipeBoundary.SourceEnd,
                 AudioEnabled = segment.AudioEnabled
+            }).ToList(),
+            AudioClips = source.AudioClips.Select(clip => new CompositionAudioClip
+            {
+                Id = clip.Id,
+                Source = FromDto(clip.Source),
+                TimelineStartTicks = clip.TimelineStartTicks
             }).ToList()
         },
         _ => throw new InvalidDataException($"Recipe type '{source.Type}' is not supported.")

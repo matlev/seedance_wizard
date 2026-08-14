@@ -26,6 +26,7 @@ internal enum MediaPreparationMode { None, SelectFrame, MakeClip }
 
 public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 {
+    private const string ProjectMediaDragFormat = "ReelForge.ProjectMediaAssetId";
     private readonly ObservableCollection<ProjectMediaListItem> _assets = [];
     private readonly ObservableCollection<GenerationRecord> _generations = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
@@ -33,6 +34,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ObservableCollection<FrameContactListItem> _contactFrames = [];
     private readonly ObservableCollection<SavedFrameListItem> _savedFrames = [];
     private readonly ObservableCollection<CompositionSegmentListItem> _compositionSegments = [];
+    private readonly ObservableCollection<CompositionAudioClipListItem> _compositionAudioClips = [];
     private readonly HashSet<Guid> _viewedTerminalJobIds = [];
     private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
     private readonly SemaphoreSlim _submissionGate = new(1, 1);
@@ -98,6 +100,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private Line? _compositionTimelinePlayhead;
     private Guid? _activeCompositionPreviewRevisionId;
     private Guid? _selectedCompositionSegmentId;
+    private Guid? _selectedCompositionAudioClipId;
+    private Point _projectMediaDragStart;
+    private ProjectMediaListItem? _projectMediaDragItem;
     private bool _renderingCompositionTimeline;
     private bool _disposed;
     private bool _isMediaImportInProgress;
@@ -951,18 +956,28 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         await ImportMediaFilesAsync(dialog.FileNames);
     }
 
-    private void MainWindow_PreviewDragEnter(object sender, DragEventArgs e) => UpdateMediaDropFeedback(e);
+    private void MainWindow_PreviewDragEnter(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(ProjectMediaDragFormat)) return;
+        UpdateMediaDropFeedback(e);
+    }
 
-    private void MainWindow_PreviewDragOver(object sender, DragEventArgs e) => UpdateMediaDropFeedback(e);
+    private void MainWindow_PreviewDragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(ProjectMediaDragFormat)) return;
+        UpdateMediaDropFeedback(e);
+    }
 
     private void MainWindow_PreviewDragLeave(object sender, DragEventArgs e)
     {
+        if (e.Data.GetDataPresent(ProjectMediaDragFormat)) return;
         HideMediaDropOverlay();
         e.Handled = true;
     }
 
     private async void MainWindow_PreviewDrop(object sender, DragEventArgs e)
     {
+        if (e.Data.GetDataPresent(ProjectMediaDragFormat)) return;
         var droppedFiles = GetDroppedFiles(e.Data);
         var supportedFiles = droppedFiles.Where(AssetImportService.IsSupportedMediaFile).ToArray();
         var skippedCount = droppedFiles.Count - supportedFiles.Length;
@@ -1164,11 +1179,15 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (!hasComposition)
         {
             _compositionSegments.Clear();
+            _compositionAudioClips.Clear();
+            _selectedCompositionSegmentId = null;
+            _selectedCompositionAudioClipId = null;
             ClearCompositionTimeline();
             UpdateCompositionActionState();
             return;
         }
         var selectedSegmentId = _selectedCompositionSegmentId;
+        var selectedAudioClipId = _selectedCompositionAudioClipId;
         WorkingCompositionNameText.Text = composition!.EffectiveDisplayName;
         var revision = _workspace.Project!.RecipeRevisions.Single(candidate =>
             candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
@@ -1176,7 +1195,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             ClearMediaPreview();
         var recipe = (CompositionRecipe)revision.Recipe;
         WorkingCompositionSummaryText.Text =
-            $"{recipe.Segments.Count} exact, revision-pinned segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • recipe revision {revision.RevisionNumber}";
+            $"{recipe.Segments.Count} video segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • " +
+            $"{recipe.AudioClips.Count} audio clip{(recipe.AudioClips.Count == 1 ? string.Empty : "s")} • " +
+            $"exact, revision-pinned sources • recipe revision {revision.RevisionNumber}";
         _compositionSegments.Clear();
         for (var index = 0; index < recipe.Segments.Count; index++)
         {
@@ -1187,6 +1208,16 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _selectedCompositionSegmentId = selectedSegmentId is { } id &&
                                         _compositionSegments.Any(item => item.SegmentId == id)
             ? id
+            : null;
+        _compositionAudioClips.Clear();
+        foreach (var audioClip in recipe.AudioClips)
+        {
+            var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == audioClip.Source.AssetId);
+            _compositionAudioClips.Add(new CompositionAudioClipListItem(audioClip, source));
+        }
+        _selectedCompositionAudioClipId = selectedAudioClipId is { } audioId &&
+                                          _compositionAudioClips.Any(item => item.AudioClipId == audioId)
+            ? audioId
             : null;
         RenderCompositionTimeline();
         UpdateCompositionActionState();
@@ -1201,6 +1232,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             var segment = AssertCompositionRecipe(revision).Segments[^1];
             RefreshEditWorkspaceState();
             _selectedCompositionSegmentId = segment.Id;
+            _selectedCompositionAudioClipId = null;
             RenderCompositionTimeline();
             StatusText.Text = $"Added {source.EffectiveDisplayName} to the Working Composition.";
         });
@@ -1220,6 +1252,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             await new WorkingCompositionService(_workspace).MoveSegmentAsync(selected.SegmentId, offset);
             RefreshEditWorkspaceState();
             _selectedCompositionSegmentId = selected.SegmentId;
+            _selectedCompositionAudioClipId = null;
             RenderCompositionTimeline();
             StatusText.Text = "Working Composition order updated.";
         });
@@ -1227,12 +1260,18 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void RemoveCompositionSegment_Click(object sender, RoutedEventArgs e)
     {
-        if (GetSelectedCompositionSegment() is not { } selected) return;
-        await RunUiActionAsync($"Removing {selected.DisplayName} from the composition…", async () =>
+        var selectedSegment = GetSelectedCompositionSegment();
+        var selectedAudio = GetSelectedCompositionAudioClip();
+        if (selectedSegment is null && selectedAudio is null) return;
+        var displayName = selectedSegment?.DisplayName ?? selectedAudio!.DisplayName;
+        var itemId = selectedSegment?.SegmentId ?? selectedAudio!.AudioClipId;
+        await RunUiActionAsync($"Removing {displayName} from the composition…", async () =>
         {
-            await new WorkingCompositionService(_workspace).RemoveSegmentAsync(selected.SegmentId);
+            await new WorkingCompositionService(_workspace).RemoveItemAsync(itemId);
+            _selectedCompositionSegmentId = null;
+            _selectedCompositionAudioClipId = null;
             RefreshEditWorkspaceState();
-            StatusText.Text = $"Removed {selected.DisplayName} from the Working Composition.";
+            StatusText.Text = $"Removed {displayName} from the Working Composition.";
         });
     }
 
@@ -1304,6 +1343,17 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         if (sender is not Border { Tag: Guid segmentId }) return;
         _selectedCompositionSegmentId = segmentId;
+        _selectedCompositionAudioClipId = null;
+        UpdateCompositionActionState();
+        RenderCompositionTimeline();
+        e.Handled = true;
+    }
+
+    private void CompositionTimelineAudioClip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border { Tag: Guid audioClipId }) return;
+        _selectedCompositionSegmentId = null;
+        _selectedCompositionAudioClipId = audioClipId;
         UpdateCompositionActionState();
         RenderCompositionTimeline();
         e.Handled = true;
@@ -1379,10 +1429,56 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 CompositionTimelineCanvas.Children.Add(segmentBorder);
             }
 
+            var selectedAudioId = _selectedCompositionAudioClipId;
+            foreach (var item in _compositionAudioClips)
+            {
+                var startSeconds = Math.Clamp(
+                    item.TimelineStart.TotalSeconds,
+                    0,
+                    _compositionTimelineLayout.ProjectedDurationSeconds);
+                var left = _compositionTimelineLayout.GetPlayheadX(startSeconds);
+                var endSeconds = Math.Min(
+                    _compositionTimelineLayout.ProjectedDurationSeconds,
+                    startSeconds + Math.Max(0.25, item.DurationSeconds ?? 1));
+                var right = _compositionTimelineLayout.GetPlayheadX(endSeconds);
+                var width = Math.Max(56, right - left);
+                if (left + width > _compositionTimelineLayout.ContentWidth)
+                    width = Math.Max(1, _compositionTimelineLayout.ContentWidth - left);
+                var isSelected = item.AudioClipId == selectedAudioId;
+                var audioBorder = new Border
+                {
+                    Tag = item.AudioClipId,
+                    Width = width,
+                    Height = 34,
+                    Background = new SolidColorBrush(isSelected
+                        ? Color.FromRgb(42, 91, 74)
+                        : Color.FromRgb(28, 65, 55)),
+                    BorderBrush = isSelected
+                        ? FindResource("AccentBrush") as Brush ?? Brushes.MediumPurple
+                        : new SolidColorBrush(Color.FromRgb(55, 136, 107)),
+                    BorderThickness = new Thickness(isSelected ? 2 : 1),
+                    CornerRadius = new CornerRadius(3),
+                    Padding = new Thickness(7, 3, 6, 3),
+                    ToolTip = $"Audio: {item.DisplayName}\nStarts at {FormatTimelineTime(startSeconds)}\n{item.DurationText}\nClick to select"
+                };
+                audioBorder.Child = new TextBlock
+                {
+                    Text = $"♪ {item.DisplayName}",
+                    Foreground = FindResource("TextBrush") as Brush ?? Brushes.White,
+                    FontWeight = FontWeights.SemiBold,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                audioBorder.MouseLeftButtonDown += CompositionTimelineAudioClip_MouseLeftButtonDown;
+                Canvas.SetLeft(audioBorder, left + 1);
+                Canvas.SetTop(audioBorder, 86);
+                CompositionTimelineCanvas.Children.Add(audioBorder);
+            }
+
             _compositionTimelinePlayhead = new Line
             {
                 Y1 = 16,
-                Y2 = 85,
+                Y2 = 122,
                 Stroke = FindResource("AccentBrush") as Brush ?? Brushes.MediumPurple,
                 StrokeThickness = 2,
                 IsHitTestVisible = false,
@@ -1482,7 +1578,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             : -1;
         MoveCompositionSegmentUpButton.IsEnabled = index > 0;
         MoveCompositionSegmentDownButton.IsEnabled = index >= 0 && index < _compositionSegments.Count - 1;
-        RemoveCompositionSegmentButton.IsEnabled = index >= 0 && _compositionSegments.Count > 1;
+        RemoveCompositionSegmentButton.IsEnabled =
+            (index >= 0 && _compositionSegments.Count > 1) || _selectedCompositionAudioClipId is not null;
         PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0;
         ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0;
     }
@@ -1490,6 +1587,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private CompositionSegmentListItem? GetSelectedCompositionSegment() =>
         _selectedCompositionSegmentId is { } id
             ? _compositionSegments.FirstOrDefault(item => item.SegmentId == id)
+            : null;
+
+    private CompositionAudioClipListItem? GetSelectedCompositionAudioClip() =>
+        _selectedCompositionAudioClipId is { } id
+            ? _compositionAudioClips.FirstOrDefault(item => item.AudioClipId == id)
             : null;
 
     private static CompositionRecipe AssertCompositionRecipe(RecipeRevision revision) =>
@@ -1622,6 +1724,139 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         var item = ItemsControl.ContainerFromElement(AssetsList, e.OriginalSource as DependencyObject) as ListBoxItem;
         if (item is not null) item.IsSelected = true;
+    }
+
+    private void AssetsList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _projectMediaDragStart = e.GetPosition(AssetsList);
+        var container = ItemsControl.ContainerFromElement(
+            AssetsList,
+            e.OriginalSource as DependencyObject) as ListBoxItem;
+        _projectMediaDragItem = container?.DataContext as ProjectMediaListItem;
+    }
+
+    private void AssetsList_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed ||
+            _projectMediaDragItem?.Asset is not { } asset ||
+            !CanDragIntoComposition(asset))
+            return;
+        var position = e.GetPosition(AssetsList);
+        if (Math.Abs(position.X - _projectMediaDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(position.Y - _projectMediaDragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        _projectMediaDragItem = null;
+        var data = new DataObject(ProjectMediaDragFormat, asset.Id.ToString("D", CultureInfo.InvariantCulture));
+        DragDrop.DoDragDrop(AssetsList, data, DragDropEffects.Copy);
+    }
+
+    private static bool CanDragIntoComposition(ProjectAsset asset) =>
+        asset is { MediaType: MediaType.Audio, StorageKind: AssetStorageKind.Physical } ||
+        asset.MediaType == MediaType.Video &&
+        (asset.StorageKind == AssetStorageKind.Physical || asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
+
+    private void CompositionTimeline_PreviewDragEnter(object sender, DragEventArgs e) =>
+        UpdateCompositionTimelineDropFeedback(e);
+
+    private void CompositionTimeline_PreviewDragOver(object sender, DragEventArgs e) =>
+        UpdateCompositionTimelineDropFeedback(e);
+
+    private void CompositionTimeline_PreviewDragLeave(object sender, DragEventArgs e)
+    {
+        HideCompositionTimelineDropFeedback();
+        e.Handled = true;
+    }
+
+    private async void CompositionTimeline_PreviewDrop(object sender, DragEventArgs e)
+    {
+        var asset = ResolveCompositionDragAsset(e.Data);
+        var canDrop = asset is not null && _compositionTimelineLayout?.Segments.Count > 0;
+        e.Effects = canDrop ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+        HideCompositionTimelineDropFeedback();
+        if (!canDrop) return;
+
+        var x = e.GetPosition(CompositionTimelineCanvas).X;
+        if (asset!.MediaType == MediaType.Video)
+        {
+            var insertionIndex = GetCompositionVideoInsertionIndex(x);
+            await RunUiActionAsync($"Inserting {asset.EffectiveDisplayName} into the composition…", async () =>
+            {
+                var revision = await new WorkingCompositionService(_workspace)
+                    .AddSegmentAsync(asset.Id, insertionIndex);
+                var recipe = AssertCompositionRecipe(revision);
+                var segment = recipe.Segments[Math.Clamp(insertionIndex, 0, recipe.Segments.Count - 1)];
+                RefreshEditWorkspaceState();
+                _selectedCompositionSegmentId = segment.Id;
+                _selectedCompositionAudioClipId = null;
+                RenderCompositionTimeline();
+                StatusText.Text = $"Inserted {asset.EffectiveDisplayName} into the Working Composition.";
+            });
+            return;
+        }
+
+        var startSeconds = _compositionTimelineLayout!.GetTimeAtX(x);
+        await RunUiActionAsync($"Adding {asset.EffectiveDisplayName} to the audio track…", async () =>
+        {
+            var revision = await new WorkingCompositionService(_workspace)
+                .AddAudioClipAsync(asset.Id, TimeSpan.FromSeconds(startSeconds));
+            var clip = AssertCompositionRecipe(revision).AudioClips[^1];
+            RefreshEditWorkspaceState();
+            _selectedCompositionSegmentId = null;
+            _selectedCompositionAudioClipId = clip.Id;
+            RenderCompositionTimeline();
+            StatusText.Text = $"Added {asset.EffectiveDisplayName} at {FormatTimelineTime(startSeconds)}.";
+        });
+    }
+
+    private void UpdateCompositionTimelineDropFeedback(DragEventArgs e)
+    {
+        var asset = ResolveCompositionDragAsset(e.Data);
+        var canDrop = asset is not null && _compositionTimelineLayout?.Segments.Count > 0;
+        e.Effects = canDrop ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+        if (!canDrop)
+        {
+            HideCompositionTimelineDropFeedback();
+            return;
+        }
+
+        var x = e.GetPosition(CompositionTimelineCanvas).X;
+        CompositionTimelineDropHintText.Text = asset!.MediaType == MediaType.Video
+            ? $"Drop to insert {asset.EffectiveDisplayName} at position {GetCompositionVideoInsertionIndex(x) + 1}"
+            : $"Drop to place {asset.EffectiveDisplayName} at {FormatTimelineTime(_compositionTimelineLayout!.GetTimeAtX(x))}";
+        CompositionTimelineDropHint.Visibility = Visibility.Visible;
+    }
+
+    private ProjectAsset? ResolveCompositionDragAsset(IDataObject data)
+    {
+        if (!data.GetDataPresent(ProjectMediaDragFormat) || _workspace.Project is null) return null;
+        var value = data.GetData(ProjectMediaDragFormat)?.ToString();
+        if (!Guid.TryParse(value, out var assetId)) return null;
+        var asset = _workspace.Project.Assets.SingleOrDefault(candidate => candidate.Id == assetId);
+        return asset is not null &&
+               asset.Id != _workspace.Project.WorkingCompositionAssetId &&
+               CanDragIntoComposition(asset)
+            ? asset
+            : null;
+    }
+
+    private int GetCompositionVideoInsertionIndex(double x)
+    {
+        if (_compositionTimelineLayout is null) return _compositionSegments.Count;
+        for (var index = 0; index < _compositionTimelineLayout.Segments.Count; index++)
+        {
+            var span = _compositionTimelineLayout.Segments[index];
+            if (x < span.Left + span.Width / 2) return index;
+        }
+        return _compositionTimelineLayout.Segments.Count;
+    }
+
+    private void HideCompositionTimelineDropFeedback()
+    {
+        if (CompositionTimelineDropHint is not null)
+            CompositionTimelineDropHint.Visibility = Visibility.Collapsed;
     }
 
     private async void RenameAsset_Click(object sender, RoutedEventArgs e)
@@ -1976,7 +2211,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         TrimRecipe trim => trim.Source.AssetId == assetId,
         ExtractFrameRecipe frame => frame.Source.AssetId == assetId,
-        CompositionRecipe composition => composition.Segments.Any(segment => segment.Source.AssetId == assetId),
+        CompositionRecipe composition => composition.Segments.Any(segment => segment.Source.AssetId == assetId) ||
+                                         composition.AudioClips.Any(clip => clip.Source.AssetId == assetId),
         _ => false
     };
 
@@ -4161,6 +4397,27 @@ public sealed class CompositionSegmentListItem
             ? time.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
             : time.ToString(@"m\:ss", CultureInfo.InvariantCulture);
     }
+}
+
+public sealed class CompositionAudioClipListItem
+{
+    public CompositionAudioClipListItem(CompositionAudioClip clip, ProjectAsset? source)
+    {
+        AudioClipId = clip.Id;
+        DisplayName = source?.EffectiveDisplayName ?? "Missing audio source";
+        TimelineStart = clip.TimelineStart;
+        DurationSeconds = source?.DurationSeconds ?? source?.Encoding?.DurationSeconds ??
+                          source?.Virtual?.ExpectedMediaProperties?.DurationSeconds;
+        DurationText = DurationSeconds is > 0
+            ? TimeSpan.FromSeconds(DurationSeconds.Value).ToString(@"m\:ss", CultureInfo.InvariantCulture)
+            : "Duration unknown";
+    }
+
+    public Guid AudioClipId { get; }
+    public string DisplayName { get; }
+    public TimeSpan TimelineStart { get; }
+    public double? DurationSeconds { get; }
+    public string DurationText { get; }
 }
 
 public sealed class GenerationReferenceChoice

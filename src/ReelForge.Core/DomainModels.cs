@@ -261,6 +261,7 @@ public sealed record ExtractFrameRecipe : AssetRecipe
 public sealed record CompositionRecipe : AssetRecipe
 {
     public List<CompositionSegment> Segments { get; init; } = [];
+    public List<CompositionAudioClip> AudioClips { get; init; } = [];
 }
 
 public sealed record CompositionSegment
@@ -270,6 +271,15 @@ public sealed record CompositionSegment
     public RecipeBoundary Start { get; init; } = RecipeBoundary.SourceStart;
     public RecipeBoundary End { get; init; } = RecipeBoundary.SourceEnd;
     public bool AudioEnabled { get; init; } = true;
+}
+
+public sealed record CompositionAudioClip
+{
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public AssetRevisionReference Source { get; init; } = new();
+    public long TimelineStartTicks { get; init; }
+
+    public TimeSpan TimelineStart => TimeSpan.FromTicks(TimelineStartTicks);
 }
 
 public sealed record AssetRevisionReference

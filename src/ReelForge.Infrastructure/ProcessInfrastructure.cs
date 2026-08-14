@@ -285,6 +285,62 @@ public static class FfmpegCommandBuilder
         return arguments;
     }
 
+    public static IReadOnlyList<string> BuildAudioOverlayArguments(
+        string videoPath,
+        bool videoHasAudio,
+        IReadOnlyList<AudioOverlayInput> audioInputs,
+        string outputPath)
+    {
+        ValidateMediaPath(videoPath, nameof(videoPath));
+        ArgumentNullException.ThrowIfNull(audioInputs);
+        if (audioInputs.Count == 0)
+            throw new ArgumentException("At least one audio overlay is required.", nameof(audioInputs));
+        foreach (var input in audioInputs)
+        {
+            ValidateMediaPath(input.Path, nameof(audioInputs));
+            if (input.TimelineStart < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio overlay start times cannot be negative.");
+        }
+        ValidateMediaPath(outputPath, nameof(outputPath));
+
+        var arguments = new List<string> { "-hide_banner", "-y", "-i", videoPath };
+        foreach (var input in audioInputs) arguments.AddRange(["-i", input.Path]);
+
+        var filters = new List<string>();
+        var mixInputs = new StringBuilder();
+        var streamIndex = 0;
+        if (videoHasAudio)
+        {
+            filters.Add("[0:a:0]asetpts=PTS-STARTPTS[baseaudio]");
+            mixInputs.Append("[baseaudio]");
+            streamIndex++;
+        }
+        for (var index = 0; index < audioInputs.Count; index++)
+        {
+            var delayMilliseconds = Math.Max(0, (long)Math.Round(
+                audioInputs[index].TimelineStart.TotalMilliseconds,
+                MidpointRounding.AwayFromZero));
+            filters.Add($"[{index + 1}:a:0]adelay={delayMilliseconds}:all=1,asetpts=PTS-STARTPTS[overlay{index}]");
+            mixInputs.Append(CultureInfo.InvariantCulture, $"[overlay{index}]");
+            streamIndex++;
+        }
+
+        filters.Add(streamIndex == 1
+            ? $"{mixInputs}anull[aout]"
+            : $"{mixInputs}amix=inputs={streamIndex}:duration=longest:dropout_transition=0[aout]");
+        arguments.AddRange([
+            "-filter_complex", string.Join(';', filters),
+            "-map", "0:v:0",
+            "-map", "[aout]",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-shortest",
+            "-movflags", "+faststart",
+            outputPath
+        ]);
+        return arguments;
+    }
+
     public static IReadOnlyList<string> BuildNormalizedConcatArguments(
         IReadOnlyList<NormalizedConcatInput> inputs,
         string outputPath,
@@ -356,6 +412,8 @@ public static class FfmpegCommandBuilder
         }
     }
 }
+
+public sealed record AudioOverlayInput(string Path, TimeSpan TimelineStart);
 
 public sealed record NormalizedConcatInput(
     string Path,

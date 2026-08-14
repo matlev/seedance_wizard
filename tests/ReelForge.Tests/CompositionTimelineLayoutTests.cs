@@ -57,4 +57,22 @@ public sealed class CompositionTimelineLayoutTests
         Assert.Equal(result.Segments[1].Left, result.GetPlayheadX(2));
         Assert.Equal(result.ContentWidth, result.GetPlayheadX(99), precision: 6);
     }
+
+    [Fact]
+    public void DropPositionMapsBackToCompositionTime()
+    {
+        var result = CompositionTimelineLayout.Calculate(
+            [
+                new CompositionTimelineSegmentInput(Guid.NewGuid(), 2),
+                new CompositionTimelineSegmentInput(Guid.NewGuid(), 8)
+            ],
+            viewportWidth: 600,
+            minimumSegmentWidth: 100,
+            pixelsPerSecond: 20);
+
+        Assert.Equal(0, result.GetTimeAtX(-10));
+        Assert.Equal(1, result.GetTimeAtX(result.Segments[0].Width / 2), precision: 6);
+        Assert.Equal(2, result.GetTimeAtX(result.Segments[1].Left), precision: 6);
+        Assert.Equal(10, result.GetTimeAtX(9999), precision: 6);
+    }
 }

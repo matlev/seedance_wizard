@@ -244,6 +244,11 @@ public static class ProjectInvariantValidator
                         compositionEnd <= compositionStart)
                         errors.Add($"Recipe revision '{revision.Id}' composition segment '{segment.Id}' end must follow its start.");
                 }
+                foreach (var audioClip in composition.AudioClips)
+                {
+                    if (audioClip.TimelineStartTicks < 0)
+                        errors.Add($"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' has a negative timeline start.");
+                }
                 break;
         }
     }
@@ -452,7 +457,8 @@ public static class ProjectInvariantValidator
     {
         TrimRecipe trim => [trim.Source],
         ExtractFrameRecipe frame => [frame.Source],
-        CompositionRecipe composition => composition.Segments.Select(segment => segment.Source),
+        CompositionRecipe composition => composition.Segments.Select(segment => segment.Source)
+            .Concat(composition.AudioClips.Select(clip => clip.Source)),
         _ => throw new NotSupportedException($"Recipe type '{recipe.GetType().Name}' is not supported.")
     };
 

@@ -50,7 +50,10 @@ public sealed record CompositionRenderPlanNode(
     IReadOnlyList<CompositionSegmentRenderPlan> Segments,
     CompositionCompatibilityReport Compatibility,
     string Hash)
-    : MediaRenderPlanNode(VirtualAssetId, MediaType.Video, Hash);
+    : MediaRenderPlanNode(VirtualAssetId, MediaType.Video, Hash)
+{
+    public IReadOnlyList<CompositionAudioClipRenderPlan> AudioClips { get; init; } = [];
+}
 
 public sealed record CompositionSegmentRenderPlan(
     Guid SegmentId,
@@ -59,6 +62,12 @@ public sealed record CompositionSegmentRenderPlan(
     RecipeBoundary End,
     bool AudioEnabled,
     string SegmentHash);
+
+public sealed record CompositionAudioClipRenderPlan(
+    Guid ClipId,
+    MediaRenderPlanNode Source,
+    long TimelineStartTicks,
+    string ClipHash);
 
 public static class RecipeRenderPlanner
 {
@@ -200,6 +209,21 @@ public static class RecipeRenderPlanner
             return new CompositionSegmentRenderPlan(
                 segment.Id, source, segment.Start, segment.End, segment.AudioEnabled, segmentHash);
         }).ToArray();
+        var audioClips = composition.AudioClips.Select(clip =>
+        {
+            var source = BuildNode(project, clip.Source, activeRevisions);
+            if (source.MediaType != MediaType.Audio)
+                throw new InvalidDataException($"Composition audio clip '{clip.Id}' requires audio input.");
+            if (clip.TimelineStartTicks < 0)
+                throw new InvalidDataException($"Composition audio clip '{clip.Id}' has a negative timeline start.");
+            var clipHash = Hash(string.Join('|',
+                "audio-clip",
+                clip.Id.ToString("N"),
+                source.NodeHash,
+                clip.TimelineStartTicks));
+            return new CompositionAudioClipRenderPlan(
+                clip.Id, source, clip.TimelineStartTicks, clipHash);
+        }).ToArray();
         var segmentKey = string.Join(';', segments.Select(segment => string.Join(',',
             segment.SegmentId.ToString("N"),
             segment.Source.NodeHash,
@@ -212,12 +236,17 @@ public static class RecipeRenderPlanner
                 var sourceAsset = FindAsset(project, segment.Source.AssetId);
                 return sourceAsset.Encoding ?? sourceAsset.Virtual?.ExpectedMediaProperties;
             }).ToArray());
+        var audioKey = string.Join(';', audioClips.Select(clip => string.Join(',',
+            clip.ClipId.ToString("N"), clip.Source.NodeHash, clip.TimelineStartTicks)));
         return new CompositionRenderPlanNode(
             asset.Id,
             revision.Id,
             segments,
             compatibility,
-            Hash($"composition|{asset.Id:N}|{revision.Id:N}|{segmentKey}"));
+            Hash($"composition|{asset.Id:N}|{revision.Id:N}|{segmentKey}|{audioKey}"))
+        {
+            AudioClips = audioClips
+        };
     }
 
     private static ProjectAsset FindAsset(VideoProject project, Guid assetId) =>
