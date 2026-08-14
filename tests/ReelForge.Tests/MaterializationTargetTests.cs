@@ -427,6 +427,53 @@ public sealed class MaterializationTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task CachedVirtualMediaLeaseCarriesRealizedEncodingFromInspection()
+    {
+        var (project, location, source) = await CreateProjectSourceAsync();
+        source.Physical!.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(
+            Path.Combine(_root, source.Physical.RelativePath));
+        source.Encoding = CompatibleEncoding();
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(composition);
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = source.Id } },
+                new CompositionSegment { Source = new AssetRevisionReference { AssetId = source.Id } }
+            ]
+        });
+        var realizedEncoding = CompatibleEncoding();
+        realizedEncoding.ContainerFormat = "mov,mp4,m4a,3gp,3g2,mj2";
+        realizedEncoding.SizeBytes = 987_654;
+        realizedEncoding.BitRate = 2_500_000;
+        var inspector = new StubMediaInspector(realizedEncoding);
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe",
+            new TrimRunner(),
+            new StubExactFrameService([]),
+            Path.Combine(_root, "cache"),
+            mediaInspector: inspector);
+
+        await using var preview = await materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(composition.Id, revision.Id),
+                MaterializationPurpose.Preview));
+
+        Assert.Same(realizedEncoding, preview.Encoding);
+        Assert.Equal(preview.Path, inspector.LastInspectedPath);
+        Assert.Equal(1, inspector.InspectionCount);
+    }
+
+    [Fact]
     public async Task IncompatibleCompositionNormalizesAndCachesConcat()
     {
         var (project, location, firstSource) = await CreateProjectSourceAsync();
@@ -631,6 +678,21 @@ public sealed class MaterializationTargetTests : IDisposable
                     },
                     null,
                     isDurableSource: false));
+    }
+
+    private sealed class StubMediaInspector(MediaEncodingMetadata encoding) : IMediaInspectionService
+    {
+        public int InspectionCount { get; private set; }
+        public string? LastInspectedPath { get; private set; }
+
+        public Task<MediaEncodingMetadata> InspectAsync(
+            string mediaPath,
+            CancellationToken cancellationToken = default)
+        {
+            InspectionCount++;
+            LastInspectedPath = mediaPath;
+            return Task.FromResult(encoding);
+        }
     }
 
     private sealed class TrimRunner : IExternalProcessRunner

@@ -765,10 +765,23 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         {
             File.SetLastWriteTimeUtc(normalizedPath, DateTime.UtcNow);
             var identity = await _contentHashService.ComputeAsync(normalizedPath, cancellationToken).ConfigureAwait(false);
+            var encoding = asset.Virtual?.ExpectedMediaProperties;
+            if (_mediaInspector is not null)
+            {
+                try
+                {
+                    encoding = await _mediaInspector.InspectAsync(normalizedPath, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    // Optional representation metadata must not make a valid cached render unusable.
+                }
+            }
             return new MaterializedMediaLease(
                 normalizedPath,
                 identity,
-                asset.Virtual?.ExpectedMediaProperties,
+                encoding,
                 isDurableSource: false,
                 release: () =>
                 {

@@ -3118,6 +3118,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     return;
                 }
 
+                InspectorText.Text = FormatAssetInspector(asset, lease.Encoding);
                 ClearMediaPreview();
                 if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
                     _activeCompositionPreviewRevisionId = asset.Virtual.CurrentRecipeRevisionId;
@@ -4357,7 +4358,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
-    private static string FormatAssetInspector(ProjectAsset asset)
+    private static string FormatAssetInspector(
+        ProjectAsset asset,
+        MediaEncodingMetadata? realizedEncoding = null)
     {
         var builder = new StringBuilder();
         builder.AppendLine(asset.FileName);
@@ -4381,7 +4384,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             builder.AppendLine($"Duration: {asset.DurationSeconds:0.###} seconds");
         }
 
-        var encoding = asset.Encoding;
+        var encoding = realizedEncoding ?? asset.Encoding;
         if (encoding is null)
         {
             builder.AppendLine();
