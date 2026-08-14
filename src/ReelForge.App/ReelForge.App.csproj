@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <None Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Assets\Sprites\forging_reel_animation.png" />
   </ItemGroup>
 
 </Project>
