@@ -109,6 +109,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private double _compositionSegmentDragPointerX;
     private int _compositionSegmentDragOriginalIndex = -1;
     private int _compositionSegmentDragTargetIndex = -1;
+    private bool _compositionTimelineRenderScheduled;
     private Point _projectMediaDragStart;
     private ProjectMediaListItem? _projectMediaDragItem;
     private bool _renderingCompositionTimeline;
@@ -1287,6 +1288,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             ? audioId
             : null;
         RenderCompositionTimeline();
+        ScheduleCompositionTimelineRender();
         UpdateCompositionActionState();
     }
 
@@ -1406,6 +1408,27 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void CompositionTimelineScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e) =>
         RenderCompositionTimeline();
 
+    private void ScheduleCompositionTimelineRender()
+    {
+        if (_compositionTimelineRenderScheduled || _disposed) return;
+        _compositionTimelineRenderScheduled = true;
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            _compositionTimelineRenderScheduled = false;
+            if (_disposed || WorkingCompositionState.Visibility != Visibility.Visible) return;
+            CompositionTimelineScrollViewer.UpdateLayout();
+            RenderCompositionTimeline();
+        }, DispatcherPriority.ContextIdle);
+    }
+
+    private double GetCompositionTimelineViewportWidth()
+    {
+        var width = CompositionTimelineScrollViewer.ActualWidth;
+        if (!double.IsFinite(width) || width <= 1)
+            width = CompositionTimelineScrollViewer.ViewportWidth;
+        return double.IsFinite(width) && width > 1 ? width : 1;
+    }
+
     private void CompositionTimelineSegment_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border { Tag: Guid segmentId }) return;
@@ -1449,16 +1472,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         _activeCompositionSegmentDragId = segmentId;
         _compositionSegmentDragPointerX = point.X;
-        var viewportWidth = CompositionTimelineScrollViewer.ViewportWidth > 1
-            ? CompositionTimelineScrollViewer.ViewportWidth
-            : CompositionTimelineScrollViewer.ActualWidth;
+        var viewportWidth = GetCompositionTimelineViewportWidth();
         var preview = CompositionTimelineLayout.CalculateReorder(
             _compositionSegments
                 .Select(item => new CompositionTimelineSegmentInput(item.SegmentId, item.DurationSeconds))
                 .ToArray(),
             segmentId,
             point.X,
-            Math.Max(1, viewportWidth));
+            viewportWidth);
         _compositionSegmentDragTargetIndex = preview.InsertionIndex;
         CompositionTimelineCanvas.Cursor = Cursors.SizeAll;
         RenderCompositionTimeline();
@@ -1527,9 +1548,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _renderingCompositionTimeline = true;
         try
         {
-            var viewportWidth = CompositionTimelineScrollViewer.ViewportWidth > 1
-                ? CompositionTimelineScrollViewer.ViewportWidth
-                : CompositionTimelineScrollViewer.ActualWidth;
+            var viewportWidth = GetCompositionTimelineViewportWidth();
             var timelineItems = _compositionSegments.ToList();
             if (_activeCompositionSegmentDragId is Guid draggedSegmentId &&
                 _compositionSegmentDragTargetIndex >= 0)
@@ -1544,7 +1563,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 timelineItems
                     .Select(item => new CompositionTimelineSegmentInput(item.SegmentId, item.DurationSeconds))
                     .ToArray(),
-                Math.Max(1, viewportWidth));
+                viewportWidth);
             CompositionTimelineCanvas.Children.Clear();
             CompositionTimelineCanvas.Width = _compositionTimelineLayout.ContentWidth;
             CompositionTimelineDurationText.Text = _compositionTimelineLayout.Segments.Count == 0
