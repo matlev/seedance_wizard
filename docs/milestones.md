@@ -337,6 +337,30 @@ Subsequent timeline work:
 
 Timeline editing must compose the same recipe graph and must not introduce authoritative intermediate paths into the `.rfp` project file.
 
+## Post-Milestone 2 engineering hardening — file and folder structure refactor
+
+This is a required roadmap gate after Milestone 2 is complete and before feature development proceeds into the next milestone. The application shell has accumulated too many responsibilities during rapid vertical-slice development; `MainWindow.xaml.cs`, currently approximately 4,800 lines, is the clearest symptom. The refactor should improve navigation, ownership, reviewability, and test isolation without changing user-visible behavior or the current `.rfp` contract.
+
+Planned work:
+
+1. Inventory responsibilities currently owned by `MainWindow`, its XAML, application services, infrastructure services, dialogs, and presentation-only model types.
+2. Split the main window into cohesive WPF controls/presenters for the application chrome, Project Media, media viewer, Generate workspace, Jobs, media preparation, and composition timeline/editor.
+3. Move orchestration and state transitions out of code-behind into focused application/presentation controllers or view models, while keeping rendering and direct WPF interaction in the UI layer.
+4. Reorganize files into feature-oriented folders within the existing architectural layers so related UI, presentation state, commands, and tests are easy to find together.
+5. Separate provider configuration, generation coordination, project lifecycle, playback, media preparation, composition editing, and drag/drop behavior behind explicit boundaries rather than cross-calling window fields.
+6. Preserve domain/application/infrastructure dependency direction; provider-specific and WPF-specific details must not leak into Core.
+7. Add or strengthen characterization tests before moving each responsibility, then keep the complete automated suite passing after every small refactor commit.
+8. Remove dead handlers, duplicate refresh paths, obsolete presentation helpers, and misleading names discovered during extraction.
+9. Update architecture and contributor documentation with the final folder map, ownership rules, and extension points.
+
+Execution guardrails:
+
+- treat this as a sequence of reviewable behavior-preserving slices, not a single big-bang rewrite;
+- do not combine the structural work with new editor/provider features;
+- retain atomic settings/project persistence, immutable recipe semantics, job recovery, and the no-paid-automated-call rule;
+- validate the primary Milestone 2 human workflows after the structural work, especially project switching, generation recovery, exact-frame tools, composition editing, preview/export, and settings changes;
+- consider the gate complete only when the main window is primarily a composition shell and each extracted feature has a clear owner and focused test surface.
+
 ## Unscheduled exploration — local ComfyUI / MiniMax H3
 
 This is intentionally outside the committed Milestone 2 implementation path. MiniMax H3 now has official native ComfyUI workflows, but its weight footprint, runtime performance, incomplete local 2K stack, and territory-restricted license make it inappropriate to schedule before hardware and distribution feasibility are known. No model download or implementation is approved by this roadmap entry.
