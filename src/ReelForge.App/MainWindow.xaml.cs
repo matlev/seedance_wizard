@@ -1192,7 +1192,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var revision = _workspace.Project!.RecipeRevisions.Single(candidate =>
             candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
         if (_activeCompositionPreviewRevisionId is { } previewRevisionId && previewRevisionId != revision.Id)
-            ClearMediaPreview();
+            ClearStaleCompositionPreview(composition, revision);
         var recipe = (CompositionRecipe)revision.Recipe;
         WorkingCompositionSummaryText.Text =
             $"{recipe.Segments.Count} video segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • " +
@@ -2963,6 +2963,18 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         PositionSlider.Value = 0;
         TimeText.Text = "00:00 / 00:00";
         UpdateCompositionTimelinePlayhead(0);
+    }
+
+    private void ClearStaleCompositionPreview(ProjectAsset composition, RecipeRevision currentRevision)
+    {
+        ClearMediaPreview();
+        if (AssetsList.SelectedItem is not ProjectMediaListItem { Asset: { } selected } ||
+            selected.Id != composition.Id)
+            return;
+
+        PreviewPlaceholder.Text =
+            $"Working Composition changed\n\nSelect Preview composition to render recipe revision {currentRevision.RevisionNumber}.";
+        PreviewPlaceholder.Visibility = Visibility.Visible;
     }
 
     private void ReleaseActivePreviewLease()
