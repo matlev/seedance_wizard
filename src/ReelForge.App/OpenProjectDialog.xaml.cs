@@ -9,16 +9,24 @@ namespace ReelForge.App;
 
 public partial class OpenProjectDialog : Window
 {
-    private readonly ObservableCollection<string> _projectFiles = [];
+    private readonly ObservableCollection<RecentProjectListItem> _recentProjects = [];
     private readonly string _initialDirectory;
 
-    public OpenProjectDialog(string initialDirectory)
+    public OpenProjectDialog(string initialDirectory, IEnumerable<string>? recentProjectFiles = null)
     {
         InitializeComponent();
         _initialDirectory = Directory.Exists(initialDirectory)
             ? Path.GetFullPath(initialDirectory)
             : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        ProjectFilesList.ItemsSource = _projectFiles;
+        RecentProjectsList.ItemsSource = _recentProjects;
+        foreach (var path in recentProjectFiles ?? [])
+        {
+            if (!File.Exists(path) || !ProjectFileLocator.IsSupportedProjectFile(path)) continue;
+            _recentProjects.Add(new RecentProjectListItem(Path.GetFullPath(path)));
+        }
+        RecentProjectsEmptyText.Visibility = _recentProjects.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     public string ProjectFilePath { get; private set; } = string.Empty;
@@ -34,7 +42,7 @@ public partial class OpenProjectDialog : Window
             Multiselect = false
         };
         if (dialog.ShowDialog(this) != true) return;
-        ShowProjects([dialog.FileName]);
+        TryOpenProject(dialog.FileName);
     }
 
     private void ChooseProjectFolder_Click(object sender, RoutedEventArgs e)
@@ -50,11 +58,19 @@ public partial class OpenProjectDialog : Window
         try
         {
             var projects = ProjectFileLocator.FindInFolderAndChildren(dialog.FolderName);
-            ShowProjects(projects);
-            if (projects.Count == 0)
+            if (projects.Count == 1)
+            {
+                TryOpenProject(projects[0]);
+            }
+            else if (projects.Count == 0)
             {
                 ValidationErrorText.Text =
                     "No .rfp project was found in that folder or its immediate subfolders.";
+            }
+            else
+            {
+                ValidationErrorText.Text =
+                    "More than one project was found. Choose the specific project folder or its .rfp file.";
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -63,35 +79,46 @@ public partial class OpenProjectDialog : Window
         }
     }
 
-    private void ShowProjects(IEnumerable<string> projectFiles)
+    private void RecentProjectsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _projectFiles.Clear();
-        foreach (var projectFile in projectFiles) _projectFiles.Add(Path.GetFullPath(projectFile));
-        ProjectFilesList.SelectedIndex = _projectFiles.Count == 1 ? 0 : -1;
-        ValidationErrorText.Text = _projectFiles.Count > 1
-            ? "More than one project was found. Select the project you want to open."
-            : string.Empty;
+        OpenProjectButton.IsEnabled = RecentProjectsList.SelectedItem is RecentProjectListItem;
+        if (OpenProjectButton.IsEnabled) ValidationErrorText.Text = string.Empty;
     }
 
-    private void ProjectFilesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void RecentProjectsList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (ProjectFilesList.SelectedItem is not null) ValidationErrorText.Text = string.Empty;
+        if (ItemsControl.ContainerFromElement(
+                RecentProjectsList,
+                e.OriginalSource as DependencyObject) is ListBoxItem { DataContext: RecentProjectListItem selected })
+            TryOpenProject(selected.ProjectFilePath);
     }
 
     private void OpenProject_Click(object sender, RoutedEventArgs e)
     {
-        if (ProjectFilesList.SelectedItem is not string selectedProject)
+        if (RecentProjectsList.SelectedItem is not RecentProjectListItem selectedProject)
         {
-            ValidationErrorText.Text = "Choose or select a project first.";
+            ValidationErrorText.Text = "Select a recent project or choose one using the buttons above.";
             return;
         }
+
+        TryOpenProject(selectedProject.ProjectFilePath);
+    }
+
+    private bool TryOpenProject(string selectedProject)
+    {
         if (!File.Exists(selectedProject) || !ProjectFileLocator.IsSupportedProjectFile(selectedProject))
         {
             ValidationErrorText.Text = "The selected item is not an available ReelForge project file.";
-            return;
+            return false;
         }
 
         ProjectFilePath = Path.GetFullPath(selectedProject);
         DialogResult = true;
+        return true;
     }
+}
+
+public sealed record RecentProjectListItem(string ProjectFilePath)
+{
+    public string DisplayName => Path.GetFileNameWithoutExtension(ProjectFilePath);
 }

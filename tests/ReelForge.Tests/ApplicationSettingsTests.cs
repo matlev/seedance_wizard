@@ -154,21 +154,32 @@ public sealed class ApplicationSettingsTests
         var directory = CreateDirectory();
         try
         {
-            var projectFilePath = Path.Combine(directory, "Last Project.rfp");
-            await File.WriteAllTextAsync(projectFilePath, "{}");
+            var firstProjectFilePath = Path.Combine(directory, "First Project.rfp");
+            var secondProjectFilePath = Path.Combine(directory, "Second Project.rfp");
+            await File.WriteAllTextAsync(firstProjectFilePath, "{}");
+            await File.WriteAllTextAsync(secondProjectFilePath, "{}");
             var settings = new ApplicationSettings();
             var store = new CountingSettingsStore();
             var tracker = new RecentProjectTracker(store);
 
-            await tracker.RememberAsync(settings, projectFilePath);
+            await tracker.RememberAsync(settings, firstProjectFilePath);
+            await tracker.RememberAsync(settings, secondProjectFilePath);
+            await tracker.RememberAsync(settings, firstProjectFilePath);
 
-            Assert.Equal(1, store.SaveCount);
-            Assert.Equal(Path.GetFullPath(projectFilePath), settings.General.LastProjectFilePath);
-            Assert.Equal(Path.GetFullPath(projectFilePath), RecentProjectTracker.GetExistingProjectFile(settings));
+            Assert.Equal(3, store.SaveCount);
+            Assert.Equal(Path.GetFullPath(firstProjectFilePath), settings.General.LastProjectFilePath);
+            Assert.Equal(Path.GetFullPath(firstProjectFilePath), RecentProjectTracker.GetExistingProjectFile(settings));
+            Assert.Equal(
+                [Path.GetFullPath(firstProjectFilePath), Path.GetFullPath(secondProjectFilePath)],
+                RecentProjectTracker.GetExistingRecentProjectFiles(settings));
+            Assert.Equal(2, settings.General.RecentProjectFilePaths.Count);
 
-            File.Delete(projectFilePath);
+            File.Delete(firstProjectFilePath);
             Assert.Null(RecentProjectTracker.GetExistingProjectFile(settings));
-            Assert.Equal(Path.GetFullPath(projectFilePath), settings.General.LastProjectFilePath);
+            Assert.Equal(
+                [Path.GetFullPath(secondProjectFilePath)],
+                RecentProjectTracker.GetExistingRecentProjectFiles(settings));
+            Assert.Equal(Path.GetFullPath(firstProjectFilePath), settings.General.LastProjectFilePath);
         }
         finally
         {

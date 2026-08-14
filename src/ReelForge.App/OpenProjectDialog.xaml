@@ -19,31 +19,42 @@
         <TextBlock Text="OPEN PROJECT" Style="{StaticResource ApplicationTextBlockStyle}"
                    FontSize="17" Margin="0,0,0,5" />
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"
-                   Text="Choose a ReelForge project file directly, or choose a folder to search for projects in that folder and its immediate subfolders." />
+                   Text="Open a recent project, choose a ReelForge project file directly, or choose a folder containing one project." />
 
         <WrapPanel Grid.Row="2" Margin="0,16,0,12">
-            <Button Content="Choose .rfp file…" Click="ChooseProjectFile_Click" Margin="0,0,8,0" />
-            <Button Content="Choose folder…" Click="ChooseProjectFolder_Click" />
+            <Button Content="Choose .rfp file..." Click="ChooseProjectFile_Click" Margin="0,0,8,0" />
+            <Button Content="Choose folder..." Click="ChooseProjectFolder_Click" />
         </WrapPanel>
 
-        <TextBlock Grid.Row="3" Text="Projects found" Style="{StaticResource ApplicationTextBlockStyle}"
+        <TextBlock Grid.Row="3" Text="Recent projects" Style="{StaticResource ApplicationTextBlockStyle}"
                    Margin="0,0,0,5" />
-        <ListBox x:Name="ProjectFilesList" Grid.Row="4" SelectionChanged="ProjectFilesList_SelectionChanged"
-                 Background="#10131A" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding}" Style="{StaticResource ApplicationTextBlockStyle}"
-                               TextTrimming="CharacterEllipsis" ToolTip="{Binding}" Margin="8,6" />
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+        <Grid Grid.Row="4">
+            <ListBox x:Name="RecentProjectsList" SelectionChanged="RecentProjectsList_SelectionChanged"
+                     MouseDoubleClick="RecentProjectsList_MouseDoubleClick"
+                     Background="#10131A" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="8,6" ToolTip="{Binding ProjectFilePath}">
+                            <TextBlock Text="{Binding DisplayName}" Style="{StaticResource ApplicationTextBlockStyle}"
+                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ProjectFilePath}" Foreground="{StaticResource MutedTextBrush}"
+                                       FontSize="11" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock x:Name="RecentProjectsEmptyText" Text="No available recent projects yet."
+                       IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{StaticResource MutedTextBrush}" />
+        </Grid>
 
         <TextBlock x:Name="ValidationErrorText" Grid.Row="5" TextWrapping="Wrap"
                    Foreground="#FF9B9B" FontWeight="SemiBold" Margin="0,10,0,0" />
 
         <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="Cancel" IsCancel="True" />
-            <Button Content="Open project" Click="OpenProject_Click" IsDefault="True"
+            <Button x:Name="OpenProjectButton" Content="Open project" Click="OpenProject_Click"
+                    IsDefault="True" IsEnabled="False"
                     Background="{StaticResource AccentBrush}" Foreground="White" />
         </StackPanel>
     </Grid>

@@ -974,7 +974,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenProjectDialog(GetDefaultProjectsDirectory()) { Owner = this };
+        var dialog = CreateOpenProjectDialog();
         if (dialog.ShowDialog() != true) return;
 
         await RunUiActionAsync(
@@ -1000,6 +1000,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             StatusText.Text += $" ReelForge could not remember this project for the next launch: {exception.Message}";
         }
     }
+
+    private OpenProjectDialog CreateOpenProjectDialog() =>
+        new(
+            GetDefaultProjectsDirectory(),
+            RecentProjectTracker.GetExistingRecentProjectFiles(_applicationSettings))
+        {
+            Owner = this
+        };
 
     private async void ImportAssets_Click(object sender, RoutedEventArgs e)
     {
@@ -2362,7 +2370,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private string? ChooseTransferTargetProject()
     {
-        var dialog = new OpenProjectDialog(GetDefaultProjectsDirectory()) { Owner = this };
+        var dialog = CreateOpenProjectDialog();
         if (dialog.ShowDialog() != true) return null;
         if (_workspace.Location is not null &&
             Path.GetFullPath(dialog.ProjectFilePath).Equals(
