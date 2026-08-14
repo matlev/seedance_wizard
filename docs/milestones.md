@@ -326,10 +326,11 @@ In progress. The first slices project the committed Working Composition into a h
 7. Place physical audio on a separate timed row, persist it in immutable composition revisions, and mix it with source-video audio during preview/export.
 8. Keep clip widths, ruler ticks, scroll position, and playhead position out of the `.rfp` schema.
 9. Reorder video segments directly by dragging timeline blocks; neighboring blocks reflow during the transient preview and only a non-no-op mouse release commits one immutable recipe revision.
+10. Expose selected video-segment source audio as **On / Muted**; commit each actual change as one immutable revision, invalidate stale previews, persist the choice, and render muted single- or multi-segment compositions correctly.
 
 Subsequent timeline work:
 
-1. Extend the initial sequential-video plus timed-audio model with additional tracks, clip properties, audio enablement, and basic gain/fade metadata.
+1. Extend the initial sequential-video plus timed-audio model with additional tracks, richer clip properties, and basic gain/fade metadata.
 2. Let timeline clips reference physical or virtual assets by logical ID.
 3. Compile preview and export through the shared materialization planner.
 4. Capture immutable composition snapshots for provider requests and historical exports.

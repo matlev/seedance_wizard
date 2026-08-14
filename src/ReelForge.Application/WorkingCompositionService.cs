@@ -170,6 +170,25 @@ public sealed class WorkingCompositionService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<RecipeRevision> SetSegmentAudioEnabledAsync(
+        Guid segmentId,
+        bool audioEnabled,
+        CancellationToken cancellationToken = default)
+    {
+        var (_, currentRevision, currentRecipe) = GetCurrent();
+        var currentSegment = currentRecipe.Segments.SingleOrDefault(segment => segment.Id == segmentId)
+            ?? throw new InvalidOperationException("The selected composition segment no longer exists.");
+        if (currentSegment.AudioEnabled == audioEnabled) return currentRevision;
+
+        return await UpdateAsync(recipe =>
+        {
+            var index = recipe.Segments.FindIndex(segment => segment.Id == segmentId);
+            if (index < 0)
+                throw new InvalidOperationException("The selected composition segment no longer exists.");
+            recipe.Segments[index] = recipe.Segments[index] with { AudioEnabled = audioEnabled };
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<RecipeRevision> RemoveSegmentAsync(
         Guid segmentId,
         CancellationToken cancellationToken = default) =>

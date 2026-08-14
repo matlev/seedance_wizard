@@ -30,6 +30,17 @@ public sealed class FfmpegCommandBuilderTests
     }
 
     [Fact]
+    public void VideoWithoutAudioCopiesOnlyTheVideoStream()
+    {
+        var arguments = FfmpegCommandBuilder.BuildVideoWithoutAudioArguments("source.mp4", "muted.mp4");
+
+        Assert.Contains("0:v:0", arguments);
+        Assert.Contains("copy", arguments);
+        Assert.Contains("-an", arguments);
+        Assert.DoesNotContain("aac", arguments);
+    }
+
+    [Fact]
     public void FrameAccurateTrimRejectsReversedRange()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>

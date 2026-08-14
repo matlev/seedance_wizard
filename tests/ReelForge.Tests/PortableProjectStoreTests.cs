@@ -354,6 +354,38 @@ public sealed class PortableProjectStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkingCompositionSegmentAudioChangeCommitsOnceAndPersists()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Composition source audio");
+        var source = CreatePhysicalAsset("source.mp4", "assets/videos/source.mp4");
+        workspace.Project!.AddAsset(source);
+        await workspace.SaveAsync();
+        var service = new WorkingCompositionService(workspace);
+        var composition = await service.CreateInitialAsync(source.Id);
+        var initialRevision = workspace.Project.RecipeRevisions.Single();
+        var segmentId = Assert.IsType<CompositionRecipe>(initialRevision.Recipe).Segments.Single().Id;
+        var revisionCount = workspace.Project.RecipeRevisions.Count;
+
+        var muted = await service.SetSegmentAudioEnabledAsync(segmentId, audioEnabled: false);
+
+        Assert.False(Assert.IsType<CompositionRecipe>(muted.Recipe).Segments.Single().AudioEnabled);
+        Assert.True(Assert.IsType<CompositionRecipe>(initialRevision.Recipe).Segments.Single().AudioEnabled);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+
+        var noOp = await service.SetSegmentAudioEnabledAsync(segmentId, audioEnabled: false);
+        Assert.Equal(muted.Id, noOp.Id);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+
+        var reopened = (await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath)).Project;
+        var reopenedComposition = reopened.Assets.Single(asset => asset.Id == composition.Id);
+        var reopenedRevision = reopened.RecipeRevisions.Single(revision =>
+            revision.Id == reopenedComposition.Virtual!.CurrentRecipeRevisionId);
+        Assert.False(Assert.IsType<CompositionRecipe>(reopenedRevision.Recipe).Segments.Single().AudioEnabled);
+        Assert.Empty(ProjectInvariantValidator.Validate(reopened));
+    }
+
+    [Fact]
     public async Task WorkingCompositionRemoveRejectsDeletingItsLastSegment()
     {
         var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());

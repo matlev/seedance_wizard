@@ -12,6 +12,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
     private const string TrimAlgorithmVersion = "saved-clip-trim-v1";
     private const string ConcatAlgorithmVersion = "composition-concat-v2";
     private const string AudioOverlayAlgorithmVersion = "composition-audio-overlay-v1";
+    private const string SourceAudioAlgorithmVersion = "composition-source-audio-v1";
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly IExactVideoFrameService _exactFrameService;
     private readonly IExternalProcessRunner _runner;
@@ -303,9 +304,22 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         CancellationToken cancellationToken)
     {
         if (composition.Segments is [var segment])
-            return await MaterializeCompositionSegmentAsync(
+        {
+            var media = await MaterializeCompositionSegmentAsync(
                     project, location, outputAsset, segment, request, cancellationToken)
                 .ConfigureAwait(false);
+            if (segment.AudioEnabled) return media;
+            try
+            {
+                return await RenderWithoutSourceAudioAsync(
+                        outputAsset, segment, media, request, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                await media.DisposeAsync().ConfigureAwait(false);
+            }
+        }
 
         var leases = new List<MaterializedMediaLease>();
         try
@@ -434,6 +448,68 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         {
             for (var index = audioLeases.Count - 1; index >= 0; index--)
                 await audioLeases[index].DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task<MaterializedMediaLease> RenderWithoutSourceAudioAsync(
+        ProjectAsset outputAsset,
+        CompositionSegmentRenderPlan segment,
+        MaterializedMediaLease input,
+        MaterializationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
+            "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or export compositions.");
+        var fingerprint = await GetRendererFingerprintAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
+        var key = HashText(string.Join('|',
+            SourceAudioAlgorithmVersion,
+            segment.SegmentHash,
+            input.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty,
+            request.Purpose,
+            request.Profile ?? string.Empty,
+            fingerprint));
+        var cacheDirectory = Path.Combine(_cacheRoot, "compositions");
+        var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
+        if (IsUsableCacheFile(cachePath))
+            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
+
+        var cacheLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+        await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (IsUsableCacheFile(cachePath))
+                return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
+            Directory.CreateDirectory(cacheDirectory);
+            var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
+            try
+            {
+                var arguments = FfmpegCommandBuilder.BuildVideoWithoutAudioArguments(input.Path, temporaryPath);
+                var result = await _runner.RunAsync(
+                        new ExternalProcessRequest(ffmpegPath, arguments),
+                        cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+                if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
+                if (!IsUsableCacheFile(temporaryPath))
+                    throw new InvalidDataException("FFmpeg completed without producing the muted composition preview.");
+                try
+                {
+                    File.Move(temporaryPath, cachePath, overwrite: false);
+                }
+                catch (IOException) when (IsUsableCacheFile(cachePath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            }
+
+            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            cacheLock.Release();
         }
     }
 

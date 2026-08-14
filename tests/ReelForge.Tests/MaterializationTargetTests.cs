@@ -158,6 +158,50 @@ public sealed class MaterializationTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task MutedSingleSegmentCompositionProducesVideoOnlyCachedRender()
+    {
+        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(composition);
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment
+                {
+                    Source = new AssetRevisionReference { AssetId = sourceAsset.Id },
+                    Start = RecipeBoundary.SourceStart,
+                    End = RecipeBoundary.SourceEnd,
+                    AudioEnabled = false
+                }
+            ]
+        });
+        var runner = new TrimRunner();
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
+
+        await using var preview = await materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(composition.Id, revision.Id),
+                MaterializationPurpose.Preview));
+
+        Assert.False(preview.IsDurableSource);
+        Assert.Equal(1, runner.TrimCount);
+        Assert.Contains("-an", runner.TrimRequest!.Arguments);
+        Assert.Contains("0:v:0", runner.TrimRequest.Arguments);
+        Assert.Contains("copy", runner.TrimRequest.Arguments);
+    }
+
+    [Fact]
     public async Task PersistencePreferenceCopiesCompositionIntoProjectWithoutAddingCatalogAsset()
     {
         var (project, location, sourceAsset) = await CreateProjectSourceAsync();

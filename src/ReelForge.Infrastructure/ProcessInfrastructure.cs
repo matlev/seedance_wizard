@@ -223,6 +223,24 @@ public static class FfmpegCommandBuilder
         ];
     }
 
+    public static IReadOnlyList<string> BuildVideoWithoutAudioArguments(
+        string inputPath,
+        string outputPath)
+    {
+        ValidateMediaPath(inputPath, nameof(inputPath));
+        ValidateMediaPath(outputPath, nameof(outputPath));
+        return
+        [
+            "-hide_banner", "-y",
+            "-i", inputPath,
+            "-map", "0:v:0",
+            "-c:v", "copy",
+            "-an",
+            "-movflags", "+faststart",
+            outputPath
+        ];
+    }
+
     public static IReadOnlyList<string> BuildExtractExactFrameArguments(
         string inputPath,
         string outputPath,

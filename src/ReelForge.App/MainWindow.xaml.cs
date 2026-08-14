@@ -102,6 +102,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private Guid? _activeCompositionPreviewRevisionId;
     private Guid? _selectedCompositionSegmentId;
     private Guid? _selectedCompositionAudioClipId;
+    private bool _suppressCompositionAudioControl;
     private Guid? _pendingCompositionSegmentDragId;
     private Guid? _activeCompositionSegmentDragId;
     private Point _compositionSegmentDragStart;
@@ -1321,6 +1322,25 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private async void MoveCompositionSegmentDown_Click(object sender, RoutedEventArgs e) =>
         await MoveSelectedCompositionSegmentAsync(1);
 
+    private async void CompositionSegmentAudio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_suppressCompositionAudioControl || GetSelectedCompositionSegment() is not { } selected) return;
+        var audioEnabled = CompositionSegmentAudioOnButton.IsChecked == true;
+        if (selected.AudioEnabled == audioEnabled) return;
+
+        await RunUiActionAsync("Updating composition source audio…", async () =>
+        {
+            await new WorkingCompositionService(_workspace)
+                .SetSegmentAudioEnabledAsync(selected.SegmentId, audioEnabled);
+            _selectedCompositionSegmentId = selected.SegmentId;
+            _selectedCompositionAudioClipId = null;
+            RefreshEditWorkspaceState();
+            StatusText.Text = audioEnabled
+                ? $"Enabled source audio for {selected.DisplayName}. Preview the composition to rebuild it."
+                : $"Muted source audio for {selected.DisplayName}. Preview the composition to rebuild it.";
+        });
+    }
+
     private async Task MoveSelectedCompositionSegmentAsync(int offset)
     {
         if (GetSelectedCompositionSegment() is not { } selected) return;
@@ -1791,12 +1811,27 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var index = _selectedCompositionSegmentId is { } selectedId
             ? _compositionSegments.ToList().FindIndex(item => item.SegmentId == selectedId)
             : -1;
+        var selectedSegment = index >= 0 ? _compositionSegments[index] : null;
         MoveCompositionSegmentUpButton.IsEnabled = index > 0;
         MoveCompositionSegmentDownButton.IsEnabled = index >= 0 && index < _compositionSegments.Count - 1;
         RemoveCompositionSegmentButton.IsEnabled =
             (index >= 0 && _compositionSegments.Count > 1) || _selectedCompositionAudioClipId is not null;
         PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0;
         ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0;
+        if (CompositionSegmentAudioControls is null) return;
+        _suppressCompositionAudioControl = true;
+        try
+        {
+            CompositionSegmentAudioControls.Visibility = selectedSegment is null
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            CompositionSegmentAudioOnButton.IsChecked = selectedSegment?.AudioEnabled == true;
+            CompositionSegmentAudioMutedButton.IsChecked = selectedSegment is { AudioEnabled: false };
+        }
+        finally
+        {
+            _suppressCompositionAudioControl = false;
+        }
     }
 
     private CompositionSegmentListItem? GetSelectedCompositionSegment() =>
@@ -4612,7 +4647,8 @@ public sealed class CompositionSegmentListItem
             : source.StorageKind == AssetStorageKind.Virtual
                 ? $"Saved Clip • pinned recipe {segment.Source.RecipeRevisionId?.ToString("N") ?? "missing"}"
                 : "Physical video • full source";
-        AudioText = segment.AudioEnabled ? "Audio on" : "Audio off";
+        AudioText = segment.AudioEnabled ? "Audio on" : "Audio muted";
+        AudioEnabled = segment.AudioEnabled;
         DurationSeconds = source?.DurationSeconds ?? source?.Encoding?.DurationSeconds ??
                           source?.Virtual?.ExpectedMediaProperties?.DurationSeconds;
         DurationText = DurationSeconds is > 0
@@ -4626,6 +4662,7 @@ public sealed class CompositionSegmentListItem
     public string DisplayName { get; }
     public string DetailText { get; }
     public string AudioText { get; }
+    public bool AudioEnabled { get; }
     public double? DurationSeconds { get; }
     public string DurationText { get; }
 
