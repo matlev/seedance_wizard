@@ -97,6 +97,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private CompositionTimelineLayoutResult? _compositionTimelineLayout;
     private Line? _compositionTimelinePlayhead;
     private Guid? _activeCompositionPreviewRevisionId;
+    private Guid? _selectedCompositionSegmentId;
     private bool _renderingCompositionTimeline;
     private bool _disposed;
     private bool _isMediaImportInProgress;
@@ -160,7 +161,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         JobsList.ItemsSource = _jobs;
         ContactFramesList.ItemsSource = _contactFrames;
         SavedFramesList.ItemsSource = _savedFrames;
-        CompositionSegmentsList.ItemsSource = _compositionSegments;
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _positionTimer.Tick += (_, _) => UpdatePlaybackPosition();
         _positionTimer.Start();
@@ -1168,7 +1168,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             UpdateCompositionActionState();
             return;
         }
-        var selectedSegmentId = (CompositionSegmentsList.SelectedItem as CompositionSegmentListItem)?.SegmentId;
+        var selectedSegmentId = _selectedCompositionSegmentId;
         WorkingCompositionNameText.Text = composition!.EffectiveDisplayName;
         var revision = _workspace.Project!.RecipeRevisions.Single(candidate =>
             candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
@@ -1184,8 +1184,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId);
             _compositionSegments.Add(new CompositionSegmentListItem(index, segment, source));
         }
-        CompositionSegmentsList.SelectedItem = selectedSegmentId is { } id
-            ? _compositionSegments.FirstOrDefault(item => item.SegmentId == id)
+        _selectedCompositionSegmentId = selectedSegmentId is { } id &&
+                                        _compositionSegments.Any(item => item.SegmentId == id)
+            ? id
             : null;
         RenderCompositionTimeline();
         UpdateCompositionActionState();
@@ -1199,7 +1200,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             var revision = await new WorkingCompositionService(_workspace).AddSegmentAsync(source.Id);
             var segment = AssertCompositionRecipe(revision).Segments[^1];
             RefreshEditWorkspaceState();
-            CompositionSegmentsList.SelectedItem = _compositionSegments.FirstOrDefault(item => item.SegmentId == segment.Id);
+            _selectedCompositionSegmentId = segment.Id;
+            RenderCompositionTimeline();
             StatusText.Text = $"Added {source.EffectiveDisplayName} to the Working Composition.";
         });
     }
@@ -1212,19 +1214,20 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async Task MoveSelectedCompositionSegmentAsync(int offset)
     {
-        if (CompositionSegmentsList.SelectedItem is not CompositionSegmentListItem selected) return;
+        if (GetSelectedCompositionSegment() is not { } selected) return;
         await RunUiActionAsync("Reordering the Working Composition…", async () =>
         {
             await new WorkingCompositionService(_workspace).MoveSegmentAsync(selected.SegmentId, offset);
             RefreshEditWorkspaceState();
-            CompositionSegmentsList.SelectedItem = _compositionSegments.FirstOrDefault(item => item.SegmentId == selected.SegmentId);
+            _selectedCompositionSegmentId = selected.SegmentId;
+            RenderCompositionTimeline();
             StatusText.Text = "Working Composition order updated.";
         });
     }
 
     private async void RemoveCompositionSegment_Click(object sender, RoutedEventArgs e)
     {
-        if (CompositionSegmentsList.SelectedItem is not CompositionSegmentListItem selected) return;
+        if (GetSelectedCompositionSegment() is not { } selected) return;
         await RunUiActionAsync($"Removing {selected.DisplayName} from the composition…", async () =>
         {
             await new WorkingCompositionService(_workspace).RemoveSegmentAsync(selected.SegmentId);
@@ -1294,22 +1297,15 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
-    private void CompositionSegmentsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        UpdateCompositionActionState();
-        RenderCompositionTimeline();
-    }
-
     private void CompositionTimelineScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e) =>
         RenderCompositionTimeline();
 
     private void CompositionTimelineSegment_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border { Tag: Guid segmentId }) return;
-        CompositionSegmentsList.SelectedItem =
-            _compositionSegments.FirstOrDefault(item => item.SegmentId == segmentId);
-        if (CompositionSegmentsList.SelectedItem is not null)
-            CompositionSegmentsList.ScrollIntoView(CompositionSegmentsList.SelectedItem);
+        _selectedCompositionSegmentId = segmentId;
+        UpdateCompositionActionState();
+        RenderCompositionTimeline();
         e.Handled = true;
     }
 
@@ -1339,7 +1335,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     : $"{FormatTimelineTime(_compositionTimelineLayout.KnownDurationSeconds)} total";
 
             DrawCompositionTimelineRuler(_compositionTimelineLayout);
-            var selectedId = (CompositionSegmentsList.SelectedItem as CompositionSegmentListItem)?.SegmentId;
+            var selectedId = _selectedCompositionSegmentId;
             foreach (var span in _compositionTimelineLayout.Segments)
             {
                 var item = _compositionSegments.Single(candidate => candidate.SegmentId == span.SegmentId);
@@ -1481,13 +1477,20 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                                                 source.Id != _workspace.Project.WorkingCompositionAssetId &&
                                                 (source.StorageKind == AssetStorageKind.Physical ||
                                                  source.Virtual?.Kind == VirtualAssetKind.SavedClip);
-        var index = CompositionSegmentsList.SelectedIndex;
+        var index = _selectedCompositionSegmentId is { } selectedId
+            ? _compositionSegments.ToList().FindIndex(item => item.SegmentId == selectedId)
+            : -1;
         MoveCompositionSegmentUpButton.IsEnabled = index > 0;
         MoveCompositionSegmentDownButton.IsEnabled = index >= 0 && index < _compositionSegments.Count - 1;
         RemoveCompositionSegmentButton.IsEnabled = index >= 0 && _compositionSegments.Count > 1;
         PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0;
         ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0;
     }
+
+    private CompositionSegmentListItem? GetSelectedCompositionSegment() =>
+        _selectedCompositionSegmentId is { } id
+            ? _compositionSegments.FirstOrDefault(item => item.SegmentId == id)
+            : null;
 
     private static CompositionRecipe AssertCompositionRecipe(RecipeRevision revision) =>
         revision.Recipe as CompositionRecipe
@@ -3044,7 +3047,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         SelectFrameButton.IsEnabled = false;
         MakeClipButton.IsEnabled = false;
         StartEditButton.IsEnabled = false;
-        _compositionSegments.Clear();
         UpdateCompositionActionState();
         MediaPreparationSelectionText.Text = "Select a physical video in Project Media";
         ContactFramesEmptyText.Text = "Select a video to browse exact decoded frames.";
