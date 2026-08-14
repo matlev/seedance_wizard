@@ -514,7 +514,10 @@
                                                   VerticalScrollBarVisibility="Disabled"
                                                   SizeChanged="CompositionTimelineScrollViewer_SizeChanged">
                                         <Canvas x:Name="CompositionTimelineCanvas" Height="124"
-                                                Background="#0B0D12" ClipToBounds="True" />
+                                                Background="#0B0D12" ClipToBounds="True"
+                                                PreviewMouseMove="CompositionTimelineCanvas_PreviewMouseMove"
+                                                PreviewMouseLeftButtonUp="CompositionTimelineCanvas_PreviewMouseLeftButtonUp"
+                                                LostMouseCapture="CompositionTimelineCanvas_LostMouseCapture" />
                                     </ScrollViewer>
                                     <Border x:Name="CompositionTimelineDropHint" Grid.Row="1" Visibility="Collapsed"
                                             IsHitTestVisible="False" Background="#CC171B25" BorderBrush="{StaticResource AccentBrush}"

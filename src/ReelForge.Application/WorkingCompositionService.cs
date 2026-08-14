@@ -146,6 +146,30 @@ public sealed class WorkingCompositionService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<RecipeRevision> MoveSegmentToIndexAsync(
+        Guid segmentId,
+        int targetIndex,
+        CancellationToken cancellationToken = default)
+    {
+        var (_, currentRevision, currentRecipe) = GetCurrent();
+        var currentIndex = currentRecipe.Segments.FindIndex(segment => segment.Id == segmentId);
+        if (currentIndex < 0)
+            throw new InvalidOperationException("The selected composition segment no longer exists.");
+
+        var boundedTarget = Math.Clamp(targetIndex, 0, currentRecipe.Segments.Count - 1);
+        if (currentIndex == boundedTarget) return currentRevision;
+
+        return await UpdateAsync(recipe =>
+        {
+            var index = recipe.Segments.FindIndex(segment => segment.Id == segmentId);
+            if (index < 0)
+                throw new InvalidOperationException("The selected composition segment no longer exists.");
+            var segment = recipe.Segments[index];
+            recipe.Segments.RemoveAt(index);
+            recipe.Segments.Insert(boundedTarget, segment);
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<RecipeRevision> RemoveSegmentAsync(
         Guid segmentId,
         CancellationToken cancellationToken = default) =>

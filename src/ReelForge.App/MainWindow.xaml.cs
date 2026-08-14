@@ -102,6 +102,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private Guid? _activeCompositionPreviewRevisionId;
     private Guid? _selectedCompositionSegmentId;
     private Guid? _selectedCompositionAudioClipId;
+    private Guid? _pendingCompositionSegmentDragId;
+    private Guid? _activeCompositionSegmentDragId;
+    private Point _compositionSegmentDragStart;
+    private double _compositionSegmentDragPointerOffset;
+    private double _compositionSegmentDragPointerX;
+    private int _compositionSegmentDragOriginalIndex = -1;
+    private int _compositionSegmentDragTargetIndex = -1;
     private Point _projectMediaDragStart;
     private ProjectMediaListItem? _projectMediaDragItem;
     private bool _renderingCompositionTimeline;
@@ -1404,9 +1411,101 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (sender is not Border { Tag: Guid segmentId }) return;
         _selectedCompositionSegmentId = segmentId;
         _selectedCompositionAudioClipId = null;
+        var point = e.GetPosition(CompositionTimelineCanvas);
+        var span = _compositionTimelineLayout?.Segments
+            .SingleOrDefault(candidate => candidate.SegmentId == segmentId);
+        _pendingCompositionSegmentDragId = segmentId;
+        _activeCompositionSegmentDragId = null;
+        _compositionSegmentDragStart = point;
+        _compositionSegmentDragPointerX = point.X;
+        _compositionSegmentDragPointerOffset = span is null
+            ? 0
+            : Math.Clamp(point.X - span.Left, 0, span.Width);
+        _compositionSegmentDragOriginalIndex = _compositionSegments
+            .Select((item, index) => (item, index))
+            .FirstOrDefault(pair => pair.item.SegmentId == segmentId)
+            .index;
+        _compositionSegmentDragTargetIndex = _compositionSegmentDragOriginalIndex;
+        CompositionTimelineCanvas.CaptureMouse();
         UpdateCompositionActionState();
         RenderCompositionTimeline();
         e.Handled = true;
+    }
+
+    private void CompositionTimelineCanvas_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_pendingCompositionSegmentDragId is not Guid segmentId) return;
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            ResetCompositionSegmentDrag();
+            return;
+        }
+
+        var point = e.GetPosition(CompositionTimelineCanvas);
+        if (_activeCompositionSegmentDragId is null &&
+            Math.Abs(point.X - _compositionSegmentDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(point.Y - _compositionSegmentDragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        _activeCompositionSegmentDragId = segmentId;
+        _compositionSegmentDragPointerX = point.X;
+        var viewportWidth = CompositionTimelineScrollViewer.ViewportWidth > 1
+            ? CompositionTimelineScrollViewer.ViewportWidth
+            : CompositionTimelineScrollViewer.ActualWidth;
+        var preview = CompositionTimelineLayout.CalculateReorder(
+            _compositionSegments
+                .Select(item => new CompositionTimelineSegmentInput(item.SegmentId, item.DurationSeconds))
+                .ToArray(),
+            segmentId,
+            point.X,
+            Math.Max(1, viewportWidth));
+        _compositionSegmentDragTargetIndex = preview.InsertionIndex;
+        CompositionTimelineCanvas.Cursor = Cursors.SizeAll;
+        RenderCompositionTimeline();
+        e.Handled = true;
+    }
+
+    private async void CompositionTimelineCanvas_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_pendingCompositionSegmentDragId is not Guid segmentId) return;
+        var point = e.GetPosition(CompositionTimelineCanvas);
+        var targetIndex = _compositionSegmentDragTargetIndex;
+        var shouldCommit = _activeCompositionSegmentDragId is not null &&
+                           targetIndex >= 0 &&
+                           targetIndex != _compositionSegmentDragOriginalIndex &&
+                           point.Y >= 0 && point.Y <= CompositionTimelineCanvas.ActualHeight;
+        ResetCompositionSegmentDrag(render: false);
+        if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
+        RenderCompositionTimeline();
+        e.Handled = true;
+        if (!shouldCommit) return;
+
+        await RunUiActionAsync("Reordering composition segment…", async () =>
+        {
+            await new WorkingCompositionService(_workspace).MoveSegmentToIndexAsync(segmentId, targetIndex);
+            RefreshEditWorkspaceState();
+            _selectedCompositionSegmentId = segmentId;
+            _selectedCompositionAudioClipId = null;
+            RenderCompositionTimeline();
+            StatusText.Text = "Reordered the Working Composition. Preview it to rebuild the video.";
+        });
+    }
+
+    private void CompositionTimelineCanvas_LostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (_pendingCompositionSegmentDragId is null) return;
+        ResetCompositionSegmentDrag();
+    }
+
+    private void ResetCompositionSegmentDrag(bool render = true)
+    {
+        _pendingCompositionSegmentDragId = null;
+        _activeCompositionSegmentDragId = null;
+        _compositionSegmentDragOriginalIndex = -1;
+        _compositionSegmentDragTargetIndex = -1;
+        CompositionTimelineCanvas.Cursor = null;
+        if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
+        if (render) RenderCompositionTimeline();
     }
 
     private void CompositionTimelineAudioClip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1431,8 +1530,18 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             var viewportWidth = CompositionTimelineScrollViewer.ViewportWidth > 1
                 ? CompositionTimelineScrollViewer.ViewportWidth
                 : CompositionTimelineScrollViewer.ActualWidth;
+            var timelineItems = _compositionSegments.ToList();
+            if (_activeCompositionSegmentDragId is Guid draggedSegmentId &&
+                _compositionSegmentDragTargetIndex >= 0)
+            {
+                var draggedItem = timelineItems.Single(item => item.SegmentId == draggedSegmentId);
+                timelineItems.Remove(draggedItem);
+                timelineItems.Insert(
+                    Math.Clamp(_compositionSegmentDragTargetIndex, 0, timelineItems.Count),
+                    draggedItem);
+            }
             _compositionTimelineLayout = CompositionTimelineLayout.Calculate(
-                _compositionSegments
+                timelineItems
                     .Select(item => new CompositionTimelineSegmentInput(item.SegmentId, item.DurationSeconds))
                     .ToArray(),
                 Math.Max(1, viewportWidth));
@@ -1446,10 +1555,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
             DrawCompositionTimelineRuler(_compositionTimelineLayout);
             var selectedId = _selectedCompositionSegmentId;
-            foreach (var span in _compositionTimelineLayout.Segments)
+            for (var index = 0; index < _compositionTimelineLayout.Segments.Count; index++)
             {
-                var item = _compositionSegments.Single(candidate => candidate.SegmentId == span.SegmentId);
+                var span = _compositionTimelineLayout.Segments[index];
+                var item = timelineItems.Single(candidate => candidate.SegmentId == span.SegmentId);
                 var isSelected = item.SegmentId == selectedId;
+                var isDragging = item.SegmentId == _activeCompositionSegmentDragId;
                 var segmentBorder = new Border
                 {
                     Tag = item.SegmentId,
@@ -1464,12 +1575,22 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     BorderThickness = new Thickness(isSelected ? 2 : 1),
                     CornerRadius = new CornerRadius(3),
                     Padding = new Thickness(8, 5, 7, 4),
-                    ToolTip = $"{item.PositionText} {item.DisplayName}\nStarts at {FormatTimelineTime(span.StartSeconds)}\n{item.DurationText} • {item.AudioText}\nClick to select"
+                    Opacity = isDragging ? 0.84 : 1,
+                    Cursor = Cursors.SizeAll,
+                    ToolTip = $"{index + 1}. {item.DisplayName}\nStarts at {FormatTimelineTime(span.StartSeconds)}\n{item.DurationText} • {item.AudioText}\nClick to select or drag to reorder"
                 };
+                if (isDragging)
+                    segmentBorder.Effect = new DropShadowEffect
+                    {
+                        Color = Colors.Black,
+                        BlurRadius = 12,
+                        ShadowDepth = 3,
+                        Opacity = 0.65
+                    };
                 var text = new StackPanel();
                 text.Children.Add(new TextBlock
                 {
-                    Text = $"{item.PositionText} {item.DisplayName}",
+                    Text = $"{index + 1}. {item.DisplayName}",
                     Foreground = FindResource("TextBrush") as Brush ?? Brushes.White,
                     FontWeight = FontWeights.SemiBold,
                     TextTrimming = TextTrimming.CharacterEllipsis
@@ -1484,8 +1605,15 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 });
                 segmentBorder.Child = text;
                 segmentBorder.MouseLeftButtonDown += CompositionTimelineSegment_MouseLeftButtonDown;
-                Canvas.SetLeft(segmentBorder, span.Left + 1);
+                var left = isDragging
+                    ? Math.Clamp(
+                        _compositionSegmentDragPointerX - _compositionSegmentDragPointerOffset,
+                        0,
+                        Math.Max(0, _compositionTimelineLayout.ContentWidth - span.Width))
+                    : span.Left + 1;
+                Canvas.SetLeft(segmentBorder, left);
                 Canvas.SetTop(segmentBorder, 25);
+                if (isDragging) Panel.SetZIndex(segmentBorder, 20);
                 CompositionTimelineCanvas.Children.Add(segmentBorder);
             }
 
@@ -1542,7 +1670,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 Stroke = FindResource("AccentBrush") as Brush ?? Brushes.MediumPurple,
                 StrokeThickness = 2,
                 IsHitTestVisible = false,
-                Visibility = _activeCompositionPreviewRevisionId is null
+                Visibility = _activeCompositionPreviewRevisionId is null || _activeCompositionSegmentDragId is not null
                     ? Visibility.Collapsed
                     : Visibility.Visible
             };

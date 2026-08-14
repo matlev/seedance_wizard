@@ -75,4 +75,44 @@ public sealed class CompositionTimelineLayoutTests
         Assert.Equal(2, result.GetTimeAtX(result.Segments[1].Left), precision: 6);
         Assert.Equal(10, result.GetTimeAtX(9999), precision: 6);
     }
+
+    [Fact]
+    public void ReorderPreviewMovesLastSegmentToTheFront()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var third = Guid.NewGuid();
+        var result = CompositionTimelineLayout.CalculateReorder(
+            [
+                new CompositionTimelineSegmentInput(first, 2),
+                new CompositionTimelineSegmentInput(second, 4),
+                new CompositionTimelineSegmentInput(third, 8)
+            ],
+            third,
+            pointerX: -20,
+            viewportWidth: 600);
+
+        Assert.Equal(0, result.InsertionIndex);
+        Assert.Equal([third, first, second], result.OrderedSegmentIds);
+    }
+
+    [Fact]
+    public void ReorderPreviewMovesFirstSegmentToTheEnd()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var third = Guid.NewGuid();
+        var result = CompositionTimelineLayout.CalculateReorder(
+            [
+                new CompositionTimelineSegmentInput(first, 2),
+                new CompositionTimelineSegmentInput(second, 4),
+                new CompositionTimelineSegmentInput(third, 8)
+            ],
+            first,
+            pointerX: 10_000,
+            viewportWidth: 600);
+
+        Assert.Equal(2, result.InsertionIndex);
+        Assert.Equal([second, third, first], result.OrderedSegmentIds);
+    }
 }

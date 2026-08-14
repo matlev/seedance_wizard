@@ -42,6 +42,10 @@ public sealed record CompositionTimelineLayoutResult(
     }
 }
 
+public sealed record CompositionTimelineReorderPreview(
+    int InsertionIndex,
+    IReadOnlyList<Guid> OrderedSegmentIds);
+
 public static class CompositionTimelineLayout
 {
     public static CompositionTimelineLayoutResult Calculate(
@@ -101,6 +105,39 @@ public static class CompositionTimelineLayout
             knownDurations.Sum(),
             knownDurations.Length != segments.Count,
             spans);
+    }
+
+    public static CompositionTimelineReorderPreview CalculateReorder(
+        IReadOnlyList<CompositionTimelineSegmentInput> segments,
+        Guid draggedSegmentId,
+        double pointerX,
+        double viewportWidth,
+        double minimumSegmentWidth = 88,
+        double pixelsPerSecond = 24)
+    {
+        ArgumentNullException.ThrowIfNull(segments);
+        if (!segments.Any(segment => segment.SegmentId == draggedSegmentId))
+            throw new ArgumentException("The dragged segment is not present in the timeline.", nameof(draggedSegmentId));
+
+        var remaining = segments
+            .Where(segment => segment.SegmentId != draggedSegmentId)
+            .ToArray();
+        if (remaining.Length == 0)
+            return new CompositionTimelineReorderPreview(0, [draggedSegmentId]);
+
+        var remainingLayout = Calculate(remaining, viewportWidth, minimumSegmentWidth, pixelsPerSecond);
+        var insertionIndex = remainingLayout.Segments.Count;
+        for (var index = 0; index < remainingLayout.Segments.Count; index++)
+        {
+            var span = remainingLayout.Segments[index];
+            if (pointerX >= span.Left + span.Width / 2) continue;
+            insertionIndex = index;
+            break;
+        }
+
+        var orderedIds = remaining.Select(segment => segment.SegmentId).ToList();
+        orderedIds.Insert(insertionIndex, draggedSegmentId);
+        return new CompositionTimelineReorderPreview(insertionIndex, orderedIds);
     }
 
     private static double? ValidDuration(double? value) =>

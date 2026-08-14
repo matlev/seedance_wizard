@@ -325,6 +325,7 @@ In progress. The first slices project the committed Working Composition into a h
 6. Insert physical videos or Saved Clips at the visual drop position and retain direct block selection after switching Project Media items.
 7. Place physical audio on a separate timed row, persist it in immutable composition revisions, and mix it with source-video audio during preview/export.
 8. Keep clip widths, ruler ticks, scroll position, and playhead position out of the `.rfp` schema.
+9. Reorder video segments directly by dragging timeline blocks; neighboring blocks reflow during the transient preview and only a non-no-op mouse release commits one immutable recipe revision.
 
 Subsequent timeline work:
 
@@ -333,7 +334,6 @@ Subsequent timeline work:
 3. Compile preview and export through the shared materialization planner.
 4. Capture immutable composition snapshots for provider requests and historical exports.
 5. Add render progress, cancellation, and purpose-specific preview/export profiles.
-6. Add direct segment drag-reordering with a dragged-block visual and live neighboring-segment reflow; commit only the final drop as a new recipe revision.
 
 Timeline editing must compose the same recipe graph and must not introduce authoritative intermediate paths into the `.rfp` project file.
 

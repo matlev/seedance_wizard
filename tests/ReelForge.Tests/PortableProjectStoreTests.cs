@@ -310,6 +310,50 @@ public sealed class PortableProjectStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkingCompositionDirectReorderCommitsOnceAndPersistsFinalOrder()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Composition direct reorder");
+        var first = CreatePhysicalAsset("first.mp4", "assets/videos/first.mp4");
+        var second = CreatePhysicalAsset("second.mp4", "assets/videos/second.mp4");
+        var third = CreatePhysicalAsset("third.mp4", "assets/videos/third.mp4");
+        workspace.Project!.AddAsset(first);
+        workspace.Project.AddAsset(second);
+        workspace.Project.AddAsset(third);
+        await workspace.SaveAsync();
+        var service = new WorkingCompositionService(workspace);
+        await service.CreateInitialAsync(first.Id);
+        await service.AddSegmentAsync(second.Id);
+        var beforeReorder = await service.AddSegmentAsync(third.Id);
+        var beforeRecipe = Assert.IsType<CompositionRecipe>(beforeReorder.Recipe);
+        var firstSegmentId = beforeRecipe.Segments[0].Id;
+        var revisionCount = workspace.Project.RecipeRevisions.Count;
+
+        var reordered = await service.MoveSegmentToIndexAsync(firstSegmentId, 2);
+
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+        Assert.Equal(
+            [second.Id, third.Id, first.Id],
+            Assert.IsType<CompositionRecipe>(reordered.Recipe).Segments.Select(segment => segment.Source.AssetId));
+        Assert.Equal(
+            [first.Id, second.Id, third.Id],
+            beforeRecipe.Segments.Select(segment => segment.Source.AssetId));
+
+        var noOp = await service.MoveSegmentToIndexAsync(firstSegmentId, 2);
+        Assert.Equal(reordered.Id, noOp.Id);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+
+        var reopened = (await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath)).Project;
+        var composition = reopened.Assets.Single(asset => asset.Id == reopened.WorkingCompositionAssetId);
+        var reopenedRevision = reopened.RecipeRevisions.Single(revision =>
+            revision.Id == composition.Virtual!.CurrentRecipeRevisionId);
+        Assert.Equal(
+            [second.Id, third.Id, first.Id],
+            Assert.IsType<CompositionRecipe>(reopenedRevision.Recipe).Segments.Select(segment => segment.Source.AssetId));
+        Assert.Empty(ProjectInvariantValidator.Validate(reopened));
+    }
+
+    [Fact]
     public async Task WorkingCompositionRemoveRejectsDeletingItsLastSegment()
     {
         var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
