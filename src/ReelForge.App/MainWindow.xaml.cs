@@ -35,6 +35,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ObservableCollection<SavedFrameListItem> _savedFrames = [];
     private readonly ObservableCollection<CompositionSegmentListItem> _compositionSegments = [];
     private readonly ObservableCollection<CompositionAudioClipListItem> _compositionAudioClips = [];
+    private readonly IReadOnlyList<BitmapSource> _activeJobSpriteFrames;
     private readonly HashSet<Guid> _viewedTerminalJobIds = [];
     private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
     private readonly SemaphoreSlim _submissionGate = new(1, 1);
@@ -106,10 +107,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _renderingCompositionTimeline;
     private bool _disposed;
     private bool _isMediaImportInProgress;
+    private int _activeJobSpriteFrameIndex;
 
     public MainWindow()
     {
         InitializeComponent();
+        _activeJobSpriteFrames = LoadActiveJobSpriteFrames();
 
         _mediaToolDiscovery = new MediaToolDiscovery();
         _applicationSettingsStore = new JsonApplicationSettingsStore();
@@ -174,7 +177,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _draftAutosaveTimer.Tick += DraftAutosaveTimer_Tick;
 
         _jobElapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _jobElapsedTimer.Tick += (_, _) => RefreshJobElapsedTimes();
+        _jobElapsedTimer.Tick += (_, _) =>
+        {
+            RefreshJobElapsedTimes();
+            UpdateActiveJobSprite(advanceFrame: true);
+        };
         _jobElapsedTimer.Start();
 
         _frameBrowserDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -504,6 +511,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         JobsEmptyText.Visibility = _jobs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         JobsList.Visibility = _jobs.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        UpdateActiveJobSprite(advanceFrame: false);
         if (_isJobsPanelOpen) MarkVisibleTerminalJobsViewed();
         RefreshJobElapsedTimes();
     }
@@ -540,6 +548,58 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         var now = DateTimeOffset.UtcNow;
         foreach (var job in _jobs) job.RefreshElapsed(now);
+    }
+
+    private void UpdateActiveJobSprite(bool advanceFrame)
+    {
+        var hasActiveJob = _jobCoordinator.GetSnapshot().Any(job =>
+            job.Status is GenerationStatus.Queued or GenerationStatus.Running);
+        if (!hasActiveJob)
+        {
+            ActiveJobSprite.Visibility = Visibility.Collapsed;
+            _activeJobSpriteFrameIndex = 0;
+            ActiveJobSprite.Source = _activeJobSpriteFrames[0];
+            return;
+        }
+
+        if (ActiveJobSprite.Visibility != Visibility.Visible)
+        {
+            _activeJobSpriteFrameIndex = 0;
+            ActiveJobSprite.Source = _activeJobSpriteFrames[0];
+            ActiveJobSprite.Visibility = Visibility.Visible;
+            return;
+        }
+
+        if (!advanceFrame) return;
+        _activeJobSpriteFrameIndex = (_activeJobSpriteFrameIndex + 1) % _activeJobSpriteFrames.Count;
+        ActiveJobSprite.Source = _activeJobSpriteFrames[_activeJobSpriteFrameIndex];
+    }
+
+    private static IReadOnlyList<BitmapSource> LoadActiveJobSpriteFrames()
+    {
+        var uri = new Uri(
+            "pack://application:,,,/ReelForge.App;component/Assets/Sprites/forging_reel_animation.png",
+            UriKind.Absolute);
+        var resource = System.Windows.Application.GetResourceStream(uri)
+            ?? throw new InvalidDataException("The forging-reel sprite resource is missing.");
+        using var stream = resource.Stream;
+        var decoder = new PngBitmapDecoder(
+            stream,
+            BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad);
+        var sheet = decoder.Frames[0];
+        if (sheet.PixelWidth % 2 != 0 || sheet.PixelWidth / 2 != sheet.PixelHeight)
+            throw new InvalidDataException("The forging-reel sprite must contain two equal square frames side by side.");
+
+        var frameWidth = sheet.PixelWidth / 2;
+        return Enumerable.Range(0, 2).Select(index =>
+        {
+            var frame = new CroppedBitmap(
+                sheet,
+                new Int32Rect(index * frameWidth, 0, frameWidth, sheet.PixelHeight));
+            frame.Freeze();
+            return (BitmapSource)frame;
+        }).ToArray();
     }
 
     public Task FinalizeAsync(TrackedGenerationJob job, CancellationToken cancellationToken = default)

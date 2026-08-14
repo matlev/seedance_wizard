@@ -111,6 +111,9 @@
         <Border Grid.Row="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
             <DockPanel Margin="10,5">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Image x:Name="ActiveJobSprite" Width="44" Height="44" Margin="0,0,2,0"
+                           Stretch="Uniform" Visibility="Collapsed"
+                           ToolTip="ReelForge is forging a generation" />
                     <Button x:Name="JobsChromeButton" Click="JobsChrome_Click" Margin="8,0,4,0"
                             ToolTip="View generation jobs from any workspace">
                         <StackPanel Orientation="Horizontal">
