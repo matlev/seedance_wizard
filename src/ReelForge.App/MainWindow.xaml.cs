@@ -121,7 +121,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             processRunner,
             _exactFrameService,
             mediaCacheRoot,
-            mediaInspector: _mediaInspector);
+            mediaInspector: _mediaInspector,
+            persistModifiedMediaOnDisk: configuredTools.PersistModifiedMediaOnDisk);
         _projectStore = new PortableProjectStore();
         _assetImporter = new AssetImportService(_mediaInspector);
         _workspace = new ProjectWorkspace(_projectStore, _assetImporter);
@@ -632,6 +633,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
         _exactFrameService.UpdateExecutablePaths(_mediaTools.FfmpegPath, _mediaTools.FfprobePath);
         _mediaMaterializer.UpdateExecutablePath(_mediaTools.FfmpegPath);
+        _mediaMaterializer.UpdatePersistencePreference(
+            _applicationSettings.MediaTools.PersistModifiedMediaOnDisk);
         _exactFrameService.UpdateMaximumCacheBytes(_applicationSettings.MediaTools.CacheSizeBytes);
         await _exactFrameService.TrimCacheAsync();
         MediaToolsText.Text = _mediaTools.Summary;
@@ -1173,31 +1176,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
-    private async void SaveCompositionAsAsset_Click(object sender, RoutedEventArgs e)
-    {
-        if (_workspace.Project is null) return;
-        var (composition, revision, _) = new WorkingCompositionService(_workspace).GetCurrent();
-        var defaultName = $"{MakeSafeFileName(_workspace.Project.Name)} composition.mp4";
-        var dialog = new AssetNameDialog(
-            defaultName,
-            title: "Save rendered composition",
-            heading: "SAVE RENDERED COPY",
-            description: "Render this exact composition revision as a durable physical video in Project Media. The logical Working Composition remains editable.",
-            confirmLabel: "Save as asset")
-        {
-            Owner = this
-        };
-        if (dialog.ShowDialog() != true) return;
-
-        await RunUiActionAsync("Saving rendered composition as a project asset…", async () =>
-        {
-            var service = CreateRenderedAssetPromotionService();
-            var asset = await service.SaveAsAssetAsync(composition.Id, revision.Id, dialog.FileName);
-            RefreshProjectCollections(asset.Id);
-            StatusText.Text = $"Saved rendered copy as {asset.FileName}.";
-        });
-    }
-
     private async void ExportComposition_Click(object sender, RoutedEventArgs e)
     {
         if (_workspace.Project is null) return;
@@ -1239,7 +1217,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         MoveCompositionSegmentDownButton.IsEnabled = index >= 0 && index < _compositionSegments.Count - 1;
         RemoveCompositionSegmentButton.IsEnabled = index >= 0 && _compositionSegments.Count > 1;
         PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0;
-        SaveCompositionAsAssetButton.IsEnabled = _compositionSegments.Count > 0;
         ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0;
     }
 
@@ -1398,51 +1375,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             });
     }
 
-    private async void SaveSelectedMediaAsAsset_Click(object sender, RoutedEventArgs e)
-    {
-        if (AssetsList.SelectedItem is not ProjectMediaListItem item || _workspace.Project is null) return;
-        var service = CreateRenderedAssetPromotionService();
-        if (item.Anchor is { } anchor && item.AnchorRevision is { } anchorRevision)
-        {
-            var defaultName = $"{MakeSafeFileName(item.DisplayName)}.png";
-            var dialog = new AssetNameDialog(
-                defaultName,
-                title: "Save Saved Frame as an asset",
-                heading: "SAVE FRAME AS ASSET",
-                description: "Create a durable PNG in Project Media from this exact Saved Frame revision. The Saved Frame remains available as a logical reference.",
-                confirmLabel: "Save as asset") { Owner = this };
-            if (dialog.ShowDialog() != true) return;
-            await RunUiActionAsync("Saving Saved Frame as a project asset…", async () =>
-            {
-                var promoted = await service.SaveFrameAsAssetAsync(anchor.Id, anchorRevision.Id, dialog.FileName);
-                RefreshProjectCollections(promoted.Id);
-                StatusText.Text = $"Saved {item.DisplayName} as {promoted.FileName}.";
-            });
-            return;
-        }
-
-        if (item.Asset is not { StorageKind: AssetStorageKind.Virtual, MediaType: MediaType.Video } asset ||
-            asset.Virtual?.CurrentRecipeRevisionId is not { } recipeRevisionId)
-        {
-            MessageBox.Show(this, "Choose a Saved Frame, Saved Clip, or Working Composition to save a rendered project asset.",
-                "Save as Asset", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-        var videoDialog = new AssetNameDialog(
-            $"{MakeSafeFileName(asset.EffectiveDisplayName)}.mp4",
-            title: "Save rendered media as an asset",
-            heading: "SAVE AS ASSET",
-            description: "Create a durable physical video in Project Media from this exact recipe revision. The virtual source remains intact.",
-            confirmLabel: "Save as asset") { Owner = this };
-        if (videoDialog.ShowDialog() != true) return;
-        await RunUiActionAsync($"Saving {asset.EffectiveDisplayName} as a project asset…", async () =>
-        {
-            var promoted = await service.SaveAsAssetAsync(asset.Id, recipeRevisionId, videoDialog.FileName);
-            RefreshProjectCollections(promoted.Id);
-            StatusText.Text = $"Saved rendered copy as {promoted.FileName}.";
-        });
-    }
-
     private async void ExportSelectedMedia_Click(object sender, RoutedEventArgs e)
     {
         if (AssetsList.SelectedItem is not ProjectMediaListItem item || _workspace.Project is null) return;
@@ -1509,8 +1441,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         {
             try
             {
-                await using var media = await new PhysicalAssetMaterializer(exactFrameService: _exactFrameService)
-                    .MaterializeAsync(
+                await using var media = await _mediaMaterializer.MaterializeAsync(
                         _workspace.Project,
                         _workspace.Location,
                         new MaterializationRequest(

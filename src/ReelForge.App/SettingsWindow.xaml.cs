@@ -155,7 +155,8 @@ public partial class SettingsWindow : Window
 
     private FrameworkElement CreateValueEditor(ConfigurationRequirement requirement)
     {
-        if (requirement.Key.EndsWith(".Enabled", StringComparison.Ordinal))
+        if (requirement.Key.EndsWith(".Enabled", StringComparison.Ordinal) ||
+            requirement.Key == "MediaTools.PersistModifiedMediaOnDisk")
             return CreateBooleanEditor(requirement);
         if (requirement.Key == "General.UndoSendSeconds")
             return CreateUndoSendEditor(requirement);
@@ -349,14 +350,16 @@ public partial class SettingsWindow : Window
     private FrameworkElement CreateBooleanEditor(ConfigurationRequirement requirement)
     {
         var panel = CreateFieldPanel(requirement);
+        panel.ToolTip = requirement.Description;
         var currentValue = _pendingValues.TryGetValue(requirement.Key, out var pending)
             ? pending
             : ApplicationSettingsAccessor.Get(_editor.Settings, requirement.Key);
         var isEnabled = bool.TryParse(currentValue, out var parsed) && parsed;
         var group = new StackPanel { Orientation = Orientation.Horizontal };
+        var usesYesNo = requirement.Key == "MediaTools.PersistModifiedMediaOnDisk";
         var enabled = new RadioButton
         {
-            Content = "Enabled",
+            Content = usesYesNo ? "Yes" : "Enabled",
             IsChecked = isEnabled,
             GroupName = requirement.Key,
             Style = (Style)FindResource("SettingsBooleanChoiceStyle"),
@@ -364,7 +367,7 @@ public partial class SettingsWindow : Window
         };
         var disabled = new RadioButton
         {
-            Content = "Disabled",
+            Content = usesYesNo ? "No" : "Disabled",
             IsChecked = !isEnabled,
             GroupName = requirement.Key,
             Style = (Style)FindResource("SettingsBooleanChoiceStyle"),

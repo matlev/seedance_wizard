@@ -173,7 +173,6 @@
                         <ListBox.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Change filename…" Click="RenameAsset_Click" />
-                                <MenuItem Header="Save as Asset…" Click="SaveSelectedMediaAsAsset_Click" />
                                 <MenuItem Header="Export…" Click="ExportSelectedMedia_Click" />
                                 <MenuItem Header="Copy to Project…" Click="CopyAssetToProject_Click" />
                                 <MenuItem Header="Move to Project…" Click="MoveAssetToProject_Click" />
@@ -469,9 +468,6 @@
                                         Content="Preview composition" Click="PreviewComposition_Click"
                                         Background="{StaticResource AccentBrush}" Foreground="White"
                                         ToolTip="Render or reuse a cached preview of the committed composition" />
-                                <Button x:Name="SaveCompositionAsAssetButton" DockPanel.Dock="Right"
-                                        Content="Save as asset" Click="SaveCompositionAsAsset_Click"
-                                        ToolTip="Create a durable physical video in Project Media from this committed composition" />
                                 <Button x:Name="ExportCompositionButton" DockPanel.Dock="Right"
                                         Content="Export…" Click="ExportComposition_Click"
                                         ToolTip="Write this committed composition to a durable MP4 outside Project Media" />

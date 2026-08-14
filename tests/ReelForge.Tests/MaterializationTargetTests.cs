@@ -158,6 +158,88 @@ public sealed class MaterializationTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task PersistencePreferenceCopiesCompositionIntoProjectWithoutAddingCatalogAsset()
+    {
+        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(composition);
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments = [new CompositionSegment { Source = new AssetRevisionReference { AssetId = sourceAsset.Id } }]
+        });
+        var originalAssetCount = project.Assets.Count;
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe",
+            new TrimRunner(),
+            new StubExactFrameService([]),
+            Path.Combine(_root, "cache"),
+            persistModifiedMediaOnDisk: true);
+
+        await using var preview = await materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(composition.Id, revision.Id),
+                MaterializationPurpose.Preview));
+
+        Assert.StartsWith(
+            Path.Combine(location.RootDirectory, "assets", "modified", "compositions"),
+            preview.Path,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.True(File.Exists(preview.Path));
+        Assert.False(preview.IsDurableSource);
+        Assert.Equal(originalAssetCount, project.Assets.Count);
+    }
+
+    [Fact]
+    public async Task PersistencePreferenceCopiesSavedFrameIntoProjectMediaFolder()
+    {
+        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
+        sourceAsset.Physical!.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(
+            Path.Combine(location.RootDirectory, sourceAsset.Physical.RelativePath));
+        var anchor = new FrameAnchor { DisplayLabel = "Expression" };
+        project.Anchors.Add(anchor);
+        var revision = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            sourceAsset.Id,
+            sourceAsset.Physical.ContentIdentity.Sha256!,
+            0,
+            30,
+            1,
+            30,
+            30));
+        var extractedPath = Path.Combine(_root, "cache", "frame.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(extractedPath)!);
+        await File.WriteAllBytesAsync(extractedPath, [7, 8, 9]);
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe",
+            new TrimRunner(),
+            new StubExactFrameService([], extractedPath),
+            Path.Combine(_root, "cache"),
+            persistModifiedMediaOnDisk: true);
+
+        await using var frame = await materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AnchorMaterializationTarget(anchor.Id, revision.Id),
+                MaterializationPurpose.Preview));
+
+        Assert.StartsWith(
+            Path.Combine(location.RootDirectory, "assets", "modified", "frames"),
+            frame.Path,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(".png", frame.Path, StringComparison.OrdinalIgnoreCase);
+        Assert.True(File.Exists(frame.Path));
+    }
+
+    [Fact]
     public async Task NestedSavedClipsMaterializeRecursivelyAndReuseEachCacheLevel()
     {
         var (project, location, sourceAsset) = await CreateProjectSourceAsync();
@@ -511,7 +593,9 @@ public sealed class MaterializationTargetTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
-    private sealed class StubExactFrameService(IReadOnlyList<VideoPresentationFrame> frames) : IExactVideoFrameService
+    private sealed class StubExactFrameService(
+        IReadOnlyList<VideoPresentationFrame> frames,
+        string? extractedPath = null) : IExactVideoFrameService
     {
         public int WindowIndexCount { get; private set; }
 
@@ -536,7 +620,17 @@ public sealed class MaterializationTargetTests : IDisposable
             MaterializationPurpose purpose,
             string? profile = null,
             CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            extractedPath is null
+                ? throw new NotSupportedException()
+                : Task.FromResult(new MaterializedMediaLease(
+                    extractedPath,
+                    new ContentIdentity
+                    {
+                        Sha256 = new string('c', 64),
+                        Status = ContentHashStatus.Verified
+                    },
+                    null,
+                    isDurableSource: false));
     }
 
     private sealed class TrimRunner : IExternalProcessRunner

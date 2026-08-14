@@ -308,6 +308,22 @@ public sealed class ApplicationSettingsTests
             ApplicationSettingsAccessor.Set(settings, "MediaTools.CacheSizeBytes", "1048575"));
     }
 
+    [Fact]
+    public void ModifiedMediaPersistenceDefaultsOffAndAcceptsBooleanSetting()
+    {
+        var settings = new ApplicationSettings();
+
+        Assert.False(settings.MediaTools.PersistModifiedMediaOnDisk);
+        Assert.Equal("false", ApplicationSettingsAccessor.Get(
+            settings, "MediaTools.PersistModifiedMediaOnDisk"));
+
+        ApplicationSettingsAccessor.Set(settings, "MediaTools.PersistModifiedMediaOnDisk", "true");
+
+        Assert.True(settings.MediaTools.PersistModifiedMediaOnDisk);
+        Assert.Throws<ArgumentException>(() => ApplicationSettingsAccessor.Set(
+            settings, "MediaTools.PersistModifiedMediaOnDisk", "sometimes"));
+    }
+
     private static ApplicationSettings ConfiguredR2Settings()
     {
         var settings = new ApplicationSettings();

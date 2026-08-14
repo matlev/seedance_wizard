@@ -189,6 +189,8 @@ public static class ApplicationConfigurationCatalog
             @"C:\path\to\ffprobe.exe", MediaToolsSection),
         new("MediaTools.CacheSizeBytes", "Media cache limit", "Maximum disk space for disposable media derivatives. Lower cache values may make some video-editing actions perform poorly or become impossible.", false, false,
             MediaToolConfiguration.DefaultCacheSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture), MediaToolsSection),
+        new("MediaTools.PersistModifiedMediaOnDisk", "Persist modified media on disk", "Captured frames, video clippings, and in-progress compositions are normally stored in cache to optimize space usage and are rebuilt when necessary. Persisting this media on disk will save them as normal, permanent files in your project's media folder.", false, false,
+            "false", MediaToolsSection),
         new("TemporaryAssetHosting.CloudflareR2.AccountId", "R2 Account ID", "Cloudflare account identifier used by the R2 S3 endpoint.", true, false,
             "32-character Cloudflare account ID", R2Section),
         new("TemporaryAssetHosting.CloudflareR2.BucketName", "R2 bucket name", "Private bucket used for temporary provider references.", true, false,
@@ -229,6 +231,7 @@ public static class ApplicationSettingsAccessor
         "MediaTools.FfmpegPath" => settings.MediaTools.FfmpegPath ?? string.Empty,
         "MediaTools.FfprobePath" => settings.MediaTools.FfprobePath ?? string.Empty,
         "MediaTools.CacheSizeBytes" => settings.MediaTools.CacheSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        "MediaTools.PersistModifiedMediaOnDisk" => settings.MediaTools.PersistModifiedMediaOnDisk.ToString().ToLowerInvariant(),
         "TemporaryAssetHosting.CloudflareR2.AccountId" => settings.TemporaryAssetHosting.CloudflareR2.AccountId,
         "TemporaryAssetHosting.CloudflareR2.BucketName" => settings.TemporaryAssetHosting.CloudflareR2.BucketName,
         "TemporaryAssetHosting.CloudflareR2.Endpoint" => settings.TemporaryAssetHosting.CloudflareR2.Endpoint,
@@ -267,6 +270,9 @@ public static class ApplicationSettingsAccessor
                     cacheBytes is < minimumCacheBytes or > maximumCacheBytes)
                     throw new ArgumentException("Media cache limit must be between 1 MB and 8 TB.");
                 settings.MediaTools.CacheSizeBytes = cacheBytes;
+                break;
+            case "MediaTools.PersistModifiedMediaOnDisk":
+                settings.MediaTools.PersistModifiedMediaOnDisk = ParseBoolean(value, key);
                 break;
             case "TemporaryAssetHosting.CloudflareR2.AccountId": settings.TemporaryAssetHosting.CloudflareR2.AccountId = value; break;
             case "TemporaryAssetHosting.CloudflareR2.BucketName": settings.TemporaryAssetHosting.CloudflareR2.BucketName = value; break;

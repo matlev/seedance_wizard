@@ -21,6 +21,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
     private readonly SemaphoreSlim _fingerprintLock = new(1, 1);
     private string? _ffmpegPath;
     private string? _rendererFingerprint;
+    private volatile bool _persistModifiedMediaOnDisk;
     private bool _disposed;
 
     public RecipeMediaMaterializer(
@@ -29,7 +30,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         IExactVideoFrameService exactFrameService,
         string cacheRoot,
         IContentHashService? contentHashService = null,
-        IMediaInspectionService? mediaInspector = null)
+        IMediaInspectionService? mediaInspector = null,
+        bool persistModifiedMediaOnDisk = false)
     {
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(exactFrameService);
@@ -40,6 +42,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         _cacheRoot = Path.GetFullPath(cacheRoot);
         _contentHashService = contentHashService ?? new Sha256ContentHashService();
         _mediaInspector = mediaInspector;
+        _persistModifiedMediaOnDisk = persistModifiedMediaOnDisk;
         _physicalMaterializer = new PhysicalAssetMaterializer(_contentHashService, exactFrameService);
     }
 
@@ -48,6 +51,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         _ffmpegPath = ffmpegPath;
         _rendererFingerprint = null;
     }
+
+    public void UpdatePersistencePreference(bool persistModifiedMediaOnDisk) =>
+        _persistModifiedMediaOnDisk = persistModifiedMediaOnDisk;
 
     public async Task<MaterializedMediaLease> MaterializeAsync(
         VideoProject project,
@@ -60,7 +66,11 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         if (request.Target is not AssetMaterializationTarget assetTarget)
         {
-            return await _physicalMaterializer.MaterializeAsync(project, location, request, cancellationToken)
+            var anchorMedia = await _physicalMaterializer.MaterializeAsync(
+                    project, location, request, cancellationToken)
+                .ConfigureAwait(false);
+            return await PersistIfRequestedAsync(
+                    project, location, request.Target, anchorMedia, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -73,8 +83,127 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         }
 
         var plan = RecipeRenderPlanner.Plan(project, assetTarget, request.Purpose, request.Profile);
-        return await ExecuteNodeAsync(project, location, asset, plan.Root, request, cancellationToken)
+        var media = await ExecuteNodeAsync(project, location, asset, plan.Root, request, cancellationToken)
             .ConfigureAwait(false);
+        return await PersistIfRequestedAsync(
+                project, location, request.Target, media, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<MaterializedMediaLease> PersistIfRequestedAsync(
+        VideoProject project,
+        ProjectLocation location,
+        MaterializationTarget target,
+        MaterializedMediaLease media,
+        CancellationToken cancellationToken)
+    {
+        if (!_persistModifiedMediaOnDisk) return media;
+        try
+        {
+            var persistentPath = GetPersistentRepresentationPath(project, location, target, media.Path);
+            var key = $"persistent|{persistentPath}";
+            var persistentLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+            await persistentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (File.Exists(persistentPath))
+                {
+                    var existingIdentity = await _contentHashService.ComputeAsync(
+                        persistentPath, cancellationToken).ConfigureAwait(false);
+                    if (existingIdentity.Sha256?.Equals(
+                            media.ContentIdentity.Sha256,
+                            StringComparison.OrdinalIgnoreCase) == true)
+                        return new MaterializedMediaLease(
+                            persistentPath, existingIdentity, media.Encoding, isDurableSource: false);
+                }
+
+                var directory = Path.GetDirectoryName(persistentPath)!;
+                Directory.CreateDirectory(directory);
+                var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(persistentPath)}.{Guid.NewGuid():N}.partial");
+                try
+                {
+                    await CopyFileAsync(media.Path, temporaryPath, cancellationToken).ConfigureAwait(false);
+                    File.Move(temporaryPath, persistentPath, overwrite: true);
+                }
+                finally
+                {
+                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+                }
+                var identity = await _contentHashService.ComputeAsync(persistentPath, cancellationToken)
+                    .ConfigureAwait(false);
+                return new MaterializedMediaLease(
+                    persistentPath, identity, media.Encoding, isDurableSource: false);
+            }
+            finally
+            {
+                persistentLock.Release();
+            }
+        }
+        finally
+        {
+            await media.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private static string GetPersistentRepresentationPath(
+        VideoProject project,
+        ProjectLocation location,
+        MaterializationTarget target,
+        string materializedPath)
+    {
+        string category;
+        string stem;
+        switch (target)
+        {
+            case AnchorMaterializationTarget anchorTarget:
+            {
+                var anchor = project.Anchors.Single(candidate => candidate.Id == anchorTarget.AnchorId);
+                var revision = project.AnchorRevisions.Single(candidate => candidate.Id == anchorTarget.AnchorRevisionId);
+                category = "frames";
+                stem = $"{SanitizeFileStem(anchor.DisplayLabel ?? "Saved Frame")}-r{revision.RevisionNumber}-{anchor.Id:N}";
+                break;
+            }
+            case AssetMaterializationTarget assetTarget:
+            {
+                var asset = project.Assets.Single(candidate => candidate.Id == assetTarget.AssetId);
+                var revisionId = assetTarget.RecipeRevisionId ?? asset.Virtual?.CurrentRecipeRevisionId
+                    ?? throw new InvalidDataException("A persistent virtual representation requires a pinned recipe revision.");
+                var revision = project.RecipeRevisions.Single(candidate => candidate.Id == revisionId);
+                category = asset.Virtual?.Kind == VirtualAssetKind.Composition ? "compositions" : "clips";
+                stem = $"{SanitizeFileStem(asset.EffectiveDisplayName)}-r{revision.RevisionNumber}-{asset.Id:N}";
+                break;
+            }
+            default:
+                throw new NotSupportedException($"Persistent representation target '{target.GetType().Name}' is unsupported.");
+        }
+        var extension = Path.GetExtension(materializedPath).ToLowerInvariant();
+        if (extension is not (".png" or ".mp4"))
+            throw new InvalidDataException("Persistent modified media must be a PNG image or MP4 video.");
+        return Path.Combine(location.RootDirectory, "assets", "modified", category, $"{stem}{extension}");
+    }
+
+    private static string SanitizeFileStem(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+        var sanitized = new string(value.Select(character => invalid.Contains(character) ? '_' : character).ToArray())
+            .Trim().TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(sanitized)) return "Modified media";
+        return sanitized.Length <= 80 ? sanitized : sanitized[..80].TrimEnd();
+    }
+
+    private static async Task CopyFileAsync(
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        await using var source = new FileStream(
+            sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var destination = new FileStream(
+            destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<MaterializedMediaLease> ExecuteNodeAsync(

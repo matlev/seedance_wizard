@@ -351,6 +351,7 @@ public sealed class MediaToolConfiguration
     public string? FfmpegPath { get; set; }
     public string? FfprobePath { get; set; }
     public long CacheSizeBytes { get; set; } = DefaultCacheSizeBytes;
+    public bool PersistModifiedMediaOnDisk { get; set; }
 }
 
 public sealed record MediaToolAvailability(

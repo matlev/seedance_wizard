@@ -114,7 +114,7 @@ The pre-release project contains no supported external format baseline, so this 
 6. Cache entries are implementation details. No persisted recipe, timeline, or provider request may depend on a cache-relative path.
 7. A materialization becoming missing, corrupt, stale, or incompatible causes regeneration, not project corruption, regardless of how long that representation was retained.
 8. Retention is a policy applied to materialized representations, not a property that changes the authoritative logical asset. The architecture must permit ephemeral, normal-cache, frequently-used, and persistent retention policies without changing recipes or provenance.
-9. Explicit **Export**, **Save as Asset**, or **Keep Rendered Copy** actions promote a derived result into durable physical media. Merely retaining a cache representation does not promote it.
+9. **Export** writes derived media to a user-selected destination. The advanced persistence preference retains project-owned representations without converting logical media into duplicate catalog assets; physical-versus-virtual promotion remains an internal boundary rather than routine UI vocabulary.
 10. Generation output downloaded into `generated/` is durable physical media; media prepared solely for provider upload is a non-authoritative representation.
 11. A submitted generation records an immutable request snapshot containing logical references. It never uses cache paths as its source of truth.
 12. Generation lineage explains why a generation was created; generation references record what was actually submitted. Neither may be inferred from the other.
@@ -356,9 +356,9 @@ The next executor slice treats media compatibility as an explicit result rather 
 
 The first editor-facing consumer is deliberately narrower than a timeline. The Edit workspace projects the current immutable Working Composition revision as an ordered list. Add, move, and remove are discrete commits that create a new revision and refresh a mutable draft based on it; earlier revisions remain unchanged. Virtual segment sources pin their exact recipe revision. Preview requests the current composition revision from the shared materializer, so the project persists logical sources and order while the rendered MP4 remains disposable cache state.
 
-The same committed composition offers two explicit durable exits. **Save as asset** copies the `FinalExport` materialization atomically into `assets/videos`, verifies its SHA-256 and encoding, and only then adds a physical `Promoted` asset whose provenance pins the virtual source and recipe revision. **Export** atomically writes the materialization to a user-selected MP4 path without changing project state. Neither action replaces or mutates the virtual Working Composition.
+The committed composition exposes **Export**, which atomically writes its `FinalExport` materialization to a user-selected MP4 path without changing project state. Saved Clips and Saved Frames expose the same user-facing concept with their appropriate format. Export never replaces or mutates the logical source.
 
-These actions also apply at the Project Media boundary. A Saved Clip may be promoted or exported from its pinned current recipe revision. A Saved Frame may be promoted to a physical PNG or exported while retaining the exact anchor and anchor revision in provenance parameters. Promotion never converts, removes, or makes the logical source dependent on the physical copy.
+For users who prefer space efficiency, modified representations remain disposable cache entries and reconstruct on demand. The default-off **Persist modified media on disk** setting instead copies materialized Saved Frames, Saved Clips, and Working Composition revisions into `assets/modified/{frames|clips|compositions}`. These are project-owned permanent representations, but they do not become additional `ProjectAsset` rows and do not change the Project Media grouping. Turning the setting off stops future persistence and does not silently delete files already retained.
 
 ## Disposable cache
 
@@ -403,8 +403,8 @@ The final retention policy is intentionally unresolved. A future `IMaterializati
 `FinalExport` as a materialization purpose does not itself imply that an output becomes a catalog asset. The export use case must make the durable boundary explicit:
 
 - **Export** writes a user-selected durable result, normally under `exports/` or another chosen destination.
-- **Save as Asset** adds a durable physical copy to the project catalog, retaining provenance back to the virtual asset/recipe.
-- **Keep Rendered Copy** promotes a specific cached rendition, only if its profile is suitable and its content identity is recorded.
+- Internal promotion services may still create a durable physical catalog asset for future workflows, but this distinction is intentionally absent from normal UI.
+- **Persist modified media on disk** retains deterministic project-owned representations without creating duplicate catalog assets.
 
 The virtual source remains intact after promotion. Future recipe edits produce a new cache identity and do not silently overwrite the promoted physical file.
 
@@ -712,7 +712,7 @@ The Phase 2C product-direction questions are settled. Remaining cross-phase item
 3. **Missing-source recovery:** Phase 2C preserves degraded state and blocks materialization; user-driven relinking/recovery remains later work.
 4. **External exports:** default to export history without making reconstruction depend on an external path; decide catalog behavior with export UX.
 5. **Provider cancellation:** distinguish local polling cancellation from remote cancellation and expose the latter only when verified.
-6. **Saved-frame promotion:** direct logical Saved Frame use satisfies Phase 2C; general Save Frame as Asset UI remains with later promotion/export work.
+6. **Saved-frame persistence:** direct logical Saved Frame use remains primary; advanced disk persistence retains a PNG representation without adding a duplicate Project Media item.
 7. **Boundary representation:** clip-only boundaries remain hidden from Project Media whether implemented as internal anchors or a more general exact-position reference; explicit promotion creates a user-facing Saved Frame.
 
 ## Phase gate
