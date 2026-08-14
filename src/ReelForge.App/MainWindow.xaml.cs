@@ -1558,7 +1558,19 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void MoveAssetToProject_Click(object sender, RoutedEventArgs e)
     {
-        if (GetSelectedAsset() is not { } asset || _workspace.Project is null || _workspace.Location is null) return;
+        if (AssetsList.SelectedItem is not ProjectMediaListItem selected ||
+            _workspace.Project is null || _workspace.Location is null) return;
+        if (selected.Anchor is not null)
+        {
+            MessageBox.Show(
+                this,
+                "Saved Frames cannot be moved between projects yet. A Saved Frame is an exact position tied to its source video and may also be referenced by generation or editing history.",
+                "Move Saved Frame",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+        if (selected.Asset is not { } asset) return;
         var usage = GetAssetUsage(_workspace.Project, asset);
         if (asset.StorageKind != AssetStorageKind.Physical)
         {
@@ -1595,7 +1607,19 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void CopyAssetToProject_Click(object sender, RoutedEventArgs e)
     {
-        if (GetSelectedAsset() is not { } asset || _workspace.Project is null || _workspace.Location is null) return;
+        if (AssetsList.SelectedItem is not ProjectMediaListItem selected ||
+            _workspace.Project is null || _workspace.Location is null) return;
+        if (selected.Anchor is not null)
+        {
+            MessageBox.Show(
+                this,
+                "Saved Frames cannot be copied between projects yet. A Saved Frame is an exact position tied to its source video in the current project.",
+                "Copy Saved Frame",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+        if (selected.Asset is not { } asset) return;
         if (asset.StorageKind != AssetStorageKind.Physical)
         {
             MessageBox.Show(this, "Virtual assets cannot be copied between projects until recipe materialization is available.", "Copy asset", MessageBoxButton.OK, MessageBoxImage.Information);
