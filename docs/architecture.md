@@ -1,6 +1,6 @@
 ﻿# Architecture
 
-Status: accepted direction; Phases 2A through 2D complete; Phase 2E timeline work is next
+Status: accepted direction; Phases 2A through 2D complete; Phase 2E timeline work is in progress
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 Generate/Edit workspace revision: 2026-08-13
@@ -355,6 +355,8 @@ The first executor slice recursively materializes nested trim nodes, preserving 
 The next executor slice treats media compatibility as an explicit result rather than an eager side effect. Ordered composition inputs are `Compatible`, `RequiresNormalization`, or `Unknown`, with differences in video codec, dimensions, pixel format, frame rate, audio presence, codec, sample rate, channel count, and layout retained as planning data. Missing metadata is inspected from the realized media when possible. Compatible sets use a timestamp-resetting concat graph. Mismatched sets normalize video to a common even-sized canvas, square pixels, frame rate, and pixel format; audio is resampled to a common stereo profile, while silent or audio-disabled segments receive duration-matched silence. Composition renders use deterministic cache identity, active dependency leases, unique temporary output, atomic commit, and failure cleanup.
 
 The first editor-facing consumer is deliberately narrower than a timeline. The Edit workspace projects the current immutable Working Composition revision as an ordered list. Add, move, and remove are discrete commits that create a new revision and refresh a mutable draft based on it; earlier revisions remain unchanged. Virtual segment sources pin their exact recipe revision. Preview requests the current composition revision from the shared materializer, so the project persists logical sources and order while the rendered MP4 remains disposable cache state.
+
+Phase 2E begins by adding a visual projection over that same committed recipe. Duration-aware segment spans, readable minimum display widths, ruler ticks, selection highlighting, scrolling, and the playback playhead are derived UI state and never enter project persistence. The projection may estimate missing source duration for layout while labeling the result as estimated; render planning continues to inspect authoritative realized media rather than trusting that estimate. A preview is associated with the exact composition revision it rendered, so committing a new revision invalidates the old preview/playhead relationship.
 
 The committed composition exposes **Export**, which atomically writes its `FinalExport` materialization to a user-selected MP4 path without changing project state. Saved Clips and Saved Frames expose the same user-facing concept with their appropriate format. Export never replaces or mutates the logical source.
 

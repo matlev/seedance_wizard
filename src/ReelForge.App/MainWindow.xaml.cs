@@ -18,6 +18,7 @@ using Microsoft.Win32;
 using ReelForge.Application;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
+using Line = System.Windows.Shapes.Line;
 
 namespace ReelForge.App;
 
@@ -93,6 +94,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private Guid? _frameSourceAssetId;
     private string? _frameSourceContentHash;
     private MaterializedMediaLease? _activePreviewLease;
+    private CompositionTimelineLayoutResult? _compositionTimelineLayout;
+    private Line? _compositionTimelinePlayhead;
+    private Guid? _activeCompositionPreviewRevisionId;
+    private bool _renderingCompositionTimeline;
     private bool _disposed;
     private bool _isMediaImportInProgress;
 
@@ -1159,6 +1164,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (!hasComposition)
         {
             _compositionSegments.Clear();
+            ClearCompositionTimeline();
             UpdateCompositionActionState();
             return;
         }
@@ -1166,6 +1172,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         WorkingCompositionNameText.Text = composition!.EffectiveDisplayName;
         var revision = _workspace.Project!.RecipeRevisions.Single(candidate =>
             candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
+        if (_activeCompositionPreviewRevisionId is { } previewRevisionId && previewRevisionId != revision.Id)
+            ClearMediaPreview();
         var recipe = (CompositionRecipe)revision.Recipe;
         WorkingCompositionSummaryText.Text =
             $"{recipe.Segments.Count} exact, revision-pinned segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • recipe revision {revision.RevisionNumber}";
@@ -1179,6 +1187,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         CompositionSegmentsList.SelectedItem = selectedSegmentId is { } id
             ? _compositionSegments.FirstOrDefault(item => item.SegmentId == id)
             : null;
+        RenderCompositionTimeline();
         UpdateCompositionActionState();
     }
 
@@ -1247,6 +1256,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     return;
                 }
                 ClearMediaPreview();
+                _activeCompositionPreviewRevisionId = revision.Id;
                 _activePreviewLease = lease;
                 lease = null;
                 PreviewPlaceholder.Visibility = Visibility.Collapsed;
@@ -1284,8 +1294,183 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
-    private void CompositionSegmentsList_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+    private void CompositionSegmentsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
         UpdateCompositionActionState();
+        RenderCompositionTimeline();
+    }
+
+    private void CompositionTimelineScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        RenderCompositionTimeline();
+
+    private void CompositionTimelineSegment_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Border { Tag: Guid segmentId }) return;
+        CompositionSegmentsList.SelectedItem =
+            _compositionSegments.FirstOrDefault(item => item.SegmentId == segmentId);
+        if (CompositionSegmentsList.SelectedItem is not null)
+            CompositionSegmentsList.ScrollIntoView(CompositionSegmentsList.SelectedItem);
+        e.Handled = true;
+    }
+
+    private void RenderCompositionTimeline()
+    {
+        if (_renderingCompositionTimeline || CompositionTimelineCanvas is null ||
+            CompositionTimelineScrollViewer is null || CompositionTimelineDurationText is null)
+            return;
+
+        _renderingCompositionTimeline = true;
+        try
+        {
+            var viewportWidth = CompositionTimelineScrollViewer.ViewportWidth > 1
+                ? CompositionTimelineScrollViewer.ViewportWidth
+                : CompositionTimelineScrollViewer.ActualWidth;
+            _compositionTimelineLayout = CompositionTimelineLayout.Calculate(
+                _compositionSegments
+                    .Select(item => new CompositionTimelineSegmentInput(item.SegmentId, item.DurationSeconds))
+                    .ToArray(),
+                Math.Max(1, viewportWidth));
+            CompositionTimelineCanvas.Children.Clear();
+            CompositionTimelineCanvas.Width = _compositionTimelineLayout.ContentWidth;
+            CompositionTimelineDurationText.Text = _compositionTimelineLayout.Segments.Count == 0
+                ? "No segments"
+                : _compositionTimelineLayout.HasUnknownDurations
+                    ? $"~{FormatTimelineTime(_compositionTimelineLayout.ProjectedDurationSeconds)} total • estimated"
+                    : $"{FormatTimelineTime(_compositionTimelineLayout.KnownDurationSeconds)} total";
+
+            DrawCompositionTimelineRuler(_compositionTimelineLayout);
+            var selectedId = (CompositionSegmentsList.SelectedItem as CompositionSegmentListItem)?.SegmentId;
+            foreach (var span in _compositionTimelineLayout.Segments)
+            {
+                var item = _compositionSegments.Single(candidate => candidate.SegmentId == span.SegmentId);
+                var isSelected = item.SegmentId == selectedId;
+                var segmentBorder = new Border
+                {
+                    Tag = item.SegmentId,
+                    Width = Math.Max(1, span.Width - 3),
+                    Height = 57,
+                    Background = new SolidColorBrush(isSelected
+                        ? Color.FromRgb(62, 54, 105)
+                        : Color.FromRgb(31, 37, 51)),
+                    BorderBrush = isSelected
+                        ? FindResource("AccentBrush") as Brush ?? Brushes.MediumPurple
+                        : FindResource("BorderBrush") as Brush ?? Brushes.DimGray,
+                    BorderThickness = new Thickness(isSelected ? 2 : 1),
+                    CornerRadius = new CornerRadius(3),
+                    Padding = new Thickness(8, 5, 7, 4),
+                    ToolTip = $"{item.PositionText} {item.DisplayName}\nStarts at {FormatTimelineTime(span.StartSeconds)}\n{item.DurationText} • {item.AudioText}\nClick to select"
+                };
+                var text = new StackPanel();
+                text.Children.Add(new TextBlock
+                {
+                    Text = $"{item.PositionText} {item.DisplayName}",
+                    Foreground = FindResource("TextBrush") as Brush ?? Brushes.White,
+                    FontWeight = FontWeights.SemiBold,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+                text.Children.Add(new TextBlock
+                {
+                    Text = $"{item.DurationText} • {item.AudioText}",
+                    Foreground = FindResource("MutedTextBrush") as Brush ?? Brushes.LightGray,
+                    FontSize = 10,
+                    Margin = new Thickness(0, 4, 0, 0),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+                segmentBorder.Child = text;
+                segmentBorder.MouseLeftButtonDown += CompositionTimelineSegment_MouseLeftButtonDown;
+                Canvas.SetLeft(segmentBorder, span.Left + 1);
+                Canvas.SetTop(segmentBorder, 25);
+                CompositionTimelineCanvas.Children.Add(segmentBorder);
+            }
+
+            _compositionTimelinePlayhead = new Line
+            {
+                Y1 = 16,
+                Y2 = 85,
+                Stroke = FindResource("AccentBrush") as Brush ?? Brushes.MediumPurple,
+                StrokeThickness = 2,
+                IsHitTestVisible = false,
+                Visibility = _activeCompositionPreviewRevisionId is null
+                    ? Visibility.Collapsed
+                    : Visibility.Visible
+            };
+            Panel.SetZIndex(_compositionTimelinePlayhead, 10);
+            CompositionTimelineCanvas.Children.Add(_compositionTimelinePlayhead);
+            UpdateCompositionTimelinePlayhead(VideoPreview.Position.TotalSeconds);
+        }
+        finally
+        {
+            _renderingCompositionTimeline = false;
+        }
+    }
+
+    private void DrawCompositionTimelineRuler(CompositionTimelineLayoutResult layout)
+    {
+        if (layout.Segments.Count == 0) return;
+        var tickCount = Math.Clamp((int)(layout.ContentWidth / 140), 2, 8);
+        for (var index = 0; index <= tickCount; index++)
+        {
+            var x = layout.ContentWidth * index / tickCount;
+            var seconds = layout.ProjectedDurationSeconds * index / tickCount;
+            CompositionTimelineCanvas.Children.Add(new Line
+            {
+                X1 = x,
+                X2 = x,
+                Y1 = 17,
+                Y2 = 23,
+                Stroke = FindResource("MutedTextBrush") as Brush ?? Brushes.LightGray,
+                StrokeThickness = 1,
+                IsHitTestVisible = false
+            });
+            var label = new TextBlock
+            {
+                Text = FormatTimelineTime(seconds),
+                Foreground = FindResource("MutedTextBrush") as Brush ?? Brushes.LightGray,
+                FontSize = 9,
+                IsHitTestVisible = false
+            };
+            label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Canvas.SetLeft(label, Math.Clamp(
+                x - label.DesiredSize.Width / 2,
+                1,
+                Math.Max(1, layout.ContentWidth - label.DesiredSize.Width - 1)));
+            Canvas.SetTop(label, 1);
+            CompositionTimelineCanvas.Children.Add(label);
+        }
+    }
+
+    private void UpdateCompositionTimelinePlayhead(double playbackSeconds)
+    {
+        if (_compositionTimelinePlayhead is null || _compositionTimelineLayout is null ||
+            _activeCompositionPreviewRevisionId is null)
+        {
+            if (_compositionTimelinePlayhead is not null)
+                _compositionTimelinePlayhead.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var x = _compositionTimelineLayout.GetPlayheadX(playbackSeconds);
+        _compositionTimelinePlayhead.X1 = x;
+        _compositionTimelinePlayhead.X2 = x;
+        _compositionTimelinePlayhead.Visibility = Visibility.Visible;
+    }
+
+    private void ClearCompositionTimeline()
+    {
+        if (CompositionTimelineCanvas is null || CompositionTimelineDurationText is null) return;
+        CompositionTimelineCanvas.Children.Clear();
+        CompositionTimelineCanvas.Width = 1;
+        CompositionTimelineDurationText.Text = "No segments";
+        _compositionTimelineLayout = null;
+        _compositionTimelinePlayhead = null;
+    }
+
+    private static string FormatTimelineTime(double seconds)
+    {
+        var time = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        return time.TotalHours >= 1
+            ? time.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
+            : time.ToString(@"m\:ss", CultureInfo.InvariantCulture);
+    }
 
     private void UpdateCompositionActionState()
     {
@@ -2471,6 +2656,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 }
 
                 ClearMediaPreview();
+                if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
+                    _activeCompositionPreviewRevisionId = asset.Virtual.CurrentRecipeRevisionId;
                 _activePreviewLease = lease;
                 lease = null;
                 PreviewPlaceholder.Visibility = Visibility.Collapsed;
@@ -2516,6 +2703,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _isVideoPreviewPriming = false;
         _playVideoAfterPriming = false;
         _videoPreviewHasEnded = false;
+        _activeCompositionPreviewRevisionId = null;
         VideoPreview.Stop();
         VideoPreview.Close();
         SetPlaybackState(false);
@@ -2535,6 +2723,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         PositionSlider.Maximum = 1;
         PositionSlider.Value = 0;
         TimeText.Text = "00:00 / 00:00";
+        UpdateCompositionTimelinePlayhead(0);
     }
 
     private void ReleaseActivePreviewLease()
@@ -2756,6 +2945,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         if (!_isScrubbing) PositionSlider.Value = current.TotalSeconds;
         TimeText.Text = $"{FormatTime(current)} / {FormatTime(duration)}";
+        UpdateCompositionTimelinePlayhead(current.TotalSeconds);
     }
 
     private async Task LoadFrameWorkspaceAsync(ProjectAsset asset, Guid? selectedProjectId)
@@ -3946,6 +4136,11 @@ public sealed class CompositionSegmentListItem
                 ? $"Saved Clip • pinned recipe {segment.Source.RecipeRevisionId?.ToString("N") ?? "missing"}"
                 : "Physical video • full source";
         AudioText = segment.AudioEnabled ? "Audio on" : "Audio off";
+        DurationSeconds = source?.DurationSeconds ?? source?.Encoding?.DurationSeconds ??
+                          source?.Virtual?.ExpectedMediaProperties?.DurationSeconds;
+        DurationText = DurationSeconds is > 0
+            ? FormatDuration(DurationSeconds.Value)
+            : "Duration unknown";
     }
 
     public int Index { get; }
@@ -3954,6 +4149,16 @@ public sealed class CompositionSegmentListItem
     public string DisplayName { get; }
     public string DetailText { get; }
     public string AudioText { get; }
+    public double? DurationSeconds { get; }
+    public string DurationText { get; }
+
+    private static string FormatDuration(double seconds)
+    {
+        var time = TimeSpan.FromSeconds(seconds);
+        return time.TotalHours >= 1
+            ? time.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
+            : time.ToString(@"m\:ss", CultureInfo.InvariantCulture);
+    }
 }
 
 public sealed class GenerationReferenceChoice
