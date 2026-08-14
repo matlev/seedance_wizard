@@ -337,29 +337,47 @@ Subsequent timeline work:
 
 Timeline editing must compose the same recipe graph and must not introduce authoritative intermediate paths into the `.rfp` project file.
 
-## Post-Milestone 2 engineering hardening — file and folder structure refactor
+## Post-Milestone 2 architecture review and Milestone 3 planning gate
 
-This is a required roadmap gate after Milestone 2 is complete and before feature development proceeds into the next milestone. The application shell has accumulated too many responsibilities during rapid vertical-slice development; `MainWindow.xaml.cs`, currently approximately 4,800 lines, is the clearest symptom. The refactor should improve navigation, ownership, reviewability, and test isolation without changing user-visible behavior or the current `.rfp` contract.
+After Milestone 2 is complete, pause feature implementation and review the entire ReelForge codebase before finalizing the Milestone 3 execution plan. `MainWindow.xaml.cs`, currently approximately 4,800 lines, is one visible symptom rather than the complete scope. The review must cover every project, layer, folder, production file, test fixture, resource, and cross-component dependency so Milestone 3 addresses structural debt systematically instead of moving one monolith into several arbitrary files.
 
-Planned work:
+The review deliverables are:
 
-1. Inventory responsibilities currently owned by `MainWindow`, its XAML, application services, infrastructure services, dialogs, and presentation-only model types.
-2. Split the main window into cohesive WPF controls/presenters for the application chrome, Project Media, media viewer, Generate workspace, Jobs, media preparation, and composition timeline/editor.
-3. Move orchestration and state transitions out of code-behind into focused application/presentation controllers or view models, while keeping rendering and direct WPF interaction in the UI layer.
-4. Reorganize files into feature-oriented folders within the existing architectural layers so related UI, presentation state, commands, and tests are easy to find together.
-5. Separate provider configuration, generation coordination, project lifecycle, playback, media preparation, composition editing, and drag/drop behavior behind explicit boundaries rather than cross-calling window fields.
-6. Preserve domain/application/infrastructure dependency direction; provider-specific and WPF-specific details must not leak into Core.
-7. Add or strengthen characterization tests before moving each responsibility, then keep the complete automated suite passing after every small refactor commit.
-8. Remove dead handlers, duplicate refresh paths, obsolete presentation helpers, and misleading names discovered during extraction.
-9. Update architecture and contributor documentation with the final folder map, ownership rules, and extension points.
+1. A repository-wide inventory of responsibilities, file sizes, dependency directions, ownership boundaries, duplicated behavior, high-coupling areas, and classes with multiple reasons to change.
+2. A proposed target solution, project, folder, and subfolder map covering Core, Application, Infrastructure, WPF presentation, provider integrations, media tooling, persistence, diagnostics, resources, and tests.
+3. A SOLID-oriented responsibility map identifying appropriate domain services, application coordinators, provider adapters, repositories/stores, utilities, presentation controllers/view models, WPF controls, and genuinely shared primitives.
+4. Explicit recommendations for oversized or mixed-purpose files throughout the repository—not only `MainWindow.xaml.cs` and `MainWindow.xaml`—including which responsibilities should be extracted, combined, renamed, relocated, or deleted.
+5. A dependency audit for layer violations, UI-to-infrastructure shortcuts, provider-specific leakage, static/global state, duplicated utility code, and unclear lifecycle ownership.
+6. A test-organization review covering characterization gaps, oversized fixtures, reusable fakes/builders, integration boundaries, and the appropriate mirrored structure for production tests.
+7. A risk-ranked, staged Milestone 3 plan with small reviewable slices, behavioral acceptance checks, expected file moves, and rollback-friendly commit boundaries.
+8. Updated architecture and contributor guidance defining the target structure, naming conventions, ownership rules, dependency rules, and extension points.
+
+The review is planning work only. It must not begin opportunistic file moves or partial refactors before the proposed Milestone 3 plan is reviewed and approved.
+
+## Milestone 3 — whole-codebase structural refactor and reorganization
+
+Milestone 3 will execute the approved architecture-review plan across the complete repository. Its goal is a navigable, appropriately decomposed, SOLID codebase whose physical organization communicates responsibility and whose components can be changed and tested without relying on oversized coordinators or accidental coupling.
+
+Expected scope includes:
+
+1. Reorganize the solution into coherent projects, feature folders, and subfolders while preserving intentional architectural layers.
+2. Decompose oversized and mixed-purpose classes, services, UI files, provider files, persistence components, utilities, and tests into cohesive units with explicit responsibilities.
+3. Split the WPF shell into focused controls and presentation components, moving orchestration and state transitions out of code-behind where doing so creates a clearer boundary.
+4. Consolidate duplicated helpers into appropriately scoped utilities or services; do not create generic dumping-ground `Helpers` or `Utils` folders.
+5. Clarify interfaces and dependency injection at meaningful seams without producing one-method abstractions or abstraction for its own sake.
+6. Align provider, generation, media-processing, project-lifecycle, persistence, settings, diagnostics, and editing components with stable dependency directions.
+7. Reorganize tests to mirror production responsibilities, introduce focused fixtures/builders/fakes, and retain end-to-end characterization of Milestone 2 behavior.
+8. Remove dead code, obsolete presentation paths, duplicate refresh/orchestration flows, misleading names, and superseded files discovered during the review.
+9. Complete the documented target folder map and contributor guidance as the physical structure settles.
 
 Execution guardrails:
 
-- treat this as a sequence of reviewable behavior-preserving slices, not a single big-bang rewrite;
-- do not combine the structural work with new editor/provider features;
-- retain atomic settings/project persistence, immutable recipe semantics, job recovery, and the no-paid-automated-call rule;
-- validate the primary Milestone 2 human workflows after the structural work, especially project switching, generation recovery, exact-frame tools, composition editing, preview/export, and settings changes;
-- consider the gate complete only when the main window is primarily a composition shell and each extracted feature has a clear owner and focused test surface.
+- execute Milestone 3 as a sequence of reviewable behavior-preserving vertical refactor slices, not a big-bang rewrite;
+- do not mix the structural work with unrelated product features or schema redesign;
+- preserve the current `.rfp` contract, atomic settings/project persistence, immutable recipe semantics, job recovery, and the no-paid-automated-call rule unless a separately approved change explicitly supersedes one;
+- establish characterization coverage before relocating or decomposing risky behavior, and keep the complete automated suite passing after every slice;
+- re-run the primary Milestone 2 human workflows after major structural boundaries move, especially project switching, generation recovery, exact-frame tools, composition editing, preview/export, and settings changes;
+- judge completion across the whole repository: no major subsystem should remain an unexplained monolith merely because the WPF shell became smaller.
 
 ## Unscheduled exploration — local ComfyUI / MiniMax H3
 
