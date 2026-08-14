@@ -521,9 +521,15 @@
                                     </ScrollViewer>
                                     <Canvas x:Name="CompositionTimelineDropHint" Grid.Row="1" Visibility="Collapsed"
                                             IsHitTestVisible="False" ClipToBounds="True" Margin="2">
-                                        <Border x:Name="CompositionTimelineDropMarker" Width="2" Height="57"
-                                                Background="{StaticResource AccentBrush}" />
+                                        <Border x:Name="CompositionTimelineDropMarker" Width="3" Height="67"
+                                                Panel.ZIndex="10" Background="#FF4D5D" CornerRadius="2">
+                                            <Border.Effect>
+                                                <DropShadowEffect Color="#FF2738" BlurRadius="7"
+                                                                  ShadowDepth="0" Opacity="0.9" />
+                                            </Border.Effect>
+                                        </Border>
                                         <Border x:Name="CompositionTimelineDropToken" Width="96" Height="36"
+                                                Panel.ZIndex="5"
                                                 Background="#E83E3669" BorderBrush="{StaticResource AccentBrush}"
                                                 BorderThickness="2" CornerRadius="4" Padding="6,3">
                                             <DockPanel LastChildFill="True">

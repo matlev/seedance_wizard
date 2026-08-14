@@ -2019,15 +2019,16 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var markerX = isVideo
             ? _compositionTimelineLayout!.GetVideoInsertionX(GetCompositionVideoInsertionIndex(x))
             : x;
+        const double markerEdgeInset = 3;
         var markerViewportX = Math.Clamp(
             markerX - CompositionTimelineScrollViewer.HorizontalOffset,
-            0,
-            Math.Max(0, overlayWidth - CompositionTimelineDropMarker.Width));
+            markerEdgeInset,
+            Math.Max(markerEdgeInset, overlayWidth - CompositionTimelineDropMarker.Width - markerEdgeInset));
 
         CompositionTimelineDropHintText.Text = asset.EffectiveDisplayName;
-        CompositionTimelineDropMarker.Height = isVideo ? 57 : 34;
+        CompositionTimelineDropMarker.Height = isVideo ? 67 : 42;
         Canvas.SetLeft(CompositionTimelineDropMarker, markerViewportX);
-        Canvas.SetTop(CompositionTimelineDropMarker, isVideo ? 25 : 86);
+        Canvas.SetTop(CompositionTimelineDropMarker, isVideo ? 20 : 82);
         Canvas.SetLeft(CompositionTimelineDropToken, tokenLeft);
         Canvas.SetTop(CompositionTimelineDropToken, isVideo ? 35 : 85);
         CompositionTimelineDropHint.Visibility = Visibility.Visible;
