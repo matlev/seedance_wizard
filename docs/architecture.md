@@ -360,6 +360,21 @@ Phase 2E begins by adding a visual projection over that same committed recipe. D
 
 Source-audio inclusion is a property of each committed video segment rather than mutable player state. Selecting a video segment exposes an **On / Muted** choice; changing it creates one immutable composition revision, while choosing the already-committed value is a no-op. A muted single-source composition materializes a cached video-only representation, and the multi-segment renderer supplies silence where required to preserve synchronization with audio-bearing neighbors. Any source-audio change invalidates the prior composition preview because that preview remains tied to its exact recipe revision.
 
+### Timeline actions and context-sensitive Edit Tools
+
+The timeline owns structural composition operations and selection: inserting, removing, splitting, dragging, and reordering items. **Edit Tools** owns properties of the currently selected timeline object. This distinction keeps the timeline focused on arrangement and prevents its action row from accumulating every new video- and audio-processing control. The existing source-audio control near the timeline is functional scaffolding; its intended home is the context-sensitive Edit Tools panel.
+
+Edit Tools begins with single-object selection and changes its contents by selection kind:
+
+- a selected video segment exposes clip/source information, source-audio controls, and later Transform and Timing sections;
+- a selected audio clip exposes timing, mute, gain, and fade controls;
+- a selected transition or segment junction eventually exposes transition type and duration;
+- no selection shows concise guidance to select an editable timeline object.
+
+Read-only media identity, encoding, source, and history remain Inspector concerns. Edit Tools contains controls that change the composition recipe. Source audio therefore appears under the selected video segment's **Audio** section alongside future gain and fade controls, rather than beside structural timeline buttons. The detailed control set may grow without changing the underlying rule that recipe-affecting properties live in Edit Tools.
+
+Edit controls must respect immutable-revision semantics without turning pointer movement into permanent history. A discrete action such as On/Muted commits one new recipe revision immediately when its value actually changes; selecting the already-committed value is a no-op. Continuous interactions such as gain, crop, position, or a future speed slider remain mutable UI draft state during the gesture and create one immutable revision when the gesture is applied or completed. Cancelling a draft creates no revision. Preview invalidation occurs only after a successful commit.
+
 Project Media video and audio items can be dragged onto this visual timeline; images and Saved Frames are deliberately excluded. A video drop inserts an exact, revision-pinned segment before or after the projected block under the pointer. A physical-audio drop creates an independently identified `CompositionAudioClip` at a `TimeSpan` tick offset obtained from the projected timeline. That offset is durable recipe state while drag geometry remains disposable UI state. Rendering first resolves/concatenates the video sequence, then delays and mixes the independent audio clips with any enabled source-video audio. Each drop is one immutable composition revision, survives project reopen, and invalidates stale preview state.
 
 An incoming Project Media drag is represented by a compact fixed-width insertion token regardless of the source duration. The current recipe projection, ruler, total duration, and timestamp mapping remain frozen while that token follows the pointer; a snapped marker communicates the eventual video insertion boundary or audio start time. The source's actual duration affects timeline geometry only after a successful drop commits the new revision.

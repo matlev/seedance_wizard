@@ -328,6 +328,15 @@ In progress. The first slices project the committed Working Composition into a h
 9. Reorder video segments directly by dragging timeline blocks; neighboring blocks reflow during the transient preview and only a non-no-op mouse release commits one immutable recipe revision.
 10. Expose selected video-segment source audio as **On / Muted**; commit each actual change as one immutable revision, invalidate stale previews, persist the choice, and render muted single- or multi-segment compositions correctly.
 
+#### Phase 2E.2 — context-sensitive Edit Tools
+
+1. Make the right-side Edit Tools panel respond to the single timeline object currently selected; show concise selection guidance when nothing editable is selected.
+2. Keep structural actions such as insert, remove, split, drag, and reorder on the timeline while moving recipe-affecting properties into Edit Tools.
+3. Move selected video-segment source audio into an **Audio** section in Edit Tools, preserving the existing immutable On/Muted behavior and renderer semantics.
+4. Establish selection-specific sections: Clip/Source, Audio, Transform, and Timing for video segments; Timing and Audio for audio clips; and transition controls for a future selected junction.
+5. Keep read-only media identity, encoding, source, and history in Inspector rather than duplicating them as editable controls.
+6. Commit discrete changed values once and treat unchanged choices as no-ops. Hold continuous slider/drag manipulation as mutable UI draft state, then create one immutable recipe revision when the interaction is applied or completed; cancellation creates no revision.
+
 Subsequent timeline work:
 
 1. Extend the initial sequential-video plus timed-audio model with additional tracks, richer clip properties, and basic gain/fade metadata.
