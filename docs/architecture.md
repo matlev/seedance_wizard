@@ -71,9 +71,32 @@ Application-owned defaults for logs, settings, operational job state, cache, and
 
 Cross-operating-system `.rfp` interchange is not a supported portability requirement. Project folders should continue to use logical IDs, project-relative media paths, and cache-free recipes because those properties are valuable on every platform, but Milestone 3 does not need to guarantee that one live project folder can move between Windows and macOS unchanged. The supported collaboration path is to explicitly export or persist the desired realized media, transfer those physical assets, and import them into a project on the receiving machine. Raw cache entries remain disposable implementation artifacts and are not a sharing contract.
 
-An installed ReelForge release should normally carry pinned, platform- and architecture-appropriate FFmpeg and ffprobe executables so editing does not depend on a separately installed system copy. The installer/package owns their verified origin, version, integrity, security-update policy, build configuration, license notices, and corresponding-source obligations. FFmpeg itself distributes source and links to third-party compiled builds, so ReelForge must select or produce an auditable redistributable build and complete a licensing review before packaging it. Builds containing `--enable-nonfree` are not distributable; optional GPL components also change the applicable FFmpeg license.
+An installed ReelForge release should normally carry pinned, platform- and architecture-appropriate FFmpeg and ffprobe executables so editing does not depend on a separately installed system copy. ReelForge will aim to distribute license-audited LGPL builds rather than enable optional GPL or nonfree components. The installer/package owns their verified origin, version, integrity, security-update policy, build configuration, license notices, and corresponding-source obligations. FFmpeg itself distributes source and links to third-party compiled builds, so ReelForge must select or produce an auditable redistributable build and complete a licensing review before packaging it. Builds containing `--enable-nonfree` are not distributable; optional GPL components also change the applicable FFmpeg license. Before an actual commercial release, codec/patent exposure and the complete distribution package receive a separate formal review, with qualified legal counsel as appropriate; satisfying FFmpeg's software license does not by itself settle every codec or jurisdictional concern.
 
-Packaged tools become the normal default, but they do not eliminate discovery. An explicit configured executable remains an advanced override, while manual browsing and PATH lookup remain development, portable-build, recovery, and user-supplied-build fallbacks. Tool naming and lookup (`ffmpeg.exe` versus `ffmpeg`, package location, executable permissions, and architecture) belong to the platform implementation. The current Windows discovery workflow remains supported until an installer actually supplies managed binaries.
+The intended release supply chain is explicit and auditable:
+
+```text
+verified FFmpeg upstream release source
+                  |
+                  v
+versioned ReelForge CI build recipe + configure flags
+                  |
+                  v
+known dependency manifest / SBOM
+                  |
+                  v
+per-platform and per-architecture FFmpeg/ffprobe artifacts
+                  |
+                  v
+SHA-256 manifest + build provenance + license/source bundle
+                  |
+                  v
+signed/notarized ReelForge installer or application package
+```
+
+CI must pin the upstream tag/commit and verify the source release, capture the exact configure line and dependency versions, test the produced executables, calculate artifact hashes, and retain enough provenance to reproduce and audit the shipped binaries. Windows and macOS artifacts are distinct outputs of the same controlled policy rather than assumed to be interchangeable downloads.
+
+Packaged tools become the normal default, but they do not eliminate discovery. A valid explicit local FFmpeg or ffprobe path, configured separately under Advanced Media Tools settings, takes precedence over its packaged counterpart. Manual browsing sets that override; clearing it restores the packaged default. PATH lookup remains a lower-priority development, portable-build, recovery, and user-supplied-build fallback when neither a valid override nor a usable packaged tool is available. This escape hatch remains supported even after packaging exists so developers and power users can supply builds with capabilities ReelForge cannot redistribute. Tool naming and lookup (`ffmpeg.exe` versus `ffmpeg`, package location, executable permissions, and architecture) belong to the platform implementation. The current Windows discovery workflow remains supported until an installer actually supplies managed binaries.
 
 Portability should be enforceable without speculative abstraction. The review should propose dependency tests or build checks that prevent WPF/native-Windows references in portable assemblies and, when practical, run non-UI builds/tests on both Windows and macOS. It must also audit case sensitivity, Unicode normalization, path containment, symlinks, filename validation, and platform-specific diagnostic text even though cross-OS project-folder interchange is not promised.
 

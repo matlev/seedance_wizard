@@ -362,7 +362,7 @@ The review deliverables are:
 7. A risk-ranked, staged Milestone 3 plan with small reviewable slices, behavioral acceptance checks, expected file moves, and rollback-friendly commit boundaries.
 8. Updated architecture and contributor guidance defining the target structure, naming conventions, ownership rules, dependency rules, and extension points.
 9. A platform-portability audit identifying WPF/native-Windows dependencies, portable compilation boundaries, genuine OS variation points, and machine-local path ownership without implementing a macOS client or selecting its UI framework.
-10. A media-tool distribution recommendation covering pinned packaged FFmpeg/ffprobe builds, platform/architecture selection, integrity and update policy, licensing/source obligations, and explicit-path/PATH/manual fallbacks.
+10. A media-tool distribution recommendation covering CI-built, pinned, license-audited LGPL FFmpeg/ffprobe artifacts; verified upstream source; exact configuration and dependency/SBOM capture; Windows/macOS and architecture-specific outputs; SHA-256/provenance manifests; installer integration; security updates; licensing/source obligations; a later commercial codec/patent review; and advanced explicit-path/PATH/manual fallbacks.
 11. Enforceable dependency/build checks that keep Core, Application, and reusable media/provider/persistence code free of WPF and native Windows facilities, plus a proposal for cross-platform non-UI CI where practical.
 
 The review is planning work only. It must not begin opportunistic file moves or partial refactors before the proposed Milestone 3 plan is reviewed and approved.
@@ -393,7 +393,7 @@ Execution guardrails:
 - preserve Windows behavior while preparing reusable components for a possible future macOS host; Milestone 3 does not implement macOS, replace WPF, or select a Mac UI framework;
 - do not treat cross-OS `.rfp` folder interchange as an acceptance requirement. Keep project state logically relative and cache-independent, while using explicit physical-media export/import as the supported cross-machine handoff;
 - resolve logs, settings, job state, cache, and other machine-local defaults through platform-owned locations rather than embedding Windows directory conventions in reusable application logic;
-- plan packaged, pinned FFmpeg/ffprobe as the normal installed experience, but retain explicit configuration, manual browsing, and PATH discovery as supported fallbacks until and after packaging exists;
+- plan CI-built, pinned, license-audited LGPL FFmpeg/ffprobe as the normal installed experience. A valid Advanced-setting local path overrides the packaged executable; manual browsing configures that override, and PATH remains a lower-priority fallback. Retain these routes after packaging so developers and power users can supply builds ReelForge cannot redistribute;
 - establish characterization coverage before relocating or decomposing risky behavior, and keep the complete automated suite passing after every slice;
 - re-run the primary Milestone 2 human workflows after major structural boundaries move, especially project switching, generation recovery, exact-frame tools, composition editing, preview/export, and settings changes;
 - judge completion across the whole repository: no major subsystem should remain an unexplained monolith merely because the WPF shell became smaller.
