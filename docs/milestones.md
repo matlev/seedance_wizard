@@ -361,6 +361,9 @@ The review deliverables are:
 6. A test-organization review covering characterization gaps, oversized fixtures, reusable fakes/builders, integration boundaries, and the appropriate mirrored structure for production tests.
 7. A risk-ranked, staged Milestone 3 plan with small reviewable slices, behavioral acceptance checks, expected file moves, and rollback-friendly commit boundaries.
 8. Updated architecture and contributor guidance defining the target structure, naming conventions, ownership rules, dependency rules, and extension points.
+9. A platform-portability audit identifying WPF/native-Windows dependencies, portable compilation boundaries, genuine OS variation points, and machine-local path ownership without implementing a macOS client or selecting its UI framework.
+10. A media-tool distribution recommendation covering pinned packaged FFmpeg/ffprobe builds, platform/architecture selection, integrity and update policy, licensing/source obligations, and explicit-path/PATH/manual fallbacks.
+11. Enforceable dependency/build checks that keep Core, Application, and reusable media/provider/persistence code free of WPF and native Windows facilities, plus a proposal for cross-platform non-UI CI where practical.
 
 The review is planning work only. It must not begin opportunistic file moves or partial refactors before the proposed Milestone 3 plan is reviewed and approved.
 
@@ -379,12 +382,18 @@ Expected scope includes:
 7. Reorganize tests to mirror production responsibilities, introduce focused fixtures/builders/fakes, and retain end-to-end characterization of Milestone 2 behavior.
 8. Remove dead code, obsolete presentation paths, duplicate refresh/orchestration flows, misleading names, and superseded files discovered during the review.
 9. Complete the documented target folder map and contributor guidance as the physical structure settles.
+10. Separate genuine platform implementations—secure storage, application-data defaults, media-tool discovery, native shell integration, and related Windows facilities—from reusable application/media/provider/persistence behavior.
+11. Add dependency and build checks that keep reusable assemblies platform-neutral; do not create speculative interfaces or split projects without a concrete ownership, variation, or compilation boundary.
 
 Execution guardrails:
 
 - execute Milestone 3 as a sequence of reviewable behavior-preserving vertical refactor slices, not a big-bang rewrite;
 - do not mix the structural work with unrelated product features or schema redesign;
 - preserve the current `.rfp` contract, atomic settings/project persistence, immutable recipe semantics, job recovery, and the no-paid-automated-call rule unless a separately approved change explicitly supersedes one;
+- preserve Windows behavior while preparing reusable components for a possible future macOS host; Milestone 3 does not implement macOS, replace WPF, or select a Mac UI framework;
+- do not treat cross-OS `.rfp` folder interchange as an acceptance requirement. Keep project state logically relative and cache-independent, while using explicit physical-media export/import as the supported cross-machine handoff;
+- resolve logs, settings, job state, cache, and other machine-local defaults through platform-owned locations rather than embedding Windows directory conventions in reusable application logic;
+- plan packaged, pinned FFmpeg/ffprobe as the normal installed experience, but retain explicit configuration, manual browsing, and PATH discovery as supported fallbacks until and after packaging exists;
 - establish characterization coverage before relocating or decomposing risky behavior, and keep the complete automated suite passing after every slice;
 - re-run the primary Milestone 2 human workflows after major structural boundaries move, especially project switching, generation recovery, exact-frame tools, composition editing, preview/export, and settings changes;
 - judge completion across the whole repository: no major subsystem should remain an unexplained monolith merely because the WPF shell became smaller.
