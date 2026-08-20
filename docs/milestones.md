@@ -338,6 +338,7 @@ In progress. The first slices project the committed Working Composition into a h
 5. Keep read-only media identity, encoding, source, and history in Inspector rather than duplicating them as editable controls.
 6. Commit discrete changed values once and treat unchanged choices as no-ops. Hold continuous slider/drag manipulation as mutable UI draft state, then create one immutable recipe revision when the interaction is applied or completed; cancellation creates no revision.
 7. Add selected audio-clip **On / Muted** and gain controls. Persist typed per-clip mix values, include them in deterministic render identity, compile them into FFmpeg before timeline delay/mixing, and commit a gain gesture only when the slider interaction completes.
+8. Add selected audio-clip fade-in/fade-out controls. Persist millisecond-normalized durations, commit at most one revision per completed slider gesture, and apply fades before timeline delay and mixing. Anchor fade-out to the clip's audible end when the composition truncates a longer audio source.
 
 #### Phase 2E.3 — durable audio extraction utility
 
@@ -355,7 +356,7 @@ This does not expand Phase 2E into the complete researched feature set or make e
 
 Subsequent timeline work:
 
-1. Extend the initial sequential-video plus timed-audio model with additional tracks, richer clip properties, and basic gain/fade metadata.
+1. Extend the initial sequential-video plus timed-audio model with additional tracks and richer clip properties beyond the implemented mute, gain, and fade foundation.
 2. Let timeline clips reference physical or virtual assets by logical ID.
 3. Compile preview and export through the shared materialization planner.
 4. Capture immutable composition snapshots for provider requests and historical exports.

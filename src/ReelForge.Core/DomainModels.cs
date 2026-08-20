@@ -280,8 +280,12 @@ public sealed record CompositionAudioClip
     public long TimelineStartTicks { get; init; }
     public bool IsMuted { get; init; }
     public double GainDecibels { get; init; }
+    public long FadeInMilliseconds { get; init; }
+    public long FadeOutMilliseconds { get; init; }
 
     public TimeSpan TimelineStart => TimeSpan.FromTicks(TimelineStartTicks);
+    public TimeSpan FadeIn => TimeSpan.FromMilliseconds(FadeInMilliseconds);
+    public TimeSpan FadeOut => TimeSpan.FromMilliseconds(FadeOutMilliseconds);
 }
 
 public sealed record AssetRevisionReference

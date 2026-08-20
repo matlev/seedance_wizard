@@ -155,6 +155,39 @@ public sealed class FfmpegCommandBuilderTests
     }
 
     [Fact]
+    public void AudioOverlayAppliesFadesBeforeTimelineDelay()
+    {
+        var arguments = FfmpegCommandBuilder.BuildAudioOverlayArguments(
+            "composition.mp4",
+            videoHasAudio: false,
+            [new AudioOverlayInput(
+                "music.wav",
+                TimeSpan.FromSeconds(1.109),
+                FadeIn: TimeSpan.FromSeconds(1.5),
+                FadeOut: TimeSpan.FromSeconds(2),
+                AudibleDurationSeconds: 8.5)],
+            "mixed.mp4");
+
+        var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.Contains(
+            "[1:a:0]atrim=duration=8.5,afade=t=in:st=0:d=1.5," +
+            "afade=t=out:st=6.5:d=2,adelay=1109:all=1",
+            graph,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AudioOverlayRejectsFadeOutWithoutKnownAudibleDuration()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            FfmpegCommandBuilder.BuildAudioOverlayArguments(
+                "composition.mp4",
+                videoHasAudio: false,
+                [new AudioOverlayInput("music.wav", TimeSpan.Zero, FadeOut: TimeSpan.FromSeconds(1))],
+                "mixed.mp4"));
+    }
+
+    [Fact]
     public void NormalizedConcatMatchesVideoAndCreatesSilenceForDisabledAudio()
     {
         var arguments = FfmpegCommandBuilder.BuildNormalizedConcatArguments(

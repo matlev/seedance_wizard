@@ -525,6 +525,54 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Empty(ProjectInvariantValidator.Validate(reopened));
     }
 
+    [Fact]
+    public async Task WorkingCompositionAudioFadesCommitOnceAndPersist()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Composition audio fades");
+        var video = CreatePhysicalAsset("video.mp4", "assets/videos/video.mp4");
+        var audio = CreatePhysicalAsset("music.wav", "assets/audio/music.wav");
+        audio.MediaType = MediaType.Audio;
+        audio.DurationSeconds = 12;
+        workspace.Project!.AddAsset(video);
+        workspace.Project.AddAsset(audio);
+        await workspace.SaveAsync();
+        var service = new WorkingCompositionService(workspace);
+        await service.CreateInitialAsync(video.Id);
+        var added = await service.AddAudioClipAsync(audio.Id, TimeSpan.Zero);
+        var audioClipId = Assert.Single(Assert.IsType<CompositionRecipe>(added.Recipe).AudioClips).Id;
+        var revisionCount = workspace.Project.RecipeRevisions.Count;
+
+        var faded = await service.SetAudioClipFadesAsync(
+            audioClipId,
+            TimeSpan.FromSeconds(1.2504),
+            TimeSpan.FromSeconds(2.5));
+
+        var fadedClip = Assert.Single(Assert.IsType<CompositionRecipe>(faded.Recipe).AudioClips);
+        Assert.Equal(TimeSpan.FromSeconds(1.25), fadedClip.FadeIn);
+        Assert.Equal(TimeSpan.FromSeconds(2.5), fadedClip.FadeOut);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+        var historicalClip = Assert.Single(Assert.IsType<CompositionRecipe>(added.Recipe).AudioClips);
+        Assert.Equal(TimeSpan.Zero, historicalClip.FadeIn);
+        Assert.Equal(TimeSpan.Zero, historicalClip.FadeOut);
+
+        var noOp = await service.SetAudioClipFadesAsync(
+            audioClipId,
+            TimeSpan.FromSeconds(1.25),
+            TimeSpan.FromSeconds(2.5));
+        Assert.Equal(faded.Id, noOp.Id);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+
+        var reopened = (await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath)).Project;
+        var composition = reopened.Assets.Single(asset => asset.Id == reopened.WorkingCompositionAssetId);
+        var recipe = Assert.IsType<CompositionRecipe>(reopened.RecipeRevisions.Single(revision =>
+            revision.Id == composition.Virtual!.CurrentRecipeRevisionId).Recipe);
+        var reopenedClip = Assert.Single(recipe.AudioClips);
+        Assert.Equal(TimeSpan.FromSeconds(1.25), reopenedClip.FadeIn);
+        Assert.Equal(TimeSpan.FromSeconds(2.5), reopenedClip.FadeOut);
+        Assert.Empty(ProjectInvariantValidator.Validate(reopened));
+    }
+
     private static ProjectAsset CreatePhysicalAsset(
         string fileName,
         string relativePath,

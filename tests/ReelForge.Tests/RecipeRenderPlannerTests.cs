@@ -187,7 +187,9 @@ public sealed class RecipeRenderPlannerTests
                     Source = new AssetRevisionReference { AssetId = audio.Id },
                     TimelineStartTicks = TimeSpan.FromSeconds(3).Ticks,
                     IsMuted = true,
-                    GainDecibels = -7
+                    GainDecibels = -7,
+                    FadeInMilliseconds = 1250,
+                    FadeOutMilliseconds = 2000
                 }
             ]
         });
@@ -203,6 +205,8 @@ public sealed class RecipeRenderPlannerTests
         Assert.Equal(TimeSpan.FromSeconds(3).Ticks, clip.TimelineStartTicks);
         Assert.True(clip.IsMuted);
         Assert.Equal(-7, clip.GainDecibels);
+        Assert.Equal(1250, clip.FadeInMilliseconds);
+        Assert.Equal(2000, clip.FadeOutMilliseconds);
         Assert.NotEqual(node.Segments[0].SegmentHash, clip.ClipHash);
     }
 

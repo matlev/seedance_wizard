@@ -70,6 +70,8 @@ public sealed record CompositionAudioClipRenderPlan(
     long TimelineStartTicks,
     bool IsMuted,
     double GainDecibels,
+    long FadeInMilliseconds,
+    long FadeOutMilliseconds,
     string ClipHash);
 
 public static class RecipeRenderPlanner
@@ -221,19 +223,25 @@ public static class RecipeRenderPlanner
                 throw new InvalidDataException($"Composition audio clip '{clip.Id}' has a negative timeline start.");
             if (!double.IsFinite(clip.GainDecibels) || clip.GainDecibels is < -60 or > 12)
                 throw new InvalidDataException($"Composition audio clip '{clip.Id}' has invalid gain.");
+            if (clip.FadeInMilliseconds < 0 || clip.FadeOutMilliseconds < 0)
+                throw new InvalidDataException($"Composition audio clip '{clip.Id}' has invalid fades.");
             var clipHash = Hash(string.Join('|',
                 "audio-clip",
                 clip.Id.ToString("N"),
                 source.NodeHash,
                 clip.TimelineStartTicks,
                 clip.IsMuted,
-                clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture)));
+                clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture),
+                clip.FadeInMilliseconds,
+                clip.FadeOutMilliseconds));
             return new CompositionAudioClipRenderPlan(
                 clip.Id,
                 source,
                 clip.TimelineStartTicks,
                 clip.IsMuted,
                 clip.GainDecibels,
+                clip.FadeInMilliseconds,
+                clip.FadeOutMilliseconds,
                 clipHash);
         }).ToArray();
         var segmentKey = string.Join(';', segments.Select(segment => string.Join(',',
@@ -253,7 +261,9 @@ public static class RecipeRenderPlanner
             clip.Source.NodeHash,
             clip.TimelineStartTicks,
             clip.IsMuted,
-            clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture))));
+            clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture),
+            clip.FadeInMilliseconds,
+            clip.FadeOutMilliseconds)));
         return new CompositionRenderPlanNode(
             asset.Id,
             revision.Id,

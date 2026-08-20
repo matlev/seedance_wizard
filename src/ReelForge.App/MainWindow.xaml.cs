@@ -1405,6 +1405,50 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
+    private void CompositionAudioClipFadeSlider_ValueChanged(
+        object sender,
+        RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (CompositionAudioClipFadeInText is null || CompositionAudioClipFadeOutText is null) return;
+        CompositionAudioClipFadeInText.Text = FormatFadeDuration(CompositionAudioClipFadeInSlider.Value);
+        CompositionAudioClipFadeOutText.Text = FormatFadeDuration(CompositionAudioClipFadeOutSlider.Value);
+    }
+
+    private async void CompositionAudioClipFadeSlider_PreviewMouseLeftButtonUp(
+        object sender,
+        MouseButtonEventArgs e) =>
+        await CommitSelectedCompositionAudioClipFadesAsync();
+
+    private async void CompositionAudioClipFadeSlider_KeyUp(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
+            await CommitSelectedCompositionAudioClipFadesAsync();
+    }
+
+    private async Task CommitSelectedCompositionAudioClipFadesAsync()
+    {
+        if (_suppressCompositionAudioClipControl || GetSelectedCompositionAudioClip() is not { } selected) return;
+        var fadeIn = TimeSpan.FromMilliseconds(Math.Round(
+            CompositionAudioClipFadeInSlider.Value * 1000,
+            MidpointRounding.AwayFromZero));
+        var fadeOut = TimeSpan.FromMilliseconds(Math.Round(
+            CompositionAudioClipFadeOutSlider.Value * 1000,
+            MidpointRounding.AwayFromZero));
+        if (selected.FadeIn == fadeIn && selected.FadeOut == fadeOut) return;
+
+        await RunUiActionAsync("Updating composition audio fades…", async () =>
+        {
+            await new WorkingCompositionService(_workspace)
+                .SetAudioClipFadesAsync(selected.AudioClipId, fadeIn, fadeOut);
+            _selectedCompositionSegmentId = null;
+            _selectedCompositionAudioClipId = selected.AudioClipId;
+            RefreshEditWorkspaceState();
+            StatusText.Text =
+                $"Set {selected.DisplayName} fades to {FormatFadeDuration(fadeIn.TotalSeconds)} in / " +
+                $"{FormatFadeDuration(fadeOut.TotalSeconds)} out. Preview the composition to rebuild it.";
+        });
+    }
+
     private async Task MoveSelectedCompositionSegmentAsync(int offset)
     {
         if (GetSelectedCompositionSegment() is not { } selected) return;
@@ -1986,6 +2030,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private static string FormatGainDecibels(double gainDecibels) =>
         $"{(gainDecibels > 0 ? "+" : string.Empty)}{gainDecibels:0} dB";
 
+    private static string FormatFadeDuration(double seconds) =>
+        $"{Math.Max(0, seconds):0.###}s";
+
     private void UpdateCompositionActionState()
     {
         if (AddCompositionSegmentButton is null) return;
@@ -2052,11 +2099,35 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             CompositionAudioClipGainSlider.Value = selectedAudio?.GainDecibels ?? 0;
             CompositionAudioClipGainSlider.IsEnabled = selectedAudio is not null;
             CompositionAudioClipGainText.Text = FormatGainDecibels(selectedAudio?.GainDecibels ?? 0);
+            var maxFadeSeconds = GetMaximumAudioFadeSeconds(selectedAudio);
+            CompositionAudioClipFadeInSlider.Maximum = Math.Max(
+                maxFadeSeconds,
+                selectedAudio?.FadeIn.TotalSeconds ?? 0);
+            CompositionAudioClipFadeOutSlider.Maximum = Math.Max(
+                maxFadeSeconds,
+                selectedAudio?.FadeOut.TotalSeconds ?? 0);
+            CompositionAudioClipFadeInSlider.Value = selectedAudio?.FadeIn.TotalSeconds ?? 0;
+            CompositionAudioClipFadeOutSlider.Value = selectedAudio?.FadeOut.TotalSeconds ?? 0;
+            CompositionAudioClipFadeInSlider.IsEnabled = selectedAudio is not null && maxFadeSeconds > 0;
+            CompositionAudioClipFadeOutSlider.IsEnabled = selectedAudio is not null && maxFadeSeconds > 0;
+            CompositionAudioClipFadeInText.Text = FormatFadeDuration(selectedAudio?.FadeIn.TotalSeconds ?? 0);
+            CompositionAudioClipFadeOutText.Text = FormatFadeDuration(selectedAudio?.FadeOut.TotalSeconds ?? 0);
         }
         finally
         {
             _suppressCompositionAudioClipControl = false;
         }
+    }
+
+    private double GetMaximumAudioFadeSeconds(CompositionAudioClipListItem? selectedAudio)
+    {
+        if (selectedAudio is null) return 0;
+        var maximum = selectedAudio.DurationSeconds ?? 30;
+        if (_compositionTimelineLayout is { } layout)
+            maximum = Math.Min(maximum, Math.Max(
+                0,
+                layout.ProjectedDurationSeconds - selectedAudio.TimelineStart.TotalSeconds));
+        return Math.Max(0, maximum);
     }
 
     private CompositionSegmentListItem? GetSelectedCompositionSegment() =>
@@ -4976,9 +5047,14 @@ public sealed class CompositionAudioClipListItem
         TimelineStart = clip.TimelineStart;
         IsMuted = clip.IsMuted;
         GainDecibels = clip.GainDecibels;
-        MixText = IsMuted
+        FadeIn = clip.FadeIn;
+        FadeOut = clip.FadeOut;
+        MixText = (IsMuted
             ? "Muted"
-            : $"Gain {(GainDecibels > 0 ? "+" : string.Empty)}{GainDecibels:0} dB";
+            : $"Gain {(GainDecibels > 0 ? "+" : string.Empty)}{GainDecibels:0} dB") +
+            (FadeIn > TimeSpan.Zero || FadeOut > TimeSpan.Zero
+                ? $" • Fade {FadeIn.TotalSeconds:0.###}s in / {FadeOut.TotalSeconds:0.###}s out"
+                : string.Empty);
         DurationSeconds = source?.DurationSeconds ?? source?.Encoding?.DurationSeconds ??
                           source?.Virtual?.ExpectedMediaProperties?.DurationSeconds;
         DurationText = DurationSeconds is > 0
@@ -4991,6 +5067,8 @@ public sealed class CompositionAudioClipListItem
     public TimeSpan TimelineStart { get; }
     public bool IsMuted { get; }
     public double GainDecibels { get; }
+    public TimeSpan FadeIn { get; }
+    public TimeSpan FadeOut { get; }
     public string MixText { get; }
     public double? DurationSeconds { get; }
     public string DurationText { get; }

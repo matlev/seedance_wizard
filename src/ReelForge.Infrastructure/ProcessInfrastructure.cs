@@ -340,6 +340,20 @@ public static class FfmpegCommandBuilder
                 throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio overlay start times cannot be negative.");
             if (!double.IsFinite(input.GainDecibels) || input.GainDecibels is < -60 or > 12)
                 throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio overlay gain must be between -60 dB and +12 dB.");
+            if (input.FadeIn < TimeSpan.Zero || input.FadeOut < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio fades cannot be negative.");
+            var requiresFadeDuration = input.FadeIn > TimeSpan.Zero || input.FadeOut > TimeSpan.Zero;
+            if (requiresFadeDuration &&
+                (input.AudibleDurationSeconds is not { } duration ||
+                 duration <= 0 || !double.IsFinite(duration)))
+                throw new ArgumentOutOfRangeException(
+                    nameof(audioInputs),
+                    "Audio fades require a finite positive audible duration.");
+            if (input.AudibleDurationSeconds is { } audibleDuration &&
+                (input.FadeIn.TotalSeconds > audibleDuration || input.FadeOut.TotalSeconds > audibleDuration))
+                throw new ArgumentOutOfRangeException(
+                    nameof(audioInputs),
+                    "Audio fades cannot be longer than the audible clip duration.");
         }
         ValidateMediaPath(outputPath, nameof(outputPath));
 
@@ -365,7 +379,21 @@ public static class FfmpegCommandBuilder
                 : Math.Abs(audioInputs[index].GainDecibels) > 0.000_001
                     ? $"volume={audioInputs[index].GainDecibels.ToString("0.###", CultureInfo.InvariantCulture)}dB,"
                     : string.Empty;
-            filters.Add($"[{index + 1}:a:0]{volume}adelay={delayMilliseconds}:all=1,asetpts=PTS-STARTPTS[overlay{index}]");
+            var fade = new StringBuilder();
+            if (audioInputs[index].AudibleDurationSeconds is { } durationSeconds &&
+                (audioInputs[index].FadeIn > TimeSpan.Zero || audioInputs[index].FadeOut > TimeSpan.Zero))
+                fade.Append(CultureInfo.InvariantCulture, $"atrim=duration={FormatSeconds(durationSeconds)},");
+            if (audioInputs[index].FadeIn > TimeSpan.Zero)
+                fade.Append(CultureInfo.InvariantCulture,
+                    $"afade=t=in:st=0:d={FormatSeconds(audioInputs[index].FadeIn.TotalSeconds)},");
+            if (audioInputs[index].FadeOut > TimeSpan.Zero)
+            {
+                var fadeOutStart = audioInputs[index].AudibleDurationSeconds!.Value -
+                                   audioInputs[index].FadeOut.TotalSeconds;
+                fade.Append(CultureInfo.InvariantCulture,
+                    $"afade=t=out:st={FormatSeconds(fadeOutStart)}:d={FormatSeconds(audioInputs[index].FadeOut.TotalSeconds)},");
+            }
+            filters.Add($"[{index + 1}:a:0]{volume}{fade}adelay={delayMilliseconds}:all=1,asetpts=PTS-STARTPTS[overlay{index}]");
             mixInputs.Append(CultureInfo.InvariantCulture, $"[overlay{index}]");
             streamIndex++;
         }
@@ -462,7 +490,10 @@ public sealed record AudioOverlayInput(
     string Path,
     TimeSpan TimelineStart,
     bool IsMuted = false,
-    double GainDecibels = 0);
+    double GainDecibels = 0,
+    TimeSpan FadeIn = default,
+    TimeSpan FadeOut = default,
+    double? AudibleDurationSeconds = null);
 
 public sealed class FfmpegAudioExtractionEngine : IAudioExtractionEngine
 {

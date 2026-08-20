@@ -11,7 +11,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
 {
     private const string TrimAlgorithmVersion = "saved-clip-trim-v1";
     private const string ConcatAlgorithmVersion = "composition-concat-v2";
-    private const string AudioOverlayAlgorithmVersion = "composition-audio-overlay-v1";
+    private const string AudioOverlayAlgorithmVersion = "composition-audio-overlay-v2";
     private const string SourceAudioAlgorithmVersion = "composition-source-audio-v1";
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly IExactVideoFrameService _exactFrameService;
@@ -369,18 +369,26 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         CancellationToken cancellationToken)
     {
         var audioLeases = new List<MaterializedMediaLease>();
+        var audioDurations = new List<double?>();
         try
         {
             foreach (var clip in composition.AudioClips)
             {
                 var sourceAsset = project.Assets.Single(asset => asset.Id == clip.Source.AssetId);
-                audioLeases.Add(await ExecuteNodeAsync(
+                var lease = await ExecuteNodeAsync(
                         project, location, sourceAsset, clip.Source, request, cancellationToken)
-                    .ConfigureAwait(false));
+                    .ConfigureAwait(false);
+                audioLeases.Add(lease);
+                var audioEncoding = lease.Encoding ?? sourceAsset.Encoding ?? sourceAsset.Virtual?.ExpectedMediaProperties;
+                if ((clip.FadeInMilliseconds > 0 || clip.FadeOutMilliseconds > 0) &&
+                    audioEncoding?.DurationSeconds is not > 0 && _mediaInspector is not null)
+                    audioEncoding = await _mediaInspector.InspectAsync(lease.Path, cancellationToken).ConfigureAwait(false);
+                audioDurations.Add(audioEncoding?.DurationSeconds ?? sourceAsset.DurationSeconds);
             }
 
             var videoEncoding = video.Encoding;
-            if (_mediaInspector is not null && videoEncoding?.Audio is null)
+            if (_mediaInspector is not null &&
+                (videoEncoding?.Audio is null || videoEncoding.DurationSeconds is not > 0))
                 videoEncoding = await _mediaInspector.InspectAsync(video.Path, cancellationToken).ConfigureAwait(false);
             var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
                 "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or export compositions.");
@@ -393,7 +401,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                 string.Join(';', composition.AudioClips.Select(clip => string.Join(',',
                     clip.TimelineStartTicks,
                     clip.IsMuted,
-                    clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture)))),
+                    clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture),
+                    clip.FadeInMilliseconds,
+                    clip.FadeOutMilliseconds))),
                 videoEncoding?.Audio is not null,
                 request.Purpose,
                 request.Profile ?? string.Empty,
@@ -416,11 +426,29 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                     var arguments = FfmpegCommandBuilder.BuildAudioOverlayArguments(
                         video.Path,
                         videoEncoding?.Audio is not null,
-                        audioLeases.Select((lease, index) => new AudioOverlayInput(
-                            lease.Path,
-                            TimeSpan.FromTicks(composition.AudioClips[index].TimelineStartTicks),
-                            composition.AudioClips[index].IsMuted,
-                            composition.AudioClips[index].GainDecibels)).ToArray(),
+                        audioLeases.Select((lease, index) =>
+                        {
+                            var clip = composition.AudioClips[index];
+                            var timelineStart = TimeSpan.FromTicks(clip.TimelineStartTicks);
+                            var audibleDuration = audioDurations[index];
+                            if (videoEncoding?.DurationSeconds is > 0 and var videoDuration)
+                            {
+                                var remainingVideo = Math.Max(0, videoDuration - timelineStart.TotalSeconds);
+                                audibleDuration = audibleDuration is > 0
+                                    ? Math.Min(audibleDuration.Value, remainingVideo)
+                                    : remainingVideo;
+                            }
+                            var fadeIn = ClampFade(clip.FadeInMilliseconds, audibleDuration);
+                            var fadeOut = ClampFade(clip.FadeOutMilliseconds, audibleDuration);
+                            return new AudioOverlayInput(
+                                lease.Path,
+                                timelineStart,
+                                clip.IsMuted,
+                                clip.GainDecibels,
+                                fadeIn,
+                                fadeOut,
+                                audibleDuration);
+                        }).ToArray(),
                         temporaryPath);
                     var result = await _runner.RunAsync(
                             new ExternalProcessRequest(ffmpegPath, arguments),
@@ -454,6 +482,15 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
             for (var index = audioLeases.Count - 1; index >= 0; index--)
                 await audioLeases[index].DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    private static TimeSpan ClampFade(long milliseconds, double? audibleDurationSeconds)
+    {
+        if (milliseconds <= 0) return TimeSpan.Zero;
+        var requested = TimeSpan.FromMilliseconds(milliseconds);
+        return audibleDurationSeconds is { } duration
+            ? TimeSpan.FromSeconds(Math.Min(requested.TotalSeconds, Math.Max(0, duration)))
+            : requested;
     }
 
     private async Task<MaterializedMediaLease> RenderWithoutSourceAudioAsync(

@@ -928,7 +928,33 @@
                                                         PreviewMouseLeftButtonUp="CompositionAudioClipGainSlider_PreviewMouseLeftButtonUp"
                                                         KeyUp="CompositionAudioClipGainSlider_KeyUp" />
                                             </DockPanel>
-                                            <TextBlock Text="Gain changes are committed when you release the slider or complete a keyboard adjustment. Fade controls arrive in a later slice."
+                                            <TextBlock Text="Fade in" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                       Margin="0,12,0,4" />
+                                            <DockPanel>
+                                                <TextBlock x:Name="CompositionAudioClipFadeInText" DockPanel.Dock="Right"
+                                                           Width="58" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                <Slider x:Name="CompositionAudioClipFadeInSlider"
+                                                        Minimum="0" Maximum="30" Value="0"
+                                                        TickFrequency="0.1" SmallChange="0.1" LargeChange="1"
+                                                        ValueChanged="CompositionAudioClipFadeSlider_ValueChanged"
+                                                        PreviewMouseLeftButtonUp="CompositionAudioClipFadeSlider_PreviewMouseLeftButtonUp"
+                                                        KeyUp="CompositionAudioClipFadeSlider_KeyUp" />
+                                            </DockPanel>
+                                            <TextBlock Text="Fade out" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                       Margin="0,12,0,4" />
+                                            <DockPanel>
+                                                <TextBlock x:Name="CompositionAudioClipFadeOutText" DockPanel.Dock="Right"
+                                                           Width="58" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                <Slider x:Name="CompositionAudioClipFadeOutSlider"
+                                                        Minimum="0" Maximum="30" Value="0"
+                                                        TickFrequency="0.1" SmallChange="0.1" LargeChange="1"
+                                                        ValueChanged="CompositionAudioClipFadeSlider_ValueChanged"
+                                                        PreviewMouseLeftButtonUp="CompositionAudioClipFadeSlider_PreviewMouseLeftButtonUp"
+                                                        KeyUp="CompositionAudioClipFadeSlider_KeyUp" />
+                                            </DockPanel>
+                                            <TextBlock Text="Gain and fade changes are committed when you release a slider or complete a keyboard adjustment. Fade out follows the audible end when the composition cuts a longer audio file short."
                                                        TextWrapping="Wrap" FontSize="10" Margin="0,5,0,0"
                                                        Foreground="{StaticResource MutedTextBrush}" />
                                         </StackPanel>

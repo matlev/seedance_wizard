@@ -250,6 +250,54 @@ public sealed class WorkingCompositionService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<RecipeRevision> SetAudioClipFadesAsync(
+        Guid audioClipId,
+        TimeSpan fadeIn,
+        TimeSpan fadeOut,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedFadeIn = NormalizeFade(fadeIn, nameof(fadeIn));
+        var normalizedFadeOut = NormalizeFade(fadeOut, nameof(fadeOut));
+        var (_, currentRevision, currentRecipe) = GetCurrent();
+        var currentClip = currentRecipe.AudioClips.SingleOrDefault(clip => clip.Id == audioClipId)
+            ?? throw new InvalidOperationException("The selected composition audio clip no longer exists.");
+        if (currentClip.FadeInMilliseconds == (long)normalizedFadeIn.TotalMilliseconds &&
+            currentClip.FadeOutMilliseconds == (long)normalizedFadeOut.TotalMilliseconds)
+            return currentRevision;
+
+        var source = _workspace.Project!.Assets.SingleOrDefault(asset => asset.Id == currentClip.Source.AssetId)
+            ?? throw new InvalidOperationException("The selected composition audio source no longer exists.");
+        var durationSeconds = source.DurationSeconds ?? source.Encoding?.DurationSeconds;
+        if (durationSeconds is > 0 && normalizedFadeIn.TotalSeconds > durationSeconds.Value)
+            throw new ArgumentOutOfRangeException(
+                nameof(fadeIn),
+                "Fade in cannot be longer than the source audio clip.");
+        if (durationSeconds is > 0 && normalizedFadeOut.TotalSeconds > durationSeconds.Value)
+            throw new ArgumentOutOfRangeException(
+                nameof(fadeOut),
+                "Fade out cannot be longer than the source audio clip.");
+
+        return await UpdateAsync(recipe =>
+        {
+            var index = recipe.AudioClips.FindIndex(clip => clip.Id == audioClipId);
+            if (index < 0)
+                throw new InvalidOperationException("The selected composition audio clip no longer exists.");
+            recipe.AudioClips[index] = recipe.AudioClips[index] with
+            {
+                FadeInMilliseconds = (long)normalizedFadeIn.TotalMilliseconds,
+                FadeOutMilliseconds = (long)normalizedFadeOut.TotalMilliseconds
+            };
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static TimeSpan NormalizeFade(TimeSpan fade, string parameterName)
+    {
+        if (fade < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(parameterName, "Audio fades cannot be negative.");
+        var milliseconds = Math.Round(fade.TotalMilliseconds, MidpointRounding.AwayFromZero);
+        return TimeSpan.FromMilliseconds(milliseconds);
+    }
+
     public async Task<RecipeRevision> RemoveSegmentAsync(
         Guid segmentId,
         CancellationToken cancellationToken = default) =>
@@ -398,7 +446,9 @@ public sealed class WorkingCompositionService
             Source = clip.Source with { },
             TimelineStartTicks = clip.TimelineStartTicks,
             IsMuted = clip.IsMuted,
-            GainDecibels = clip.GainDecibels
+            GainDecibels = clip.GainDecibels,
+            FadeInMilliseconds = clip.FadeInMilliseconds,
+            FadeOutMilliseconds = clip.FadeOutMilliseconds
         }).ToList()
     };
 }
