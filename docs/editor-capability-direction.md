@@ -1,6 +1,6 @@
 # Editor capability direction
 
-Status: accepted research synthesis; feature tiering and release sequencing remain provisional pending business-model reconciliation
+Status: accepted research synthesis; commercial lanes are reconciled, while exact feature tiering and release sequencing remain provisional
 
 Research reviewed: 2026-08-19
 
@@ -195,15 +195,16 @@ These lanes express dependencies, not final milestone numbers or commercial tier
 - large transition/effect marketplaces;
 - professional plugin hosting before the native effect and isolation model is mature.
 
-## Decisions awaiting the business-model reconciliation
+## Commercial packaging implications and unresolved gates
 
-- which conventional editor capabilities define the first public release versus the longer credibility target;
-- which features are base product, optional free download, paid local pack, usage-billed cloud operation, or future premium tier;
-- whether any hosted generative repair route is operated by ReelForge or configured directly by users;
-- how provider costs, local compute costs, licensing obligations, and update/support costs affect pricing;
-- whether titles/captions/transcription move earlier because of a target customer or tier promise;
-- what “premium” means without weakening project portability, provenance, or access to a user's existing edits;
-- telemetry, account, entitlement, offline-use, and model-download policies;
-- the public-release compatibility baseline and support commitment.
+The accepted [Business and packaging direction](business-and-packaging.md) resolves the broad lanes without setting feature gates:
 
-No implementation or public tier promise follows from this research synthesis alone.
+- foundational local workflows that complete the generate-to-finish loop lean Free;
+- professional depth, productivity, advanced finishing, repair, and workflow conveniences are Pro candidates;
+- externally metered compute is a managed-credit candidate;
+- BYOK remains first-class for Free and Pro users;
+- optional local engines require separate packaging, hardware, license, support, and value decisions.
+
+The exact first-public-release set, Free/Pro boundary, titles/captions/transcription priority, hosted repair route, optional-engine packaging, telemetry/account policy, licensing model, and support baseline remain unresolved. Premium packaging must not weaken project readability, recipe/provenance integrity, access to existing edits, safe export, or provider independence.
+
+No implementation or public tier promise follows from either research synthesis alone.

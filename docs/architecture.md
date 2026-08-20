@@ -5,6 +5,7 @@ Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 Generate/Edit workspace revision: 2026-08-13
 Platform-portability revision: 2026-08-19
+Commercial-optionality revision: 2026-08-19
 
 This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, exact physical-video frame materialization, recursive virtual-recipe rendering, compatible/normalized composition rendering, and their application boundaries are implemented. Full timeline editing and virtual-video exact-position mapping remain later Milestone 2 work.
 
@@ -105,6 +106,14 @@ Portability should be enforceable without speculative abstraction. The review sh
 The application defaults to `FakeVideoGenerationProvider`. Constructing the window, opening a project, autosaving a draft, validating settings, polling local state, and running tests cannot submit a BytePlus or AtlasCloud generation. A potentially billable submission requires a short-lived `GenerationSubmissionAuthorization`; its interactive factory is visible only to the desktop and test assemblies. The desktop creates a production authorization only inside the generation-button event after the human accepts a per-request charge warning. Tests use a separate internal network-isolated authorization with custom `HttpMessageHandler` instances, never the public internet.
 
 BytePlus and AtlasCloud credentials are stored under separate keys through `ISecretStore` in Windows Credential Manager and are never persisted in project JSON. `IApiKeyVideoGenerationProvider` supplies the provider-specific credential key without making the workflow depend on a particular vendor. Temporary upload/data URLs and completed output URLs remain transport representations. Logical reference IDs/revisions/hashes and sanitized preparation scope are the durable history.
+
+### Future commercial execution boundary
+
+The current paid-network authorization protects a direct, human-approved BYOK request; it is not a software entitlement, proof of payment, account balance, or managed-credit reservation. ReelForge currently has no accounts, licensing, wallet, payment, managed-provider backend, or feature gates.
+
+Future product optionality separates software capability entitlement, BYOK versus managed execution, and server-authoritative managed-compute credits. A managed route would authenticate against a ReelForge service which owns the approved commercial provider credentials, account ledger, reservation/settlement policy, and abuse controls. ReelForge-owned secrets and authoritative credit balances must never ship in or be trusted to the desktop client. BYOK remains a first-class route and its catalog may legitimately differ from the managed catalog.
+
+Commercial state does not belong in media recipes or asset identity. Project formats remain tier-neutral and existing project/media access must not depend on an active balance. Do not add speculative account or entitlement interfaces before an approved feature creates a concrete boundary. The accepted strategy, provisional packaging lanes, security/economic gates, and unresolved business questions are recorded in [Business and packaging direction](business-and-packaging.md).
 
 ### Multi-provider boundary
 

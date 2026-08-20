@@ -34,6 +34,8 @@ FFmpeg and ffprobe may be discovered from `PATH` or selected explicitly. Media-t
 
 ## Secrets and Windows Credential Manager
 
+The current credentials are entirely BYOK: the user owns the provider/R2 accounts and the providers bill that user directly. ReelForge has no account login, software entitlement, managed-compute balance, or ReelForge-owned provider secret in the desktop application. A possible future managed route would keep its credentials, authoritative ledger, and settlement logic behind an authenticated ReelForge service; it would not reuse local application settings or Windows Credential Manager as financial authority. See [Business and packaging direction](business-and-packaging.md).
+
 The Settings UI asks `ISecretStore` only whether a credential exists. Existing plaintext is never returned to or bound into the Settings window. A configured field always displays exactly `*****`, regardless of secret length.
 
 **Replace** opens an empty password control. After a successful Credential Manager write, the control is cleared and returns to `*****`. **Remove** is a separate confirmed action; clearing or cancelling a replacement never deletes a credential.

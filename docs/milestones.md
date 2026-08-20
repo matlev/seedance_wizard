@@ -404,6 +404,23 @@ Execution guardrails:
 - re-run the primary Milestone 2 human workflows after major structural boundaries move, especially project switching, generation recovery, exact-frame tools, composition editing, preview/export, and settings changes;
 - judge completion across the whole repository: no major subsystem should remain an unexplained monolith merely because the WPF shell became smaller.
 
+## Unscheduled future product and commercialization discovery
+
+The accepted [Business and packaging direction](business-and-packaging.md) preserves a genuinely useful Free product, first-class BYOK, a possible capability-based Pro entitlement, and a separate possible managed-compute credit route. This is product context, not current behavior or an implementation milestone. It does not expand Milestone 2 or the Milestone 3 structural refactor.
+
+Do not schedule billing, accounts, licensing, entitlements, telemetry, or managed-provider infrastructure until product evidence and an explicit approval establish a narrow first use case. Before implementation, the planning gate must:
+
+1. validate target users, completed workflows, BYOK onboarding friction, editor-feature value, and willingness to pay;
+2. choose a provisional Free/Pro offer without gating custody of existing projects, recipes, provenance, or safe export;
+3. verify provider-specific managed-integration rights, territories, moderation duties, and billing/failure behavior;
+4. model full unit economics including provider compute, storage/egress, retries, payment, taxes, fraud, refunds, promotions, support, currency movement, and deliberate margin;
+5. define privacy, consent, security, account recovery, offline use, and commercial-support obligations;
+6. design server-authoritative account, ledger, reservation, settlement, refund, and provider-secret boundaries before client work;
+7. preserve BYOK as a first-class Free/Pro route and keep managed-provider availability independent of the BYOK catalog;
+8. pilot one bounded managed operation before building a broad credit platform, if the earlier gates support it.
+
+Exact pricing, Ingot rules, subscriptions versus perpetual licensing, Free/Pro feature lists, promotional credits, local-engine packaging, telemetry, accounts for local-only users, team plans, and marketplaces remain intentionally unresolved.
+
 ## Unscheduled exploration — local ComfyUI / MiniMax H3
 
 This is intentionally outside the committed Milestone 2 implementation path. MiniMax H3 now has official native ComfyUI workflows, but its weight footprint, runtime performance, incomplete local 2K stack, and territory-restricted license make it inappropriate to schedule before hardware and distribution feasibility are known. No model download or implementation is approved by this roadmap entry.
