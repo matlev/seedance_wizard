@@ -1,19 +1,22 @@
 ﻿# ReelForge
 
-ReelForge is a Windows desktop workspace for AI video-generation prompting, project history, and lightweight FFmpeg-based media workflows. It is intentionally not a full nonlinear editor.
+ReelForge is a Windows desktop workspace for AI video generation, logical project media, exact-frame preparation, and non-destructive FFmpeg-based composition workflows. It is an AI-native finishing workbench rather than a general-purpose professional NLE.
 
-Milestone 1 provides a working architectural slice:
+Milestones 1 and 2 provide a working generation-to-editing loop:
 
-- resizable WPF editor shell with project explorer, preview, inspector, generation panel, and timeline placeholder
+- Generate/Edit WPF workspaces with shared Project Media, preview, inspector, global job monitoring, and application settings
 - portable, JSON-formatted `.rfp` projects with `assets/`, `generated/`, `exports/`, and `cache/`
-- image, video, and audio import with collision-safe filenames
-- video/image preview and basic playback controls
+- image, video, and audio import plus drag/drop, rename, transfer, collision-safe storage, and last-project/recent-project recovery
+- image/video preview with seek, volume, frame stepping, and exact decoded-frame selection
 - FFmpeg/ffprobe PATH discovery plus saved explicit paths and executable browsing, cancellable process execution, safe argument handling, and ffprobe metadata parsing
-- capability-driven `IVideoGenerationProvider` abstraction with a no-cost fake provider plus official BytePlus ModelArk and AtlasCloud Seedance 2.5 adapters
-- generation provenance stored with the project
+- capability-driven `IVideoGenerationProvider` abstraction with a no-cost fake route, official BytePlus ModelArk Seedance 2.5, and AtlasCloud Seedance 2.5/MiniMax H3
+- immutable generation/reference snapshots, recoverable global jobs, durable output ingestion, verbose diagnostics, and explicit Undo Send
+- Saved Frames and Saved Clips backed by exact immutable positions/recipes and disposable reconstructable materializations
+- a duration-aware composition timeline with direct drag/drop/reorder/remove, exact splitting, fast audition, cancellable preview/export, and immutable recipe revisions
+- independent layered audio with placement, mute, gain, pan, fades, extraction, exact segment detachment, audition, and final mixing
 - application-level Settings with local JSON overrides and Windows Credential Manager storage for R2, BytePlus, and AtlasCloud secrets
 - private Cloudflare R2 temporary reference hosting with SHA-256 deduplication and short-lived presigned GET URLs
-- automated tests for persistence, provider contracts, paid-network isolation, media parsing, and command construction
+- network-isolated automated coverage for persistence, recipes, providers, jobs, media parsing/materialization, FFmpeg commands, and cost safety
 
 The desktop defaults to the fake provider. BytePlus ModelArk and AtlasCloud are independently selectable, but a real submission requires a stored credential, an explicit click, and a fresh human-accepted charge warning. Provider tests use in-memory HTTP handlers and cannot make paid generation calls. See [provider research](docs/provider-research.md).
 
@@ -47,12 +50,14 @@ MyProject/
   cache/
 ```
 
-All paths stored in the `.rfp` file are relative to the project root. The file remains ordinary, human-readable JSON despite its project-specific extension. Imported sources are copied; originals are never modified. Legacy `project.json` projects remain openable and are saved in place.
+All project-media paths stored in the `.rfp` file are relative to the project root. The file remains ordinary, human-readable JSON despite its project-specific extension. Imported sources are copied; originals are never modified. Pre-release ReelForge supports one current development format and clearly rejects obsolete development project files rather than maintaining a migration ladder.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Milestone plan](docs/milestones.md)
+- [Milestone 3 architecture review and refactor plan](docs/milestone-3-refactor-plan.md)
+- [Contributor guidance](docs/contributor-guidance.md)
 - [Seedance provider research](docs/provider-research.md)
 - [MiniMax H3 local execution research](docs/minimax-h3-local-research.md)
 - [Application configuration and Cloudflare R2](docs/configuration.md)
