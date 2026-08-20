@@ -337,6 +337,7 @@ In progress. The first slices project the committed Working Composition into a h
 4. Establish selection-specific sections: Clip/Source, Audio, Transform, and Timing for video segments; Timing and Audio for audio clips; and transition controls for a future selected junction.
 5. Keep read-only media identity, encoding, source, and history in Inspector rather than duplicating them as editable controls.
 6. Commit discrete changed values once and treat unchanged choices as no-ops. Hold continuous slider/drag manipulation as mutable UI draft state, then create one immutable recipe revision when the interaction is applied or completed; cancellation creates no revision.
+7. Add selected audio-clip **On / Muted** and gain controls. Persist typed per-clip mix values, include them in deterministic render identity, compile them into FFmpeg before timeline delay/mixing, and commit a gain gesture only when the slider interaction completes.
 
 #### Editor capability research outcome
 

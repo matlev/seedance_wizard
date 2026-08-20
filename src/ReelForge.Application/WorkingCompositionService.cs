@@ -212,6 +212,35 @@ public sealed class WorkingCompositionService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<RecipeRevision> SetAudioClipMixAsync(
+        Guid audioClipId,
+        bool isMuted,
+        double gainDecibels,
+        CancellationToken cancellationToken = default)
+    {
+        if (!double.IsFinite(gainDecibels) || gainDecibels is < -60 or > 12)
+            throw new ArgumentOutOfRangeException(
+                nameof(gainDecibels),
+                "Audio gain must be between -60 dB and +12 dB.");
+        var (_, currentRevision, currentRecipe) = GetCurrent();
+        var currentClip = currentRecipe.AudioClips.SingleOrDefault(clip => clip.Id == audioClipId)
+            ?? throw new InvalidOperationException("The selected composition audio clip no longer exists.");
+        if (currentClip.IsMuted == isMuted && currentClip.GainDecibels.Equals(gainDecibels))
+            return currentRevision;
+
+        return await UpdateAsync(recipe =>
+        {
+            var index = recipe.AudioClips.FindIndex(clip => clip.Id == audioClipId);
+            if (index < 0)
+                throw new InvalidOperationException("The selected composition audio clip no longer exists.");
+            recipe.AudioClips[index] = recipe.AudioClips[index] with
+            {
+                IsMuted = isMuted,
+                GainDecibels = gainDecibels
+            };
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<RecipeRevision> RemoveSegmentAsync(
         Guid segmentId,
         CancellationToken cancellationToken = default) =>
@@ -358,7 +387,9 @@ public sealed class WorkingCompositionService
         {
             Id = clip.Id,
             Source = clip.Source with { },
-            TimelineStartTicks = clip.TimelineStartTicks
+            TimelineStartTicks = clip.TimelineStartTicks,
+            IsMuted = clip.IsMuted,
+            GainDecibels = clip.GainDecibels
         }).ToList()
     };
 }

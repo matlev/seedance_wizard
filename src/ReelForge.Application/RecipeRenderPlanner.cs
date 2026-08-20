@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using ReelForge.Core;
@@ -67,6 +68,8 @@ public sealed record CompositionAudioClipRenderPlan(
     Guid ClipId,
     MediaRenderPlanNode Source,
     long TimelineStartTicks,
+    bool IsMuted,
+    double GainDecibels,
     string ClipHash);
 
 public static class RecipeRenderPlanner
@@ -216,13 +219,22 @@ public static class RecipeRenderPlanner
                 throw new InvalidDataException($"Composition audio clip '{clip.Id}' requires audio input.");
             if (clip.TimelineStartTicks < 0)
                 throw new InvalidDataException($"Composition audio clip '{clip.Id}' has a negative timeline start.");
+            if (!double.IsFinite(clip.GainDecibels) || clip.GainDecibels is < -60 or > 12)
+                throw new InvalidDataException($"Composition audio clip '{clip.Id}' has invalid gain.");
             var clipHash = Hash(string.Join('|',
                 "audio-clip",
                 clip.Id.ToString("N"),
                 source.NodeHash,
-                clip.TimelineStartTicks));
+                clip.TimelineStartTicks,
+                clip.IsMuted,
+                clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture)));
             return new CompositionAudioClipRenderPlan(
-                clip.Id, source, clip.TimelineStartTicks, clipHash);
+                clip.Id,
+                source,
+                clip.TimelineStartTicks,
+                clip.IsMuted,
+                clip.GainDecibels,
+                clipHash);
         }).ToArray();
         var segmentKey = string.Join(';', segments.Select(segment => string.Join(',',
             segment.SegmentId.ToString("N"),
@@ -237,7 +249,11 @@ public static class RecipeRenderPlanner
                 return sourceAsset.Encoding ?? sourceAsset.Virtual?.ExpectedMediaProperties;
             }).ToArray());
         var audioKey = string.Join(';', audioClips.Select(clip => string.Join(',',
-            clip.ClipId.ToString("N"), clip.Source.NodeHash, clip.TimelineStartTicks)));
+            clip.ClipId.ToString("N"),
+            clip.Source.NodeHash,
+            clip.TimelineStartTicks,
+            clip.IsMuted,
+            clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture))));
         return new CompositionRenderPlanNode(
             asset.Id,
             revision.Id,

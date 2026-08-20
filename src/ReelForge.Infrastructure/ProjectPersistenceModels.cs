@@ -152,6 +152,8 @@ internal sealed class CompositionAudioClipDto
     public Guid Id { get; set; }
     public AssetRevisionReferenceDto Source { get; set; } = new();
     public long TimelineStartTicks { get; set; }
+    public bool IsMuted { get; set; }
+    public double GainDecibels { get; set; }
 }
 
 internal sealed class RecipeBoundaryDto
@@ -496,7 +498,9 @@ internal static class ProjectPersistenceMapper
             {
                 Id = clip.Id,
                 Source = ToDto(clip.Source),
-                TimelineStartTicks = clip.TimelineStartTicks
+                TimelineStartTicks = clip.TimelineStartTicks,
+                IsMuted = clip.IsMuted,
+                GainDecibels = clip.GainDecibels
             }).ToList()
         },
         _ => throw new NotSupportedException($"Recipe type '{source.GetType().Name}' is not supported.")
@@ -531,7 +535,9 @@ internal static class ProjectPersistenceMapper
             {
                 Id = clip.Id,
                 Source = FromDto(clip.Source),
-                TimelineStartTicks = clip.TimelineStartTicks
+                TimelineStartTicks = clip.TimelineStartTicks,
+                IsMuted = clip.IsMuted,
+                GainDecibels = clip.GainDecibels
             }).ToList()
         },
         _ => throw new InvalidDataException($"Recipe type '{source.Type}' is not supported.")

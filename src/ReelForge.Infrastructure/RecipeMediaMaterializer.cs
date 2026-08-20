@@ -390,7 +390,10 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                 composition.NodeHash,
                 video.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty,
                 string.Join(';', audioLeases.Select(lease => lease.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty)),
-                string.Join(';', composition.AudioClips.Select(clip => clip.TimelineStartTicks)),
+                string.Join(';', composition.AudioClips.Select(clip => string.Join(',',
+                    clip.TimelineStartTicks,
+                    clip.IsMuted,
+                    clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture)))),
                 videoEncoding?.Audio is not null,
                 request.Purpose,
                 request.Profile ?? string.Empty,
@@ -415,7 +418,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                         videoEncoding?.Audio is not null,
                         audioLeases.Select((lease, index) => new AudioOverlayInput(
                             lease.Path,
-                            TimeSpan.FromTicks(composition.AudioClips[index].TimelineStartTicks))).ToArray(),
+                            TimeSpan.FromTicks(composition.AudioClips[index].TimelineStartTicks),
+                            composition.AudioClips[index].IsMuted,
+                            composition.AudioClips[index].GainDecibels)).ToArray(),
                         temporaryPath);
                     var result = await _runner.RunAsync(
                             new ExternalProcessRequest(ffmpegPath, arguments),

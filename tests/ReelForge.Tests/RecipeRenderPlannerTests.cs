@@ -185,7 +185,9 @@ public sealed class RecipeRenderPlannerTests
                 new CompositionAudioClip
                 {
                     Source = new AssetRevisionReference { AssetId = audio.Id },
-                    TimelineStartTicks = TimeSpan.FromSeconds(3).Ticks
+                    TimelineStartTicks = TimeSpan.FromSeconds(3).Ticks,
+                    IsMuted = true,
+                    GainDecibels = -7
                 }
             ]
         });
@@ -199,6 +201,8 @@ public sealed class RecipeRenderPlannerTests
         var clip = Assert.Single(node.AudioClips);
         Assert.Equal(audio.Id, clip.Source.AssetId);
         Assert.Equal(TimeSpan.FromSeconds(3).Ticks, clip.TimelineStartTicks);
+        Assert.True(clip.IsMuted);
+        Assert.Equal(-7, clip.GainDecibels);
         Assert.NotEqual(node.Segments[0].SegmentHash, clip.ClipHash);
     }
 

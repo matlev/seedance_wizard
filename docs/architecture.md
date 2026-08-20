@@ -419,13 +419,15 @@ The timeline owns structural composition operations and selection: inserting, re
 Edit Tools begins with single-object selection and changes its contents by selection kind:
 
 - a selected video segment exposes clip/source information, source-audio controls, and later Transform and Timing sections;
-- a selected audio clip exposes timing, mute, gain, and fade controls;
+- a selected audio clip exposes timing plus implemented On/Muted and gain controls, with fades following later;
 - a selected transition or segment junction eventually exposes transition type and duration;
 - no selection shows concise guidance to select an editable timeline object.
 
 Read-only media identity, encoding, source, and history remain Inspector concerns. Edit Tools contains controls that change the composition recipe. Source audio therefore appears under the selected video segment's **Audio** section alongside future gain and fade controls, rather than beside structural timeline buttons. The detailed control set may grow without changing the underlying rule that recipe-affecting properties live in Edit Tools.
 
 Edit controls must respect immutable-revision semantics without turning pointer movement into permanent history. A discrete action such as On/Muted commits one new recipe revision immediately when its value actually changes; selecting the already-committed value is a no-op. Continuous interactions such as gain, crop, position, or a future speed slider remain mutable UI draft state during the gesture and create one immutable revision when the gesture is applied or completed. Cancelling a draft creates no revision. Preview invalidation occurs only after a successful commit.
+
+Independent audio clips currently persist `IsMuted` and a finite `GainDecibels` value from -60 dB through +12 dB. Both values participate in recipe validation, render-plan/cache identity, persistence, and FFmpeg filter construction before per-clip delay and final mixing. The mixed stream is padded and the output remains bounded by video duration, so a short audio clip cannot truncate the composition and a long one cannot extend it. Radio changes commit discretely; pointer movement on the gain slider changes only UI draft state until release, while a completed keyboard adjustment commits its final value.
 
 The accepted editor-capability research extends this direction with a typed effect stack, generic parameter automation, exact track/time semantics, analysis artifacts, durable derived-media/Bake behavior, a provider-neutral media-edit capability family, and universal logical generation references. Detailed product decisions, architectural constraints, candidate capability lanes, and business-model-dependent questions are recorded in [Editor capability direction](editor-capability-direction.md). That document is not an instruction to add the entire market feature set to Milestone 2.
 

@@ -103,6 +103,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private Guid? _selectedCompositionSegmentId;
     private Guid? _selectedCompositionAudioClipId;
     private bool _suppressCompositionAudioControl;
+    private bool _suppressCompositionAudioClipControl;
     private Guid? _pendingCompositionSegmentDragId;
     private Guid? _activeCompositionSegmentDragId;
     private Point _compositionSegmentDragStart;
@@ -1347,6 +1348,60 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
+    private async void CompositionAudioClipEnabled_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_suppressCompositionAudioClipControl || GetSelectedCompositionAudioClip() is not { } selected) return;
+        var isMuted = CompositionAudioClipMutedButton.IsChecked == true;
+        if (selected.IsMuted == isMuted) return;
+
+        await RunUiActionAsync("Updating composition audio clip…", async () =>
+        {
+            await new WorkingCompositionService(_workspace)
+                .SetAudioClipMixAsync(selected.AudioClipId, isMuted, selected.GainDecibels);
+            _selectedCompositionSegmentId = null;
+            _selectedCompositionAudioClipId = selected.AudioClipId;
+            RefreshEditWorkspaceState();
+            StatusText.Text = isMuted
+                ? $"Muted {selected.DisplayName}. Preview the composition to rebuild it."
+                : $"Enabled {selected.DisplayName}. Preview the composition to rebuild it.";
+        });
+    }
+
+    private void CompositionAudioClipGainSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (CompositionAudioClipGainText is null) return;
+        CompositionAudioClipGainText.Text = FormatGainDecibels(e.NewValue);
+    }
+
+    private async void CompositionAudioClipGainSlider_PreviewMouseLeftButtonUp(
+        object sender,
+        MouseButtonEventArgs e) =>
+        await CommitSelectedCompositionAudioClipGainAsync();
+
+    private async void CompositionAudioClipGainSlider_KeyUp(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
+            await CommitSelectedCompositionAudioClipGainAsync();
+    }
+
+    private async Task CommitSelectedCompositionAudioClipGainAsync()
+    {
+        if (_suppressCompositionAudioClipControl || GetSelectedCompositionAudioClip() is not { } selected) return;
+        var gainDecibels = CompositionAudioClipGainSlider.Value;
+        if (Math.Abs(selected.GainDecibels - gainDecibels) < 0.000_001) return;
+
+        await RunUiActionAsync("Updating composition audio gain…", async () =>
+        {
+            await new WorkingCompositionService(_workspace)
+                .SetAudioClipMixAsync(selected.AudioClipId, selected.IsMuted, gainDecibels);
+            _selectedCompositionSegmentId = null;
+            _selectedCompositionAudioClipId = selected.AudioClipId;
+            RefreshEditWorkspaceState();
+            StatusText.Text =
+                $"Set {selected.DisplayName} gain to {FormatGainDecibels(gainDecibels)}. Preview the composition to rebuild it.";
+        });
+    }
+
     private async Task MoveSelectedCompositionSegmentAsync(int offset)
     {
         if (GetSelectedCompositionSegment() is not { } selected) return;
@@ -1786,7 +1841,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     Padding = new Thickness(7, 3, 6, 3),
                     Opacity = isDragging ? 0.86 : 1,
                     Cursor = Cursors.SizeWE,
-                    ToolTip = $"Audio: {item.DisplayName}\nStarts at {FormatTimelineTime(startSeconds)}\n{item.DurationText}\nClick to select or drag to move"
+                    ToolTip = $"Audio: {item.DisplayName}\nStarts at {FormatTimelineTime(startSeconds)}\n{item.DurationText} • {item.MixText}\nClick to select or drag to move"
                 };
                 if (isDragging)
                     audioBorder.Effect = new DropShadowEffect
@@ -1796,14 +1851,23 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                         ShadowDepth = 3,
                         Opacity = 0.65
                     };
-                audioBorder.Child = new TextBlock
+                var audioText = new StackPanel();
+                audioText.Children.Add(new TextBlock
                 {
                     Text = $"♪ {item.DisplayName}",
                     Foreground = FindResource("TextBrush") as Brush ?? Brushes.White,
                     FontWeight = FontWeights.SemiBold,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
+                    FontSize = 10,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+                audioText.Children.Add(new TextBlock
+                {
+                    Text = item.MixText,
+                    Foreground = FindResource("MutedTextBrush") as Brush ?? Brushes.LightGray,
+                    FontSize = 9,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+                audioBorder.Child = audioText;
                 audioBorder.MouseLeftButtonDown += CompositionTimelineAudioClip_MouseLeftButtonDown;
                 Canvas.SetLeft(audioBorder, left + 1);
                 Canvas.SetTop(audioBorder, 86);
@@ -1817,9 +1881,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 Stroke = FindResource("AccentBrush") as Brush ?? Brushes.MediumPurple,
                 StrokeThickness = 2,
                 IsHitTestVisible = false,
-            Visibility = _activeCompositionPreviewRevisionId is null ||
-                         _activeCompositionSegmentDragId is not null ||
-                         _activeCompositionAudioClipDragId is not null
+                Visibility = _activeCompositionPreviewRevisionId is null ||
+                             _activeCompositionSegmentDragId is not null ||
+                             _activeCompositionAudioClipDragId is not null
                     ? Visibility.Collapsed
                     : Visibility.Visible
             };
@@ -1901,6 +1965,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             : time.ToString(@"m\:ss", CultureInfo.InvariantCulture);
     }
 
+    private static string FormatGainDecibels(double gainDecibels) =>
+        $"{(gainDecibels > 0 ? "+" : string.Empty)}{gainDecibels:0} dB";
+
     private void UpdateCompositionActionState()
     {
         if (AddCompositionSegmentButton is null) return;
@@ -1956,6 +2023,21 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         finally
         {
             _suppressCompositionAudioControl = false;
+        }
+
+        _suppressCompositionAudioClipControl = true;
+        try
+        {
+            var selectedAudio = GetSelectedCompositionAudioClip();
+            CompositionAudioClipEnabledButton.IsChecked = selectedAudio is { IsMuted: false };
+            CompositionAudioClipMutedButton.IsChecked = selectedAudio?.IsMuted == true;
+            CompositionAudioClipGainSlider.Value = selectedAudio?.GainDecibels ?? 0;
+            CompositionAudioClipGainSlider.IsEnabled = selectedAudio is not null;
+            CompositionAudioClipGainText.Text = FormatGainDecibels(selectedAudio?.GainDecibels ?? 0);
+        }
+        finally
+        {
+            _suppressCompositionAudioClipControl = false;
         }
     }
 
@@ -4810,6 +4892,11 @@ public sealed class CompositionAudioClipListItem
         AudioClipId = clip.Id;
         DisplayName = source?.EffectiveDisplayName ?? "Missing audio source";
         TimelineStart = clip.TimelineStart;
+        IsMuted = clip.IsMuted;
+        GainDecibels = clip.GainDecibels;
+        MixText = IsMuted
+            ? "Muted"
+            : $"Gain {(GainDecibels > 0 ? "+" : string.Empty)}{GainDecibels:0} dB";
         DurationSeconds = source?.DurationSeconds ?? source?.Encoding?.DurationSeconds ??
                           source?.Virtual?.ExpectedMediaProperties?.DurationSeconds;
         DurationText = DurationSeconds is > 0
@@ -4820,6 +4907,9 @@ public sealed class CompositionAudioClipListItem
     public Guid AudioClipId { get; }
     public string DisplayName { get; }
     public TimeSpan TimelineStart { get; }
+    public bool IsMuted { get; }
+    public double GainDecibels { get; }
+    public string MixText { get; }
     public double? DurationSeconds { get; }
     public string DurationText { get; }
 }

@@ -899,8 +899,35 @@
                                         <StackPanel>
                                             <TextBlock Text="AUDIO" Foreground="{StaticResource MutedTextBrush}"
                                                        FontSize="11" FontWeight="SemiBold" />
-                                            <TextBlock Text="Gain and fade controls arrive in a later editing slice."
-                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
+                                            <TextBlock Text="Include this audio clip in the composition mix."
+                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,7"
+                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton x:Name="CompositionAudioClipEnabledButton" Content="On"
+                                                             GroupName="CompositionAudioClipEnabled"
+                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
+                                                             Checked="CompositionAudioClipEnabled_Checked" />
+                                                <RadioButton x:Name="CompositionAudioClipMutedButton" Content="Muted"
+                                                             GroupName="CompositionAudioClipEnabled"
+                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
+                                                             Checked="CompositionAudioClipEnabled_Checked" />
+                                            </StackPanel>
+                                            <TextBlock Text="Gain" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                       Margin="0,12,0,4" />
+                                            <DockPanel>
+                                                <TextBlock x:Name="CompositionAudioClipGainText" DockPanel.Dock="Right"
+                                                           Width="52" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                <Slider x:Name="CompositionAudioClipGainSlider"
+                                                        Minimum="-60" Maximum="12" Value="0"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                                        SmallChange="1" LargeChange="6"
+                                                        ValueChanged="CompositionAudioClipGainSlider_ValueChanged"
+                                                        PreviewMouseLeftButtonUp="CompositionAudioClipGainSlider_PreviewMouseLeftButtonUp"
+                                                        KeyUp="CompositionAudioClipGainSlider_KeyUp" />
+                                            </DockPanel>
+                                            <TextBlock Text="Gain changes are committed when you release the slider or complete a keyboard adjustment. Fade controls arrive in a later slice."
+                                                       TextWrapping="Wrap" FontSize="10" Margin="0,5,0,0"
                                                        Foreground="{StaticResource MutedTextBrush}" />
                                         </StackPanel>
                                     </Border>

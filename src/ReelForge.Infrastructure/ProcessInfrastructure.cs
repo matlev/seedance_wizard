@@ -318,6 +318,8 @@ public static class FfmpegCommandBuilder
             ValidateMediaPath(input.Path, nameof(audioInputs));
             if (input.TimelineStart < TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio overlay start times cannot be negative.");
+            if (!double.IsFinite(input.GainDecibels) || input.GainDecibels is < -60 or > 12)
+                throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio overlay gain must be between -60 dB and +12 dB.");
         }
         ValidateMediaPath(outputPath, nameof(outputPath));
 
@@ -338,14 +340,19 @@ public static class FfmpegCommandBuilder
             var delayMilliseconds = Math.Max(0, (long)Math.Round(
                 audioInputs[index].TimelineStart.TotalMilliseconds,
                 MidpointRounding.AwayFromZero));
-            filters.Add($"[{index + 1}:a:0]adelay={delayMilliseconds}:all=1,asetpts=PTS-STARTPTS[overlay{index}]");
+            var volume = audioInputs[index].IsMuted
+                ? "volume=0,"
+                : Math.Abs(audioInputs[index].GainDecibels) > 0.000_001
+                    ? $"volume={audioInputs[index].GainDecibels.ToString("0.###", CultureInfo.InvariantCulture)}dB,"
+                    : string.Empty;
+            filters.Add($"[{index + 1}:a:0]{volume}adelay={delayMilliseconds}:all=1,asetpts=PTS-STARTPTS[overlay{index}]");
             mixInputs.Append(CultureInfo.InvariantCulture, $"[overlay{index}]");
             streamIndex++;
         }
 
         filters.Add(streamIndex == 1
-            ? $"{mixInputs}anull[aout]"
-            : $"{mixInputs}amix=inputs={streamIndex}:duration=longest:dropout_transition=0[aout]");
+            ? $"{mixInputs}anull,apad[aout]"
+            : $"{mixInputs}amix=inputs={streamIndex}:duration=longest:dropout_transition=0,apad[aout]");
         arguments.AddRange([
             "-filter_complex", string.Join(';', filters),
             "-map", "0:v:0",
@@ -431,7 +438,11 @@ public static class FfmpegCommandBuilder
     }
 }
 
-public sealed record AudioOverlayInput(string Path, TimeSpan TimelineStart);
+public sealed record AudioOverlayInput(
+    string Path,
+    TimeSpan TimelineStart,
+    bool IsMuted = false,
+    double GainDecibels = 0);
 
 public sealed record NormalizedConcatInput(
     string Path,

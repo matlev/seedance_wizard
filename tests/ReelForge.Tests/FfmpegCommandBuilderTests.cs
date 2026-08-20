@@ -97,6 +97,7 @@ public sealed class FfmpegCommandBuilderTests
         Assert.Contains("[0:a:0]asetpts=PTS-STARTPTS[baseaudio]", graph, StringComparison.Ordinal);
         Assert.Contains("[1:a:0]adelay=2345:all=1", graph, StringComparison.Ordinal);
         Assert.Contains("amix=inputs=2:duration=longest", graph, StringComparison.Ordinal);
+        Assert.Contains("amix=inputs=2:duration=longest:dropout_transition=0,apad[aout]", graph, StringComparison.Ordinal);
         Assert.Contains("-shortest", arguments);
         Assert.Equal("mixed.mp4", arguments[^1]);
     }
@@ -112,7 +113,24 @@ public sealed class FfmpegCommandBuilderTests
 
         var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
         Assert.DoesNotContain("[0:a:0]", graph, StringComparison.Ordinal);
-        Assert.Contains("[overlay0]anull[aout]", graph, StringComparison.Ordinal);
+        Assert.Contains("[overlay0]anull,apad[aout]", graph, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AudioOverlayAppliesPerClipGainAndMuteBeforeDelay()
+    {
+        var arguments = FfmpegCommandBuilder.BuildAudioOverlayArguments(
+            "composition.mp4",
+            videoHasAudio: false,
+            [
+                new AudioOverlayInput("music.wav", TimeSpan.FromSeconds(1.25), GainDecibels: -6),
+                new AudioOverlayInput("voice.wav", TimeSpan.FromSeconds(2), IsMuted: true, GainDecibels: 4)
+            ],
+            "mixed.mp4");
+
+        var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.Contains("[1:a:0]volume=-6dB,adelay=1250:all=1", graph, StringComparison.Ordinal);
+        Assert.Contains("[2:a:0]volume=0,adelay=2000:all=1", graph, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -278,6 +278,8 @@ public sealed record CompositionAudioClip
     public Guid Id { get; init; } = Guid.NewGuid();
     public AssetRevisionReference Source { get; init; } = new();
     public long TimelineStartTicks { get; init; }
+    public bool IsMuted { get; init; }
+    public double GainDecibels { get; init; }
 
     public TimeSpan TimelineStart => TimeSpan.FromTicks(TimelineStartTicks);
 }

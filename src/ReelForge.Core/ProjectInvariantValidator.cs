@@ -248,6 +248,9 @@ public static class ProjectInvariantValidator
                 {
                     if (audioClip.TimelineStartTicks < 0)
                         errors.Add($"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' has a negative timeline start.");
+                    if (!double.IsFinite(audioClip.GainDecibels) ||
+                        audioClip.GainDecibels is < -60 or > 12)
+                        errors.Add($"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' gain must be between -60 dB and +12 dB.");
                 }
                 break;
         }
