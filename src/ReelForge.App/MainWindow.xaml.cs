@@ -1405,6 +1405,42 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
+    private void CompositionAudioClipPanSlider_ValueChanged(
+        object sender,
+        RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (CompositionAudioClipPanText is null) return;
+        CompositionAudioClipPanText.Text = FormatAudioPan(e.NewValue);
+    }
+
+    private async void CompositionAudioClipPanSlider_PreviewMouseLeftButtonUp(
+        object sender,
+        MouseButtonEventArgs e) =>
+        await CommitSelectedCompositionAudioClipPanAsync();
+
+    private async void CompositionAudioClipPanSlider_KeyUp(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
+            await CommitSelectedCompositionAudioClipPanAsync();
+    }
+
+    private async Task CommitSelectedCompositionAudioClipPanAsync()
+    {
+        if (_suppressCompositionAudioClipControl || GetSelectedCompositionAudioClip() is not { } selected) return;
+        var pan = Math.Round(CompositionAudioClipPanSlider.Value, 2, MidpointRounding.AwayFromZero);
+        if (Math.Abs(selected.Pan - pan) < 0.000_001) return;
+
+        await RunUiActionAsync("Updating composition audio pan…", async () =>
+        {
+            await new WorkingCompositionService(_workspace).SetAudioClipPanAsync(selected.AudioClipId, pan);
+            _selectedCompositionSegmentId = null;
+            _selectedCompositionAudioClipId = selected.AudioClipId;
+            RefreshEditWorkspaceState();
+            StatusText.Text =
+                $"Set {selected.DisplayName} pan to {FormatAudioPan(pan)}. Preview the composition to rebuild it.";
+        });
+    }
+
     private void CompositionAudioClipFadeSlider_ValueChanged(
         object sender,
         RoutedPropertyChangedEventArgs<double> e)
@@ -2030,6 +2066,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private static string FormatGainDecibels(double gainDecibels) =>
         $"{(gainDecibels > 0 ? "+" : string.Empty)}{gainDecibels:0} dB";
 
+    private static string FormatAudioPan(double pan)
+    {
+        if (Math.Abs(pan) < 0.000_001) return "Center";
+        return $"{Math.Round(Math.Abs(pan) * 100):0}% {(pan < 0 ? "left" : "right")}";
+    }
+
     private static string FormatFadeDuration(double seconds) =>
         $"{Math.Max(0, seconds):0.###}s";
 
@@ -2099,6 +2141,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             CompositionAudioClipGainSlider.Value = selectedAudio?.GainDecibels ?? 0;
             CompositionAudioClipGainSlider.IsEnabled = selectedAudio is not null;
             CompositionAudioClipGainText.Text = FormatGainDecibels(selectedAudio?.GainDecibels ?? 0);
+            CompositionAudioClipPanSlider.Value = selectedAudio?.Pan ?? 0;
+            CompositionAudioClipPanSlider.IsEnabled = selectedAudio is not null;
+            CompositionAudioClipPanText.Text = FormatAudioPan(selectedAudio?.Pan ?? 0);
             var maxFadeSeconds = GetMaximumAudioFadeSeconds(selectedAudio);
             CompositionAudioClipFadeInSlider.Maximum = Math.Max(
                 maxFadeSeconds,
@@ -5047,11 +5092,15 @@ public sealed class CompositionAudioClipListItem
         TimelineStart = clip.TimelineStart;
         IsMuted = clip.IsMuted;
         GainDecibels = clip.GainDecibels;
+        Pan = clip.Pan;
         FadeIn = clip.FadeIn;
         FadeOut = clip.FadeOut;
         MixText = (IsMuted
             ? "Muted"
             : $"Gain {(GainDecibels > 0 ? "+" : string.Empty)}{GainDecibels:0} dB") +
+            (Math.Abs(Pan) > 0.000_001
+                ? $" • {Math.Round(Math.Abs(Pan) * 100):0}% {(Pan < 0 ? "left" : "right")}"
+                : string.Empty) +
             (FadeIn > TimeSpan.Zero || FadeOut > TimeSpan.Zero
                 ? $" • Fade {FadeIn.TotalSeconds:0.###}s in / {FadeOut.TotalSeconds:0.###}s out"
                 : string.Empty);
@@ -5067,6 +5116,7 @@ public sealed class CompositionAudioClipListItem
     public TimeSpan TimelineStart { get; }
     public bool IsMuted { get; }
     public double GainDecibels { get; }
+    public double Pan { get; }
     public TimeSpan FadeIn { get; }
     public TimeSpan FadeOut { get; }
     public string MixText { get; }

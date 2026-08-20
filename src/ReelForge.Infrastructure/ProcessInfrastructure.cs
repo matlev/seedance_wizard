@@ -340,6 +340,8 @@ public static class FfmpegCommandBuilder
                 throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio overlay start times cannot be negative.");
             if (!double.IsFinite(input.GainDecibels) || input.GainDecibels is < -60 or > 12)
                 throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio overlay gain must be between -60 dB and +12 dB.");
+            if (!double.IsFinite(input.Pan) || input.Pan is < -1 or > 1)
+                throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio pan must be between -1 and +1.");
             if (input.FadeIn < TimeSpan.Zero || input.FadeOut < TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audio fades cannot be negative.");
             var requiresFadeDuration = input.FadeIn > TimeSpan.Zero || input.FadeOut > TimeSpan.Zero;
@@ -363,9 +365,10 @@ public static class FfmpegCommandBuilder
         var filters = new List<string>();
         var mixInputs = new StringBuilder();
         var streamIndex = 0;
+        const string stereoProfile = "aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,";
         if (videoHasAudio)
         {
-            filters.Add("[0:a:0]asetpts=PTS-STARTPTS[baseaudio]");
+            filters.Add($"[0:a:0]{stereoProfile}asetpts=PTS-STARTPTS[baseaudio]");
             mixInputs.Append("[baseaudio]");
             streamIndex++;
         }
@@ -379,6 +382,13 @@ public static class FfmpegCommandBuilder
                 : Math.Abs(audioInputs[index].GainDecibels) > 0.000_001
                     ? $"volume={audioInputs[index].GainDecibels.ToString("0.###", CultureInfo.InvariantCulture)}dB,"
                     : string.Empty;
+            var pan = string.Empty;
+            if (Math.Abs(audioInputs[index].Pan) > 0.000_001)
+            {
+                var leftGain = audioInputs[index].Pan > 0 ? 1 - audioInputs[index].Pan : 1;
+                var rightGain = audioInputs[index].Pan < 0 ? 1 + audioInputs[index].Pan : 1;
+                pan = $"pan=stereo|c0={FormatUnitValue(leftGain)}*c0|c1={FormatUnitValue(rightGain)}*c1,";
+            }
             var fade = new StringBuilder();
             if (audioInputs[index].AudibleDurationSeconds is { } durationSeconds &&
                 (audioInputs[index].FadeIn > TimeSpan.Zero || audioInputs[index].FadeOut > TimeSpan.Zero))
@@ -393,7 +403,7 @@ public static class FfmpegCommandBuilder
                 fade.Append(CultureInfo.InvariantCulture,
                     $"afade=t=out:st={FormatSeconds(fadeOutStart)}:d={FormatSeconds(audioInputs[index].FadeOut.TotalSeconds)},");
             }
-            filters.Add($"[{index + 1}:a:0]{volume}{fade}adelay={delayMilliseconds}:all=1,asetpts=PTS-STARTPTS[overlay{index}]");
+            filters.Add($"[{index + 1}:a:0]{stereoProfile}{volume}{pan}{fade}adelay={delayMilliseconds}:all=1,asetpts=PTS-STARTPTS[overlay{index}]");
             mixInputs.Append(CultureInfo.InvariantCulture, $"[overlay{index}]");
             streamIndex++;
         }
@@ -407,6 +417,7 @@ public static class FfmpegCommandBuilder
             "-map", "[aout]",
             "-c:v", "copy",
             "-c:a", "aac",
+            "-ar", "48000",
             "-shortest",
             "-movflags", "+faststart",
             outputPath
@@ -476,6 +487,9 @@ public static class FfmpegCommandBuilder
     private static string FormatSeconds(double seconds) =>
         seconds.ToString("0.###", CultureInfo.InvariantCulture);
 
+    private static string FormatUnitValue(double value) =>
+        value.ToString("0.###", CultureInfo.InvariantCulture);
+
     private static void ValidateMediaPath(string path, string parameterName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path, parameterName);
@@ -491,6 +505,7 @@ public sealed record AudioOverlayInput(
     TimeSpan TimelineStart,
     bool IsMuted = false,
     double GainDecibels = 0,
+    double Pan = 0,
     TimeSpan FadeIn = default,
     TimeSpan FadeOut = default,
     double? AudibleDurationSeconds = null);

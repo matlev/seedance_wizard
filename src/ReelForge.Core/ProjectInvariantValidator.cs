@@ -251,6 +251,8 @@ public static class ProjectInvariantValidator
                     if (!double.IsFinite(audioClip.GainDecibels) ||
                         audioClip.GainDecibels is < -60 or > 12)
                         errors.Add($"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' gain must be between -60 dB and +12 dB.");
+                    if (!double.IsFinite(audioClip.Pan) || audioClip.Pan is < -1 or > 1)
+                        errors.Add($"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' pan must be between -1 and +1.");
                     if (audioClip.FadeInMilliseconds < 0 || audioClip.FadeOutMilliseconds < 0)
                         errors.Add($"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' fades cannot be negative.");
                 }

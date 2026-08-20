@@ -115,11 +115,13 @@ public sealed class FfmpegCommandBuilderTests
 
         Assert.Equal(2, arguments.Count(argument => argument == "-i"));
         var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
-        Assert.Contains("[0:a:0]asetpts=PTS-STARTPTS[baseaudio]", graph, StringComparison.Ordinal);
-        Assert.Contains("[1:a:0]adelay=2345:all=1", graph, StringComparison.Ordinal);
+        Assert.Contains("[0:a:0]aresample=48000", graph, StringComparison.Ordinal);
+        Assert.Contains("sample_rates=48000:channel_layouts=stereo", graph, StringComparison.Ordinal);
+        Assert.Contains("adelay=2345:all=1", graph, StringComparison.Ordinal);
         Assert.Contains("amix=inputs=2:duration=longest", graph, StringComparison.Ordinal);
         Assert.Contains("amix=inputs=2:duration=longest:dropout_transition=0,apad[aout]", graph, StringComparison.Ordinal);
         Assert.Contains("-shortest", arguments);
+        Assert.Equal("48000", arguments[arguments.ToList().IndexOf("-ar") + 1]);
         Assert.Equal("mixed.mp4", arguments[^1]);
     }
 
@@ -135,6 +137,7 @@ public sealed class FfmpegCommandBuilderTests
         var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
         Assert.DoesNotContain("[0:a:0]", graph, StringComparison.Ordinal);
         Assert.Contains("[overlay0]anull,apad[aout]", graph, StringComparison.Ordinal);
+        Assert.Contains("[1:a:0]aresample=48000", graph, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -150,8 +153,8 @@ public sealed class FfmpegCommandBuilderTests
             "mixed.mp4");
 
         var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
-        Assert.Contains("[1:a:0]volume=-6dB,adelay=1250:all=1", graph, StringComparison.Ordinal);
-        Assert.Contains("[2:a:0]volume=0,adelay=2000:all=1", graph, StringComparison.Ordinal);
+        Assert.Contains("volume=-6dB,adelay=1250:all=1", graph, StringComparison.Ordinal);
+        Assert.Contains("volume=0,adelay=2000:all=1", graph, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -170,8 +173,25 @@ public sealed class FfmpegCommandBuilderTests
 
         var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
         Assert.Contains(
-            "[1:a:0]atrim=duration=8.5,afade=t=in:st=0:d=1.5," +
+            "atrim=duration=8.5,afade=t=in:st=0:d=1.5," +
             "afade=t=out:st=6.5:d=2,adelay=1109:all=1",
+            graph,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AudioOverlayAppliesStereoPanAfterNormalization()
+    {
+        var arguments = FfmpegCommandBuilder.BuildAudioOverlayArguments(
+            "composition.mp4",
+            videoHasAudio: false,
+            [new AudioOverlayInput("voice-32khz-mono.wav", TimeSpan.Zero, Pan: 0.4)],
+            "mixed.mp4");
+
+        var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.Contains(
+            "aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo," +
+            "pan=stereo|c0=0.6*c0|c1=1*c1",
             graph,
             StringComparison.Ordinal);
     }

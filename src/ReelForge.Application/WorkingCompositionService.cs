@@ -290,6 +290,28 @@ public sealed class WorkingCompositionService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<RecipeRevision> SetAudioClipPanAsync(
+        Guid audioClipId,
+        double pan,
+        CancellationToken cancellationToken = default)
+    {
+        if (!double.IsFinite(pan) || pan is < -1 or > 1)
+            throw new ArgumentOutOfRangeException(nameof(pan), "Audio pan must be between -1 and +1.");
+        pan = Math.Round(pan, 2, MidpointRounding.AwayFromZero);
+        var (_, currentRevision, currentRecipe) = GetCurrent();
+        var currentClip = currentRecipe.AudioClips.SingleOrDefault(clip => clip.Id == audioClipId)
+            ?? throw new InvalidOperationException("The selected composition audio clip no longer exists.");
+        if (currentClip.Pan.Equals(pan)) return currentRevision;
+
+        return await UpdateAsync(recipe =>
+        {
+            var index = recipe.AudioClips.FindIndex(clip => clip.Id == audioClipId);
+            if (index < 0)
+                throw new InvalidOperationException("The selected composition audio clip no longer exists.");
+            recipe.AudioClips[index] = recipe.AudioClips[index] with { Pan = pan };
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     private static TimeSpan NormalizeFade(TimeSpan fade, string parameterName)
     {
         if (fade < TimeSpan.Zero)
@@ -447,6 +469,7 @@ public sealed class WorkingCompositionService
             TimelineStartTicks = clip.TimelineStartTicks,
             IsMuted = clip.IsMuted,
             GainDecibels = clip.GainDecibels,
+            Pan = clip.Pan,
             FadeInMilliseconds = clip.FadeInMilliseconds,
             FadeOutMilliseconds = clip.FadeOutMilliseconds
         }).ToList()

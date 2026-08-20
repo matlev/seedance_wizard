@@ -11,7 +11,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
 {
     private const string TrimAlgorithmVersion = "saved-clip-trim-v1";
     private const string ConcatAlgorithmVersion = "composition-concat-v2";
-    private const string AudioOverlayAlgorithmVersion = "composition-audio-overlay-v2";
+    private const string AudioOverlayAlgorithmVersion = "composition-audio-overlay-v3";
     private const string SourceAudioAlgorithmVersion = "composition-source-audio-v1";
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly IExactVideoFrameService _exactFrameService;
@@ -402,6 +402,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                     clip.TimelineStartTicks,
                     clip.IsMuted,
                     clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture),
+                    clip.Pan.ToString("R", CultureInfo.InvariantCulture),
                     clip.FadeInMilliseconds,
                     clip.FadeOutMilliseconds))),
                 videoEncoding?.Audio is not null,
@@ -445,6 +446,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                                 timelineStart,
                                 clip.IsMuted,
                                 clip.GainDecibels,
+                                clip.Pan,
                                 fadeIn,
                                 fadeOut,
                                 audibleDuration);

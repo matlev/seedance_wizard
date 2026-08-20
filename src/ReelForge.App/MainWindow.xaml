@@ -928,6 +928,20 @@
                                                         PreviewMouseLeftButtonUp="CompositionAudioClipGainSlider_PreviewMouseLeftButtonUp"
                                                         KeyUp="CompositionAudioClipGainSlider_KeyUp" />
                                             </DockPanel>
+                                            <TextBlock Text="Pan" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                       Margin="0,12,0,4" />
+                                            <DockPanel>
+                                                <TextBlock x:Name="CompositionAudioClipPanText" DockPanel.Dock="Right"
+                                                           Width="72" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                <Slider x:Name="CompositionAudioClipPanSlider"
+                                                        Minimum="-1" Maximum="1" Value="0"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                                        SmallChange="0.05" LargeChange="0.25"
+                                                        ValueChanged="CompositionAudioClipPanSlider_ValueChanged"
+                                                        PreviewMouseLeftButtonUp="CompositionAudioClipPanSlider_PreviewMouseLeftButtonUp"
+                                                        KeyUp="CompositionAudioClipPanSlider_KeyUp" />
+                                            </DockPanel>
                                             <TextBlock Text="Fade in" Style="{StaticResource ApplicationTextBlockStyle}"
                                                        Margin="0,12,0,4" />
                                             <DockPanel>
@@ -954,7 +968,7 @@
                                                         PreviewMouseLeftButtonUp="CompositionAudioClipFadeSlider_PreviewMouseLeftButtonUp"
                                                         KeyUp="CompositionAudioClipFadeSlider_KeyUp" />
                                             </DockPanel>
-                                            <TextBlock Text="Gain and fade changes are committed when you release a slider or complete a keyboard adjustment. Fade out follows the audible end when the composition cuts a longer audio file short."
+                                            <TextBlock Text="Gain, pan, and fade changes are committed when you release a slider or complete a keyboard adjustment. Audio is normalized to a 48 kHz stereo mix. Fade out follows the audible end when the composition cuts a longer audio file short."
                                                        TextWrapping="Wrap" FontSize="10" Margin="0,5,0,0"
                                                        Foreground="{StaticResource MutedTextBrush}" />
                                         </StackPanel>

@@ -573,6 +573,41 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Empty(ProjectInvariantValidator.Validate(reopened));
     }
 
+    [Fact]
+    public async Task WorkingCompositionAudioPanCommitsOnceAndPersists()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Composition audio pan");
+        var video = CreatePhysicalAsset("video.mp4", "assets/videos/video.mp4");
+        var audio = CreatePhysicalAsset("voice.wav", "assets/audio/voice.wav");
+        audio.MediaType = MediaType.Audio;
+        workspace.Project!.AddAsset(video);
+        workspace.Project.AddAsset(audio);
+        await workspace.SaveAsync();
+        var service = new WorkingCompositionService(workspace);
+        await service.CreateInitialAsync(video.Id);
+        var added = await service.AddAudioClipAsync(audio.Id, TimeSpan.Zero);
+        var audioClipId = Assert.Single(Assert.IsType<CompositionRecipe>(added.Recipe).AudioClips).Id;
+        var revisionCount = workspace.Project.RecipeRevisions.Count;
+
+        var panned = await service.SetAudioClipPanAsync(audioClipId, -0.504);
+
+        var pannedClip = Assert.Single(Assert.IsType<CompositionRecipe>(panned.Recipe).AudioClips);
+        Assert.Equal(-0.5, pannedClip.Pan);
+        Assert.Equal(0, Assert.Single(Assert.IsType<CompositionRecipe>(added.Recipe).AudioClips).Pan);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+        var noOp = await service.SetAudioClipPanAsync(audioClipId, -0.5);
+        Assert.Equal(panned.Id, noOp.Id);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+
+        var reopened = (await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath)).Project;
+        var composition = reopened.Assets.Single(asset => asset.Id == reopened.WorkingCompositionAssetId);
+        var recipe = Assert.IsType<CompositionRecipe>(reopened.RecipeRevisions.Single(revision =>
+            revision.Id == composition.Virtual!.CurrentRecipeRevisionId).Recipe);
+        Assert.Equal(-0.5, Assert.Single(recipe.AudioClips).Pan);
+        Assert.Empty(ProjectInvariantValidator.Validate(reopened));
+    }
+
     private static ProjectAsset CreatePhysicalAsset(
         string fileName,
         string relativePath,

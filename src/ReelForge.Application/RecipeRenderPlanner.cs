@@ -70,6 +70,7 @@ public sealed record CompositionAudioClipRenderPlan(
     long TimelineStartTicks,
     bool IsMuted,
     double GainDecibels,
+    double Pan,
     long FadeInMilliseconds,
     long FadeOutMilliseconds,
     string ClipHash);
@@ -223,6 +224,8 @@ public static class RecipeRenderPlanner
                 throw new InvalidDataException($"Composition audio clip '{clip.Id}' has a negative timeline start.");
             if (!double.IsFinite(clip.GainDecibels) || clip.GainDecibels is < -60 or > 12)
                 throw new InvalidDataException($"Composition audio clip '{clip.Id}' has invalid gain.");
+            if (!double.IsFinite(clip.Pan) || clip.Pan is < -1 or > 1)
+                throw new InvalidDataException($"Composition audio clip '{clip.Id}' has invalid pan.");
             if (clip.FadeInMilliseconds < 0 || clip.FadeOutMilliseconds < 0)
                 throw new InvalidDataException($"Composition audio clip '{clip.Id}' has invalid fades.");
             var clipHash = Hash(string.Join('|',
@@ -232,6 +235,7 @@ public static class RecipeRenderPlanner
                 clip.TimelineStartTicks,
                 clip.IsMuted,
                 clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture),
+                clip.Pan.ToString("R", CultureInfo.InvariantCulture),
                 clip.FadeInMilliseconds,
                 clip.FadeOutMilliseconds));
             return new CompositionAudioClipRenderPlan(
@@ -240,6 +244,7 @@ public static class RecipeRenderPlanner
                 clip.TimelineStartTicks,
                 clip.IsMuted,
                 clip.GainDecibels,
+                clip.Pan,
                 clip.FadeInMilliseconds,
                 clip.FadeOutMilliseconds,
                 clipHash);
@@ -262,6 +267,7 @@ public static class RecipeRenderPlanner
             clip.TimelineStartTicks,
             clip.IsMuted,
             clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture),
+            clip.Pan.ToString("R", CultureInfo.InvariantCulture),
             clip.FadeInMilliseconds,
             clip.FadeOutMilliseconds)));
         return new CompositionRenderPlanNode(

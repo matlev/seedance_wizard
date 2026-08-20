@@ -154,6 +154,7 @@ internal sealed class CompositionAudioClipDto
     public long TimelineStartTicks { get; set; }
     public bool IsMuted { get; set; }
     public double GainDecibels { get; set; }
+    public double Pan { get; set; }
     public long FadeInMilliseconds { get; set; }
     public long FadeOutMilliseconds { get; set; }
 }
@@ -503,6 +504,7 @@ internal static class ProjectPersistenceMapper
                 TimelineStartTicks = clip.TimelineStartTicks,
                 IsMuted = clip.IsMuted,
                 GainDecibels = clip.GainDecibels,
+                Pan = clip.Pan,
                 FadeInMilliseconds = clip.FadeInMilliseconds,
                 FadeOutMilliseconds = clip.FadeOutMilliseconds
             }).ToList()
@@ -542,6 +544,7 @@ internal static class ProjectPersistenceMapper
                 TimelineStartTicks = clip.TimelineStartTicks,
                 IsMuted = clip.IsMuted,
                 GainDecibels = clip.GainDecibels,
+                Pan = clip.Pan,
                 FadeInMilliseconds = clip.FadeInMilliseconds,
                 FadeOutMilliseconds = clip.FadeOutMilliseconds
             }).ToList()
