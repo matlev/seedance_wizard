@@ -602,9 +602,8 @@
                                                 PreviewMouseLeftButtonUp="CompositionTimelineCanvas_PreviewMouseLeftButtonUp"
                                                 LostMouseCapture="CompositionTimelineCanvas_LostMouseCapture" />
                                     </ScrollViewer>
-                                    <Canvas x:Name="CompositionTimelineDropHint" Grid.Row="1" Height="124"
-                                            VerticalAlignment="Top" Visibility="Collapsed"
-                                            IsHitTestVisible="False" ClipToBounds="True" Margin="2,0">
+                                    <Canvas x:Name="CompositionTimelineDropHint" Grid.Row="1" Visibility="Hidden"
+                                            IsHitTestVisible="False" ClipToBounds="True">
                                         <Border x:Name="CompositionTimelineDropMarker" Width="3" Height="67"
                                                 Panel.ZIndex="10" Background="#FF4D5D" CornerRadius="2">
                                             <Border.Effect>

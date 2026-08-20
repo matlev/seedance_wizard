@@ -15,6 +15,8 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
         var sourceHash = new string('a', 64);
         var source = AddPhysicalVideo(workspace.Project!, "source.mp4", sourceHash, 10);
         var composition = await new WorkingCompositionService(workspace).CreateInitialAsync(source.Id);
+        var initialSegment = new WorkingCompositionService(workspace).GetCurrent().Recipe.Segments.Single();
+        await new WorkingCompositionService(workspace).SetSegmentAudioEnabledAsync(initialSegment.Id, false);
         var originalRevision = composition.Virtual!.CurrentRecipeRevisionId;
         var originalSegment = new WorkingCompositionService(workspace).GetCurrent().Recipe.Segments.Single();
         var frames = new StubExactFrameService([
@@ -40,6 +42,7 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
         {
             Assert.Equal(RecipeBoundaryKind.SourceStart, segment.Start.Kind);
             Assert.Equal(RecipeBoundaryKind.SourceEnd, segment.End.Kind);
+            Assert.False(segment.AudioEnabled);
         });
         var splitClips = workspace.Project!.Assets
             .Where(asset => asset.Virtual?.Kind == VirtualAssetKind.SavedClip)
