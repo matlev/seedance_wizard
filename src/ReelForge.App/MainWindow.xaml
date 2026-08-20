@@ -513,6 +513,19 @@
                                 <Button x:Name="ExportCompositionButton" DockPanel.Dock="Right"
                                         Content="Export…" Click="ExportComposition_Click"
                                         ToolTip="Write this committed composition to a durable MP4 outside Project Media" />
+                                <Button x:Name="CancelCompositionRenderButton" DockPanel.Dock="Right"
+                                        Content="Cancel render" Click="CancelCompositionRender_Click"
+                                        Style="{StaticResource DangerButtonStyle}" Visibility="Collapsed"
+                                        ToolTip="Stop the current composition preview or export render" />
+                                <StackPanel x:Name="CompositionRenderIndicator" DockPanel.Dock="Right"
+                                            Orientation="Horizontal" VerticalAlignment="Center"
+                                            Margin="0,0,10,0" Visibility="Collapsed">
+                                    <ProgressBar Width="72" Height="6" IsIndeterminate="True"
+                                                 VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock x:Name="CompositionRenderStatusText"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
                                 <StackPanel>
                                     <TextBlock Text="WORKING COMPOSITION" FontSize="12" FontWeight="SemiBold"
                                                Foreground="{StaticResource MutedTextBrush}" />

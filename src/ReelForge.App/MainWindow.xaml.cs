@@ -107,6 +107,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private Guid? _frameSourceAssetId;
     private string? _frameSourceContentHash;
     private MaterializedMediaLease? _activePreviewLease;
+    private CancellationTokenSource? _compositionRenderCancellation;
     private CompositionTimelineLayoutResult? _compositionTimelineLayout;
     private Line? _compositionTimelinePlayhead;
     private Guid? _activeCompositionPreviewRevisionId;
@@ -259,6 +260,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _compositionTimelineItemDragAutoScrollTimer.Stop();
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
+        _compositionRenderCancellation?.Cancel();
         ReleaseActivePreviewLease();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Dispose();
@@ -1553,7 +1555,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (_workspace.Project is null || _workspace.Location is null) return;
         var projectId = _workspace.Project.Id;
         var (composition, revision, _) = new WorkingCompositionService(_workspace).GetCurrent();
-        await RunUiActionAsync("Rendering composition preview…", async () =>
+        await RunCompositionRenderAsync(
+            "Rendering preview…",
+            "Composition preview render cancelled.",
+            async cancellationToken =>
         {
             MaterializedMediaLease? lease = null;
             try
@@ -1563,7 +1568,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     _workspace.Location,
                     new MaterializationRequest(
                         new AssetMaterializationTarget(composition.Id, revision.Id),
-                        MaterializationPurpose.Preview));
+                        MaterializationPurpose.Preview),
+                    cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 if (_workspace.Project?.Id != projectId)
                 {
                     await lease.DisposeAsync();
@@ -1601,12 +1608,66 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         };
         if (dialog.ShowDialog(this) != true) return;
 
-        await RunUiActionAsync("Exporting Working Composition…", async () =>
+        await RunCompositionRenderAsync(
+            "Exporting composition…",
+            "Composition export cancelled.",
+            async cancellationToken =>
+            {
+                var service = CreateRenderedAssetPromotionService();
+                var path = await service.ExportAsync(
+                    composition.Id,
+                    revision.Id,
+                    dialog.FileName,
+                    cancellationToken);
+                StatusText.Text = $"Exported Working Composition to {path}.";
+            });
+    }
+
+    private void CancelCompositionRender_Click(object sender, RoutedEventArgs e)
+    {
+        if (_compositionRenderCancellation is null) return;
+        CancelCompositionRenderButton.IsEnabled = false;
+        CompositionRenderStatusText.Text = "Cancelling…";
+        StatusText.Text = "Cancelling composition render…";
+        _compositionRenderCancellation.Cancel();
+    }
+
+    private async Task RunCompositionRenderAsync(
+        string activeStatus,
+        string cancelledStatus,
+        Func<CancellationToken, Task> action)
+    {
+        if (_compositionRenderCancellation is not null) return;
+
+        using var cancellation = new CancellationTokenSource();
+        _compositionRenderCancellation = cancellation;
+        CompositionRenderStatusText.Text = activeStatus;
+        CompositionRenderIndicator.Visibility = Visibility.Visible;
+        CancelCompositionRenderButton.Visibility = Visibility.Visible;
+        CancelCompositionRenderButton.IsEnabled = true;
+        PreviewCompositionButton.IsEnabled = false;
+        ExportCompositionButton.IsEnabled = false;
+        StatusText.Text = activeStatus;
+        try
         {
-            var service = CreateRenderedAssetPromotionService();
-            var path = await service.ExportAsync(composition.Id, revision.Id, dialog.FileName);
-            StatusText.Text = $"Exported Working Composition to {path}.";
-        });
+            await action(cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            StatusText.Text = cancelledStatus;
+        }
+        catch (Exception exception)
+        {
+            ShowError("Composition render failed", exception);
+        }
+        finally
+        {
+            if (ReferenceEquals(_compositionRenderCancellation, cancellation))
+                _compositionRenderCancellation = null;
+            CompositionRenderIndicator.Visibility = Visibility.Collapsed;
+            CancelCompositionRenderButton.Visibility = Visibility.Collapsed;
+            UpdateCompositionActionState();
+        }
     }
 
     private void CompositionTimelineScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e) =>
@@ -2401,8 +2462,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         MoveCompositionSegmentDownButton.IsEnabled = index >= 0 && index < _compositionSegments.Count - 1;
         RemoveCompositionSegmentButton.IsEnabled =
             (index >= 0 && _compositionSegments.Count > 1) || _selectedCompositionAudioClipId is not null;
-        PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0;
-        ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0;
+        PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0 && _compositionRenderCancellation is null;
+        ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0 && _compositionRenderCancellation is null;
         if (EditToolsEmptyState is null) return;
         _suppressCompositionAudioControl = true;
         try

@@ -97,6 +97,28 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportCancellationReachesMaterializerAndLeavesNoDestination()
+    {
+        var (workspace, composition, revision, _) = await CreateCompositionAsync();
+        var materializer = new BlockingMaterializer();
+        var service = new RenderedAssetPromotionService(
+            workspace,
+            materializer,
+            new Sha256ContentHashService(),
+            new StubInspector());
+        var destination = Path.Combine(_root, "delivery", "cancelled.mp4");
+        using var cancellation = new CancellationTokenSource();
+
+        var export = service.ExportAsync(composition.Id, revision.Id, destination, cancellation.Token);
+        await materializer.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => export);
+        Assert.False(File.Exists(destination));
+        Assert.Empty(Directory.EnumerateFiles(Path.GetDirectoryName(destination)!, "*.partial"));
+    }
+
+    [Fact]
     public async Task SavedFramePromotionCreatesPhysicalPngWithPinnedAnchorProvenance()
     {
         var (workspace, _, _, renderedPath) = await CreateCompositionAsync();
@@ -194,6 +216,22 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
                 new ContentIdentity { Sha256 = new string('b', 64), Status = ContentHashStatus.Verified },
                 null,
                 isDurableSource: false));
+        }
+    }
+
+    private sealed class BlockingMaterializer : IMediaMaterializer
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<MaterializedMediaLease> MaterializeAsync(
+            VideoProject project,
+            ProjectLocation location,
+            MaterializationRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The blocking materializer should only finish through cancellation.");
         }
     }
 
