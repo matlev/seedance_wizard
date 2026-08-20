@@ -119,6 +119,116 @@ public sealed class MaterializationTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task VirtualExactBoundaryRendersSplitCompositionAndMaterializesItsFrame()
+    {
+        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
+        sourceAsset.DurationSeconds = 4;
+        sourceAsset.Physical!.ContentIdentity = await new Sha256ContentHashService()
+            .ComputeAsync(Path.Combine(_root, sourceAsset.Physical.RelativePath));
+        var clip = new ProjectAsset
+        {
+            DisplayName = "Pinned clip",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState
+            {
+                Kind = VirtualAssetKind.SavedClip,
+                ExpectedMediaProperties = CompatibleEncoding()
+            }
+        };
+        project.AddAsset(clip);
+        var clipRevision = project.CommitRecipe(clip.Id, new TrimRecipe
+        {
+            Source = new AssetRevisionReference { AssetId = sourceAsset.Id }
+        });
+        var runner = new TrimRunner();
+        var extractedPath = Path.Combine(_root, "virtual-frame.png");
+        await File.WriteAllBytesAsync(extractedPath, [137, 80, 78, 71]);
+        var frames = new StubExactFrameService([
+            new VideoPresentationFrame(0, 30, 1, 30, 30),
+            new VideoPresentationFrame(0, 31, 1, 30, 31)
+        ], extractedPath);
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe",
+            runner,
+            frames,
+            Path.Combine(_root, "cache"),
+            mediaInspector: new StubMediaInspector(CompatibleEncoding()));
+        await using var realizedClip = await materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(clip.Id, clipRevision.Id),
+                MaterializationPurpose.FrameExtraction));
+        var anchor = new FrameAnchor { IsArchived = true };
+        project.Anchors.Add(anchor);
+        var anchorRevision = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            clip.Id,
+            realizedClip.ContentIdentity.Sha256!,
+            0,
+            30,
+            1,
+            30,
+            30,
+            clipRevision.Id));
+        var boundary = new RecipeBoundary
+        {
+            Kind = RecipeBoundaryKind.Anchor,
+            Anchor = new AnchorRevisionReference
+            {
+                AnchorId = anchor.Id,
+                AnchorRevisionId = anchorRevision.Id
+            },
+            Edge = AnchorBoundaryEdge.BeforeFrame
+        };
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Split composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(composition);
+        var compositionRevision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments =
+            [
+                new CompositionSegment
+                {
+                    Source = new AssetRevisionReference { AssetId = clip.Id, RecipeRevisionId = clipRevision.Id },
+                    End = boundary
+                },
+                new CompositionSegment
+                {
+                    Source = new AssetRevisionReference { AssetId = clip.Id, RecipeRevisionId = clipRevision.Id },
+                    Start = boundary
+                }
+            ]
+        });
+
+        await using var compositionMedia = await materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(composition.Id, compositionRevision.Id),
+                MaterializationPurpose.Preview));
+        await using var frameMedia = await materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AnchorMaterializationTarget(anchor.Id, anchorRevision.Id),
+                MaterializationPurpose.ProviderUpload));
+
+        Assert.True(File.Exists(compositionMedia.Path));
+        Assert.Equal(extractedPath, frameMedia.Path);
+        Assert.Equal(1, runner.ConcatCount);
+        Assert.True(runner.TrimCount >= 3);
+        Assert.Empty(ProjectInvariantValidator.Validate(project));
+    }
+
+    [Fact]
     public async Task InitialWorkingCompositionPreviewsItsPinnedSingleSourceDirectly()
     {
         var (project, location, sourceAsset) = await CreateProjectSourceAsync();

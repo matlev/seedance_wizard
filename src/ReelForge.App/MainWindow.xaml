@@ -629,6 +629,9 @@
                                             Click="MoveCompositionSegmentUp_Click" IsEnabled="False" />
                                     <Button x:Name="MoveCompositionSegmentDownButton" Content="Move down"
                                             Click="MoveCompositionSegmentDown_Click" IsEnabled="False" />
+                                    <Button x:Name="SplitCompositionSegmentButton" Content="Split at playhead"
+                                            Click="SplitCompositionSegment_Click" IsEnabled="False"
+                                            ToolTip="Split the selected video segment before the exact frame at the composition playhead" />
                                 </StackPanel>
                                 <Button x:Name="RemoveCompositionSegmentButton" Grid.Column="1" Content="Remove"
                                         Click="RemoveCompositionSegment_Click" Style="{StaticResource DangerButtonStyle}"

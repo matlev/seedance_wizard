@@ -66,15 +66,18 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(location);
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Target is not AssetMaterializationTarget assetTarget)
+        if (request.Target is AnchorMaterializationTarget anchorTarget)
         {
-            var anchorMedia = await _physicalMaterializer.MaterializeAsync(
-                    project, location, request, cancellationToken)
+            var anchorMedia = await MaterializeAnchorAsync(
+                    project, location, anchorTarget, request.Purpose, request.Profile, cancellationToken)
                 .ConfigureAwait(false);
             return await PersistIfRequestedAsync(
                     project, location, request.Target, anchorMedia, cancellationToken)
                 .ConfigureAwait(false);
         }
+        if (request.Target is not AssetMaterializationTarget assetTarget)
+            throw new NotSupportedException(
+                $"Materialization target '{request.Target.GetType().Name}' is not supported.");
 
         var asset = project.Assets.SingleOrDefault(candidate => candidate.Id == assetTarget.AssetId)
             ?? throw new InvalidOperationException($"Asset '{assetTarget.AssetId}' no longer exists.");
@@ -89,6 +92,53 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
             .ConfigureAwait(false);
         return await PersistIfRequestedAsync(
                 project, location, request.Target, media, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<MaterializedMediaLease> MaterializeAnchorAsync(
+        VideoProject project,
+        ProjectLocation location,
+        AnchorMaterializationTarget target,
+        MaterializationPurpose purpose,
+        string? profile,
+        CancellationToken cancellationToken)
+    {
+        var revision = project.AnchorRevisions.SingleOrDefault(candidate =>
+                candidate.Id == target.AnchorRevisionId && candidate.AnchorId == target.AnchorId)
+            ?? throw new InvalidOperationException($"Frame anchor revision '{target.AnchorRevisionId}' no longer exists.");
+        var sourceAsset = project.Assets.SingleOrDefault(candidate => candidate.Id == revision.SourceAssetId)
+            ?? throw new InvalidOperationException($"Anchor source asset '{revision.SourceAssetId}' no longer exists.");
+        if (sourceAsset.StorageKind == AssetStorageKind.Physical)
+            return await _physicalMaterializer.MaterializeAsync(
+                    project,
+                    location,
+                    new MaterializationRequest(target, purpose, Profile: profile),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        if (revision.SourceRecipeRevisionId is not { } sourceRevisionId)
+            throw new InvalidDataException("An exact position in virtual media is missing its pinned source revision.");
+
+        await using var source = await MaterializeAsync(
+                project,
+                location,
+                new MaterializationRequest(
+                    new AssetMaterializationTarget(sourceAsset.Id, sourceRevisionId),
+                    MaterializationPurpose.FrameExtraction),
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!string.Equals(
+                source.ContentIdentity.Sha256,
+                revision.SourceContentHash,
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException(
+                "The materialized virtual source no longer matches the content identity pinned by the exact position.");
+        return await _exactFrameService.ExtractAsync(
+                source.Path,
+                revision.SourceContentHash,
+                revision,
+                purpose,
+                profile,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -250,16 +300,18 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         MaterializationRequest request,
         CancellationToken cancellationToken)
     {
+        var sourceReference = GetAssetRevisionReference(trim.Source);
+        var sourceRequest = GetBoundarySourceRequest(project, sourceReference, trim.Start, trim.End, request);
         await using var source = await ExecuteNodeAsync(
                 project,
                 location,
                 project.Assets.Single(asset => asset.Id == trim.Source.AssetId),
                 trim.Source,
-                request,
+                sourceRequest,
                 cancellationToken)
             .ConfigureAwait(false);
         return await RenderTrimAsync(
-                project, outputAsset, trim.Source.AssetId, trim.NodeHash, trim.Start, trim.End,
+                project, outputAsset, sourceReference, trim.NodeHash, trim.Start, trim.End,
                 source, request, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -571,11 +623,13 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
             return await ExecuteNodeAsync(project, location, sourceAsset, segment.Source, request, cancellationToken)
                 .ConfigureAwait(false);
 
+        var sourceReference = GetAssetRevisionReference(segment.Source);
+        var sourceRequest = GetBoundarySourceRequest(project, sourceReference, segment.Start, segment.End, request);
         await using var source = await ExecuteNodeAsync(
-                project, location, sourceAsset, segment.Source, request, cancellationToken)
+                project, location, sourceAsset, segment.Source, sourceRequest, cancellationToken)
             .ConfigureAwait(false);
         return await RenderTrimAsync(
-                project, outputAsset, segment.Source.AssetId, segment.SegmentHash,
+                project, outputAsset, sourceReference, segment.SegmentHash,
                 segment.Start, segment.End, source, request, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -723,7 +777,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
     private async Task<MaterializedMediaLease> RenderTrimAsync(
         VideoProject project,
         ProjectAsset outputAsset,
-        Guid sourceAssetId,
+        AssetRevisionReference sourceReference,
         string nodeHash,
         RecipeBoundary start,
         RecipeBoundary end,
@@ -731,7 +785,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         MaterializationRequest request,
         CancellationToken cancellationToken)
     {
-        var sourceAsset = project.Assets.Single(candidate => candidate.Id == sourceAssetId);
+        var sourceAsset = project.Assets.Single(candidate => candidate.Id == sourceReference.AssetId);
         var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
             "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or use Saved Clips.");
         var fingerprint = await GetRendererFingerprintAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
@@ -757,9 +811,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
                                   sourceAsset.DurationSeconds ??
                                   sourceAsset.Encoding?.DurationSeconds;
             var startSeconds = await ResolveBoundarySecondsAsync(
-                project, sourceAsset, source.Path, start, durationSeconds, isEnd: false, cancellationToken).ConfigureAwait(false);
+                project, sourceReference, sourceAsset, source, start, durationSeconds, isEnd: false, cancellationToken).ConfigureAwait(false);
             var endSeconds = await ResolveBoundarySecondsAsync(
-                project, sourceAsset, source.Path, end, durationSeconds, isEnd: true, cancellationToken).ConfigureAwait(false);
+                project, sourceReference, sourceAsset, source, end, durationSeconds, isEnd: true, cancellationToken).ConfigureAwait(false);
             if (startSeconds < 0 || endSeconds <= startSeconds)
                 throw new InvalidDataException("The Saved Clip recipe resolves to an empty or invalid source range.");
             Directory.CreateDirectory(cacheDirectory);
@@ -799,8 +853,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
 
     private async Task<double> ResolveBoundarySecondsAsync(
         VideoProject project,
+        AssetRevisionReference sourceReference,
         ProjectAsset sourceAsset,
-        string sourcePath,
+        MaterializedMediaLease source,
         RecipeBoundary boundary,
         double? sourceDurationSeconds,
         bool isEnd,
@@ -813,25 +868,22 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
             return timestamp;
         if (boundary.Kind != RecipeBoundaryKind.Anchor || boundary.Anchor is null || boundary.Edge is null)
             throw new InvalidDataException("The Saved Clip contains an incomplete boundary.");
-        if (sourceAsset.StorageKind != AssetStorageKind.Physical)
-            throw new NotSupportedException(
-                "Anchor boundaries on virtual video require Phase 2D time mapping.");
-
         var anchorRevision = project.AnchorRevisions.SingleOrDefault(candidate =>
                 candidate.Id == boundary.Anchor.AnchorRevisionId && candidate.AnchorId == boundary.Anchor.AnchorId)
             ?? throw new InvalidOperationException(
                 $"Clip boundary revision '{boundary.Anchor.AnchorRevisionId}' no longer exists.");
-        if (anchorRevision.SourceAssetId != sourceAsset.Id)
+        if (anchorRevision.SourceAssetId != sourceAsset.Id ||
+            anchorRevision.SourceRecipeRevisionId != sourceReference.RecipeRevisionId)
             throw new InvalidDataException("A Saved Clip boundary points at a different source asset.");
         if (!string.Equals(
                 anchorRevision.SourceContentHash,
-                sourceAsset.Physical?.ContentIdentity.Sha256,
+                source.ContentIdentity.Sha256,
                 StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The Saved Clip boundary no longer matches its source content.");
 
         if (boundary.Edge == AnchorBoundaryEdge.BeforeFrame) return anchorRevision.TimestampSeconds;
         var nearbyFrames = await _exactFrameService.IndexWindowAsync(
-                sourcePath,
+                source.Path,
                 Math.Max(0, anchorRevision.TimestampSeconds),
                 radiusSeconds: 2,
                 cancellationToken)
@@ -850,6 +902,48 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, IDisposable
         materializedDurationSeconds ?? sourceAsset.DurationSeconds ?? sourceAsset.Encoding?.DurationSeconds ??
         sourceAsset.Virtual?.ExpectedMediaProperties?.DurationSeconds
         ?? throw new InvalidDataException("The source duration is required to resolve the end of this Saved Clip.");
+
+    private static AssetRevisionReference GetAssetRevisionReference(MediaRenderPlanNode node) => new()
+    {
+        AssetId = node.AssetId,
+        RecipeRevisionId = node switch
+        {
+            TrimRenderPlanNode trim => trim.RecipeRevisionId,
+            ExtractFrameRenderPlanNode frame => frame.RecipeRevisionId,
+            CompositionRenderPlanNode composition => composition.RecipeRevisionId,
+            _ => null
+        }
+    };
+
+    private static MaterializationRequest GetBoundarySourceRequest(
+        VideoProject project,
+        AssetRevisionReference source,
+        RecipeBoundary start,
+        RecipeBoundary end,
+        MaterializationRequest request)
+    {
+        if (source.RecipeRevisionId is null ||
+            !ReferencesVirtualExactPosition(project, start, source) &&
+            !ReferencesVirtualExactPosition(project, end, source))
+            return request;
+        return request with
+        {
+            Purpose = MaterializationPurpose.FrameExtraction,
+            Profile = null
+        };
+    }
+
+    private static bool ReferencesVirtualExactPosition(
+        VideoProject project,
+        RecipeBoundary boundary,
+        AssetRevisionReference source) =>
+        boundary.Kind == RecipeBoundaryKind.Anchor &&
+        boundary.Anchor is { } reference &&
+        project.AnchorRevisions.Any(revision =>
+            revision.Id == reference.AnchorRevisionId &&
+            revision.AnchorId == reference.AnchorId &&
+            revision.SourceAssetId == source.AssetId &&
+            revision.SourceRecipeRevisionId == source.RecipeRevisionId);
 
     private async Task<string> GetRendererFingerprintAsync(string ffmpegPath, CancellationToken cancellationToken)
     {

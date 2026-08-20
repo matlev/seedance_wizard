@@ -1324,7 +1324,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         {
             var segment = recipe.Segments[index];
             var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId);
-            _compositionSegments.Add(new CompositionSegmentListItem(index, segment, source));
+            _compositionSegments.Add(new CompositionSegmentListItem(
+                index,
+                segment,
+                source,
+                CompositionSegmentTiming.ResolveDuration(_workspace.Project, segment, source)));
         }
         _selectedCompositionSegmentId = selectedSegmentId is { } id &&
                                         _compositionSegments.Any(item => item.SegmentId == id)
@@ -1365,6 +1369,31 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void MoveCompositionSegmentDown_Click(object sender, RoutedEventArgs e) =>
         await MoveSelectedCompositionSegmentAsync(1);
+
+    private async void SplitCompositionSegment_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedCompositionSegment() is not { } selected ||
+            _compositionTimelineLayout?.Segments.SingleOrDefault(span => span.SegmentId == selected.SegmentId) is not { } span)
+            return;
+        var playbackSeconds = VideoPreview.Position.TotalSeconds;
+        var offset = playbackSeconds - span.StartSeconds;
+        VideoPreview.Pause();
+        SetPlaybackState(false);
+        await RunUiActionAsync("Splitting composition segment at the exact playhead frame…", async () =>
+        {
+            var result = await new CompositionSegmentSplitService(
+                    _workspace,
+                    _mediaMaterializer,
+                    _exactFrameService)
+                .SplitAsync(selected.SegmentId, TimeSpan.FromSeconds(offset));
+            _selectedCompositionSegmentId = result.TrailingSegmentId;
+            _selectedCompositionAudioClipId = null;
+            RefreshEditWorkspaceState();
+            StatusText.Text =
+                $"Split {selected.DisplayName} at source {FormatTimelineTimePrecise(result.SourceTimestampSeconds)}. " +
+                "Preview the composition to rebuild it.";
+        });
+    }
 
     private async void CompositionSegmentAudio_Checked(object sender, RoutedEventArgs e)
     {
@@ -1583,6 +1612,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 lease = null;
                 PreviewPlaceholder.Visibility = Visibility.Collapsed;
                 OpenVideoPreview(_activePreviewLease.Path, requiresWarmup: true);
+                UpdateCompositionActionState();
                 StatusText.Text = "Working Composition preview is ready.";
             }
             finally
@@ -2370,6 +2400,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void UpdateCompositionTimelinePlayhead(double playbackSeconds)
     {
+        UpdateCompositionSplitActionState(playbackSeconds);
         if (_compositionTimelinePlayhead is null || _compositionTimelineLayout is null ||
             _activeCompositionPreviewRevisionId is null)
         {
@@ -2392,6 +2423,25 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             if (Math.Abs(desiredOffset - scrollViewer.HorizontalOffset) > 0.5)
                 scrollViewer.ScrollToHorizontalOffset(desiredOffset);
         }
+    }
+
+    private void UpdateCompositionSplitActionState(double playbackSeconds)
+    {
+        if (SplitCompositionSegmentButton is null) return;
+        var currentRevisionId = _workspace.Project?.WorkingCompositionAssetId is { } compositionId
+            ? _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == compositionId)?.Virtual?.CurrentRecipeRevisionId
+            : null;
+        var span = _selectedCompositionSegmentId is { } selectedId
+            ? _compositionTimelineLayout?.Segments.SingleOrDefault(candidate => candidate.SegmentId == selectedId)
+            : null;
+        var selectedSegment = GetSelectedCompositionSegment();
+        SplitCompositionSegmentButton.IsEnabled =
+            currentRevisionId is not null &&
+            _activeCompositionPreviewRevisionId == currentRevisionId &&
+            selectedSegment?.DurationSeconds is > 0 &&
+            span is not null &&
+            playbackSeconds > span.StartSeconds + 0.000_000_1 &&
+            playbackSeconds < span.StartSeconds + span.DurationSeconds - 0.000_000_1;
     }
 
     private void ClearCompositionTimeline()
@@ -2462,6 +2512,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         MoveCompositionSegmentDownButton.IsEnabled = index >= 0 && index < _compositionSegments.Count - 1;
         RemoveCompositionSegmentButton.IsEnabled =
             (index >= 0 && _compositionSegments.Count > 1) || _selectedCompositionAudioClipId is not null;
+        UpdateCompositionSplitActionState(VideoPreview.Position.TotalSeconds);
         PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0 && _compositionRenderCancellation is null;
         ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0 && _compositionRenderCancellation is null;
         if (EditToolsEmptyState is null) return;
@@ -5504,20 +5555,26 @@ public sealed class ProjectMediaListItem
 
 public sealed class CompositionSegmentListItem
 {
-    public CompositionSegmentListItem(int index, CompositionSegment segment, ProjectAsset? source)
+    public CompositionSegmentListItem(
+        int index,
+        CompositionSegment segment,
+        ProjectAsset? source,
+        double? durationSeconds)
     {
         Index = index;
         SegmentId = segment.Id;
         DisplayName = source?.EffectiveDisplayName ?? "Missing source";
+        var isExactRange = segment.Start.Kind != RecipeBoundaryKind.SourceStart ||
+                           segment.End.Kind != RecipeBoundaryKind.SourceEnd;
         DetailText = source is null
             ? $"Source {segment.Source.AssetId:N} is unavailable"
             : source.StorageKind == AssetStorageKind.Virtual
-                ? $"Saved Clip • pinned recipe {segment.Source.RecipeRevisionId?.ToString("N") ?? "missing"}"
-                : "Physical video • full source";
+                ? $"Saved Clip • {(isExactRange ? "exact range • " : string.Empty)}pinned recipe " +
+                  (segment.Source.RecipeRevisionId?.ToString("N") ?? "missing")
+                : $"Physical video • {(isExactRange ? "exact range" : "full source")}";
         AudioText = segment.AudioEnabled ? "Audio on" : "Audio muted";
         AudioEnabled = segment.AudioEnabled;
-        DurationSeconds = source?.DurationSeconds ?? source?.Encoding?.DurationSeconds ??
-                          source?.Virtual?.ExpectedMediaProperties?.DurationSeconds;
+        DurationSeconds = durationSeconds;
         DurationText = DurationSeconds is > 0
             ? FormatDuration(DurationSeconds.Value)
             : "Duration unknown";
@@ -5536,6 +5593,8 @@ public sealed class CompositionSegmentListItem
     private static string FormatDuration(double seconds)
     {
         var time = TimeSpan.FromSeconds(seconds);
+        if (seconds < 10 || Math.Abs(seconds - Math.Round(seconds)) > 0.000_5)
+            return time.ToString(@"m\:ss\.fff", CultureInfo.InvariantCulture);
         return time.TotalHours >= 1
             ? time.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
             : time.ToString(@"m\:ss", CultureInfo.InvariantCulture);

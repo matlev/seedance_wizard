@@ -121,9 +121,21 @@ public static class ProjectInvariantValidator
         {
             if (!anchors.ContainsKey(revision.AnchorId))
                 errors.Add($"Anchor revision '{revision.Id}' belongs to missing anchor '{revision.AnchorId}'.");
-            if (!assets.TryGetValue(revision.SourceAssetId, out var source) ||
-                source.StorageKind != AssetStorageKind.Physical || source.MediaType != MediaType.Video)
-                errors.Add($"Anchor revision '{revision.Id}' must reference a durable physical video asset.");
+            if (!assets.TryGetValue(revision.SourceAssetId, out var source) || source.MediaType != MediaType.Video)
+            {
+                errors.Add($"Anchor revision '{revision.Id}' must reference a video asset.");
+            }
+            else if (source.StorageKind == AssetStorageKind.Physical)
+            {
+                if (revision.SourceRecipeRevisionId is not null)
+                    errors.Add($"Physical anchor revision '{revision.Id}' cannot pin a recipe revision.");
+            }
+            else if (revision.SourceRecipeRevisionId is not { } sourceRevisionId ||
+                     !project.RecipeRevisions.Any(candidate =>
+                         candidate.Id == sourceRevisionId && candidate.VirtualAssetId == source.Id))
+            {
+                errors.Add($"Virtual anchor revision '{revision.Id}' must pin a source recipe revision.");
+            }
             if (revision.RevisionNumber < 1)
                 errors.Add($"Anchor revision '{revision.Id}' has an invalid revision number.");
             if (!IsSha256(revision.SourceContentHash))
@@ -218,8 +230,8 @@ public static class ProjectInvariantValidator
         switch (revision.Recipe)
         {
             case TrimRecipe trim:
-                ValidateBoundary(trim.Start, trim.Source.AssetId, revision.Id, anchorRevisions, errors);
-                ValidateBoundary(trim.End, trim.Source.AssetId, revision.Id, anchorRevisions, errors);
+                ValidateBoundary(trim.Start, trim.Source, revision.Id, anchorRevisions, errors);
+                ValidateBoundary(trim.End, trim.Source, revision.Id, anchorRevisions, errors);
                 var startSeconds = ResolveBoundarySeconds(trim.Start, anchorRevisions);
                 var endSeconds = ResolveBoundarySeconds(trim.End, anchorRevisions);
                 if (startSeconds is { } start && endSeconds is { } end && end <= start)
@@ -235,8 +247,8 @@ public static class ProjectInvariantValidator
                     errors.Add($"Recipe revision '{revision.Id}' composition must contain at least one segment.");
                 foreach (var segment in composition.Segments)
                 {
-                    ValidateBoundary(segment.Start, segment.Source.AssetId, revision.Id, anchorRevisions, errors);
-                    ValidateBoundary(segment.End, segment.Source.AssetId, revision.Id, anchorRevisions, errors);
+                    ValidateBoundary(segment.Start, segment.Source, revision.Id, anchorRevisions, errors);
+                    ValidateBoundary(segment.End, segment.Source, revision.Id, anchorRevisions, errors);
                     var segmentStart = ResolveBoundarySeconds(segment.Start, anchorRevisions);
                     var segmentEnd = ResolveBoundarySeconds(segment.End, anchorRevisions);
                     if (segmentStart is { } compositionStart &&
@@ -262,7 +274,7 @@ public static class ProjectInvariantValidator
 
     private static void ValidateBoundary(
         RecipeBoundary boundary,
-        Guid sourceAssetId,
+        AssetRevisionReference source,
         Guid revisionId,
         Dictionary<Guid, FrameAnchorRevision> anchorRevisions,
         List<string> errors)
@@ -270,7 +282,8 @@ public static class ProjectInvariantValidator
         if (boundary.Kind == RecipeBoundaryKind.Anchor &&
             boundary.Anchor is { } anchor &&
             anchorRevisions.TryGetValue(anchor.AnchorRevisionId, out var anchorRevision) &&
-            anchorRevision.SourceAssetId != sourceAssetId)
+            (anchorRevision.SourceAssetId != source.AssetId ||
+             anchorRevision.SourceRecipeRevisionId != source.RecipeRevisionId))
             errors.Add($"Recipe revision '{revisionId}' trim anchor must belong to its source asset.");
         if (boundary.Kind == RecipeBoundaryKind.Anchor &&
             (boundary.Anchor is null || boundary.Edge is null))
@@ -449,6 +462,7 @@ public static class ProjectInvariantValidator
     {
         var snapshot = reference.Anchor!;
         if (snapshot.SourceAssetId != revision.SourceAssetId ||
+            snapshot.SourceRecipeRevisionId != revision.SourceRecipeRevisionId ||
             !string.Equals(snapshot.SourceContentHash, revision.SourceContentHash, StringComparison.OrdinalIgnoreCase) ||
             snapshot.VideoStreamIndex != revision.VideoStreamIndex ||
             snapshot.PresentationTimestamp != revision.PresentationTimestamp ||

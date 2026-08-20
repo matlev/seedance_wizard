@@ -190,6 +190,7 @@ internal sealed class FrameAnchorRevisionDto
     public int RevisionNumber { get; set; }
     public Guid? PreviousRevisionId { get; set; }
     public Guid SourceAssetId { get; set; }
+    public Guid? SourceRecipeRevisionId { get; set; }
     public string SourceContentHash { get; set; } = string.Empty;
     public int VideoStreamIndex { get; set; }
     public long PresentationTimestamp { get; set; }
@@ -276,6 +277,7 @@ internal sealed class FrameAnchorReferenceSnapshotDto
 {
     public Guid AnchorRevisionId { get; set; }
     public Guid SourceAssetId { get; set; }
+    public Guid? SourceRecipeRevisionId { get; set; }
     public string SourceContentHash { get; set; } = string.Empty;
     public int VideoStreamIndex { get; set; }
     public long PresentationTimestamp { get; set; }
@@ -619,6 +621,7 @@ internal static class ProjectPersistenceMapper
         RevisionNumber = source.RevisionNumber,
         PreviousRevisionId = source.PreviousRevisionId,
         SourceAssetId = source.SourceAssetId,
+        SourceRecipeRevisionId = source.SourceRecipeRevisionId,
         SourceContentHash = source.SourceContentHash,
         VideoStreamIndex = source.VideoStreamIndex,
         PresentationTimestamp = source.PresentationTimestamp,
@@ -635,6 +638,7 @@ internal static class ProjectPersistenceMapper
         RevisionNumber = source.RevisionNumber,
         PreviousRevisionId = source.PreviousRevisionId,
         SourceAssetId = source.SourceAssetId,
+        SourceRecipeRevisionId = source.SourceRecipeRevisionId,
         SourceContentHash = source.SourceContentHash,
         VideoStreamIndex = source.VideoStreamIndex,
         PresentationTimestamp = source.PresentationTimestamp,
@@ -794,6 +798,7 @@ internal static class ProjectPersistenceMapper
     {
         AnchorRevisionId = source.AnchorRevisionId,
         SourceAssetId = source.SourceAssetId,
+        SourceRecipeRevisionId = source.SourceRecipeRevisionId,
         SourceContentHash = source.SourceContentHash,
         VideoStreamIndex = source.VideoStreamIndex,
         PresentationTimestamp = source.PresentationTimestamp,
@@ -806,6 +811,7 @@ internal static class ProjectPersistenceMapper
     {
         AnchorRevisionId = source.AnchorRevisionId,
         SourceAssetId = source.SourceAssetId,
+        SourceRecipeRevisionId = source.SourceRecipeRevisionId,
         SourceContentHash = source.SourceContentHash,
         VideoStreamIndex = source.VideoStreamIndex,
         PresentationTimestamp = source.PresentationTimestamp,

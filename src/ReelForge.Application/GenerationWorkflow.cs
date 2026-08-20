@@ -515,6 +515,7 @@ public sealed class GenerationWorkflow
                 {
                     AnchorRevisionId = revision.Id,
                     SourceAssetId = revision.SourceAssetId,
+                    SourceRecipeRevisionId = revision.SourceRecipeRevisionId,
                     SourceContentHash = revision.SourceContentHash,
                     VideoStreamIndex = revision.VideoStreamIndex,
                     PresentationTimestamp = revision.PresentationTimestamp,

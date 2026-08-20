@@ -85,16 +85,29 @@ public sealed class VideoProject
             ?? throw new InvalidOperationException($"Frame anchor '{anchorId}' does not exist.");
         var source = Assets.SingleOrDefault(candidate => candidate.Id == position.SourceAssetId)
             ?? throw new InvalidOperationException($"Anchor source asset '{position.SourceAssetId}' does not exist.");
-        if (source.StorageKind != AssetStorageKind.Physical || source.MediaType != MediaType.Video)
-            throw new InvalidOperationException("Frame anchors currently require a durable physical video source.");
+        if (source.MediaType != MediaType.Video)
+            throw new InvalidOperationException("Frame anchors require a video source.");
         if (position.VideoStreamIndex < 0 ||
             position.TimeBaseNumerator <= 0 || position.TimeBaseDenominator <= 0)
             throw new InvalidOperationException("An exact frame position requires a valid stream, PTS, and rational time base.");
         if (!IsSha256(position.SourceContentHash))
             throw new InvalidOperationException("An exact frame position requires a verified source SHA-256 hash.");
-        if (source.Physical?.ContentIdentity is not { Status: ContentHashStatus.Verified, Sha256: { } sourceHash } ||
-            !sourceHash.Equals(position.SourceContentHash, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("The exact frame position must match the source video's verified content identity.");
+        if (source.StorageKind == AssetStorageKind.Physical)
+        {
+            if (position.SourceRecipeRevisionId is not null)
+                throw new InvalidOperationException("A physical frame position cannot pin a recipe revision.");
+            if (source.Physical?.ContentIdentity is not { Status: ContentHashStatus.Verified, Sha256: { } sourceHash } ||
+                !sourceHash.Equals(position.SourceContentHash, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The exact frame position must match the source video's verified content identity.");
+        }
+        else
+        {
+            if (position.SourceRecipeRevisionId is not { } sourceRevisionId ||
+                !RecipeRevisions.Any(revision =>
+                    revision.Id == sourceRevisionId && revision.VirtualAssetId == source.Id))
+                throw new InvalidOperationException(
+                    "An exact position in virtual media must pin a recipe revision belonging to that source.");
+        }
 
         var previous = anchor.CurrentRevisionId is { } currentId
             ? AnchorRevisions.SingleOrDefault(candidate => candidate.Id == currentId)
@@ -106,6 +119,7 @@ public sealed class VideoProject
             RevisionNumber = (previous?.RevisionNumber ?? 0) + 1,
             PreviousRevisionId = previous?.Id,
             SourceAssetId = position.SourceAssetId,
+            SourceRecipeRevisionId = position.SourceRecipeRevisionId,
             SourceContentHash = position.SourceContentHash,
             VideoStreamIndex = position.VideoStreamIndex,
             PresentationTimestamp = position.PresentationTimestamp,
@@ -484,6 +498,7 @@ public sealed record FrameAnchorReferenceSnapshot
 {
     public Guid AnchorRevisionId { get; init; }
     public Guid SourceAssetId { get; init; }
+    public Guid? SourceRecipeRevisionId { get; init; }
     public string SourceContentHash { get; init; } = string.Empty;
     public int VideoStreamIndex { get; init; }
     public long PresentationTimestamp { get; init; }
@@ -601,6 +616,7 @@ public sealed class FrameAnchorRevision
     public int RevisionNumber { get; init; }
     public Guid? PreviousRevisionId { get; init; }
     public Guid SourceAssetId { get; init; }
+    public Guid? SourceRecipeRevisionId { get; init; }
     public string SourceContentHash { get; init; } = string.Empty;
     public int VideoStreamIndex { get; init; }
     public long PresentationTimestamp { get; init; }
@@ -620,4 +636,5 @@ public sealed record ExactFramePosition(
     long PresentationTimestamp,
     int TimeBaseNumerator,
     int TimeBaseDenominator,
-    long? FrameNumber = null);
+    long? FrameNumber = null,
+    Guid? SourceRecipeRevisionId = null);

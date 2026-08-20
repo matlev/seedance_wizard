@@ -335,6 +335,7 @@ In progress. The first slices project the committed Working Composition into a h
 16. Apply the same timer-driven edge scrolling while reordering an existing video segment or repositioning an audio clip. Recompute the transient reorder target or millisecond placement against content revealed beneath the stationary pointer, then retain the one-revision-on-release and no-op/cancellation behavior.
 17. Keep each visible video segment and audio clip identifiable while horizontally scrolled by pinning a compact identity badge near the viewport's left edge, constrained and clipped inside its owning block. Compress the badge as the block's trailing edge approaches and preserve the full identity/details in its tooltip.
 18. Keep composition preview and export rendering responsive with an inline indeterminate activity indicator and explicit **Cancel render** action. Propagate cancellation through materialization to FFmpeg, remove partial exports, and report cancellation as an expected outcome rather than an error.
+19. Split the selected video segment at the current composition playhead. Snap to the nearest decoded source frame strictly inside the segment, create a hidden immutable exact-position boundary, replace the segment with two independently selectable segments in one recipe revision, and invalidate the prior preview. Support both physical sources and pinned Saved Clip revisions without baking virtual media into Project Media.
 
 #### Phase 2E.2 — context-sensitive Edit Tools
 

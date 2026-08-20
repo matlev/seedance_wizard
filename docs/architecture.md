@@ -7,7 +7,7 @@ Generate/Edit workspace revision: 2026-08-13
 Platform-portability revision: 2026-08-19
 Commercial-optionality revision: 2026-08-19
 
-This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, exact physical-video frame materialization, recursive virtual-recipe rendering, compatible/normalized composition rendering, and their application boundaries are implemented. Full timeline editing and virtual-video exact-position mapping remain later Milestone 2 work.
+This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, exact physical- and virtual-video frame materialization, recursive virtual-recipe rendering, compatible/normalized composition rendering, and their application boundaries are implemented. Phase 2E timeline editing remains in progress.
 
 ## Architectural direction
 
@@ -336,7 +336,7 @@ An uncommitted anchor draft may move freely. Once an anchor revision is committe
 
 An unreferenced anchor may be deleted. Once any generation, committed recipe, timeline/composition, export, or other authoritative object pins one of its revisions, Delete archives the logical anchor from ordinary working UI while retaining all required history. Missing or hash-mismatched source media leaves the anchor visible in a degraded state and blocks materialization; it never deletes descendants or provenance.
 
-Anchors currently require durable physical video assets. Phase 2D established recursive recipe rendering but deliberately did not redefine anchor provenance around virtual timeline positions. Virtual-video anchors therefore wait for the Phase 2E timeline-position design. Any imported or generated physical video may be anchored. An imported source can use the Continue After/Before workflow without inventing generation lineage.
+An exact position may reference either a durable physical video or one exact committed revision of a virtual video. Physical positions pin the verified source SHA-256 directly and have no recipe revision. Virtual positions pin the source asset ID, exact source recipe revision, and SHA-256 of that revision's canonical `FrameExtraction` materialization. Materializing or consuming a virtual exact position first resolves that pinned recipe through the same canonical purpose, verifies the realized content identity, and only then performs frame extraction or boundary resolution for the caller's requested purpose. It never substitutes the virtual asset's newer current revision and never requires promoting the materialization into Project Media. Any imported or generated physical video may be anchored. An imported source can use the Continue After/Before workflow without inventing generation lineage.
 
 ### Editing-boundary semantics
 
@@ -384,7 +384,7 @@ IAssetExportService
   SaveAsPhysicalAssetAsync(assetId, ...)
 ```
 
-`MaterializationPurpose` includes `Preview`, `ProviderUpload`, `FinalExport`, `FrameExtraction`, `Thumbnail`, and `Waveform`. Purpose influences quality, format, lifetime, provider limits, and whether a direct source path is acceptable. `MaterializationRequest` now accepts an explicit `AssetMaterializationTarget` or `AnchorMaterializationTarget`; anchor revisions never masquerade as `ProjectAsset` instances. The physical materializer verifies the pinned anchor source identity before handing exact extraction to the Phase 2C.3 renderer.
+`MaterializationPurpose` includes `Preview`, `ProviderUpload`, `FinalExport`, `FrameExtraction`, `Thumbnail`, and `Waveform`. Purpose influences quality, format, lifetime, provider limits, and whether a direct source path is acceptable. `MaterializationRequest` now accepts an explicit `AssetMaterializationTarget` or `AnchorMaterializationTarget`; anchor revisions never masquerade as `ProjectAsset` instances. The shared materializer verifies a physical anchor's durable identity directly or recursively realizes a virtual anchor's pinned recipe revision and verifies that realized hash before handing exact extraction to the frame renderer.
 
 `MaterializeAsync` should return a result/lease containing the usable path, resolved metadata, cache key or physical content identity, and ownership/lifetime information. Callers must not infer permanence from receiving a path. A lease prevents cleanup from removing an artifact while preview, upload, or export is using it.
 
@@ -442,6 +442,8 @@ An existing audio clip can be dragged horizontally to revise that offset. Pointe
 An incoming Project Media drag is represented by a compact fixed-width insertion token regardless of the source duration. The current recipe projection, ruler, total duration, and timestamp mapping remain frozen while that token follows the pointer; a snapped marker communicates the eventual video insertion boundary or audio start time. On a horizontally scrollable timeline, holding the drag inside either viewport edge zone continuously scrolls toward that edge, with speed increasing toward the boundary; the marker and insertion mapping continue to follow the content beneath the stationary pointer. Scrolling stops on drop, drag-leave, cancellation, or the timeline boundary. The source's actual duration affects timeline geometry only after a successful drop commits the new revision.
 
 Direct video-segment reordering follows the same separation. While the pointer is held, the dragged block is a floating visual and neighboring blocks reflow against a disposable projected order. Neither mouse movement nor a cancelled/no-op drag changes project state. Releasing over a different valid position commits exactly one new composition recipe revision, preserving the prior order in immutable history and invalidating the stale rendered preview.
+
+Timeline **Split at playhead** is an exact structural operation. It requires a current preview of the committed composition revision and a selected segment whose projected span contains the playhead. ReelForge maps composition time into that segment's pinned source range, indexes the realized source around the target, and snaps to the nearest decoded frame strictly inside the range. One hidden archived anchor revision records the exact source position; the leading and trailing segments share that boundary with `BeforeFrame` intent so their half-open ranges neither overlap nor drop a frame. The original segment identity remains on the leading side, the trailing side receives a new occurrence identity, and the entire split commits as one immutable composition revision. When the segment source is a Saved Clip, the boundary pins that Saved Clip's exact recipe revision and realized hash instead of baking a physical intermediate.
 
 The committed composition exposes **Export**, which atomically writes its `FinalExport` materialization to a user-selected MP4 path without changing project state. Saved Clips and Saved Frames expose the same user-facing concept with their appropriate format. Export never replaces or mutates the logical source.
 
@@ -780,7 +782,7 @@ At the first externally supported beta/public project-format baseline, compatibi
 3. **Timing:** new revisions use video stream index, integer presentation timestamp, and rational time base; frame number is informational.
 4. **Exactness:** every anchor revision stores stream index, integer presentation timestamp, rational time base, and source content identity; approximate timing is not admitted into the current model.
 5. **Metadata:** display label, notes, and archived state remain mutable on the logical anchor; submitted references freeze their own label/notes.
-6. **Targets:** any imported or generated durable physical video may be anchored; virtual-video anchors wait for Phase 2E timeline-position mapping.
+6. **Targets:** imported/generated physical videos and exact committed virtual-video revisions may be anchored. Virtual positions additionally pin their source recipe revision and deterministic realized hash.
 7. **Deletion:** unreferenced anchors may be deleted; referenced anchors are archived/tombstoned and their pinned revisions remain resolvable.
 8. **Boundaries:** editing references an anchor revision plus `BeforeFrame` or `AfterFrame`, normalized internally to `[start,end)`.
 9. **Last frame:** Last Frame means the final decodable presentation frame; `AfterFrame` on it resolves to `SourceEnd`.
@@ -798,12 +800,11 @@ At the first externally supported beta/public project-format baseline, compatibi
 
 The Phase 2C product-direction questions are settled. Remaining cross-phase items are:
 
-1. **Virtual-video anchor mapping:** Phase 2D established recursive render planning without changing physical-source anchor provenance. Define virtual exact positions together with Phase 2E timeline-position semantics.
-2. **Materialization retention:** the current cache-limit and default-off durable modified-media preference are implemented; automatic cleanup strategy beyond that boundary remains open.
-3. **Missing-source recovery:** Phase 2C preserves degraded state and blocks materialization; user-driven relinking/recovery remains later work.
-4. **Provider cancellation:** distinguish local polling cancellation from remote cancellation and expose the latter only when verified.
-5. **Boundary representation:** clip-only boundaries remain hidden from Project Media whether implemented as internal anchors or a more general exact-position reference; an explicit Saved Frame remains the user-facing bookmark.
+1. **Materialization retention:** the current cache-limit and default-off durable modified-media preference are implemented; automatic cleanup strategy beyond that boundary remains open.
+2. **Missing-source recovery:** Phase 2C preserves degraded state and blocks materialization; user-driven relinking/recovery remains later work.
+3. **Provider cancellation:** distinguish local polling cancellation from remote cancellation and expose the latter only when verified.
+4. **Boundary representation:** clip-only boundaries remain hidden from Project Media whether implemented as internal anchors or a more general exact-position reference; an explicit Saved Frame remains the user-facing bookmark.
 
 ## Phase gate
 
-Phases 2A through 2D are complete. Phase 2C human acceptance covered the Generate/Edit shell, Project Media projection, exact Saved Frames, Saved Clips, cache reconstruction, missing-source handling, reference preparation, and trim materialization. Phase 2D acceptance covered recursive virtual planning, compatibility analysis, normalized multi-segment composition rendering, immutable composition edits, export, and optional durable modified-media representations. AtlasCloud MiniMax H3 remains the first optional human-run paid reference acceptance route; automated verification remains network-isolated. Full timeline editing and virtual-video exact-position semantics move to Phase 2E.
+Phases 2A through 2D are complete. Phase 2C human acceptance covered the Generate/Edit shell, Project Media projection, exact Saved Frames, Saved Clips, cache reconstruction, missing-source handling, reference preparation, and trim materialization. Phase 2D acceptance covered recursive virtual planning, compatibility analysis, normalized multi-segment composition rendering, immutable composition edits, export, and optional durable modified-media representations. Phase 2E now includes virtual-video exact positions and exact playhead splitting without physical intermediates; broader timeline editing remains in progress. AtlasCloud MiniMax H3 remains the first optional human-run paid reference acceptance route; automated verification remains network-isolated.

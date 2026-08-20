@@ -191,6 +191,69 @@ public sealed class WorkingCompositionService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<CompositionSegmentSplitResult> SplitSegmentAtFrameAsync(
+        Guid segmentId,
+        ExactFramePosition position,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(position);
+        var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
+        var (_, _, currentRecipe) = GetCurrent();
+        var currentSegment = currentRecipe.Segments.SingleOrDefault(segment => segment.Id == segmentId)
+            ?? throw new InvalidOperationException("The selected composition segment no longer exists.");
+        if (position.SourceAssetId != currentSegment.Source.AssetId ||
+            position.SourceRecipeRevisionId != currentSegment.Source.RecipeRevisionId)
+            throw new InvalidOperationException("The split frame must belong to the selected segment's pinned source.");
+
+        var anchorCount = project.Anchors.Count;
+        var anchorRevisionCount = project.AnchorRevisions.Count;
+        var anchor = new FrameAnchor { IsArchived = true };
+        var trailingSegmentId = Guid.NewGuid();
+        try
+        {
+            project.Anchors.Add(anchor);
+            var anchorRevision = project.CommitAnchorRevision(anchor.Id, position);
+            var boundary = new RecipeBoundary
+            {
+                Kind = RecipeBoundaryKind.Anchor,
+                Anchor = new AnchorRevisionReference
+                {
+                    AnchorId = anchor.Id,
+                    AnchorRevisionId = anchorRevision.Id
+                },
+                Edge = AnchorBoundaryEdge.BeforeFrame
+            };
+            var revision = await UpdateAsync(recipe =>
+            {
+                var index = recipe.Segments.FindIndex(segment => segment.Id == segmentId);
+                if (index < 0)
+                    throw new InvalidOperationException("The selected composition segment no longer exists.");
+                var segment = recipe.Segments[index];
+                recipe.Segments[index] = segment with { End = boundary };
+                recipe.Segments.Insert(index + 1, segment with
+                {
+                    Id = trailingSegmentId,
+                    Start = boundary
+                });
+            }, cancellationToken).ConfigureAwait(false);
+            return new CompositionSegmentSplitResult(
+                revision,
+                segmentId,
+                trailingSegmentId,
+                anchor.Id,
+                anchorRevision.Id,
+                anchorRevision.TimestampSeconds);
+        }
+        catch
+        {
+            project.AnchorRevisions.RemoveRange(
+                anchorRevisionCount,
+                project.AnchorRevisions.Count - anchorRevisionCount);
+            project.Anchors.RemoveRange(anchorCount, project.Anchors.Count - anchorCount);
+            throw;
+        }
+    }
+
     public async Task<RecipeRevision> SetAudioClipTimelineStartAsync(
         Guid audioClipId,
         TimeSpan timelineStart,
@@ -475,3 +538,11 @@ public sealed class WorkingCompositionService
         }).ToList()
     };
 }
+
+public sealed record CompositionSegmentSplitResult(
+    RecipeRevision Revision,
+    Guid LeadingSegmentId,
+    Guid TrailingSegmentId,
+    Guid BoundaryAnchorId,
+    Guid BoundaryAnchorRevisionId,
+    double SourceTimestampSeconds);
