@@ -1417,6 +1417,46 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
+    private async Task DetachCompositionSegmentAudioAsync(Guid segmentId)
+    {
+        var selected = _compositionSegments.SingleOrDefault(item => item.SegmentId == segmentId);
+        if (selected is null) return;
+        var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(selected.DisplayName));
+        var dialog = new AssetNameDialog(
+            $"{stem} detached audio.m4a",
+            title: "Detach segment audio",
+            heading: "DETACH SEGMENT AUDIO",
+            description:
+            "Create a permanent audio file from this exact timeline segment, add it at the same timeline position, " +
+            "and mute the segment's embedded audio to prevent doubled sound.",
+            confirmLabel: "Detach")
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        VideoPreview.Pause();
+        PauseCompositionAuditionAudio();
+        SetPlaybackState(false);
+        await RunUiActionAsync("Detaching exact segment audio…", async () =>
+        {
+            var result = await new CompositionSegmentAudioDetachmentService(
+                    _workspace,
+                    _mediaMaterializer,
+                    _audioExtractionEngine,
+                    new Sha256ContentHashService(),
+                    _mediaInspector)
+                .DetachAsync(segmentId, dialog.FileName);
+            _selectedCompositionSegmentId = null;
+            _selectedCompositionAudioClipId = result.AudioClipId;
+            RefreshProjectCollections(_workspace.Project!.WorkingCompositionAssetId);
+            RefreshEditWorkspaceState();
+            StatusText.Text =
+                $"Detached {selected.DisplayName} audio as '{result.AudioAsset.FileName}' at " +
+                $"{FormatTimelineTimePrecise(result.TimelineStart.TotalSeconds)}.";
+        });
+    }
+
     private async void CompositionSegmentAudio_Checked(object sender, RoutedEventArgs e)
     {
         if (_suppressCompositionAudioControl || GetSelectedCompositionSegment() is not { } selected) return;
@@ -2188,6 +2228,27 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _compositionTimelineStickyContent.Clear();
             CompositionTimelineCanvas.Children.Clear();
             CompositionTimelineCanvas.Width = _compositionTimelineLayout.ContentWidth;
+            var audioLaneInputs = _compositionAudioClips
+                .Select(item =>
+                {
+                    var isDragging = item.AudioClipId == _activeCompositionAudioClipDragId;
+                    var startSeconds = Math.Clamp(
+                        isDragging ? _compositionAudioClipDraftStartSeconds : item.TimelineStart.TotalSeconds,
+                        0,
+                        _compositionTimelineLayout.ProjectedDurationSeconds);
+                    return new CompositionTimelineAudioInput(
+                        item.AudioClipId,
+                        startSeconds,
+                        Math.Max(0.25, item.DurationSeconds ?? 1));
+                })
+                .ToArray();
+            var audioLaneLayout = CompositionTimelineLayout.CalculateAudioLanes(audioLaneInputs);
+            const double audioLaneTop = 86;
+            const double audioLaneHeight = 34;
+            const double audioLaneGap = 4;
+            CompositionTimelineCanvas.Height = Math.Max(
+                124,
+                audioLaneTop + audioLaneLayout.LaneCount * (audioLaneHeight + audioLaneGap));
             CompositionTimelineDurationText.Text = _compositionTimelineLayout.Segments.Count == 0
                 ? "No segments"
                 : _compositionTimelineLayout.HasUnknownDurations
@@ -2360,7 +2421,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 audioBorder.MouseLeave += (_, _) => removeAudioButton.Visibility = Visibility.Collapsed;
                 audioBorder.MouseLeftButtonDown += CompositionTimelineAudioClip_MouseLeftButtonDown;
                 Canvas.SetLeft(audioBorder, left + 1);
-                Canvas.SetTop(audioBorder, 86);
+                Canvas.SetTop(
+                    audioBorder,
+                    audioLaneTop + audioLaneLayout.LaneByAudioClipId[item.AudioClipId] *
+                    (audioLaneHeight + audioLaneGap));
                 CompositionTimelineCanvas.Children.Add(audioBorder);
                 _compositionTimelineStickyContent.Add(new TimelineStickyContent(
                     audioIdentityBadge,
@@ -2372,7 +2436,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _compositionTimelinePlayhead = new Line
             {
                 Y1 = 16,
-                Y2 = 122,
+                Y2 = CompositionTimelineCanvas.Height - 2,
                 Stroke = FindResource("AccentBrush") as Brush ?? Brushes.MediumPurple,
                 StrokeThickness = 2,
                 IsHitTestVisible = false,
@@ -2426,6 +2490,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private ContextMenu CreateCompositionSegmentContextMenu(Guid segmentId, int index)
     {
         var menu = new ContextMenu();
+        var detachAudio = new MenuItem
+        {
+            Header = "Detach audio…",
+            IsEnabled = CanDetachCompositionSegmentAudio(segmentId)
+        };
+        detachAudio.Click += async (_, _) => await DetachCompositionSegmentAudioAsync(segmentId);
         var split = new MenuItem
         {
             Header = GetCompositionSplitActionLabel(),
@@ -2455,12 +2525,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         menu.Opened += (_, _) =>
         {
             var currentIndex = _compositionSegments.ToList().FindIndex(item => item.SegmentId == segmentId);
+            detachAudio.IsEnabled = CanDetachCompositionSegmentAudio(segmentId);
             split.Header = GetCompositionSplitActionLabel();
             split.IsEnabled = CanSplitCompositionSegment(segmentId, GetCurrentTimelinePlaybackSeconds());
             shiftLeft.IsEnabled = currentIndex > 0;
             shiftRight.IsEnabled = currentIndex >= 0 && currentIndex < _compositionSegments.Count - 1;
             remove.IsEnabled = currentIndex >= 0 && _compositionSegments.Count > 1;
         };
+        menu.Items.Add(detachAudio);
         menu.Items.Add(split);
         menu.Items.Add(new Separator());
         menu.Items.Add(shiftLeft);
@@ -2468,6 +2540,23 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         menu.Items.Add(new Separator());
         menu.Items.Add(remove);
         return menu;
+    }
+
+    private bool CanDetachCompositionSegmentAudio(Guid segmentId)
+    {
+        if (_workspace.Project is null || _workspace.Project.WorkingCompositionAssetId is null) return false;
+        var (_, _, recipe) = new WorkingCompositionService(_workspace).GetCurrent();
+        var segment = recipe.Segments.SingleOrDefault(candidate => candidate.Id == segmentId);
+        if (segment is null) return false;
+        var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId);
+        var encoding = source?.Encoding ?? source?.Virtual?.ExpectedMediaProperties;
+        if (encoding is not null && encoding.Audio is null) return false;
+        return !recipe.AudioClips.Any(clip =>
+            _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == clip.Source.AssetId)?.Provenance is
+            {
+                Operation: "detach-segment-audio"
+            } provenance &&
+            provenance.Parameters.GetValueOrDefault("compositionSegmentId") == segmentId.ToString("D"));
     }
 
     private ContextMenu CreateCompositionAudioContextMenu(Guid audioClipId)

@@ -89,8 +89,59 @@ public sealed record CompositionTimelineReorderPreview(
     int InsertionIndex,
     IReadOnlyList<Guid> OrderedSegmentIds);
 
+public sealed record CompositionTimelineAudioInput(
+    Guid AudioClipId,
+    double StartSeconds,
+    double DurationSeconds);
+
+public sealed record CompositionTimelineAudioLaneLayout(
+    int LaneCount,
+    IReadOnlyDictionary<Guid, int> LaneByAudioClipId);
+
 public static class CompositionTimelineLayout
 {
+    public static CompositionTimelineAudioLaneLayout CalculateAudioLanes(
+        IReadOnlyList<CompositionTimelineAudioInput> audioClips)
+    {
+        ArgumentNullException.ThrowIfNull(audioClips);
+        if (audioClips.Count == 0)
+            return new CompositionTimelineAudioLaneLayout(0, new Dictionary<Guid, int>());
+
+        foreach (var clip in audioClips)
+        {
+            if (!double.IsFinite(clip.StartSeconds) || clip.StartSeconds < 0)
+                throw new ArgumentOutOfRangeException(nameof(audioClips), "Audio start times must be finite and non-negative.");
+            if (!double.IsFinite(clip.DurationSeconds) || clip.DurationSeconds <= 0)
+                throw new ArgumentOutOfRangeException(nameof(audioClips), "Audio durations must be finite and positive.");
+        }
+
+        var duplicate = audioClips.GroupBy(clip => clip.AudioClipId).FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+            throw new ArgumentException($"Audio clip {duplicate.Key} appears more than once.", nameof(audioClips));
+
+        var originalOrder = audioClips
+            .Select((clip, index) => new { clip.AudioClipId, Index = index })
+            .ToDictionary(item => item.AudioClipId, item => item.Index);
+        var laneEnds = new List<double>();
+        var laneByClipId = new Dictionary<Guid, int>(audioClips.Count);
+        foreach (var clip in audioClips
+                     .OrderBy(clip => clip.StartSeconds)
+                     .ThenBy(clip => originalOrder[clip.AudioClipId]))
+        {
+            var lane = laneEnds.FindIndex(end => end <= clip.StartSeconds + 0.000_001);
+            if (lane < 0)
+            {
+                lane = laneEnds.Count;
+                laneEnds.Add(0);
+            }
+
+            laneEnds[lane] = clip.StartSeconds + clip.DurationSeconds;
+            laneByClipId.Add(clip.AudioClipId, lane);
+        }
+
+        return new CompositionTimelineAudioLaneLayout(laneEnds.Count, laneByClipId);
+    }
+
     public static double GetStickyContentOffset(
         double itemLeft,
         double itemWidth,

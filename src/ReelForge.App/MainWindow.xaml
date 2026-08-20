@@ -596,7 +596,7 @@
                                     </DockPanel>
                                     <ScrollViewer x:Name="CompositionTimelineScrollViewer" Grid.Row="1"
                                                   HorizontalScrollBarVisibility="Auto"
-                                                  VerticalScrollBarVisibility="Disabled"
+                                                  VerticalScrollBarVisibility="Auto"
                                                   ScrollChanged="CompositionTimelineScrollViewer_ScrollChanged"
                                                   SizeChanged="CompositionTimelineScrollViewer_SizeChanged">
                                         <Canvas x:Name="CompositionTimelineCanvas" Height="124"

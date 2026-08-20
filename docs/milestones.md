@@ -338,6 +338,7 @@ In progress. The first slices project the committed Working Composition into a h
 19. Split a selected video segment from its context menu at the current composition playhead without requiring a complete composition render. Snap to the nearest decoded source frame, honor the application-level **Media split behavior** choice (`BeforeFrame` by default or `AfterFrame` with the following decoded frame as its half-open boundary), create a hidden immutable exact-position boundary, create two distinctly named and reusable Saved Clips over the shared boundary, and replace the original occurrence with revision-pinned references to those clips in one recipe revision. Preserve the original source and support both physical sources and pinned Saved Clip revisions without creating physical intermediates.
 20. Remove the permanent composition action footer. Keep insertion and reordering on drag/drop; show a red hover trash control on timeline objects; expose **Split at playhead**, **Shift Left**, **Shift Right**, and **Remove** in segment context menus; and expose Remove for audio clips.
 21. Add previous/next decoded-frame controls beside playback so paused source, Saved Clip, fast-audition, and rendered-composition video can be positioned precisely without resuming playback.
+22. Project overlapping independent audio clips onto automatic non-overlapping visual lanes so every clip remains readable and selectable. Keep lane assignment as derived UI geometry rather than persistent track identity; timing and overlap/mix semantics remain authoritative recipe state.
 
 #### Phase 2E.2 — context-sensitive Edit Tools
 
@@ -357,7 +358,8 @@ In progress. The first slices project the committed Working Composition into a h
 2. Resolve physical sources directly and Saved Clips through their exact committed recipe revisions, then create an audio-only M4A/AAC file with FFmpeg without changing the source.
 3. Inspect and hash the completed file before adding it as a durable physical Audio asset under `assets/audio/`, with source asset/revision provenance and non-destructive duplicate naming.
 4. Disable extraction when stored encoding metadata confirms the video has no audio; re-inspect/materialize sources whose metadata is not yet known before invoking FFmpeg.
-5. Keep timeline **Detach audio** separate and deferred until segment trim/split semantics can define exact boundaries and whether the operation also mutes the selected video segment.
+5. Add timeline **Detach audio…** for a selected video segment. Materialize that segment's exact revision-pinned boundaries, extract a permanent M4A/AAC asset, add it at the segment's composition start, and mute only the segment's embedded audio in the same composition revision so the mix does not double. Preserve all pre-existing audio clips and allow the detached clip to overlap/mix with them.
+6. Record composition/revision/segment provenance on detached audio, prevent accidental duplicate detachment of the same segment, inspect and hash the completed file before committing it, and roll back the partial file/asset if the composition update fails.
 
 #### Editor capability research outcome
 

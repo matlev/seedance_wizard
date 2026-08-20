@@ -191,6 +191,31 @@ public sealed class WorkingCompositionService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<CompositionAudioDetachmentResult> AddDetachedSegmentAudioAsync(
+        Guid segmentId,
+        Guid audioAssetId,
+        TimeSpan timelineStart,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedStart = NormalizeAudioTimelineStart(timelineStart);
+        var audioClipId = Guid.NewGuid();
+        var audioSource = RequireAudioSource(audioAssetId);
+        var revision = await UpdateAsync(recipe =>
+        {
+            var index = recipe.Segments.FindIndex(segment => segment.Id == segmentId);
+            if (index < 0)
+                throw new InvalidOperationException("The selected composition segment no longer exists.");
+            recipe.Segments[index] = recipe.Segments[index] with { AudioEnabled = false };
+            recipe.AudioClips.Add(new CompositionAudioClip
+            {
+                Id = audioClipId,
+                Source = new AssetRevisionReference { AssetId = audioSource.Id },
+                TimelineStartTicks = normalizedStart.Ticks
+            });
+        }, cancellationToken).ConfigureAwait(false);
+        return new CompositionAudioDetachmentResult(revision, audioClipId);
+    }
+
     public async Task<CompositionSegmentSplitResult> SplitSegmentAtFrameAsync(
         Guid segmentId,
         ExactFramePosition position,
@@ -673,3 +698,7 @@ public sealed record CompositionSegmentSplitResult(
     Guid BoundaryAnchorId,
     Guid BoundaryAnchorRevisionId,
     double SourceTimestampSeconds);
+
+public sealed record CompositionAudioDetachmentResult(
+    RecipeRevision Revision,
+    Guid AudioClipId);

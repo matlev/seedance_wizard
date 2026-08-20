@@ -312,4 +312,40 @@ public sealed class CompositionTimelineLayoutTests
             viewportLeft: 500,
             minimumTrailingWidth: 64));
     }
+
+    [Fact]
+    public void OverlappingAudioUsesSeparateVisualLanesAndLaterClipsReuseFreeSpace()
+    {
+        var first = Guid.NewGuid();
+        var overlapping = Guid.NewGuid();
+        var later = Guid.NewGuid();
+
+        var result = CompositionTimelineLayout.CalculateAudioLanes(
+        [
+            new CompositionTimelineAudioInput(first, StartSeconds: 0, DurationSeconds: 5),
+            new CompositionTimelineAudioInput(overlapping, StartSeconds: 2, DurationSeconds: 4),
+            new CompositionTimelineAudioInput(later, StartSeconds: 5, DurationSeconds: 2)
+        ]);
+
+        Assert.Equal(2, result.LaneCount);
+        Assert.Equal(0, result.LaneByAudioClipId[first]);
+        Assert.Equal(1, result.LaneByAudioClipId[overlapping]);
+        Assert.Equal(0, result.LaneByAudioClipId[later]);
+    }
+
+    [Fact]
+    public void ClipsWithTheSameStartKeepTheirInputOrderAcrossLanes()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+
+        var result = CompositionTimelineLayout.CalculateAudioLanes(
+        [
+            new CompositionTimelineAudioInput(first, StartSeconds: 1, DurationSeconds: 2),
+            new CompositionTimelineAudioInput(second, StartSeconds: 1, DurationSeconds: 2)
+        ]);
+
+        Assert.Equal(0, result.LaneByAudioClipId[first]);
+        Assert.Equal(1, result.LaneByAudioClipId[second]);
+    }
 }

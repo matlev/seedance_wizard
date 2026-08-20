@@ -133,6 +133,18 @@ public interface IMediaMaterializer
         CancellationToken cancellationToken = default);
 }
 
+public interface ICompositionSegmentMaterializer
+{
+    Task<MaterializedMediaLease> MaterializeSegmentAsync(
+        VideoProject project,
+        ProjectLocation location,
+        Guid compositionAssetId,
+        Guid recipeRevisionId,
+        Guid segmentId,
+        MaterializationPurpose purpose,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed record VideoPresentationFrame(
     int VideoStreamIndex,
     long PresentationTimestamp,
