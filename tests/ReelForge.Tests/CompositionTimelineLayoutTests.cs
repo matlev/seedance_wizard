@@ -282,4 +282,34 @@ public sealed class CompositionTimelineLayoutTests
             pointerX: 80,
             viewportWidth: 60));
     }
+
+    [Fact]
+    public void StickyContentFollowsViewportButRemainsInsideItsTimelineItem()
+    {
+        Assert.Equal(0, CompositionTimelineLayout.GetStickyContentOffset(
+            itemLeft: 200,
+            itemWidth: 800,
+            viewportLeft: 100,
+            minimumTrailingWidth: 64));
+        Assert.Equal(300, CompositionTimelineLayout.GetStickyContentOffset(
+            itemLeft: 200,
+            itemWidth: 800,
+            viewportLeft: 500,
+            minimumTrailingWidth: 64));
+        Assert.Equal(736, CompositionTimelineLayout.GetStickyContentOffset(
+            itemLeft: 200,
+            itemWidth: 800,
+            viewportLeft: 1_500,
+            minimumTrailingWidth: 64));
+    }
+
+    [Fact]
+    public void StickyContentDoesNotOffsetWhenItemIsTooNarrowForItsMinimumBadge()
+    {
+        Assert.Equal(0, CompositionTimelineLayout.GetStickyContentOffset(
+            itemLeft: 200,
+            itemWidth: 40,
+            viewportLeft: 500,
+            minimumTrailingWidth: 64));
+    }
 }

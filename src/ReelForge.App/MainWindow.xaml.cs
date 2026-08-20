@@ -26,6 +26,12 @@ internal enum MediaPreparationMode { None, SelectFrame, MakeClip }
 
 public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 {
+    private sealed record TimelineStickyContent(
+        FrameworkElement Element,
+        double ItemLeft,
+        double ItemWidth,
+        double MinimumTrailingWidth);
+
     private const string ProjectMediaDragFormat = "ReelForge.ProjectMediaAssetId";
     private readonly ObservableCollection<ProjectMediaListItem> _assets = [];
     private readonly ObservableCollection<GenerationRecord> _generations = [];
@@ -35,6 +41,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ObservableCollection<SavedFrameListItem> _savedFrames = [];
     private readonly ObservableCollection<CompositionSegmentListItem> _compositionSegments = [];
     private readonly ObservableCollection<CompositionAudioClipListItem> _compositionAudioClips = [];
+    private readonly List<TimelineStickyContent> _compositionTimelineStickyContent = [];
     private readonly IReadOnlyList<BitmapSource> _activeJobSpriteFrames;
     private readonly HashSet<Guid> _viewedTerminalJobIds = [];
     private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
@@ -1605,6 +1612,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void CompositionTimelineScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e) =>
         RenderCompositionTimeline();
 
+    private void CompositionTimelineScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (_renderingCompositionTimeline || Math.Abs(e.HorizontalChange) < 0.001) return;
+        UpdateCompositionTimelineStickyContent();
+    }
+
     private void CompositionTimelineZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         var zoom = Math.Round(Math.Clamp(e.NewValue, 1, 8) * 4) / 4;
@@ -2048,6 +2061,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     .ToArray(),
                 viewportWidth,
                 zoomFactor: _compositionTimelineZoom);
+            _compositionTimelineStickyContent.Clear();
             CompositionTimelineCanvas.Children.Clear();
             CompositionTimelineCanvas.Width = _compositionTimelineLayout.ContentWidth;
             CompositionTimelineDurationText.Text = _compositionTimelineLayout.Segments.Count == 0
@@ -2078,6 +2092,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     BorderThickness = new Thickness(isSelected ? 2 : 1),
                     CornerRadius = new CornerRadius(3),
                     Padding = new Thickness(8, 5, 7, 4),
+                    ClipToBounds = true,
                     Opacity = isDragging ? 0.84 : 1,
                     Cursor = Cursors.SizeAll,
                     ToolTip = $"{index + 1}. {item.DisplayName}\nStarts at {FormatTimelineTime(span.StartSeconds)}\n{item.DurationText} • {item.AudioText}\nClick to select or drag to reorder"
@@ -2106,7 +2121,16 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     Margin = new Thickness(0, 4, 0, 0),
                     TextTrimming = TextTrimming.CharacterEllipsis
                 });
-                segmentBorder.Child = text;
+                var identityBadge = new Border
+                {
+                    Child = text,
+                    MaxWidth = 320,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Background = new SolidColorBrush(Color.FromArgb(220, 20, 24, 34)),
+                    CornerRadius = new CornerRadius(2),
+                    Padding = new Thickness(4, 2, 4, 2)
+                };
+                segmentBorder.Child = identityBadge;
                 segmentBorder.MouseLeftButtonDown += CompositionTimelineSegment_MouseLeftButtonDown;
                 var left = isDragging
                     ? Math.Clamp(
@@ -2118,6 +2142,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 Canvas.SetTop(segmentBorder, 25);
                 if (isDragging) Panel.SetZIndex(segmentBorder, 20);
                 CompositionTimelineCanvas.Children.Add(segmentBorder);
+                _compositionTimelineStickyContent.Add(new TimelineStickyContent(
+                    identityBadge,
+                    left,
+                    segmentBorder.Width,
+                    64));
             }
 
             var selectedAudioId = _selectedCompositionAudioClipId;
@@ -2151,6 +2180,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     BorderThickness = new Thickness(isSelected ? 2 : 1),
                     CornerRadius = new CornerRadius(3),
                     Padding = new Thickness(7, 3, 6, 3),
+                    ClipToBounds = true,
                     Opacity = isDragging ? 0.86 : 1,
                     Cursor = Cursors.SizeWE,
                     ToolTip = $"Audio: {item.DisplayName}\nStarts at {FormatTimelineTimePrecise(startSeconds)}\n{item.DurationText} • {item.MixText}\nClick to select or drag to move"
@@ -2179,11 +2209,25 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     FontSize = 9,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 });
-                audioBorder.Child = audioText;
+                var audioIdentityBadge = new Border
+                {
+                    Child = audioText,
+                    MaxWidth = 300,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Background = new SolidColorBrush(Color.FromArgb(220, 13, 31, 26)),
+                    CornerRadius = new CornerRadius(2),
+                    Padding = new Thickness(4, 1, 4, 1)
+                };
+                audioBorder.Child = audioIdentityBadge;
                 audioBorder.MouseLeftButtonDown += CompositionTimelineAudioClip_MouseLeftButtonDown;
                 Canvas.SetLeft(audioBorder, left + 1);
                 Canvas.SetTop(audioBorder, 86);
                 CompositionTimelineCanvas.Children.Add(audioBorder);
+                _compositionTimelineStickyContent.Add(new TimelineStickyContent(
+                    audioIdentityBadge,
+                    left + 1,
+                    audioBorder.Width,
+                    48));
             }
 
             _compositionTimelinePlayhead = new Line
@@ -2201,6 +2245,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             };
             Panel.SetZIndex(_compositionTimelinePlayhead, 10);
             CompositionTimelineCanvas.Children.Add(_compositionTimelinePlayhead);
+            UpdateCompositionTimelineStickyContent();
             UpdateCompositionTimelinePlayhead(VideoPreview.Position.TotalSeconds);
         }
         finally
@@ -2247,6 +2292,21 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }
     }
 
+    private void UpdateCompositionTimelineStickyContent()
+    {
+        if (CompositionTimelineScrollViewer is null) return;
+        var viewportLeft = Math.Max(0, CompositionTimelineScrollViewer.HorizontalOffset);
+        foreach (var content in _compositionTimelineStickyContent)
+        {
+            var offset = CompositionTimelineLayout.GetStickyContentOffset(
+                content.ItemLeft,
+                content.ItemWidth,
+                viewportLeft,
+                content.MinimumTrailingWidth);
+            content.Element.Margin = new Thickness(offset, 0, 0, 0);
+        }
+    }
+
     private void UpdateCompositionTimelinePlayhead(double playbackSeconds)
     {
         if (_compositionTimelinePlayhead is null || _compositionTimelineLayout is null ||
@@ -2277,6 +2337,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         if (CompositionTimelineCanvas is null || CompositionTimelineDurationText is null) return;
         CompositionTimelineCanvas.Children.Clear();
+        _compositionTimelineStickyContent.Clear();
         CompositionTimelineCanvas.Width = 1;
         CompositionTimelineDurationText.Text = "No segments";
         _compositionTimelineLayout = null;

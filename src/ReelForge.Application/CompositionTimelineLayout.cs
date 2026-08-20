@@ -91,6 +91,27 @@ public sealed record CompositionTimelineReorderPreview(
 
 public static class CompositionTimelineLayout
 {
+    public static double GetStickyContentOffset(
+        double itemLeft,
+        double itemWidth,
+        double viewportLeft,
+        double minimumTrailingWidth)
+    {
+        if (!double.IsFinite(itemLeft))
+            throw new ArgumentOutOfRangeException(nameof(itemLeft));
+        if (!double.IsFinite(itemWidth) || itemWidth < 0)
+            throw new ArgumentOutOfRangeException(nameof(itemWidth));
+        if (!double.IsFinite(viewportLeft) || viewportLeft < 0)
+            throw new ArgumentOutOfRangeException(nameof(viewportLeft));
+        if (!double.IsFinite(minimumTrailingWidth) || minimumTrailingWidth < 0)
+            throw new ArgumentOutOfRangeException(nameof(minimumTrailingWidth));
+
+        return Math.Clamp(
+            viewportLeft - itemLeft,
+            0,
+            Math.Max(0, itemWidth - minimumTrailingWidth));
+    }
+
     public static double GetEdgeAutoScrollDelta(
         double pointerX,
         double viewportWidth,

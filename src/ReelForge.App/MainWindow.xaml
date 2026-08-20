@@ -569,6 +569,7 @@
                                     <ScrollViewer x:Name="CompositionTimelineScrollViewer" Grid.Row="1"
                                                   HorizontalScrollBarVisibility="Auto"
                                                   VerticalScrollBarVisibility="Disabled"
+                                                  ScrollChanged="CompositionTimelineScrollViewer_ScrollChanged"
                                                   SizeChanged="CompositionTimelineScrollViewer_SizeChanged">
                                         <Canvas x:Name="CompositionTimelineCanvas" Height="124"
                                                 Background="#0B0D12" ClipToBounds="True"
