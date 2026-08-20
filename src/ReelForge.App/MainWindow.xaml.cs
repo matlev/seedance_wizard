@@ -1818,13 +1818,36 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             (index >= 0 && _compositionSegments.Count > 1) || _selectedCompositionAudioClipId is not null;
         PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0;
         ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0;
-        if (CompositionSegmentAudioControls is null) return;
+        if (EditToolsEmptyState is null) return;
         _suppressCompositionAudioControl = true;
         try
         {
-            CompositionSegmentAudioControls.Visibility = selectedSegment is null
+            var selectedAudio = GetSelectedCompositionAudioClip();
+            EditToolsEmptyState.Visibility = selectedSegment is null && selectedAudio is null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            VideoSegmentEditTools.Visibility = selectedSegment is null
                 ? Visibility.Collapsed
                 : Visibility.Visible;
+            AudioClipEditTools.Visibility = selectedAudio is null
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+
+            if (selectedSegment is not null)
+            {
+                EditVideoSegmentNameText.Text = selectedSegment.DisplayName;
+                EditVideoSegmentSourceText.Text = selectedSegment.DetailText;
+                EditVideoSegmentTimingText.Text =
+                    $"{selectedSegment.DurationText} • position {selectedSegment.Index + 1} of {_compositionSegments.Count} on the sequential video track";
+            }
+
+            if (selectedAudio is not null)
+            {
+                EditAudioClipNameText.Text = selectedAudio.DisplayName;
+                EditAudioClipTimingText.Text =
+                    $"Starts at {FormatTimelineTime(selectedAudio.TimelineStart.TotalSeconds)} • {selectedAudio.DurationText}";
+            }
+
             CompositionSegmentAudioOnButton.IsChecked = selectedSegment?.AudioEnabled == true;
             CompositionSegmentAudioMutedButton.IsChecked = selectedSegment is { AudioEnabled: false };
         }

@@ -587,19 +587,6 @@
                                             Click="MoveCompositionSegmentUp_Click" IsEnabled="False" />
                                     <Button x:Name="MoveCompositionSegmentDownButton" Content="Move down"
                                             Click="MoveCompositionSegmentDown_Click" IsEnabled="False" />
-                                    <StackPanel x:Name="CompositionSegmentAudioControls" Orientation="Horizontal"
-                                                Margin="12,0,0,0" VerticalAlignment="Center" Visibility="Collapsed">
-                                        <TextBlock Text="Source audio" Margin="0,0,5,0" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource MutedTextBrush}" FontWeight="SemiBold" />
-                                        <RadioButton x:Name="CompositionSegmentAudioOnButton" Content="On"
-                                                     GroupName="CompositionSegmentAudio"
-                                                     Style="{StaticResource CompositionAudioChoiceStyle}"
-                                                     Checked="CompositionSegmentAudio_Checked" />
-                                        <RadioButton x:Name="CompositionSegmentAudioMutedButton" Content="Muted"
-                                                     GroupName="CompositionSegmentAudio"
-                                                     Style="{StaticResource CompositionAudioChoiceStyle}"
-                                                     Checked="CompositionSegmentAudio_Checked" />
-                                    </StackPanel>
                                 </StackPanel>
                                 <Button x:Name="RemoveCompositionSegmentButton" Grid.Column="1" Content="Remove"
                                         Click="RemoveCompositionSegment_Click" Style="{StaticResource DangerButtonStyle}"
@@ -814,13 +801,112 @@
                         </ScrollViewer>
                     </TabItem>
                     <TabItem x:Name="EditToolsTab" Header="Edit Tools" Visibility="Collapsed">
-                        <StackPanel Margin="12">
-                            <TextBlock Text="EDIT TOOLS" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
-                            <TextBlock Text="Working Composition" Style="{StaticResource ApplicationTextBlockStyle}"
-                                       FontSize="17" FontWeight="SemiBold" Margin="0,16,0,5" />
-                            <TextBlock Text="Build the ordered Working Composition below. Select a physical video or Saved Clip in Project Media, add it, reorder the segments, then preview the committed composition."
-                                       TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" />
-                        </StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="12">
+                                <TextBlock Text="EDIT TOOLS" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MutedTextBrush}" />
+
+                                <StackPanel x:Name="EditToolsEmptyState" Margin="0,18,0,0">
+                                    <TextBlock Text="Select something in the timeline"
+                                               Style="{StaticResource ApplicationTextBlockStyle}"
+                                               FontSize="17" FontWeight="SemiBold" />
+                                    <TextBlock Text="Select a video segment or audio clip to edit its composition properties. Arrangement actions such as insert, remove, and reorder stay on the timeline."
+                                               TextWrapping="Wrap" Margin="0,6,0,0"
+                                               Foreground="{StaticResource MutedTextBrush}" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="VideoSegmentEditTools" Visibility="Collapsed" Margin="0,14,0,0">
+                                    <TextBlock Text="VIDEO SEGMENT" Foreground="{StaticResource MutedTextBrush}"
+                                               FontSize="11" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="EditVideoSegmentNameText"
+                                               Style="{StaticResource ApplicationTextBlockStyle}"
+                                               FontSize="17" FontWeight="SemiBold" Margin="0,4,0,10"
+                                               TextWrapping="Wrap" />
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                                        <StackPanel>
+                                            <TextBlock Text="CLIP / SOURCE" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="EditVideoSegmentSourceText" TextWrapping="Wrap"
+                                                       Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                                        <StackPanel>
+                                            <TextBlock Text="AUDIO" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock Text="Use this segment's source audio in the composition."
+                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,8"
+                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                            <StackPanel x:Name="EditSegmentAudioControls" Orientation="Horizontal">
+                                                <RadioButton x:Name="CompositionSegmentAudioOnButton" Content="On"
+                                                             GroupName="CompositionSegmentAudio"
+                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
+                                                             Checked="CompositionSegmentAudio_Checked" />
+                                                <RadioButton x:Name="CompositionSegmentAudioMutedButton" Content="Muted"
+                                                             GroupName="CompositionSegmentAudio"
+                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
+                                                             Checked="CompositionSegmentAudio_Checked" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                                        <StackPanel>
+                                            <TextBlock Text="TRANSFORM" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock Text="No transform is applied. Transform controls arrive in a later editing slice."
+                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
+                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10">
+                                        <StackPanel>
+                                            <TextBlock Text="TIMING" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="EditVideoSegmentTimingText" TextWrapping="Wrap"
+                                                       Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel x:Name="AudioClipEditTools" Visibility="Collapsed" Margin="0,14,0,0">
+                                    <TextBlock Text="AUDIO CLIP" Foreground="{StaticResource MutedTextBrush}"
+                                               FontSize="11" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="EditAudioClipNameText"
+                                               Style="{StaticResource ApplicationTextBlockStyle}"
+                                               FontSize="17" FontWeight="SemiBold" Margin="0,4,0,10"
+                                               TextWrapping="Wrap" />
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                                        <StackPanel>
+                                            <TextBlock Text="TIMING" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="EditAudioClipTimingText" TextWrapping="Wrap"
+                                                       Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10">
+                                        <StackPanel>
+                                            <TextBlock Text="AUDIO" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock Text="Gain and fade controls arrive in a later editing slice."
+                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
+                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
                     </TabItem>
                 </TabControl>
                     <Grid x:Name="JobsPanel" Visibility="Collapsed" Background="{StaticResource PanelBrush}" Margin="8">
