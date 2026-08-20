@@ -205,4 +205,47 @@ public sealed class CompositionTimelineLayoutTests
             viewportWidth: 600,
             zoomFactor: zoomFactor));
     }
+
+    [Fact]
+    public void AutoScrollKeepsAnAlreadyVisiblePlayheadStationary()
+    {
+        var layout = CompositionTimelineLayout.Calculate(
+            [
+                new CompositionTimelineSegmentInput(Guid.NewGuid(), 2),
+                new CompositionTimelineSegmentInput(Guid.NewGuid(), 8)
+            ],
+            viewportWidth: 600,
+            zoomFactor: 3);
+
+        Assert.Equal(500, layout.GetAutoScrollOffset(
+            playbackSeconds: 5,
+            currentOffset: 500,
+            viewportWidth: 600));
+    }
+
+    [Fact]
+    public void AutoScrollMovesPlayheadToTheLeftAndClampsAtTimelineEnds()
+    {
+        var layout = CompositionTimelineLayout.Calculate(
+            [
+                new CompositionTimelineSegmentInput(Guid.NewGuid(), 2),
+                new CompositionTimelineSegmentInput(Guid.NewGuid(), 8)
+            ],
+            viewportWidth: 600,
+            zoomFactor: 3);
+        var playheadX = layout.GetPlayheadX(5);
+
+        Assert.Equal(
+            playheadX - 8,
+            layout.GetAutoScrollOffset(5, currentOffset: 0, viewportWidth: 600),
+            precision: 6);
+        Assert.Equal(
+            layout.ContentWidth - 600,
+            layout.GetAutoScrollOffset(10, currentOffset: 0, viewportWidth: 600),
+            precision: 6);
+        Assert.Equal(0, layout.GetAutoScrollOffset(
+            playbackSeconds: 0,
+            currentOffset: 600,
+            viewportWidth: 600));
+    }
 }

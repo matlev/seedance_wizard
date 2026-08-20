@@ -2160,6 +2160,17 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _compositionTimelinePlayhead.X1 = x;
         _compositionTimelinePlayhead.X2 = x;
         _compositionTimelinePlayhead.Visibility = Visibility.Visible;
+        if (_isVideoPlaying && CompositionTimelineAutoScrollCheckBox?.IsChecked == true &&
+            CompositionTimelineScrollViewer is { } scrollViewer &&
+            scrollViewer.ViewportWidth > 0)
+        {
+            var desiredOffset = _compositionTimelineLayout.GetAutoScrollOffset(
+                playbackSeconds,
+                scrollViewer.HorizontalOffset,
+                scrollViewer.ViewportWidth);
+            if (Math.Abs(desiredOffset - scrollViewer.HorizontalOffset) > 0.5)
+                scrollViewer.ScrollToHorizontalOffset(desiredOffset);
+        }
     }
 
     private void ClearCompositionTimeline()

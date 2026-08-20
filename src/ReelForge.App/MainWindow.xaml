@@ -556,8 +556,15 @@
                                                        Foreground="{StaticResource MutedTextBrush}" FontSize="11"
                                                        VerticalAlignment="Center" />
                                         </StackPanel>
-                                        <TextBlock Text="TIMELINE" Foreground="{StaticResource MutedTextBrush}"
-                                                   FontSize="11" FontWeight="SemiBold" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="TIMELINE" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <CheckBox x:Name="CompositionTimelineAutoScrollCheckBox"
+                                                      Content="Auto-scroll during playback" IsChecked="True"
+                                                      VerticalAlignment="Center" Margin="12,0,0,0"
+                                                      Foreground="{StaticResource TextBrush}"
+                                                      ToolTip="Keep the composition playhead visible while playback advances. This choice is not saved." />
+                                        </StackPanel>
                                     </DockPanel>
                                     <ScrollViewer x:Name="CompositionTimelineScrollViewer" Grid.Row="1"
                                                   HorizontalScrollBarVisibility="Auto"

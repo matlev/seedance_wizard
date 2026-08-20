@@ -330,6 +330,7 @@ In progress. The first slices project the committed Working Composition into a h
 11. Reposition a timed audio clip by dragging its timeline block horizontally; pointer movement is transient UI state, mouse-up commits at most one immutable millisecond-precise start time, and clicks, sub-millisecond pointer noise, or other no-op drags create no revision. Keep the dropped visual stable while the commit completes.
 12. Zoom the visual timeline from its default scale to 800% without changing recipe state. Uniformly scale blocks and ruler geometry, preserve approximate viewport focus during zoom, and keep playhead, insertion, reorder, drop, and audio-placement mappings tied to composition time. Provide an explicit reset to the default scale.
 13. Seek a rendered composition preview by clicking or dragging its timeline ruler. Preserve the preview's prior play/pause state, clamp ruler positions to composition bounds, and keep seeking unavailable for stale or unrendered revisions. Ruler navigation changes playback state only and creates no recipe revision.
+14. Auto-scroll a zoomed timeline when the playing composition's playhead leaves the visible viewport, returning it near the left edge or clamping at the final scroll extent. Keep a default-on **Auto-scroll during playback** checkbox beside the Timeline heading; toggling it acts immediately and remains session-only rather than becoming project or application settings state.
 
 #### Phase 2E.2 — context-sensitive Edit Tools
 

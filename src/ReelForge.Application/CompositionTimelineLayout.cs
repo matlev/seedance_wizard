@@ -41,6 +41,29 @@ public sealed record CompositionTimelineLayoutResult(
         return segment.StartSeconds + segment.DurationSeconds * progress;
     }
 
+    public double GetAutoScrollOffset(
+        double playbackSeconds,
+        double currentOffset,
+        double viewportWidth,
+        double leadingInset = 8)
+    {
+        if (!double.IsFinite(currentOffset) || currentOffset < 0)
+            throw new ArgumentOutOfRangeException(nameof(currentOffset));
+        if (!double.IsFinite(viewportWidth) || viewportWidth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(viewportWidth));
+        if (!double.IsFinite(leadingInset) || leadingInset < 0)
+            throw new ArgumentOutOfRangeException(nameof(leadingInset));
+
+        var maximumOffset = Math.Max(0, ContentWidth - viewportWidth);
+        var boundedOffset = Math.Clamp(currentOffset, 0, maximumOffset);
+        if (maximumOffset <= 0) return 0;
+
+        var playheadX = GetPlayheadX(playbackSeconds);
+        if (playheadX >= boundedOffset && playheadX <= boundedOffset + viewportWidth)
+            return boundedOffset;
+        return Math.Clamp(playheadX - leadingInset, 0, maximumOffset);
+    }
+
     public int GetVideoInsertionIndex(double x)
     {
         for (var index = 0; index < Segments.Count; index++)
