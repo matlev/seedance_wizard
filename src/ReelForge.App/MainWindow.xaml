@@ -304,6 +304,8 @@
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
@@ -321,17 +323,27 @@
                                           Data="M 1,0 H 6 V 17 H 1 Z M 11,0 H 16 V 17 H 11 Z" />
                                 </Grid>
                             </Button>
-                            <Slider x:Name="PositionSlider" Grid.Column="1" Minimum="0" Maximum="1" Margin="10,0"
+                            <Button x:Name="PreviousFrameButton" Grid.Column="1" Width="32" Height="32"
+                                    Padding="4" Margin="5,0,0,0" Click="PreviousFrame_Click"
+                                    ToolTip="Rewind one decoded video frame" IsEnabled="False">
+                                <TextBlock Text="&#xE892;" FontFamily="Segoe Fluent Icons" FontSize="14" />
+                            </Button>
+                            <Button x:Name="NextFrameButton" Grid.Column="2" Width="32" Height="32"
+                                    Padding="4" Margin="3,0,0,0" Click="NextFrame_Click"
+                                    ToolTip="Advance one decoded video frame" IsEnabled="False">
+                                <TextBlock Text="&#xE893;" FontFamily="Segoe Fluent Icons" FontSize="14" />
+                            </Button>
+                            <Slider x:Name="PositionSlider" Grid.Column="3" Minimum="0" Maximum="1" Margin="10,0"
                                     VerticalAlignment="Center" IsMoveToPointEnabled="False"
                                     ValueChanged="PositionSlider_ValueChanged"
                                     PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
                                     PreviewMouseMove="PositionSlider_PreviewMouseMove"
                                     PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp" />
-                            <TextBlock x:Name="TimeText" Grid.Column="2" Style="{StaticResource ApplicationTextBlockStyle}"
+                            <TextBlock x:Name="TimeText" Grid.Column="4" Style="{StaticResource ApplicationTextBlockStyle}"
                                        Text="00:00 / 00:00" VerticalAlignment="Center" Margin="6,0,10,0" />
-                            <Button x:Name="MuteButton" Grid.Column="3" Content="Mute" Click="Mute_Click"
+                            <Button x:Name="MuteButton" Grid.Column="5" Content="Mute" Click="Mute_Click"
                                     Padding="8,4" ToolTip="Mute or unmute preview audio" />
-                            <Slider x:Name="VolumeSlider" Grid.Column="4" Minimum="0" Maximum="1" Value="1"
+                            <Slider x:Name="VolumeSlider" Grid.Column="6" Minimum="0" Maximum="1" Value="1"
                                     SmallChange="0.05" LargeChange="0.1" Margin="6,0,2,0" VerticalAlignment="Center"
                                     ValueChanged="VolumeSlider_ValueChanged" ToolTip="Preview volume" />
                         </Grid>
@@ -503,7 +515,6 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <DockPanel Margin="2,0,2,10">
                                 <Button x:Name="PreviewCompositionButton" DockPanel.Dock="Right"
@@ -591,8 +602,9 @@
                                                 PreviewMouseLeftButtonUp="CompositionTimelineCanvas_PreviewMouseLeftButtonUp"
                                                 LostMouseCapture="CompositionTimelineCanvas_LostMouseCapture" />
                                     </ScrollViewer>
-                                    <Canvas x:Name="CompositionTimelineDropHint" Grid.Row="1" Visibility="Collapsed"
-                                            IsHitTestVisible="False" ClipToBounds="True" Margin="2">
+                                    <Canvas x:Name="CompositionTimelineDropHint" Grid.Row="1" Height="124"
+                                            VerticalAlignment="Top" Visibility="Collapsed"
+                                            IsHitTestVisible="False" ClipToBounds="True" Margin="2,0">
                                         <Border x:Name="CompositionTimelineDropMarker" Width="3" Height="67"
                                                 Panel.ZIndex="10" Background="#FF4D5D" CornerRadius="2">
                                             <Border.Effect>
@@ -616,27 +628,6 @@
                                     </Canvas>
                                 </Grid>
                             </Border>
-                            <Grid Grid.Row="2" Margin="0,10,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal">
-                                    <Button x:Name="AddCompositionSegmentButton" Content="Add selected media"
-                                            Click="AddCompositionSegment_Click"
-                                            ToolTip="Select a physical video or Saved Clip in Project Media, then add it here" />
-                                    <Button x:Name="MoveCompositionSegmentUpButton" Content="Move up"
-                                            Click="MoveCompositionSegmentUp_Click" IsEnabled="False" />
-                                    <Button x:Name="MoveCompositionSegmentDownButton" Content="Move down"
-                                            Click="MoveCompositionSegmentDown_Click" IsEnabled="False" />
-                                    <Button x:Name="SplitCompositionSegmentButton" Content="Split at playhead"
-                                            Click="SplitCompositionSegment_Click" IsEnabled="False"
-                                            ToolTip="Split the selected video segment before the exact frame at the composition playhead" />
-                                </StackPanel>
-                                <Button x:Name="RemoveCompositionSegmentButton" Grid.Column="1" Content="Remove"
-                                        Click="RemoveCompositionSegment_Click" Style="{StaticResource DangerButtonStyle}"
-                                        IsEnabled="False" />
-                            </Grid>
                         </Grid>
                     </Grid>
                 </Border>

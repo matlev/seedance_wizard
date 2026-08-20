@@ -205,9 +205,26 @@ public sealed class WorkingCompositionService
             position.SourceRecipeRevisionId != currentSegment.Source.RecipeRevisionId)
             throw new InvalidOperationException("The split frame must belong to the selected segment's pinned source.");
 
+        var assetCount = project.Assets.Count;
         var anchorCount = project.Anchors.Count;
         var anchorRevisionCount = project.AnchorRevisions.Count;
+        var recipeRevisionCount = project.RecipeRevisions.Count;
         var anchor = new FrameAnchor { IsArchived = true };
+        var sourceAsset = project.Assets.Single(asset => asset.Id == currentSegment.Source.AssetId);
+        var leadingClip = CreateSplitClip(
+            project,
+            sourceAsset,
+            currentSegment.Source,
+            currentSegment.Start,
+            RecipeBoundary.SourceEnd,
+            "part 1");
+        var trailingClip = CreateSplitClip(
+            project,
+            sourceAsset,
+            currentSegment.Source,
+            RecipeBoundary.SourceStart,
+            currentSegment.End,
+            "part 2");
         var trailingSegmentId = Guid.NewGuid();
         try
         {
@@ -223,36 +240,135 @@ public sealed class WorkingCompositionService
                 },
                 Edge = AnchorBoundaryEdge.BeforeFrame
             };
+            var sourceDuration = sourceAsset.DurationSeconds ?? sourceAsset.Encoding?.DurationSeconds ??
+                                 sourceAsset.Virtual?.ExpectedMediaProperties?.DurationSeconds;
+            var originalStart = ResolveApproximateBoundary(project, currentSegment.Start, sourceDuration) ?? 0;
+            var originalEnd = ResolveApproximateBoundary(project, currentSegment.End, sourceDuration) ?? sourceDuration;
+            var leadingDuration = Math.Max(0, anchorRevision.TimestampSeconds - originalStart);
+            var trailingDuration = originalEnd is { } end
+                ? Math.Max(0, end - anchorRevision.TimestampSeconds)
+                : (double?)null;
+
+            leadingClip.Virtual!.ExpectedMediaProperties!.DurationSeconds = leadingDuration;
+            trailingClip.Virtual!.ExpectedMediaProperties!.DurationSeconds = trailingDuration;
+            project.AddAsset(leadingClip);
+            project.AddAsset(trailingClip);
+            var leadingRevision = project.CommitRecipe(leadingClip.Id, new TrimRecipe
+            {
+                Source = currentSegment.Source with { },
+                Start = currentSegment.Start with { },
+                End = boundary
+            });
+            var trailingRevision = project.CommitRecipe(trailingClip.Id, new TrimRecipe
+            {
+                Source = currentSegment.Source with { },
+                Start = boundary,
+                End = currentSegment.End with { }
+            });
             var revision = await UpdateAsync(recipe =>
             {
                 var index = recipe.Segments.FindIndex(segment => segment.Id == segmentId);
                 if (index < 0)
                     throw new InvalidOperationException("The selected composition segment no longer exists.");
                 var segment = recipe.Segments[index];
-                recipe.Segments[index] = segment with { End = boundary };
+                recipe.Segments[index] = segment with
+                {
+                    Source = new AssetRevisionReference
+                    {
+                        AssetId = leadingClip.Id,
+                        RecipeRevisionId = leadingRevision.Id
+                    },
+                    Start = RecipeBoundary.SourceStart,
+                    End = RecipeBoundary.SourceEnd
+                };
                 recipe.Segments.Insert(index + 1, segment with
                 {
                     Id = trailingSegmentId,
-                    Start = boundary
+                    Source = new AssetRevisionReference
+                    {
+                        AssetId = trailingClip.Id,
+                        RecipeRevisionId = trailingRevision.Id
+                    },
+                    Start = RecipeBoundary.SourceStart,
+                    End = RecipeBoundary.SourceEnd
                 });
             }, cancellationToken).ConfigureAwait(false);
             return new CompositionSegmentSplitResult(
                 revision,
                 segmentId,
                 trailingSegmentId,
+                leadingClip.Id,
+                trailingClip.Id,
                 anchor.Id,
                 anchorRevision.Id,
                 anchorRevision.TimestampSeconds);
         }
         catch
         {
+            project.RecipeRevisions.RemoveRange(
+                recipeRevisionCount,
+                project.RecipeRevisions.Count - recipeRevisionCount);
             project.AnchorRevisions.RemoveRange(
                 anchorRevisionCount,
                 project.AnchorRevisions.Count - anchorRevisionCount);
             project.Anchors.RemoveRange(anchorCount, project.Anchors.Count - anchorCount);
+            project.Assets.RemoveRange(assetCount, project.Assets.Count - assetCount);
             throw;
         }
     }
+
+    private static ProjectAsset CreateSplitClip(
+        VideoProject project,
+        ProjectAsset sourceAsset,
+        AssetRevisionReference sourceReference,
+        RecipeBoundary start,
+        RecipeBoundary end,
+        string suffix)
+    {
+        var baseName = Path.GetFileNameWithoutExtension(sourceAsset.EffectiveDisplayName);
+        var requestedName = $"{baseName} — {suffix}";
+        var displayName = requestedName;
+        for (var copy = 2; project.Assets.Any(asset =>
+                 asset.EffectiveDisplayName.Equals(displayName, StringComparison.OrdinalIgnoreCase)); copy++)
+            displayName = $"{requestedName} ({copy})";
+
+        return new ProjectAsset
+        {
+            DisplayName = displayName,
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Origin = AssetOrigin.EditorDerived,
+            Physical = null,
+            Virtual = new VirtualAssetState
+            {
+                Kind = VirtualAssetKind.SavedClip,
+                ExpectedMediaProperties = new MediaEncodingMetadata
+                {
+                    ContainerFormat = "mp4"
+                }
+            },
+            Provenance = new AssetProvenance
+            {
+                Operation = "timeline-split",
+                SourceAssetIds = [sourceReference.AssetId],
+                SourceRecipeRevisionId = sourceReference.RecipeRevisionId
+            }
+        };
+    }
+
+    private static double? ResolveApproximateBoundary(
+        VideoProject project,
+        RecipeBoundary boundary,
+        double? sourceDuration) => boundary.Kind switch
+    {
+        RecipeBoundaryKind.SourceStart => 0,
+        RecipeBoundaryKind.SourceEnd => sourceDuration,
+        RecipeBoundaryKind.Timestamp => boundary.TimestampSeconds,
+        RecipeBoundaryKind.Anchor when boundary.Anchor is { } reference =>
+            project.AnchorRevisions.SingleOrDefault(revision =>
+                revision.Id == reference.AnchorRevisionId && revision.AnchorId == reference.AnchorId)?.TimestampSeconds,
+        _ => null
+    };
 
     public async Task<RecipeRevision> SetAudioClipTimelineStartAsync(
         Guid audioClipId,
@@ -543,6 +659,8 @@ public sealed record CompositionSegmentSplitResult(
     RecipeRevision Revision,
     Guid LeadingSegmentId,
     Guid TrailingSegmentId,
+    Guid LeadingClipAssetId,
+    Guid TrailingClipAssetId,
     Guid BoundaryAnchorId,
     Guid BoundaryAnchorRevisionId,
     double SourceTimestampSeconds);

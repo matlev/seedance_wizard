@@ -34,18 +34,34 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
         Assert.Equal(2, recipe.Segments.Count);
         Assert.Equal(originalSegment.Id, recipe.Segments[0].Id);
         Assert.Equal(result.TrailingSegmentId, recipe.Segments[1].Id);
-        Assert.Equal(recipe.Segments[0].End, recipe.Segments[1].Start);
-        Assert.Equal(AnchorBoundaryEdge.BeforeFrame, recipe.Segments[0].End.Edge);
+        Assert.Equal(result.LeadingClipAssetId, recipe.Segments[0].Source.AssetId);
+        Assert.Equal(result.TrailingClipAssetId, recipe.Segments[1].Source.AssetId);
+        Assert.All(recipe.Segments, segment =>
+        {
+            Assert.Equal(RecipeBoundaryKind.SourceStart, segment.Start.Kind);
+            Assert.Equal(RecipeBoundaryKind.SourceEnd, segment.End.Kind);
+        });
+        var splitClips = workspace.Project!.Assets
+            .Where(asset => asset.Virtual?.Kind == VirtualAssetKind.SavedClip)
+            .ToArray();
+        Assert.Equal(2, splitClips.Length);
+        Assert.Equal(2, splitClips.Select(asset => asset.DisplayName).Distinct().Count());
+        var leadingRecipe = Assert.IsType<TrimRecipe>(workspace.Project.RecipeRevisions.Single(revision =>
+            revision.Id == recipe.Segments[0].Source.RecipeRevisionId).Recipe);
+        var trailingRecipe = Assert.IsType<TrimRecipe>(workspace.Project.RecipeRevisions.Single(revision =>
+            revision.Id == recipe.Segments[1].Source.RecipeRevisionId).Recipe);
+        Assert.Equal(leadingRecipe.End, trailingRecipe.Start);
+        Assert.Equal(AnchorBoundaryEdge.BeforeFrame, leadingRecipe.End.Edge);
         var anchor = Assert.Single(workspace.Project!.Anchors);
         Assert.True(anchor.IsArchived);
         var anchorRevision = Assert.Single(workspace.Project.AnchorRevisions);
         Assert.Equal(source.Id, anchorRevision.SourceAssetId);
         Assert.Null(anchorRevision.SourceRecipeRevisionId);
         Assert.Equal(100, anchorRevision.PresentationTimestamp);
-        Assert.Equal(4, CompositionSegmentTiming.ResolveDuration(
-            workspace.Project, recipe.Segments[0], source)!.Value, precision: 6);
-        Assert.Equal(6, CompositionSegmentTiming.ResolveDuration(
-            workspace.Project, recipe.Segments[1], source)!.Value, precision: 6);
+        Assert.Equal(4, splitClips.Single(asset => asset.Id == result.LeadingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
+        Assert.Equal(6, splitClips.Single(asset => asset.Id == result.TrailingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
         Assert.Empty(ProjectInvariantValidator.Validate(workspace.Project));
 
         var reopened = (await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath)).Project;
@@ -90,27 +106,32 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
                 new VideoPresentationFrame(0, 49, 1, 24, 49)
             ]));
 
-        await service.SplitAsync(originalSegment.Id, TimeSpan.FromSeconds(2.03));
+        var result = await service.SplitAsync(originalSegment.Id, TimeSpan.FromSeconds(2.03));
 
         var (_, _, recipe) = new WorkingCompositionService(workspace).GetCurrent();
-        var boundaryRevisionId = recipe.Segments[0].End.Anchor!.AnchorRevisionId;
+        var leadingClipRevision = project.RecipeRevisions.Single(revision =>
+            revision.Id == recipe.Segments[0].Source.RecipeRevisionId);
+        var trailingClipRevision = project.RecipeRevisions.Single(revision =>
+            revision.Id == recipe.Segments[1].Source.RecipeRevisionId);
+        var leadingRecipe = Assert.IsType<TrimRecipe>(leadingClipRevision.Recipe);
+        var trailingRecipe = Assert.IsType<TrimRecipe>(trailingClipRevision.Recipe);
+        var boundaryRevisionId = leadingRecipe.End.Anchor!.AnchorRevisionId;
         var boundary = project.AnchorRevisions.Single(revision => revision.Id == boundaryRevisionId);
         Assert.Equal(clip.Id, boundary.SourceAssetId);
         Assert.Equal(clipRevision.Id, boundary.SourceRecipeRevisionId);
         Assert.Equal(renderedHash, boundary.SourceContentHash);
-        Assert.All(recipe.Segments, segment =>
-        {
-            Assert.Equal(clip.Id, segment.Source.AssetId);
-            Assert.Equal(clipRevision.Id, segment.Source.RecipeRevisionId);
-        });
+        Assert.Equal(clip.Id, leadingRecipe.Source.AssetId);
+        Assert.Equal(clipRevision.Id, leadingRecipe.Source.RecipeRevisionId);
+        Assert.Equal(clip.Id, trailingRecipe.Source.AssetId);
+        Assert.Equal(clipRevision.Id, trailingRecipe.Source.RecipeRevisionId);
+        Assert.Equal(result.LeadingClipAssetId, recipe.Segments[0].Source.AssetId);
+        Assert.Equal(result.TrailingClipAssetId, recipe.Segments[1].Source.AssetId);
         var snappedCutSeconds = 49d / 24;
-        Assert.Equal(snappedCutSeconds,
-            CompositionSegmentTiming.ResolveDuration(project, recipe.Segments[0], clip)!.Value,
-            precision: 6);
-        Assert.Equal(6 - snappedCutSeconds,
-            CompositionSegmentTiming.ResolveDuration(project, recipe.Segments[1], clip)!.Value,
-            precision: 6);
-        Assert.Equal(3, project.Assets.Count);
+        Assert.Equal(snappedCutSeconds, project.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
+        Assert.Equal(6 - snappedCutSeconds, project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
+        Assert.Equal(5, project.Assets.Count);
         Assert.DoesNotContain(project.Assets, asset => asset.Origin == AssetOrigin.Exported);
         Assert.Empty(ProjectInvariantValidator.Validate(project));
 

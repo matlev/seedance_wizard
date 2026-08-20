@@ -32,6 +32,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         double ItemWidth,
         double MinimumTrailingWidth);
 
+    private sealed record CompositionDraftSegment(
+        Guid SegmentId,
+        AssetRevisionReference Source,
+        double TimelineStartSeconds,
+        double SourceStartSeconds,
+        double DurationSeconds);
+
     private const string ProjectMediaDragFormat = "ReelForge.ProjectMediaAssetId";
     private readonly ObservableCollection<ProjectMediaListItem> _assets = [];
     private readonly ObservableCollection<GenerationRecord> _generations = [];
@@ -111,6 +118,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private CompositionTimelineLayoutResult? _compositionTimelineLayout;
     private Line? _compositionTimelinePlayhead;
     private Guid? _activeCompositionPreviewRevisionId;
+    private Guid? _activeCompositionDraftRevisionId;
+    private IReadOnlyList<CompositionDraftSegment> _compositionDraftSegments = [];
+    private int _activeCompositionDraftSegmentIndex = -1;
+    private double _compositionDraftPositionSeconds;
+    private double _pendingPreviewStartSeconds;
+    private int _compositionDraftOpenVersion;
+    private bool _advancingCompositionDraft;
     private Guid? _selectedCompositionSegmentId;
     private Guid? _selectedCompositionAudioClipId;
     private bool _suppressCompositionAudioControl;
@@ -1347,35 +1361,22 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         RenderCompositionTimeline();
         ScheduleCompositionTimelineRender();
         UpdateCompositionActionState();
-    }
-
-    private async void AddCompositionSegment_Click(object sender, RoutedEventArgs e)
-    {
-        if (GetSelectedAsset() is not { } source) return;
-        await RunUiActionAsync($"Adding {source.EffectiveDisplayName} to the composition…", async () =>
+        if (_activeCompositionDraftRevisionId is { } draftRevisionId && draftRevisionId != revision.Id &&
+            AssetsList.SelectedItem is ProjectMediaListItem selectedItem &&
+            selectedItem.Asset?.Id == composition.Id)
         {
-            var revision = await new WorkingCompositionService(_workspace).AddSegmentAsync(source.Id);
-            var segment = AssertCompositionRecipe(revision).Segments[^1];
-            RefreshEditWorkspaceState();
-            _selectedCompositionSegmentId = segment.Id;
-            _selectedCompositionAudioClipId = null;
-            RenderCompositionTimeline();
-            StatusText.Text = $"Added {source.EffectiveDisplayName} to the Working Composition.";
-        });
+            ClearMediaPreview();
+            _ = OpenCompositionDraftPreviewAsync(composition, selectedItem, _workspace.Project.Id);
+        }
     }
 
-    private async void MoveCompositionSegmentUp_Click(object sender, RoutedEventArgs e) =>
-        await MoveSelectedCompositionSegmentAsync(-1);
-
-    private async void MoveCompositionSegmentDown_Click(object sender, RoutedEventArgs e) =>
-        await MoveSelectedCompositionSegmentAsync(1);
-
-    private async void SplitCompositionSegment_Click(object sender, RoutedEventArgs e)
+    private async Task SplitCompositionSegmentAsync(Guid segmentId)
     {
-        if (GetSelectedCompositionSegment() is not { } selected ||
-            _compositionTimelineLayout?.Segments.SingleOrDefault(span => span.SegmentId == selected.SegmentId) is not { } span)
+        var selected = _compositionSegments.SingleOrDefault(item => item.SegmentId == segmentId);
+        if (selected is null ||
+            _compositionTimelineLayout?.Segments.SingleOrDefault(span => span.SegmentId == segmentId) is not { } span)
             return;
-        var playbackSeconds = VideoPreview.Position.TotalSeconds;
+        var playbackSeconds = GetCurrentTimelinePlaybackSeconds();
         var offset = playbackSeconds - span.StartSeconds;
         VideoPreview.Pause();
         SetPlaybackState(false);
@@ -1388,10 +1389,15 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 .SplitAsync(selected.SegmentId, TimeSpan.FromSeconds(offset));
             _selectedCompositionSegmentId = result.TrailingSegmentId;
             _selectedCompositionAudioClipId = null;
+            var leadingName = _workspace.Project!.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
+                .EffectiveDisplayName;
+            var trailingName = _workspace.Project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
+                .EffectiveDisplayName;
+            RefreshProjectCollections(_workspace.Project.WorkingCompositionAssetId);
             RefreshEditWorkspaceState();
             StatusText.Text =
-                $"Split {selected.DisplayName} at source {FormatTimelineTimePrecise(result.SourceTimestampSeconds)}. " +
-                "Preview the composition to rebuild it.";
+                $"Split {selected.DisplayName} into Saved Clips '{leadingName}' and '{trailingName}' at " +
+                $"source {FormatTimelineTimePrecise(result.SourceTimestampSeconds)}.";
         });
     }
 
@@ -1548,9 +1554,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
-    private async Task MoveSelectedCompositionSegmentAsync(int offset)
+    private async Task MoveCompositionSegmentAsync(Guid segmentId, int offset)
     {
-        if (GetSelectedCompositionSegment() is not { } selected) return;
+        var selected = _compositionSegments.SingleOrDefault(item => item.SegmentId == segmentId);
+        if (selected is null) return;
         await RunUiActionAsync("Reordering the Working Composition…", async () =>
         {
             await new WorkingCompositionService(_workspace).MoveSegmentAsync(selected.SegmentId, offset);
@@ -1562,13 +1569,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         });
     }
 
-    private async void RemoveCompositionSegment_Click(object sender, RoutedEventArgs e)
+    private async Task RemoveCompositionItemAsync(Guid itemId)
     {
-        var selectedSegment = GetSelectedCompositionSegment();
-        var selectedAudio = GetSelectedCompositionAudioClip();
+        var selectedSegment = _compositionSegments.SingleOrDefault(item => item.SegmentId == itemId);
+        var selectedAudio = _compositionAudioClips.SingleOrDefault(item => item.AudioClipId == itemId);
         if (selectedSegment is null && selectedAudio is null) return;
         var displayName = selectedSegment?.DisplayName ?? selectedAudio!.DisplayName;
-        var itemId = selectedSegment?.SegmentId ?? selectedAudio!.AudioClipId;
         await RunUiActionAsync($"Removing {displayName} from the composition…", async () =>
         {
             await new WorkingCompositionService(_workspace).RemoveItemAsync(itemId);
@@ -1796,7 +1802,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void CompositionTimelineCanvas_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_activeCompositionPreviewRevisionId is null ||
+        if ((_activeCompositionPreviewRevisionId is null && _activeCompositionDraftRevisionId is null) ||
             _compositionTimelineLayout is null ||
             VideoPreview.Source is null ||
             _isVideoPreviewPriming ||
@@ -1908,10 +1914,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void SeekCompositionTimeline(double x)
     {
         if (_compositionTimelineLayout is null || VideoPreview.Source is null) return;
-        SeekPreview(_compositionTimelineLayout.GetTimeAtX(x));
+        var target = _compositionTimelineLayout.GetTimeAtX(x);
+        SeekPreview(target);
         _videoPreviewHasEnded = false;
-        PositionSlider.Value = VideoPreview.Position.TotalSeconds;
-        UpdateCompositionTimelinePlayhead(VideoPreview.Position.TotalSeconds);
+        PositionSlider.Value = target;
+        UpdateCompositionTimelinePlayhead(target);
     }
 
     private void CompleteCompositionTimelineScrub()
@@ -2221,7 +2228,15 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     CornerRadius = new CornerRadius(2),
                     Padding = new Thickness(4, 2, 4, 2)
                 };
-                segmentBorder.Child = identityBadge;
+                var segmentContents = new Grid();
+                segmentContents.Children.Add(identityBadge);
+                var removeButton = CreateTimelineRemoveButton(item.SegmentId);
+                removeButton.IsEnabled = _compositionSegments.Count > 1;
+                segmentContents.Children.Add(removeButton);
+                segmentBorder.Child = segmentContents;
+                segmentBorder.ContextMenu = CreateCompositionSegmentContextMenu(item.SegmentId, index);
+                segmentBorder.MouseEnter += (_, _) => removeButton.Visibility = Visibility.Visible;
+                segmentBorder.MouseLeave += (_, _) => removeButton.Visibility = Visibility.Collapsed;
                 segmentBorder.MouseLeftButtonDown += CompositionTimelineSegment_MouseLeftButtonDown;
                 var left = isDragging
                     ? Math.Clamp(
@@ -2309,7 +2324,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     CornerRadius = new CornerRadius(2),
                     Padding = new Thickness(4, 1, 4, 1)
                 };
-                audioBorder.Child = audioIdentityBadge;
+                var audioContents = new Grid();
+                audioContents.Children.Add(audioIdentityBadge);
+                var removeAudioButton = CreateTimelineRemoveButton(item.AudioClipId);
+                audioContents.Children.Add(removeAudioButton);
+                audioBorder.Child = audioContents;
+                audioBorder.ContextMenu = CreateCompositionAudioContextMenu(item.AudioClipId);
+                audioBorder.MouseEnter += (_, _) => removeAudioButton.Visibility = Visibility.Visible;
+                audioBorder.MouseLeave += (_, _) => removeAudioButton.Visibility = Visibility.Collapsed;
                 audioBorder.MouseLeftButtonDown += CompositionTimelineAudioClip_MouseLeftButtonDown;
                 Canvas.SetLeft(audioBorder, left + 1);
                 Canvas.SetTop(audioBorder, 86);
@@ -2328,8 +2350,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 Stroke = FindResource("AccentBrush") as Brush ?? Brushes.MediumPurple,
                 StrokeThickness = 2,
                 IsHitTestVisible = false,
-                Visibility = _activeCompositionPreviewRevisionId is null ||
-                             _activeCompositionSegmentDragId is not null ||
+                Visibility = _activeCompositionSegmentDragId is not null ||
                              _activeCompositionAudioClipDragId is not null
                     ? Visibility.Collapsed
                     : Visibility.Visible
@@ -2337,12 +2358,127 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             Panel.SetZIndex(_compositionTimelinePlayhead, 10);
             CompositionTimelineCanvas.Children.Add(_compositionTimelinePlayhead);
             UpdateCompositionTimelineStickyContent();
-            UpdateCompositionTimelinePlayhead(VideoPreview.Position.TotalSeconds);
+            UpdateCompositionTimelinePlayhead(GetCurrentTimelinePlaybackSeconds());
         }
         finally
         {
             _renderingCompositionTimeline = false;
         }
+    }
+
+    private Button CreateTimelineRemoveButton(Guid itemId)
+    {
+        var button = new Button
+        {
+            Tag = itemId,
+            Content = new TextBlock
+            {
+                Text = "\uE74D",
+                FontFamily = new FontFamily("Segoe Fluent Icons"),
+                FontSize = 12,
+                Foreground = Brushes.White
+            },
+            Width = 27,
+            Height = 25,
+            Padding = new Thickness(4),
+            Margin = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Visibility = Visibility.Collapsed,
+            Style = FindResource("DangerButtonStyle") as Style,
+            ToolTip = "Remove from composition"
+        };
+        button.PreviewMouseLeftButtonDown += (_, args) => args.Handled = true;
+        button.Click += async (_, args) =>
+        {
+            args.Handled = true;
+            await RemoveCompositionItemAsync(itemId);
+        };
+        Panel.SetZIndex(button, 30);
+        return button;
+    }
+
+    private ContextMenu CreateCompositionSegmentContextMenu(Guid segmentId, int index)
+    {
+        var menu = new ContextMenu();
+        var split = new MenuItem
+        {
+            Header = "Split at playhead",
+            IsEnabled = CanSplitCompositionSegment(segmentId, GetCurrentTimelinePlaybackSeconds())
+        };
+        split.Click += async (_, _) =>
+        {
+            _selectedCompositionSegmentId = segmentId;
+            _selectedCompositionAudioClipId = null;
+            await SplitCompositionSegmentAsync(segmentId);
+        };
+        var shiftLeft = new MenuItem { Header = "Shift Left", IsEnabled = index > 0 };
+        shiftLeft.Click += async (_, _) => await MoveCompositionSegmentAsync(segmentId, -1);
+        var shiftRight = new MenuItem
+        {
+            Header = "Shift Right",
+            IsEnabled = index < _compositionSegments.Count - 1
+        };
+        shiftRight.Click += async (_, _) => await MoveCompositionSegmentAsync(segmentId, 1);
+        var remove = new MenuItem
+        {
+            Header = "Remove",
+            Foreground = new SolidColorBrush(Color.FromRgb(255, 155, 155)),
+            IsEnabled = _compositionSegments.Count > 1
+        };
+        remove.Click += async (_, _) => await RemoveCompositionItemAsync(segmentId);
+        menu.Opened += (_, _) =>
+        {
+            var currentIndex = _compositionSegments.ToList().FindIndex(item => item.SegmentId == segmentId);
+            split.IsEnabled = CanSplitCompositionSegment(segmentId, GetCurrentTimelinePlaybackSeconds());
+            shiftLeft.IsEnabled = currentIndex > 0;
+            shiftRight.IsEnabled = currentIndex >= 0 && currentIndex < _compositionSegments.Count - 1;
+            remove.IsEnabled = currentIndex >= 0 && _compositionSegments.Count > 1;
+        };
+        menu.Items.Add(split);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(shiftLeft);
+        menu.Items.Add(shiftRight);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(remove);
+        return menu;
+    }
+
+    private ContextMenu CreateCompositionAudioContextMenu(Guid audioClipId)
+    {
+        var menu = new ContextMenu();
+        var remove = new MenuItem
+        {
+            Header = "Remove",
+            Foreground = new SolidColorBrush(Color.FromRgb(255, 155, 155))
+        };
+        remove.Click += async (_, _) => await RemoveCompositionItemAsync(audioClipId);
+        menu.Items.Add(remove);
+        return menu;
+    }
+
+    private bool CanSplitCompositionSegment(Guid segmentId, double playbackSeconds)
+    {
+        var span = _compositionTimelineLayout?.Segments.SingleOrDefault(candidate =>
+            candidate.SegmentId == segmentId);
+        var segment = _compositionSegments.SingleOrDefault(candidate => candidate.SegmentId == segmentId);
+        return segment?.DurationSeconds is > 0 &&
+               span is not null &&
+               playbackSeconds > span.StartSeconds + 0.000_000_1 &&
+               playbackSeconds < span.StartSeconds + span.DurationSeconds - 0.000_000_1;
+    }
+
+    private double GetCurrentTimelinePlaybackSeconds()
+    {
+        if (_activeCompositionDraftRevisionId is null ||
+            _activeCompositionDraftSegmentIndex < 0 ||
+            _activeCompositionDraftSegmentIndex >= _compositionDraftSegments.Count)
+            return VideoPreview.Position.TotalSeconds;
+        var segment = _compositionDraftSegments[_activeCompositionDraftSegmentIndex];
+        return Math.Clamp(
+            segment.TimelineStartSeconds + VideoPreview.Position.TotalSeconds - segment.SourceStartSeconds,
+            segment.TimelineStartSeconds,
+            segment.TimelineStartSeconds + segment.DurationSeconds);
     }
 
     private void DrawCompositionTimelineRuler(CompositionTimelineLayoutResult layout)
@@ -2400,9 +2536,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void UpdateCompositionTimelinePlayhead(double playbackSeconds)
     {
-        UpdateCompositionSplitActionState(playbackSeconds);
-        if (_compositionTimelinePlayhead is null || _compositionTimelineLayout is null ||
-            _activeCompositionPreviewRevisionId is null)
+        if (_compositionTimelinePlayhead is null || _compositionTimelineLayout is null)
         {
             if (_compositionTimelinePlayhead is not null)
                 _compositionTimelinePlayhead.Visibility = Visibility.Collapsed;
@@ -2423,25 +2557,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             if (Math.Abs(desiredOffset - scrollViewer.HorizontalOffset) > 0.5)
                 scrollViewer.ScrollToHorizontalOffset(desiredOffset);
         }
-    }
-
-    private void UpdateCompositionSplitActionState(double playbackSeconds)
-    {
-        if (SplitCompositionSegmentButton is null) return;
-        var currentRevisionId = _workspace.Project?.WorkingCompositionAssetId is { } compositionId
-            ? _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == compositionId)?.Virtual?.CurrentRecipeRevisionId
-            : null;
-        var span = _selectedCompositionSegmentId is { } selectedId
-            ? _compositionTimelineLayout?.Segments.SingleOrDefault(candidate => candidate.SegmentId == selectedId)
-            : null;
-        var selectedSegment = GetSelectedCompositionSegment();
-        SplitCompositionSegmentButton.IsEnabled =
-            currentRevisionId is not null &&
-            _activeCompositionPreviewRevisionId == currentRevisionId &&
-            selectedSegment?.DurationSeconds is > 0 &&
-            span is not null &&
-            playbackSeconds > span.StartSeconds + 0.000_000_1 &&
-            playbackSeconds < span.StartSeconds + span.DurationSeconds - 0.000_000_1;
     }
 
     private void ClearCompositionTimeline()
@@ -2497,22 +2612,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void UpdateCompositionActionState()
     {
-        if (AddCompositionSegmentButton is null) return;
-        var source = GetSelectedAsset();
-        AddCompositionSegmentButton.IsEnabled = _workspace.Project?.WorkingCompositionAssetId is not null &&
-                                                source is { MediaType: MediaType.Video } &&
-                                                source.Id != _workspace.Project.WorkingCompositionAssetId &&
-                                                (source.StorageKind == AssetStorageKind.Physical ||
-                                                 source.Virtual?.Kind == VirtualAssetKind.SavedClip);
         var index = _selectedCompositionSegmentId is { } selectedId
             ? _compositionSegments.ToList().FindIndex(item => item.SegmentId == selectedId)
             : -1;
         var selectedSegment = index >= 0 ? _compositionSegments[index] : null;
-        MoveCompositionSegmentUpButton.IsEnabled = index > 0;
-        MoveCompositionSegmentDownButton.IsEnabled = index >= 0 && index < _compositionSegments.Count - 1;
-        RemoveCompositionSegmentButton.IsEnabled =
-            (index >= 0 && _compositionSegments.Count > 1) || _selectedCompositionAudioClipId is not null;
-        UpdateCompositionSplitActionState(VideoPreview.Position.TotalSeconds);
         PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0 && _compositionRenderCancellation is null;
         ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0 && _compositionRenderCancellation is null;
         if (EditToolsEmptyState is null) return;
@@ -4042,12 +4145,150 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         OpenVideoPreview(absolutePath, requiresWarmup: true);
     }
 
+    private async Task OpenCompositionDraftPreviewAsync(
+        ProjectAsset composition,
+        ProjectMediaListItem selectedItem,
+        Guid? selectedProjectId)
+    {
+        if (_workspace.Project is null || _workspace.Location is null ||
+            composition.Virtual?.CurrentRecipeRevisionId is not { } revisionId)
+            return;
+
+        await RunUiActionAsync("Preparing fast composition audition…", async () =>
+        {
+            var revision = _workspace.Project.RecipeRevisions.Single(candidate => candidate.Id == revisionId);
+            var recipe = revision.Recipe as CompositionRecipe
+                ?? throw new InvalidDataException("The Working Composition recipe is invalid.");
+            var draftSegments = new List<CompositionDraftSegment>();
+            var timelineStart = 0d;
+            foreach (var segment in recipe.Segments)
+            {
+                var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId)
+                    ?? throw new InvalidDataException("A composition source is missing.");
+                var duration = CompositionSegmentTiming.ResolveDuration(_workspace.Project, segment, source)
+                    ?? throw new InvalidDataException($"The duration of '{source.EffectiveDisplayName}' is unknown.");
+                draftSegments.Add(new CompositionDraftSegment(
+                    segment.Id,
+                    segment.Source,
+                    timelineStart,
+                    ResolveCompositionBoundarySeconds(_workspace.Project, segment.Start, source, isEnd: false),
+                    duration));
+                timelineStart += duration;
+            }
+            if (draftSegments.Count == 0)
+                throw new InvalidDataException("The Working Composition has no video segments.");
+
+            ClearMediaPreview();
+            if (_workspace.Project?.Id != selectedProjectId || AssetsList.SelectedItem != selectedItem) return;
+            _activeCompositionDraftRevisionId = revisionId;
+            _compositionDraftSegments = draftSegments;
+            _compositionDraftPositionSeconds = 0;
+            PositionSlider.Minimum = 0;
+            PositionSlider.Maximum = timelineStart;
+            await OpenCompositionDraftSegmentAsync(0, 0, playAfterOpen: false);
+            StatusText.Text =
+                "Fast composition audition ready. Source video and source audio play at cuts; " +
+                "use Preview composition to verify the complete audio mix and final render.";
+        });
+    }
+
+    private async Task OpenCompositionDraftSegmentAsync(
+        int segmentIndex,
+        double globalSeconds,
+        bool playAfterOpen)
+    {
+        if (_workspace.Project is null || _workspace.Location is null ||
+            _activeCompositionDraftRevisionId is null ||
+            segmentIndex < 0 || segmentIndex >= _compositionDraftSegments.Count)
+            return;
+        var openVersion = ++_compositionDraftOpenVersion;
+        var segment = _compositionDraftSegments[segmentIndex];
+        var lease = await _mediaMaterializer.MaterializeAsync(
+            _workspace.Project,
+            _workspace.Location,
+            new MaterializationRequest(
+                new AssetMaterializationTarget(segment.Source.AssetId, segment.Source.RecipeRevisionId),
+                MaterializationPurpose.Preview));
+        if (openVersion != _compositionDraftOpenVersion || _activeCompositionDraftRevisionId is null)
+        {
+            await lease.DisposeAsync();
+            return;
+        }
+
+        VideoPreview.Stop();
+        VideoPreview.Close();
+        VideoPreview.Source = null;
+        ReleaseActivePreviewLease();
+        _activePreviewLease = lease;
+        _activeCompositionDraftSegmentIndex = segmentIndex;
+        _compositionDraftPositionSeconds = Math.Clamp(
+            globalSeconds,
+            segment.TimelineStartSeconds,
+            segment.TimelineStartSeconds + segment.DurationSeconds);
+        var offset = _compositionDraftPositionSeconds - segment.TimelineStartSeconds;
+        PreviewPlaceholder.Visibility = Visibility.Collapsed;
+        OpenVideoPreview(
+            lease.Path,
+            requiresWarmup: true,
+            playAfterPriming: playAfterOpen,
+            startSeconds: segment.SourceStartSeconds + offset);
+        PositionSlider.Value = _compositionDraftPositionSeconds;
+        UpdateCompositionTimelinePlayhead(_compositionDraftPositionSeconds);
+    }
+
+    private async Task<bool> AdvanceCompositionDraftSegmentAsync()
+    {
+        if (_advancingCompositionDraft || _activeCompositionDraftRevisionId is null ||
+            _activeCompositionDraftSegmentIndex < 0)
+            return false;
+        var nextIndex = _activeCompositionDraftSegmentIndex + 1;
+        if (nextIndex >= _compositionDraftSegments.Count) return false;
+        _advancingCompositionDraft = true;
+        try
+        {
+            var next = _compositionDraftSegments[nextIndex];
+            await OpenCompositionDraftSegmentAsync(nextIndex, next.TimelineStartSeconds, playAfterOpen: true);
+            return true;
+        }
+        finally
+        {
+            _advancingCompositionDraft = false;
+        }
+    }
+
+    private static double ResolveCompositionBoundarySeconds(
+        VideoProject project,
+        RecipeBoundary boundary,
+        ProjectAsset source,
+        bool isEnd)
+    {
+        var duration = source.DurationSeconds ?? source.Encoding?.DurationSeconds ??
+                       source.Virtual?.ExpectedMediaProperties?.DurationSeconds ?? 0;
+        return boundary.Kind switch
+        {
+            RecipeBoundaryKind.SourceStart => 0,
+            RecipeBoundaryKind.SourceEnd => duration,
+            RecipeBoundaryKind.Timestamp => boundary.TimestampSeconds ?? (isEnd ? duration : 0),
+            RecipeBoundaryKind.Anchor when boundary.Anchor is { } reference =>
+                project.AnchorRevisions.Single(revision =>
+                    revision.Id == reference.AnchorRevisionId && revision.AnchorId == reference.AnchorId)
+                    .TimestampSeconds,
+            _ => isEnd ? duration : 0
+        };
+    }
+
     private async Task ShowVirtualAssetPreviewAsync(
         ProjectAsset asset,
         ProjectMediaListItem selectedItem,
         Guid? selectedProjectId)
     {
         if (_workspace.Project is null || _workspace.Location is null) return;
+        if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
+        {
+            InspectorText.Text = FormatAssetInspector(asset);
+            await OpenCompositionDraftPreviewAsync(asset, selectedItem, selectedProjectId);
+            return;
+        }
         var kindName = asset.Virtual?.Kind == VirtualAssetKind.Composition
             ? "Working Composition"
             : "Saved Clip";
@@ -4098,11 +4339,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void OpenVideoPreview(
         string absolutePath,
         bool requiresWarmup,
-        bool playAfterPriming = false)
+        bool playAfterPriming = false,
+        double startSeconds = 0)
     {
         _videoPreviewWasMutedBeforePriming = VideoPreview.IsMuted;
         _videoPreviewRequiresWarmup = requiresWarmup;
         _playVideoAfterPriming = playAfterPriming;
+        _pendingPreviewStartSeconds = Math.Max(0, startSeconds);
         _videoPreviewHasEnded = false;
         VideoPreview.IsMuted = true;
         VideoPreview.Source = new Uri(absolutePath, UriKind.Absolute);
@@ -4118,6 +4361,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _playVideoAfterPriming = false;
         _videoPreviewHasEnded = false;
         _activeCompositionPreviewRevisionId = null;
+        _activeCompositionDraftRevisionId = null;
+        _compositionDraftSegments = [];
+        _activeCompositionDraftSegmentIndex = -1;
+        _compositionDraftPositionSeconds = 0;
+        _compositionDraftOpenVersion++;
         VideoPreview.Stop();
         VideoPreview.Close();
         SetPlaybackState(false);
@@ -4132,6 +4380,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         VideoPreview.Visibility = Visibility.Collapsed;
         PlaybackControlsBorder.Visibility = Visibility.Collapsed;
         PlaybackButton.IsEnabled = false;
+        PreviousFrameButton.IsEnabled = false;
+        NextFrameButton.IsEnabled = false;
         ImagePreview.Source = null;
         ImagePreview.Visibility = Visibility.Collapsed;
         PreviewPlaceholder.Text = "Select a video or image asset to preview";
@@ -4150,9 +4400,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             selected.Id != composition.Id)
             return;
 
-        PreviewPlaceholder.Text =
-            $"Working Composition changed\n\nSelect Preview composition to render recipe revision {currentRevision.RevisionNumber}.";
-        PreviewPlaceholder.Visibility = Visibility.Visible;
+        var selectedItem = (ProjectMediaListItem)AssetsList.SelectedItem;
+        _ = OpenCompositionDraftPreviewAsync(composition, selectedItem, _workspace.Project?.Id);
     }
 
     private void ReleaseActivePreviewLease()
@@ -4163,7 +4412,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void VideoPreview_MediaOpened(object sender, RoutedEventArgs e)
     {
-        if (VideoPreview.NaturalDuration.HasTimeSpan)
+        if (_activeCompositionDraftRevisionId is null && VideoPreview.NaturalDuration.HasTimeSpan)
         {
             PositionSlider.Maximum = VideoPreview.NaturalDuration.TimeSpan.TotalSeconds;
         }
@@ -4172,16 +4421,19 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _isVideoPreviewPriming = true;
         PlaybackButton.IsEnabled = false;
         VideoPreview.IsMuted = true;
-        VideoPreview.Position = TimeSpan.Zero;
+        VideoPreview.Position = TimeSpan.FromSeconds(_pendingPreviewStartSeconds);
         VideoPreview.Play();
         if (_videoPreviewRequiresWarmup) await Task.Delay(100);
         if (VideoPreview.Source != openedSource) return;
 
         VideoPreview.Pause();
-        VideoPreview.Position = TimeSpan.Zero;
+        VideoPreview.Position = TimeSpan.FromSeconds(_pendingPreviewStartSeconds);
         VideoPreview.IsMuted = _videoPreviewWasMutedBeforePriming;
         _isVideoPreviewPriming = false;
         PlaybackButton.IsEnabled = true;
+        var hasVideo = VideoPreview.NaturalVideoWidth > 0 && VideoPreview.NaturalVideoHeight > 0;
+        PreviousFrameButton.IsEnabled = hasVideo;
+        NextFrameButton.IsEnabled = hasVideo;
         var shouldPlay = _playVideoAfterPriming;
         _playVideoAfterPriming = false;
         if (shouldPlay)
@@ -4196,9 +4448,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         UpdatePlaybackPosition();
     }
 
-    private void VideoPreview_MediaEnded(object sender, RoutedEventArgs e)
+    private async void VideoPreview_MediaEnded(object sender, RoutedEventArgs e)
     {
         if (_isVideoPreviewPriming) return;
+        if (_activeCompositionDraftRevisionId is not null &&
+            await AdvanceCompositionDraftSegmentAsync())
+            return;
         CompleteVideoPlayback();
     }
 
@@ -4207,6 +4462,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (VideoPreview.Source is null) return;
         if (_videoPreviewHasEnded || IsAtVideoEnd())
         {
+            if (_activeCompositionDraftRevisionId is not null)
+            {
+                _videoPreviewHasEnded = false;
+                _ = OpenCompositionDraftSegmentAsync(0, 0, playAfterOpen: true);
+                return;
+            }
             ReopenVideoPreviewForPlayback();
             return;
         }
@@ -4221,10 +4482,76 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         SetPlaybackState(true);
     }
 
+    private async void PreviousFrame_Click(object sender, RoutedEventArgs e) =>
+        await StepPreviewFrameAsync(-1);
+
+    private async void NextFrame_Click(object sender, RoutedEventArgs e) =>
+        await StepPreviewFrameAsync(1);
+
+    private async Task StepPreviewFrameAsync(int direction)
+    {
+        if (direction is not (-1 or 1) || VideoPreview.Source is not { IsFile: true } source ||
+            !await _frameNavigationGate.WaitAsync(0))
+            return;
+        try
+        {
+            VideoPreview.Pause();
+            SetPlaybackState(false);
+            PreviousFrameButton.IsEnabled = false;
+            NextFrameButton.IsEnabled = false;
+            var currentSeconds = VideoPreview.Position.TotalSeconds;
+            var frames = await _exactFrameService.IndexWindowAsync(source.LocalPath, currentSeconds, radiusSeconds: 2);
+            var target = direction < 0
+                ? frames.Where(frame => frame.TimestampSeconds < currentSeconds - 0.000_000_1)
+                    .OrderByDescending(frame => frame.TimestampSeconds)
+                    .FirstOrDefault()
+                : frames.Where(frame => frame.TimestampSeconds > currentSeconds + 0.000_000_1)
+                    .OrderBy(frame => frame.TimestampSeconds)
+                    .FirstOrDefault();
+            if (target is null) return;
+
+            if (_activeCompositionDraftRevisionId is not null &&
+                _activeCompositionDraftSegmentIndex >= 0 &&
+                _activeCompositionDraftSegmentIndex < _compositionDraftSegments.Count)
+            {
+                var segment = _compositionDraftSegments[_activeCompositionDraftSegmentIndex];
+                var globalSeconds = segment.TimelineStartSeconds + target.TimestampSeconds -
+                                    segment.SourceStartSeconds;
+                await SeekCompositionDraftAsync(globalSeconds, playAfterSeek: false);
+            }
+            else
+            {
+                SeekPreview(target.TimestampSeconds);
+                PositionSlider.Value = target.TimestampSeconds;
+            }
+        }
+        catch (Exception exception)
+        {
+            ShowError("Frame navigation failed", exception);
+        }
+        finally
+        {
+            var hasVideo = VideoPreview.Source is not null &&
+                           VideoPreview.NaturalVideoWidth > 0 && VideoPreview.NaturalVideoHeight > 0;
+            PreviousFrameButton.IsEnabled = hasVideo;
+            NextFrameButton.IsEnabled = hasVideo;
+            _frameNavigationGate.Release();
+        }
+    }
+
     private void CompleteVideoPlayback()
     {
         VideoPreview.Pause();
-        VideoPreview.Position = TimeSpan.Zero;
+        if (_activeCompositionDraftRevisionId is not null)
+        {
+            _compositionDraftPositionSeconds = PositionSlider.Maximum;
+            PositionSlider.Value = _compositionDraftPositionSeconds;
+            UpdateCompositionTimelinePlayhead(_compositionDraftPositionSeconds);
+        }
+        else
+        {
+            VideoPreview.Position = TimeSpan.Zero;
+        }
         _videoPreviewHasEnded = true;
         SetPlaybackState(false);
         UpdatePlaybackPosition();
@@ -4267,19 +4594,22 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         e.Handled = true;
     }
 
-    private void PositionSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    private async void PositionSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (VideoPreview.Source is null || !_isScrubbing) return;
         UpdateScrubPosition(e);
-        SeekPreview(PositionSlider.Value);
+        if (_activeCompositionDraftRevisionId is not null)
+            await SeekCompositionDraftAsync(PositionSlider.Value, _resumePlaybackAfterScrub);
+        else
+            SeekPreview(PositionSlider.Value);
         _isScrubbing = false;
         if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
-        if (_resumePlaybackAfterScrub)
+        if (_resumePlaybackAfterScrub && _activeCompositionDraftRevisionId is null)
         {
             VideoPreview.Play();
             SetPlaybackState(true);
         }
-        else
+        else if (_activeCompositionDraftRevisionId is null)
         {
             VideoPreview.Pause();
             SetPlaybackState(false);
@@ -4297,8 +4627,48 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void SeekPreview(double seconds)
     {
         if (VideoPreview.Source is null) return;
+        if (_activeCompositionDraftRevisionId is not null)
+        {
+            _ = SeekCompositionDraftAsync(seconds, playAfterSeek: false);
+            return;
+        }
         VideoPreview.Position = TimeSpan.FromSeconds(Math.Clamp(seconds, 0, PositionSlider.Maximum));
         TimeText.Text = $"{FormatTime(VideoPreview.Position)} / {FormatTime(VideoPreview.NaturalDuration.HasTimeSpan ? VideoPreview.NaturalDuration.TimeSpan : TimeSpan.Zero)}";
+    }
+
+    private async Task SeekCompositionDraftAsync(double seconds, bool playAfterSeek)
+    {
+        if (_activeCompositionDraftRevisionId is null || _compositionDraftSegments.Count == 0) return;
+        var target = Math.Clamp(seconds, 0, PositionSlider.Maximum);
+        var targetIndex = _compositionDraftSegments.Count - 1;
+        for (var index = 0; index < _compositionDraftSegments.Count; index++)
+        {
+            var segment = _compositionDraftSegments[index];
+            if (target < segment.TimelineStartSeconds + segment.DurationSeconds - 0.000_000_1)
+            {
+                targetIndex = index;
+                break;
+            }
+        }
+        var targetSegment = _compositionDraftSegments[targetIndex];
+        _compositionDraftPositionSeconds = target;
+        if (targetIndex != _activeCompositionDraftSegmentIndex)
+        {
+            await OpenCompositionDraftSegmentAsync(targetIndex, target, playAfterSeek);
+            return;
+        }
+
+        var localSeconds = targetSegment.SourceStartSeconds + target - targetSegment.TimelineStartSeconds;
+        VideoPreview.Position = TimeSpan.FromSeconds(Math.Max(0, localSeconds));
+        PositionSlider.Value = target;
+        TimeText.Text = $"{FormatTime(TimeSpan.FromSeconds(target))} / " +
+                        $"{FormatTime(TimeSpan.FromSeconds(PositionSlider.Maximum))}";
+        UpdateCompositionTimelinePlayhead(target);
+        if (playAfterSeek)
+        {
+            VideoPreview.Play();
+            SetPlaybackState(true);
+        }
     }
 
     private void UpdateScrubPosition(MouseEventArgs e)
@@ -4361,20 +4731,53 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             return;
         }
 
-        var current = VideoPreview.Position;
-        var duration = VideoPreview.NaturalDuration.HasTimeSpan
+        var mediaPosition = VideoPreview.Position;
+        var mediaDuration = VideoPreview.NaturalDuration.HasTimeSpan
             ? VideoPreview.NaturalDuration.TimeSpan
             : TimeSpan.Zero;
 
+        if (_isVideoPlaying && _activeCompositionDraftRevisionId is not null &&
+            _activeCompositionDraftSegmentIndex >= 0 &&
+            _activeCompositionDraftSegmentIndex < _compositionDraftSegments.Count)
+        {
+            var activeSegment = _compositionDraftSegments[_activeCompositionDraftSegmentIndex];
+            if (mediaPosition.TotalSeconds >=
+                activeSegment.SourceStartSeconds + activeSegment.DurationSeconds - 0.01)
+            {
+                _ = AdvanceCompositionDraftSegmentAsync();
+                return;
+            }
+        }
+
         if (_isVideoPlaying && IsAtVideoEnd())
         {
-            CompleteVideoPlayback();
+            if (_activeCompositionDraftRevisionId is not null)
+                _ = AdvanceCompositionDraftSegmentAsync();
+            else
+                CompleteVideoPlayback();
             return;
         }
 
-        if (!_isScrubbing) PositionSlider.Value = current.TotalSeconds;
-        TimeText.Text = $"{FormatTime(current)} / {FormatTime(duration)}";
-        UpdateCompositionTimelinePlayhead(current.TotalSeconds);
+        if (_activeCompositionDraftRevisionId is not null &&
+            _activeCompositionDraftSegmentIndex >= 0 &&
+            _activeCompositionDraftSegmentIndex < _compositionDraftSegments.Count)
+        {
+            var segment = _compositionDraftSegments[_activeCompositionDraftSegmentIndex];
+            var currentSeconds = Math.Clamp(
+                segment.TimelineStartSeconds + mediaPosition.TotalSeconds - segment.SourceStartSeconds,
+                segment.TimelineStartSeconds,
+                segment.TimelineStartSeconds + segment.DurationSeconds);
+            _compositionDraftPositionSeconds = currentSeconds;
+            if (!_isScrubbing) PositionSlider.Value = currentSeconds;
+            TimeText.Text = $"{FormatTime(TimeSpan.FromSeconds(currentSeconds))} / " +
+                            $"{FormatTime(TimeSpan.FromSeconds(PositionSlider.Maximum))}";
+            UpdateCompositionTimelinePlayhead(currentSeconds);
+            return;
+        }
+
+        if (!_isScrubbing) PositionSlider.Value = mediaPosition.TotalSeconds;
+        TimeText.Text = $"{FormatTime(mediaPosition)} / {FormatTime(mediaDuration)}";
+        UpdateCompositionTimelinePlayhead(mediaPosition.TotalSeconds);
     }
 
     private async Task LoadFrameWorkspaceAsync(ProjectAsset asset, Guid? selectedProjectId)
