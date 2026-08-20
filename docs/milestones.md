@@ -329,6 +329,7 @@ In progress. The first slices project the committed Working Composition into a h
 10. Expose selected video-segment source audio as **On / Muted**; commit each actual change as one immutable revision, invalidate stale previews, persist the choice, and render muted single- or multi-segment compositions correctly.
 11. Reposition a timed audio clip by dragging its timeline block horizontally; pointer movement is transient UI state, mouse-up commits at most one immutable millisecond-precise start time, and clicks, sub-millisecond pointer noise, or other no-op drags create no revision. Keep the dropped visual stable while the commit completes.
 12. Zoom the visual timeline from its default scale to 800% without changing recipe state. Uniformly scale blocks and ruler geometry, preserve approximate viewport focus during zoom, and keep playhead, insertion, reorder, drop, and audio-placement mappings tied to composition time. Provide an explicit reset to the default scale.
+13. Seek a rendered composition preview by clicking or dragging its timeline ruler. Preserve the preview's prior play/pause state, clamp ruler positions to composition bounds, and keep seeking unavailable for stale or unrendered revisions. Ruler navigation changes playback state only and creates no recipe revision.
 
 #### Phase 2E.2 — context-sensitive Edit Tools
 

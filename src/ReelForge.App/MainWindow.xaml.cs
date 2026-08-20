@@ -118,6 +118,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private double _compositionAudioClipDragPointerOffset;
     private double _compositionAudioClipDraftStartSeconds;
     private long _compositionAudioClipOriginalStartTicks;
+    private bool _isCompositionTimelineScrubbing;
+    private bool _resumePlaybackAfterCompositionTimelineScrub;
     private double _compositionTimelineZoom = 1;
     private int _compositionTimelineZoomRevision;
     private bool _compositionTimelineRenderScheduled;
@@ -1667,8 +1669,39 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         e.Handled = true;
     }
 
+    private void CompositionTimelineCanvas_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_activeCompositionPreviewRevisionId is null ||
+            _compositionTimelineLayout is null ||
+            VideoPreview.Source is null ||
+            _isVideoPreviewPriming ||
+            PlaybackButton.IsEnabled != true)
+            return;
+
+        var point = e.GetPosition(CompositionTimelineCanvas);
+        if (point.Y is < 0 or > 24) return;
+
+        _resumePlaybackAfterCompositionTimelineScrub = _isVideoPlaying;
+        _isCompositionTimelineScrubbing = true;
+        VideoPreview.Pause();
+        SetPlaybackState(false);
+        CompositionTimelineCanvas.CaptureMouse();
+        CompositionTimelineCanvas.Cursor = Cursors.SizeWE;
+        SeekCompositionTimeline(point.X);
+        e.Handled = true;
+    }
+
     private void CompositionTimelineCanvas_PreviewMouseMove(object sender, MouseEventArgs e)
     {
+        if (_isCompositionTimelineScrubbing)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                SeekCompositionTimeline(e.GetPosition(CompositionTimelineCanvas).X);
+                e.Handled = true;
+            }
+            return;
+        }
         if (_pendingCompositionAudioClipDragId is Guid audioClipId)
         {
             UpdateCompositionAudioClipDrag(audioClipId, e);
@@ -1706,6 +1739,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void CompositionTimelineCanvas_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (_isCompositionTimelineScrubbing)
+        {
+            SeekCompositionTimeline(e.GetPosition(CompositionTimelineCanvas).X);
+            CompleteCompositionTimelineScrub();
+            e.Handled = true;
+            return;
+        }
         if (_pendingCompositionAudioClipDragId is Guid audioClipId)
         {
             await CompleteCompositionAudioClipDragAsync(audioClipId, e);
@@ -1737,12 +1777,54 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void CompositionTimelineCanvas_LostMouseCapture(object sender, MouseEventArgs e)
     {
+        if (_isCompositionTimelineScrubbing)
+        {
+            CancelCompositionTimelineScrub();
+            return;
+        }
         if (_pendingCompositionAudioClipDragId is not null)
         {
             ResetCompositionAudioClipDrag();
             return;
         }
         if (_pendingCompositionSegmentDragId is not null) ResetCompositionSegmentDrag();
+    }
+
+    private void SeekCompositionTimeline(double x)
+    {
+        if (_compositionTimelineLayout is null || VideoPreview.Source is null) return;
+        SeekPreview(_compositionTimelineLayout.GetTimeAtX(x));
+        _videoPreviewHasEnded = false;
+        PositionSlider.Value = VideoPreview.Position.TotalSeconds;
+        UpdateCompositionTimelinePlayhead(VideoPreview.Position.TotalSeconds);
+    }
+
+    private void CompleteCompositionTimelineScrub()
+    {
+        var resumePlayback = _resumePlaybackAfterCompositionTimelineScrub;
+        _isCompositionTimelineScrubbing = false;
+        _resumePlaybackAfterCompositionTimelineScrub = false;
+        CompositionTimelineCanvas.Cursor = null;
+        if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
+        if (resumePlayback)
+        {
+            VideoPreview.Play();
+            SetPlaybackState(true);
+        }
+        else
+        {
+            VideoPreview.Pause();
+            SetPlaybackState(false);
+        }
+    }
+
+    private void CancelCompositionTimelineScrub()
+    {
+        _isCompositionTimelineScrubbing = false;
+        _resumePlaybackAfterCompositionTimelineScrub = false;
+        CompositionTimelineCanvas.Cursor = null;
+        VideoPreview.Pause();
+        SetPlaybackState(false);
     }
 
     private void ResetCompositionSegmentDrag(bool render = true)
@@ -3671,7 +3753,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         SetPlaybackState(false);
         _isScrubbing = false;
         _resumePlaybackAfterScrub = false;
+        _isCompositionTimelineScrubbing = false;
+        _resumePlaybackAfterCompositionTimelineScrub = false;
         if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
+        if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
         VideoPreview.Source = null;
         ReleaseActivePreviewLease();
         VideoPreview.Visibility = Visibility.Collapsed;

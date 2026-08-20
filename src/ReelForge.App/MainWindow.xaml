@@ -565,6 +565,7 @@
                                                   SizeChanged="CompositionTimelineScrollViewer_SizeChanged">
                                         <Canvas x:Name="CompositionTimelineCanvas" Height="124"
                                                 Background="#0B0D12" ClipToBounds="True"
+                                                PreviewMouseLeftButtonDown="CompositionTimelineCanvas_PreviewMouseLeftButtonDown"
                                                 PreviewMouseMove="CompositionTimelineCanvas_PreviewMouseMove"
                                                 PreviewMouseLeftButtonUp="CompositionTimelineCanvas_PreviewMouseLeftButtonUp"
                                                 LostMouseCapture="CompositionTimelineCanvas_LostMouseCapture" />
