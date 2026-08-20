@@ -365,6 +365,8 @@ Subsequent timeline work:
 
 Timeline editing must compose the same recipe graph and must not introduce authoritative intermediate paths into the `.rfp` project file.
 
+Future workspace UX should support detaching the composition timeline and Edit Tools into separate floating windows, then docking either surface back into the Edit workspace. The windows must share the same selection, composition, history, playback, and project state; floating a surface must never create a second editing session or media owner. Remember layout as machine-local, preferably per-project UI state, and restore off-screen windows safely when monitor topology changes. This capability is intentionally unscheduled beyond Milestone 2 and does not add layout data to `.rfp` files.
+
 ## Post-Milestone 2 architecture review and Milestone 3 planning gate
 
 After Milestone 2 is complete, pause feature implementation and review the entire ReelForge codebase before finalizing the Milestone 3 execution plan. `MainWindow.xaml.cs`, currently approximately 4,800 lines, is one visible symptom rather than the complete scope. The review must cover every project, layer, folder, production file, test fixture, resource, and cross-component dependency so Milestone 3 addresses structural debt systematically instead of moving one monolith into several arbitrary files.

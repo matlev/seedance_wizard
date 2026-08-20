@@ -41,6 +41,8 @@ The Generate viewer shows currently previewed media. The Edit viewer shows the W
 
 FFmpeg-driven tools are explicit operations. Selecting a video previews and inspects it but does not index its decoded frames. The normally quiet Generate lower panel offers **Select Frame** and **Make Clip**; only entering one of those modes begins cancellable precision work. Jobs remains application-global and workspace-neutral, with room to track future render/materialization work as well as generation.
 
+Future workspace ergonomics should allow the composition timeline and Edit Tools surfaces to detach into independent floating windows and dock back into the main Edit workspace. Docked and floating presentations must remain views over one authoritative composition, selection, undo/history, playback, and project state rather than opening duplicate editor sessions. Window size, position, monitor, and dock state are machine-local UI preferences, ideally remembered per project, and must recover safely into visible bounds when a previously used monitor is unavailable. This is a later multi-monitor UX capability, not required Phase 2E work and not project-schema state.
+
 ## Dependency direction
 
 ```text
