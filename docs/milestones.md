@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestone 1 and Milestone 2 Phases 2A/2B/2C/2D complete; Phase 2E timeline work is in progress.
+Status: Milestones 1 and 2 complete. The post-Milestone 2 architecture review and Milestone 3 planning gate is next.
 
 ## Product priority
 
@@ -313,7 +313,7 @@ Phase acceptance checks:
 
 ### Phase 2E — timeline
 
-In progress. The first slices project the committed Working Composition into a horizontal duration-aware timeline without introducing a second persistence model. Segment blocks retain a readable minimum size, expand proportionally by known duration, own segment selection directly, and display a playhead for rendered preview or source-by-source fast audition. Unknown durations are clearly identified as estimated. Timeline geometry remains disposable UI state derived from immutable recipes. Project Media video and physical-audio files can now be dragged into the timeline; images are excluded. Video drops insert ordered segments while audio drops persist an independent millisecond-precise start time and render through delayed FFmpeg mixing.
+Complete. ReelForge projects the committed Working Composition into a duration-aware, zoomable timeline without introducing a second persistence model. Human acceptance covered timeline and Project Media drag/drop, reorder and removal, exact playhead splitting under both boundary preferences, frame stepping, fast source-by-source audition, authoritative preview/export, timeline seeking and auto-scroll, cancellation, audio placement and layering, mute/gain/pan/fades, whole-source extraction, exact segment detachment, and persistence across edits/reopen. Automated coverage verifies layout/time mapping, immutable composition changes, exact source/revision boundaries, deterministic rendering and mix behavior, cancellation cleanup, durable derived-audio provenance, and current project invariants without making paid provider calls.
 
 #### Phase 2E.1 — visual composition timeline foundation
 
@@ -367,13 +367,12 @@ The market-research synthesis and the owner's fifteen product decisions are acce
 
 This does not expand Phase 2E into the complete researched feature set or make every researched “minimum” capability a first-release gate. Feature order and commercial tiering remain provisional until the business-model handoff is reconciled. The approved post-Milestone 2 architecture review and Milestone 3 structural refactor retain their place before a large editor-feature program.
 
-Subsequent timeline work:
+Post-Milestone 2 editor work, to be rescheduled after the architecture review and structural refactor:
 
-1. Extend the initial sequential-video plus timed-audio model with additional tracks and richer clip properties beyond the implemented mute, gain, pan, and fade foundation.
-2. Let timeline clips reference physical or virtual assets by logical ID.
-3. Compile preview and export through the shared materialization planner.
-4. Capture immutable composition snapshots for provider requests and historical exports.
-5. Add render progress, cancellation, and purpose-specific preview/export profiles.
+1. Extend the initial sequential-video plus timed-audio model with persistent multitrack identity, richer clip properties, track controls, snapping, trim/ripple/gap semantics, and later transitions/effects.
+2. Capture immutable exact composition/range snapshots when compositions or their subranges become provider references or durable historical dependencies.
+3. Add richer render progress and purpose-specific preview/export profiles beyond the current responsive cancellable render boundary.
+4. Add waveform-guided audio placement and sample-aware editing semantics without forcing audio positions into video-frame anchors.
 
 Timeline editing must compose the same recipe graph and must not introduce authoritative intermediate paths into the `.rfp` project file.
 

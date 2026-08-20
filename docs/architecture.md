@@ -1,13 +1,14 @@
 ﻿# Architecture
 
-Status: accepted direction; Phases 2A through 2D complete; Phase 2E timeline work is in progress
+Status: accepted direction; Milestones 1 and 2 complete; post-Milestone 2 architecture review is next
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 Generate/Edit workspace revision: 2026-08-13
 Platform-portability revision: 2026-08-19
 Commercial-optionality revision: 2026-08-19
+Timeline-foundation completion: 2026-08-20
 
-This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, exact physical- and virtual-video frame materialization, recursive virtual-recipe rendering, compatible/normalized composition rendering, and their application boundaries are implemented. Phase 2E timeline editing remains in progress.
+This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, exact physical- and virtual-video frame materialization, recursive virtual-recipe rendering, compatible/normalized composition rendering, and the Milestone 2 composition/timeline foundation are implemented. The next gate is a repository-wide architecture review and approved Milestone 3 structural-refactor plan before a broader editor-feature program.
 
 ## Architectural direction
 
@@ -404,7 +405,7 @@ The UI, provider adapters, and timeline must not decide whether FFmpeg is requir
 
 Phase 2D begins that generalization with `RecipeRenderPlanner`. A virtual asset request is first expanded into a provider-neutral tree of physical sources, pinned trim revisions, extract-frame revisions, and ordered composition segments. Each node has a deterministic identity derived from its authoritative payload and transitive dependency identities; the enclosing plan additionally includes materialization purpose and profile. The planner rejects unpinned virtual dependencies, missing revisions, incompatible media types, and cycles before an external process runs.
 
-The first executor slice recursively materializes nested trim nodes, preserving an active lease on every dependency until its consumer finishes. This permits a Saved Clip to use another pinned Saved Clip and permits the Working Composition to resolve virtual sources. Later Phase 2D slices added explicit compatibility analysis, multi-segment concat, and normalization. Operation fusion remains an optimization opportunity, while virtual-source anchor mapping waits for Phase 2E timeline-position semantics.
+The first executor slice recursively materializes nested trim nodes, preserving an active lease on every dependency until its consumer finishes. This permits a Saved Clip to use another pinned Saved Clip and permits the Working Composition to resolve virtual sources. Later Phase 2D slices added explicit compatibility analysis, multi-segment concat, and normalization. Phase 2E added exact virtual-source anchor mapping and source-by-source timeline audition. Operation fusion remains an optimization opportunity.
 
 The next executor slice treats media compatibility as an explicit result rather than an eager side effect. Ordered composition inputs are `Compatible`, `RequiresNormalization`, or `Unknown`, with differences in video codec, dimensions, pixel format, frame rate, audio presence, codec, sample rate, channel count, and layout retained as planning data. Missing metadata is inspected from the realized media when possible. Compatible sets use a timestamp-resetting concat graph. Mismatched sets normalize video to a common even-sized canvas, square pixels, frame rate, and pixel format; audio is resampled to a common stereo profile, while silent or audio-disabled segments receive duration-matched silence. Composition renders use deterministic cache identity, active dependency leases, unique temporary output, atomic commit, and failure cleanup.
 
@@ -807,4 +808,4 @@ The Phase 2C product-direction questions are settled. Remaining cross-phase item
 
 ## Phase gate
 
-Phases 2A through 2D are complete. Phase 2C human acceptance covered the Generate/Edit shell, Project Media projection, exact Saved Frames, Saved Clips, cache reconstruction, missing-source handling, reference preparation, and trim materialization. Phase 2D acceptance covered recursive virtual planning, compatibility analysis, normalized multi-segment composition rendering, immutable composition edits, export, and optional durable modified-media representations. Phase 2E now includes virtual-video exact positions and exact playhead splitting without physical intermediates; broader timeline editing remains in progress. AtlasCloud MiniMax H3 remains the first optional human-run paid reference acceptance route; automated verification remains network-isolated.
+Milestone 2 is complete. Phase 2C human acceptance covered the Generate/Edit shell, Project Media projection, exact Saved Frames, Saved Clips, cache reconstruction, missing-source handling, reference preparation, and trim materialization. Phase 2D acceptance covered recursive virtual planning, compatibility analysis, normalized multi-segment composition rendering, immutable composition edits, export, and optional durable modified-media representations. Phase 2E acceptance covered the duration-aware timeline, direct arrangement, exact virtual-video positions and playhead splitting, fast audition, cancellable preview/export, context-sensitive audio controls, layered audio mixing, and whole-source plus exact-segment audio extraction. Automated verification remains network-isolated and incapable of paid provider submission. The post-Milestone 2 repository review and Milestone 3 planning gate now precede further editor expansion.
