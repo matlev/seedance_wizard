@@ -337,6 +337,12 @@ In progress. The first slices project the committed Working Composition into a h
 5. Keep read-only media identity, encoding, source, and history in Inspector rather than duplicating them as editable controls.
 6. Commit discrete changed values once and treat unchanged choices as no-ops. Hold continuous slider/drag manipulation as mutable UI draft state, then create one immutable recipe revision when the interaction is applied or completed; cancellation creates no revision.
 
+#### Editor capability research outcome
+
+The market-research synthesis and the owner's fifteen product decisions are accepted as post-foundation direction in [Editor capability direction](editor-capability-direction.md). ReelForge targets an AI-native finishing editor for AI short-film makers, social creators, and hobby filmmakers rather than a general-purpose professional NLE. The research establishes future architecture for typed effect stacks, generic parameter automation, multitrack/time semantics, analysis artifacts, durable repair/Bake outputs, provider-neutral media editing, universal logical generation references, optional ML engines, and continuity-focused differentiation.
+
+This does not expand Phase 2E into the complete researched feature set or make every researched “minimum” capability a first-release gate. Feature order and commercial tiering remain provisional until the business-model handoff is reconciled. The approved post-Milestone 2 architecture review and Milestone 3 structural refactor retain their place before a large editor-feature program.
+
 Subsequent timeline work:
 
 1. Extend the initial sequential-video plus timed-audio model with additional tracks, richer clip properties, and basic gain/fade metadata.

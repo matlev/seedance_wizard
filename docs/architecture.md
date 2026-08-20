@@ -10,7 +10,7 @@ This document records the accepted target architecture. Current-format logical a
 
 ## Architectural direction
 
-Keep .NET 8 and WPF, but make the project model aggressively non-destructive and recipe-based:
+Keep .NET 8 and WPF, but make the project model non-destructive by default and recipe-based. Authoritative source bytes are never silently changed; an explicit repair, enhancement, or Bake may create a new durable physical asset with its own identity and provenance:
 
 ```text
 durable physical media + persisted recipes + edit state
@@ -165,6 +165,7 @@ The pre-release project contains no supported external format baseline, so this 
 15. One generation represents one submitted provider request/job and may produce multiple output assets. Provider and model are selected per generation, never fixed at project level.
 16. Each project may autosave one mutable generation draft, but only submitted snapshots belong to immutable generation history.
 17. The designated main video, when present, is always a durable physical project asset. Selecting a virtual/materialized result as main video first promotes it into durable project storage.
+18. Repair, enhancement, and Bake operations create new media by default. A durable destructive result is a physical project asset with its own AssetId, content hash, provenance, and exact source/revision relationships; it is not authoritative cache state and does not overwrite its source silently.
 
 ## Conceptual asset model
 
@@ -416,6 +417,8 @@ Edit Tools begins with single-object selection and changes its contents by selec
 Read-only media identity, encoding, source, and history remain Inspector concerns. Edit Tools contains controls that change the composition recipe. Source audio therefore appears under the selected video segment's **Audio** section alongside future gain and fade controls, rather than beside structural timeline buttons. The detailed control set may grow without changing the underlying rule that recipe-affecting properties live in Edit Tools.
 
 Edit controls must respect immutable-revision semantics without turning pointer movement into permanent history. A discrete action such as On/Muted commits one new recipe revision immediately when its value actually changes; selecting the already-committed value is a no-op. Continuous interactions such as gain, crop, position, or a future speed slider remain mutable UI draft state during the gesture and create one immutable revision when the gesture is applied or completed. Cancelling a draft creates no revision. Preview invalidation occurs only after a successful commit.
+
+The accepted editor-capability research extends this direction with a typed effect stack, generic parameter automation, exact track/time semantics, analysis artifacts, durable derived-media/Bake behavior, a provider-neutral media-edit capability family, and universal logical generation references. Detailed product decisions, architectural constraints, candidate capability lanes, and business-model-dependent questions are recorded in [Editor capability direction](editor-capability-direction.md). That document is not an instruction to add the entire market feature set to Milestone 2.
 
 Project Media video and audio items can be dragged onto this visual timeline; images and Saved Frames are deliberately excluded. A video drop inserts an exact, revision-pinned segment before or after the projected block under the pointer. A physical-audio drop creates an independently identified `CompositionAudioClip` at a `TimeSpan` tick offset obtained from the projected timeline. That offset is durable recipe state while drag geometry remains disposable UI state. Rendering first resolves/concatenates the video sequence, then delays and mixes the independent audio clips with any enabled source-video audio. Each drop is one immutable composition revision, survives project reopen, and invalidates stale preview state.
 
