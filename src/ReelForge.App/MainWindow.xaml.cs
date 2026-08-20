@@ -115,6 +115,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private Guid? _frameSourceAssetId;
     private string? _frameSourceContentHash;
     private MaterializedMediaLease? _activePreviewLease;
+    private MaterializedMediaLease? _activeCompositionAuditionAudioLease;
     private CancellationTokenSource? _compositionRenderCancellation;
     private CompositionTimelineLayoutResult? _compositionTimelineLayout;
     private Line? _compositionTimelinePlayhead;
@@ -129,6 +130,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private double? _pendingCompositionTimelineSeekSeconds;
     private bool _previewAudioForcedMuted;
     private bool _userPreviewMuted;
+    private bool _compositionAuditionAudioReady;
+    private bool _compositionAuditionAudioPriming;
+    private bool _playCompositionAuditionAudioAfterOpen;
+    private double _pendingCompositionAuditionAudioPosition;
     private Guid? _selectedCompositionSegmentId;
     private Guid? _selectedCompositionAudioClipId;
     private bool _suppressCompositionAudioControl;
@@ -279,6 +284,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
         _compositionRenderCancellation?.Cancel();
+        CompositionAuditionAudio.Stop();
+        CompositionAuditionAudio.Close();
+        ReleaseCompositionAuditionAudioLease();
         ReleaseActivePreviewLease();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Dispose();
@@ -4199,49 +4207,82 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         await RunUiActionAsync("Preparing fast composition audition…", async () =>
         {
-            var revision = _workspace.Project.RecipeRevisions.Single(candidate => candidate.Id == revisionId);
-            var recipe = revision.Recipe as CompositionRecipe
-                ?? throw new InvalidDataException("The Working Composition recipe is invalid.");
-            var draftSegments = new List<CompositionDraftSegment>();
-            var timelineStart = 0d;
-            foreach (var segment in recipe.Segments)
+            MaterializedMediaLease? auditionAudio = null;
+            try
             {
-                var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId)
-                    ?? throw new InvalidDataException("A composition source is missing.");
-                var duration = CompositionSegmentTiming.ResolveDuration(_workspace.Project, segment, source)
-                    ?? throw new InvalidDataException($"The duration of '{source.EffectiveDisplayName}' is unknown.");
-                draftSegments.Add(new CompositionDraftSegment(
-                    segment.Id,
-                    segment.Source,
-                    timelineStart,
-                    ResolveCompositionBoundarySeconds(_workspace.Project, segment.Start, source, isEnd: false),
-                    duration,
-                    segment.AudioEnabled));
-                timelineStart += duration;
-            }
-            if (draftSegments.Count == 0)
-                throw new InvalidDataException("The Working Composition has no video segments.");
+                var revision = _workspace.Project.RecipeRevisions.Single(candidate => candidate.Id == revisionId);
+                var recipe = revision.Recipe as CompositionRecipe
+                    ?? throw new InvalidDataException("The Working Composition recipe is invalid.");
+                var draftSegments = new List<CompositionDraftSegment>();
+                var timelineStart = 0d;
+                foreach (var segment in recipe.Segments)
+                {
+                    var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId)
+                        ?? throw new InvalidDataException("A composition source is missing.");
+                    var duration = CompositionSegmentTiming.ResolveDuration(_workspace.Project, segment, source)
+                        ?? throw new InvalidDataException($"The duration of '{source.EffectiveDisplayName}' is unknown.");
+                    draftSegments.Add(new CompositionDraftSegment(
+                        segment.Id,
+                        segment.Source,
+                        timelineStart,
+                        ResolveCompositionBoundarySeconds(_workspace.Project, segment.Start, source, isEnd: false),
+                        duration,
+                        segment.AudioEnabled));
+                    timelineStart += duration;
+                }
+                if (draftSegments.Count == 0)
+                    throw new InvalidDataException("The Working Composition has no video segments.");
 
-            ClearMediaPreview();
-            if (_workspace.Project?.Id != selectedProjectId || AssetsList.SelectedItem != selectedItem) return;
-            _activeCompositionDraftRevisionId = revisionId;
-            _compositionDraftSegments = draftSegments;
-            var requestedPosition = Math.Clamp(
-                _pendingCompositionTimelineSeekSeconds ?? 0,
-                0,
-                timelineStart);
-            _pendingCompositionTimelineSeekSeconds = null;
-            _compositionDraftPositionSeconds = requestedPosition;
-            PositionSlider.Minimum = 0;
-            PositionSlider.Maximum = timelineStart;
-            var requestedSegmentIndex = FindCompositionDraftSegmentIndex(requestedPosition);
-            await OpenCompositionDraftSegmentAsync(
-                requestedSegmentIndex,
-                requestedPosition,
-                playAfterOpen: false);
-            StatusText.Text =
-                "Fast composition audition ready. Source video and source audio play at cuts; " +
-                "use Preview composition to verify the complete audio mix and final render.";
+                string? auditionAudioWarning = null;
+                try
+                {
+                    auditionAudio = await _mediaMaterializer.MaterializeCompositionAuditionAudioAsync(
+                        _workspace.Project,
+                        _workspace.Location,
+                        composition.Id,
+                        revisionId,
+                        timelineStart);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    auditionAudioWarning = exception.Message;
+                }
+
+                ClearMediaPreview();
+                if (_workspace.Project?.Id != selectedProjectId || AssetsList.SelectedItem != selectedItem) return;
+                _activeCompositionDraftRevisionId = revisionId;
+                _compositionDraftSegments = draftSegments;
+                var requestedPosition = Math.Clamp(
+                    _pendingCompositionTimelineSeekSeconds ?? 0,
+                    0,
+                    timelineStart);
+                _pendingCompositionTimelineSeekSeconds = null;
+                _compositionDraftPositionSeconds = requestedPosition;
+                PositionSlider.Minimum = 0;
+                PositionSlider.Maximum = timelineStart;
+                if (auditionAudio is not null)
+                {
+                    _activeCompositionAuditionAudioLease = auditionAudio;
+                    auditionAudio = null;
+                    OpenCompositionAuditionAudio(_activeCompositionAuditionAudioLease.Path, requestedPosition);
+                }
+                var requestedSegmentIndex = FindCompositionDraftSegmentIndex(requestedPosition);
+                await OpenCompositionDraftSegmentAsync(
+                    requestedSegmentIndex,
+                    requestedPosition,
+                    playAfterOpen: false);
+                StatusText.Text = auditionAudioWarning is not null
+                    ? $"Fast composition audition ready without independent audio: {auditionAudioWarning}"
+                    : _activeCompositionAuditionAudioLease is not null
+                        ? "Fast composition audition ready with independent audio clips. " +
+                          "Use Preview composition to verify final mix fidelity and render continuity."
+                        : "Fast composition audition ready. Source video and source audio play at cuts; " +
+                          "use Preview composition to verify the complete audio mix and final render.";
+            }
+            finally
+            {
+                if (auditionAudio is not null) await auditionAudio.DisposeAsync();
+            }
         });
     }
 
@@ -4256,6 +4297,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             return;
         var openVersion = ++_compositionDraftOpenVersion;
         var segment = _compositionDraftSegments[segmentIndex];
+        PauseCompositionAuditionAudio();
         var lease = await _mediaMaterializer.MaterializeAsync(
             _workspace.Project,
             _workspace.Location,
@@ -4420,13 +4462,108 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         VideoPreview.Visibility = Visibility.Visible;
         PlaybackControlsBorder.Visibility = Visibility.Visible;
         PlaybackButton.IsEnabled = false;
-        MuteButton.IsEnabled = !forceMuted;
-        VolumeSlider.IsEnabled = !forceMuted;
-        MuteButton.Content = forceMuted ? "Muted" : _userPreviewMuted ? "Unmute" : "Mute";
-        MuteButton.ToolTip = forceMuted
-            ? "Source audio is muted for this composition segment"
-            : "Mute or unmute preview audio";
+        UpdatePreviewAudioControls();
         VideoPreview.Play();
+    }
+
+    private void OpenCompositionAuditionAudio(string absolutePath, double startSeconds)
+    {
+        _compositionAuditionAudioReady = false;
+        _compositionAuditionAudioPriming = false;
+        _playCompositionAuditionAudioAfterOpen = false;
+        _pendingCompositionAuditionAudioPosition = Math.Max(0, startSeconds);
+        CompositionAuditionAudio.Stop();
+        CompositionAuditionAudio.Close();
+        CompositionAuditionAudio.Source = null;
+        CompositionAuditionAudio.IsMuted = true;
+        CompositionAuditionAudio.Volume = VolumeSlider.Value;
+        CompositionAuditionAudio.Source = new Uri(absolutePath, UriKind.Absolute);
+        CompositionAuditionAudio.Play();
+        UpdatePreviewAudioControls();
+    }
+
+    private async void CompositionAuditionAudio_MediaOpened(object sender, RoutedEventArgs e)
+    {
+        var openedSource = CompositionAuditionAudio.Source;
+        _compositionAuditionAudioPriming = true;
+        CompositionAuditionAudio.IsMuted = true;
+        CompositionAuditionAudio.Position = TimeSpan.FromSeconds(_pendingCompositionAuditionAudioPosition);
+        CompositionAuditionAudio.Play();
+        await Task.Delay(50);
+        if (CompositionAuditionAudio.Source != openedSource) return;
+
+        CompositionAuditionAudio.Pause();
+        CompositionAuditionAudio.Position = TimeSpan.FromSeconds(_pendingCompositionAuditionAudioPosition);
+        CompositionAuditionAudio.IsMuted = _userPreviewMuted;
+        _compositionAuditionAudioPriming = false;
+        _compositionAuditionAudioReady = true;
+        if (_playCompositionAuditionAudioAfterOpen)
+        {
+            _playCompositionAuditionAudioAfterOpen = false;
+            CompositionAuditionAudio.Play();
+        }
+        UpdatePreviewAudioControls();
+    }
+
+    private void CompositionAuditionAudio_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        StopCompositionAuditionAudio();
+        StatusText.Text = $"Independent audio audition unavailable: {e.ErrorException?.Message ?? "media playback failed"}.";
+    }
+
+    private void SyncCompositionAuditionAudio(double globalSeconds, bool play)
+    {
+        if (CompositionAuditionAudio.Source is null) return;
+        _pendingCompositionAuditionAudioPosition = Math.Clamp(globalSeconds, 0, PositionSlider.Maximum);
+        _playCompositionAuditionAudioAfterOpen = play;
+        if (!_compositionAuditionAudioReady || _compositionAuditionAudioPriming) return;
+        CompositionAuditionAudio.Position = TimeSpan.FromSeconds(_pendingCompositionAuditionAudioPosition);
+        CompositionAuditionAudio.IsMuted = _userPreviewMuted;
+        if (play)
+        {
+            _playCompositionAuditionAudioAfterOpen = false;
+            CompositionAuditionAudio.Play();
+        }
+        else
+        {
+            CompositionAuditionAudio.Pause();
+        }
+    }
+
+    private void PauseCompositionAuditionAudio()
+    {
+        _playCompositionAuditionAudioAfterOpen = false;
+        if (CompositionAuditionAudio.Source is not null) CompositionAuditionAudio.Pause();
+    }
+
+    private void StopCompositionAuditionAudio()
+    {
+        _compositionAuditionAudioReady = false;
+        _compositionAuditionAudioPriming = false;
+        _playCompositionAuditionAudioAfterOpen = false;
+        _pendingCompositionAuditionAudioPosition = 0;
+        CompositionAuditionAudio.Stop();
+        CompositionAuditionAudio.Close();
+        CompositionAuditionAudio.Source = null;
+        ReleaseCompositionAuditionAudioLease();
+        UpdatePreviewAudioControls();
+    }
+
+    private void UpdatePreviewAudioControls()
+    {
+        if (MuteButton is null || VolumeSlider is null) return;
+        var hasIndependentAudio = _activeCompositionAuditionAudioLease is not null;
+        var canAdjustAudio = !_previewAudioForcedMuted || hasIndependentAudio;
+        MuteButton.IsEnabled = canAdjustAudio;
+        VolumeSlider.IsEnabled = canAdjustAudio;
+        MuteButton.Content = !canAdjustAudio
+            ? "Muted"
+            : _userPreviewMuted ? "Unmute" : "Mute";
+        MuteButton.ToolTip = !canAdjustAudio
+            ? "Source audio is muted for this composition segment"
+            : _previewAudioForcedMuted
+                ? "Mute or unmute the independent composition audio"
+                : "Mute or unmute preview audio";
     }
 
     private void ClearMediaPreview()
@@ -4441,6 +4578,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _compositionDraftPositionSeconds = 0;
         _compositionDraftOpenVersion++;
         _previewAudioForcedMuted = false;
+        StopCompositionAuditionAudio();
         VideoPreview.Stop();
         VideoPreview.Close();
         SetPlaybackState(false);
@@ -4457,10 +4595,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         PlaybackButton.IsEnabled = false;
         PreviousFrameButton.IsEnabled = false;
         NextFrameButton.IsEnabled = false;
-        MuteButton.IsEnabled = true;
-        VolumeSlider.IsEnabled = true;
-        MuteButton.Content = _userPreviewMuted ? "Unmute" : "Mute";
-        MuteButton.ToolTip = "Mute or unmute preview audio";
+        UpdatePreviewAudioControls();
         ImagePreview.Source = null;
         ImagePreview.Visibility = Visibility.Collapsed;
         PreviewPlaceholder.Text = "Select a video or image asset to preview";
@@ -4486,6 +4621,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void ReleaseActivePreviewLease()
     {
         var lease = Interlocked.Exchange(ref _activePreviewLease, null);
+        if (lease is not null) lease.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
+
+    private void ReleaseCompositionAuditionAudioLease()
+    {
+        var lease = Interlocked.Exchange(ref _activeCompositionAuditionAudioLease, null);
         if (lease is not null) lease.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
@@ -4517,11 +4658,15 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _playVideoAfterPriming = false;
         if (shouldPlay)
         {
+            if (_activeCompositionDraftRevisionId is not null)
+                SyncCompositionAuditionAudio(_compositionDraftPositionSeconds, play: true);
             VideoPreview.Play();
             SetPlaybackState(true);
         }
         else
         {
+            if (_activeCompositionDraftRevisionId is not null)
+                SyncCompositionAuditionAudio(_compositionDraftPositionSeconds, play: false);
             SetPlaybackState(false);
         }
         UpdatePlaybackPosition();
@@ -4553,10 +4698,13 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (_isVideoPlaying)
         {
             VideoPreview.Pause();
+            PauseCompositionAuditionAudio();
             SetPlaybackState(false);
             return;
         }
 
+        if (_activeCompositionDraftRevisionId is not null)
+            SyncCompositionAuditionAudio(GetCurrentTimelinePlaybackSeconds(), play: true);
         VideoPreview.Play();
         SetPlaybackState(true);
     }
@@ -4575,6 +4723,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         try
         {
             VideoPreview.Pause();
+            PauseCompositionAuditionAudio();
             SetPlaybackState(false);
             PreviousFrameButton.IsEnabled = false;
             NextFrameButton.IsEnabled = false;
@@ -4621,6 +4770,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void CompleteVideoPlayback()
     {
         VideoPreview.Pause();
+        PauseCompositionAuditionAudio();
         if (_activeCompositionDraftRevisionId is not null)
         {
             _compositionDraftPositionSeconds = PositionSlider.Maximum;
@@ -4660,6 +4810,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _resumePlaybackAfterScrub = _isVideoPlaying;
         _isScrubbing = true;
         VideoPreview.Pause();
+        PauseCompositionAuditionAudio();
         SetPlaybackState(false);
         PositionSlider.CaptureMouse();
         UpdateScrubPosition(e);
@@ -4719,6 +4870,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         if (_activeCompositionDraftRevisionId is null || _compositionDraftSegments.Count == 0) return;
         var target = Math.Clamp(seconds, 0, PositionSlider.Maximum);
+        SyncCompositionAuditionAudio(target, playAfterSeek);
         var targetIndex = _compositionDraftSegments.Count - 1;
         for (var index = 0; index < _compositionDraftSegments.Count; index++)
         {
@@ -4746,6 +4898,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (playAfterSeek)
         {
             VideoPreview.Play();
+            SyncCompositionAuditionAudio(target, play: true);
             SetPlaybackState(true);
         }
     }
@@ -4772,28 +4925,32 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         if (VideoPreview is null || MuteButton is null) return;
         VideoPreview.Volume = e.NewValue;
+        if (CompositionAuditionAudio is not null) CompositionAuditionAudio.Volume = e.NewValue;
         _userPreviewMuted = e.NewValue <= 0;
         VideoPreview.IsMuted = _previewAudioForcedMuted || _userPreviewMuted;
-        MuteButton.Content = _previewAudioForcedMuted ? "Muted" : _userPreviewMuted ? "Unmute" : "Mute";
+        if (CompositionAuditionAudio is not null) CompositionAuditionAudio.IsMuted = _userPreviewMuted;
+        UpdatePreviewAudioControls();
         if (e.NewValue > 0) _volumeBeforeMute = e.NewValue;
     }
 
     private void Mute_Click(object sender, RoutedEventArgs e)
     {
-        if (_previewAudioForcedMuted) return;
+        if (_previewAudioForcedMuted && _activeCompositionAuditionAudioLease is null) return;
         if (_userPreviewMuted || VolumeSlider.Value <= 0)
         {
             VolumeSlider.Value = _volumeBeforeMute > 0 ? _volumeBeforeMute : 1;
             _userPreviewMuted = false;
-            VideoPreview.IsMuted = false;
-            MuteButton.Content = "Mute";
+            VideoPreview.IsMuted = _previewAudioForcedMuted;
+            CompositionAuditionAudio.IsMuted = false;
+            UpdatePreviewAudioControls();
             return;
         }
 
         _volumeBeforeMute = VolumeSlider.Value;
         _userPreviewMuted = true;
         VideoPreview.IsMuted = true;
-        MuteButton.Content = "Unmute";
+        CompositionAuditionAudio.IsMuted = true;
+        UpdatePreviewAudioControls();
     }
 
     private void DurationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -4851,6 +5008,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 segment.TimelineStartSeconds,
                 segment.TimelineStartSeconds + segment.DurationSeconds);
             _compositionDraftPositionSeconds = currentSeconds;
+            if (_isVideoPlaying && _compositionAuditionAudioReady &&
+                Math.Abs(CompositionAuditionAudio.Position.TotalSeconds - currentSeconds) > 0.2)
+                SyncCompositionAuditionAudio(currentSeconds, play: true);
             if (!_isScrubbing) PositionSlider.Value = currentSeconds;
             TimeText.Text = $"{FormatTime(TimeSpan.FromSeconds(currentSeconds))} / " +
                             $"{FormatTime(TimeSpan.FromSeconds(PositionSlider.Maximum))}";

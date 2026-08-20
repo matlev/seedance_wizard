@@ -296,6 +296,10 @@
                             <MediaElement x:Name="VideoPreview" Visibility="Collapsed" LoadedBehavior="Manual" UnloadedBehavior="Stop"
                                           ScrubbingEnabled="True" Volume="1"
                                           Stretch="Uniform" MediaOpened="VideoPreview_MediaOpened" MediaEnded="VideoPreview_MediaEnded" />
+                            <MediaElement x:Name="CompositionAuditionAudio" Width="1" Height="1" Opacity="0"
+                                          IsHitTestVisible="False" LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                          Volume="1" MediaOpened="CompositionAuditionAudio_MediaOpened"
+                                          MediaFailed="CompositionAuditionAudio_MediaFailed" />
                             <Image x:Name="ImagePreview" Visibility="Collapsed" Stretch="Uniform" />
                         </Grid>
                     </Border>

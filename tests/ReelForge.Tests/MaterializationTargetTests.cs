@@ -581,6 +581,75 @@ public sealed class MaterializationTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task CompositionAuditionAudioMixesIndependentClipsWithoutRenderingVideo()
+    {
+        var (project, location, sourceVideo) = await CreateProjectSourceAsync();
+        sourceVideo.DurationSeconds = 10;
+        var audioRelativePath = Path.Combine("assets", "audio", "music.m4a");
+        var audioPath = Path.Combine(_root, audioRelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(audioPath)!);
+        await File.WriteAllBytesAsync(audioPath, [9, 8, 7, 6]);
+        var audio = new ProjectAsset
+        {
+            DisplayName = "music.m4a",
+            FileName = "music.m4a",
+            MediaType = MediaType.Audio,
+            StorageKind = AssetStorageKind.Physical,
+            DurationSeconds = 6,
+            Physical = new PhysicalAssetStorage
+            {
+                RelativePath = audioRelativePath,
+                ContentIdentity = new ContentIdentity { Status = ContentHashStatus.Pending }
+            }
+        };
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(audio);
+        project.AddAsset(composition);
+        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Segments = [new CompositionSegment { Source = new AssetRevisionReference { AssetId = sourceVideo.Id } }],
+            AudioClips =
+            [
+                new CompositionAudioClip
+                {
+                    Source = new AssetRevisionReference { AssetId = audio.Id },
+                    TimelineStartTicks = TimeSpan.FromSeconds(1.109).Ticks,
+                    GainDecibels = -6,
+                    Pan = 0.25,
+                    FadeInMilliseconds = 500,
+                    FadeOutMilliseconds = 750
+                }
+            ]
+        });
+        var runner = new TrimRunner();
+        using var materializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
+
+        await using var first = await materializer.MaterializeCompositionAuditionAudioAsync(
+            project, location, composition.Id, revision.Id, compositionDurationSeconds: 10);
+        await using var second = await materializer.MaterializeCompositionAuditionAudioAsync(
+            project, location, composition.Id, revision.Id, compositionDurationSeconds: 10);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal(first.Path, second.Path);
+        Assert.EndsWith(".m4a", first.Path, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, runner.ConcatCount);
+        Assert.Contains("-vn", runner.ConcatRequest!.Arguments);
+        var graph = runner.ConcatRequest.Arguments[runner.ConcatRequest.Arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.Contains("adelay=1109:all=1", graph, StringComparison.Ordinal);
+        Assert.Contains("volume=-6dB", graph, StringComparison.Ordinal);
+        Assert.Contains("pan=stereo|c0=0.75*c0|c1=1*c1", graph, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CachedVirtualMediaLeaseCarriesRealizedEncodingFromInspection()
     {
         var (project, location, source) = await CreateProjectSourceAsync();

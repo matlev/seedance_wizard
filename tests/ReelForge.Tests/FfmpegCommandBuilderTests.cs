@@ -208,6 +208,38 @@ public sealed class FfmpegCommandBuilderTests
     }
 
     [Fact]
+    public void AuditionAudioMixPreservesTimelineAndMixPropertiesWithoutRenderingVideo()
+    {
+        var arguments = FfmpegCommandBuilder.BuildAuditionAudioMixArguments(
+            [
+                new AudioOverlayInput(
+                    "music.wav",
+                    TimeSpan.FromSeconds(1.109),
+                    GainDecibels: -6,
+                    Pan: 0.25,
+                    FadeIn: TimeSpan.FromSeconds(1),
+                    FadeOut: TimeSpan.FromSeconds(2),
+                    AudibleDurationSeconds: 8.5),
+                new AudioOverlayInput("voice.wav", TimeSpan.FromSeconds(4.25))
+            ],
+            19.75,
+            "audition.m4a");
+
+        Assert.Equal(2, arguments.Count(argument => argument == "-i"));
+        Assert.DoesNotContain("-c:v", arguments);
+        Assert.Contains("-vn", arguments);
+        var graph = arguments[arguments.ToList().IndexOf("-filter_complex") + 1];
+        Assert.Contains("volume=-6dB", graph, StringComparison.Ordinal);
+        Assert.Contains("pan=stereo|c0=0.75*c0|c1=1*c1", graph, StringComparison.Ordinal);
+        Assert.Contains("afade=t=in:st=0:d=1", graph, StringComparison.Ordinal);
+        Assert.Contains("afade=t=out:st=6.5:d=2", graph, StringComparison.Ordinal);
+        Assert.Contains("adelay=1109:all=1", graph, StringComparison.Ordinal);
+        Assert.Contains("amix=inputs=2:duration=longest", graph, StringComparison.Ordinal);
+        Assert.Contains("apad,atrim=duration=19.75[aout]", graph, StringComparison.Ordinal);
+        Assert.Equal("audition.m4a", arguments[^1]);
+    }
+
+    [Fact]
     public void NormalizedConcatMatchesVideoAndCreatesSilenceForDisabledAudio()
     {
         var arguments = FfmpegCommandBuilder.BuildNormalizedConcatArguments(

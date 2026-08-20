@@ -425,6 +425,93 @@ public static class FfmpegCommandBuilder
         return arguments;
     }
 
+    public static IReadOnlyList<string> BuildAuditionAudioMixArguments(
+        IReadOnlyList<AudioOverlayInput> audioInputs,
+        double compositionDurationSeconds,
+        string outputPath)
+    {
+        ArgumentNullException.ThrowIfNull(audioInputs);
+        if (audioInputs.Count == 0)
+            throw new ArgumentException("At least one audition audio input is required.", nameof(audioInputs));
+        if (!double.IsFinite(compositionDurationSeconds) || compositionDurationSeconds <= 0)
+            throw new ArgumentOutOfRangeException(nameof(compositionDurationSeconds));
+        foreach (var input in audioInputs)
+        {
+            ValidateMediaPath(input.Path, nameof(audioInputs));
+            if (input.TimelineStart < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audition audio start times cannot be negative.");
+            if (!double.IsFinite(input.GainDecibels) || input.GainDecibels is < -60 or > 12)
+                throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audition audio gain must be between -60 dB and +12 dB.");
+            if (!double.IsFinite(input.Pan) || input.Pan is < -1 or > 1)
+                throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audition audio pan must be between -1 and +1.");
+            if (input.FadeIn < TimeSpan.Zero || input.FadeOut < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audition audio fades cannot be negative.");
+            if ((input.FadeIn > TimeSpan.Zero || input.FadeOut > TimeSpan.Zero) &&
+                input.AudibleDurationSeconds is not > 0)
+                throw new ArgumentOutOfRangeException(nameof(audioInputs), "Audition audio fades require a known audible duration.");
+        }
+        ValidateMediaPath(outputPath, nameof(outputPath));
+        if (!Path.GetExtension(outputPath).Equals(".m4a", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Audition audio output must use the .m4a file type.", nameof(outputPath));
+
+        var arguments = new List<string> { "-hide_banner", "-y" };
+        foreach (var input in audioInputs) arguments.AddRange(["-i", input.Path]);
+
+        var filters = new List<string>();
+        var mixInputs = new StringBuilder();
+        const string stereoProfile = "aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,";
+        for (var index = 0; index < audioInputs.Count; index++)
+        {
+            var input = audioInputs[index];
+            var delayMilliseconds = Math.Max(0, (long)Math.Round(
+                input.TimelineStart.TotalMilliseconds,
+                MidpointRounding.AwayFromZero));
+            var volume = input.IsMuted
+                ? "volume=0,"
+                : Math.Abs(input.GainDecibels) > 0.000_001
+                    ? $"volume={input.GainDecibels.ToString("0.###", CultureInfo.InvariantCulture)}dB,"
+                    : string.Empty;
+            var pan = string.Empty;
+            if (Math.Abs(input.Pan) > 0.000_001)
+            {
+                var leftGain = input.Pan > 0 ? 1 - input.Pan : 1;
+                var rightGain = input.Pan < 0 ? 1 + input.Pan : 1;
+                pan = $"pan=stereo|c0={FormatUnitValue(leftGain)}*c0|c1={FormatUnitValue(rightGain)}*c1,";
+            }
+            var fade = new StringBuilder();
+            if (input.AudibleDurationSeconds is { } durationSeconds)
+                fade.Append(CultureInfo.InvariantCulture, $"atrim=duration={FormatSeconds(durationSeconds)},");
+            if (input.FadeIn > TimeSpan.Zero)
+                fade.Append(CultureInfo.InvariantCulture,
+                    $"afade=t=in:st=0:d={FormatSeconds(input.FadeIn.TotalSeconds)},");
+            if (input.FadeOut > TimeSpan.Zero)
+            {
+                var fadeOutStart = input.AudibleDurationSeconds!.Value - input.FadeOut.TotalSeconds;
+                fade.Append(CultureInfo.InvariantCulture,
+                    $"afade=t=out:st={FormatSeconds(fadeOutStart)}:d={FormatSeconds(input.FadeOut.TotalSeconds)},");
+            }
+            filters.Add(
+                $"[{index}:a:0]{stereoProfile}{volume}{pan}{fade}" +
+                $"adelay={delayMilliseconds}:all=1,asetpts=PTS-STARTPTS[audition{index}]");
+            mixInputs.Append(CultureInfo.InvariantCulture, $"[audition{index}]");
+        }
+
+        filters.Add(audioInputs.Count == 1
+            ? $"{mixInputs}anull,apad,atrim=duration={FormatSeconds(compositionDurationSeconds)}[aout]"
+            : $"{mixInputs}amix=inputs={audioInputs.Count}:duration=longest:dropout_transition=0," +
+              $"apad,atrim=duration={FormatSeconds(compositionDurationSeconds)}[aout]");
+        arguments.AddRange([
+            "-filter_complex", string.Join(';', filters),
+            "-map", "[aout]",
+            "-vn",
+            "-c:a", "aac",
+            "-ar", "48000",
+            "-movflags", "+faststart",
+            outputPath
+        ]);
+        return arguments;
+    }
+
     public static IReadOnlyList<string> BuildNormalizedConcatArguments(
         IReadOnlyList<NormalizedConcatInput> inputs,
         string outputPath,
