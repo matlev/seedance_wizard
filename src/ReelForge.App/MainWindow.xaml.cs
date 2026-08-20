@@ -2031,6 +2031,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         if (layout.Segments.Count == 0) return;
         var tickCount = Math.Clamp((int)(layout.ContentWidth / 140), 2, 80);
+        var showMilliseconds = _compositionTimelineZoom > 1.001;
         for (var index = 0; index <= tickCount; index++)
         {
             var x = layout.ContentWidth * index / tickCount;
@@ -2047,7 +2048,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             });
             var label = new TextBlock
             {
-                Text = FormatTimelineTime(seconds),
+                Text = showMilliseconds
+                    ? FormatTimelineRulerTimePrecise(seconds)
+                    : FormatTimelineTime(seconds),
                 Foreground = FindResource("MutedTextBrush") as Brush ?? Brushes.LightGray,
                 FontSize = 9,
                 IsHitTestVisible = false
@@ -2103,6 +2106,16 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         return time.TotalHours >= 1
             ? time.ToString(@"h\:mm\:ss\.fff", CultureInfo.InvariantCulture)
             : time.ToString(@"m\:ss\.fff", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatTimelineRulerTimePrecise(double seconds)
+    {
+        var time = TimeSpan.FromMilliseconds(Math.Round(
+            Math.Max(0, seconds) * 1000,
+            MidpointRounding.AwayFromZero));
+        return time.TotalHours >= 1
+            ? time.ToString(@"h\:mm\:ss\.fff", CultureInfo.InvariantCulture)
+            : time.ToString(@"mm\:ss\.fff", CultureInfo.InvariantCulture);
     }
 
     private static string FormatGainDecibels(double gainDecibels) =>
