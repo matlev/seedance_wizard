@@ -313,7 +313,7 @@ Phase acceptance checks:
 
 ### Phase 2E — timeline
 
-In progress. The first slices project the committed Working Composition into a horizontal duration-aware timeline without introducing a second persistence model. Segment blocks retain a readable minimum size, expand proportionally by known duration, own segment selection directly, and display a playhead for the currently rendered composition revision. Unknown durations are clearly identified as estimated. Timeline geometry remains disposable UI state derived from immutable recipes. Project Media video and physical-audio files can now be dragged into the timeline; images are excluded. Video drops insert ordered segments while audio drops persist an independent tick-precise start time and render through delayed FFmpeg mixing.
+In progress. The first slices project the committed Working Composition into a horizontal duration-aware timeline without introducing a second persistence model. Segment blocks retain a readable minimum size, expand proportionally by known duration, own segment selection directly, and display a playhead for the currently rendered composition revision. Unknown durations are clearly identified as estimated. Timeline geometry remains disposable UI state derived from immutable recipes. Project Media video and physical-audio files can now be dragged into the timeline; images are excluded. Video drops insert ordered segments while audio drops persist an independent millisecond-precise start time and render through delayed FFmpeg mixing.
 
 #### Phase 2E.1 — visual composition timeline foundation
 
@@ -327,7 +327,7 @@ In progress. The first slices project the committed Working Composition into a h
 8. Keep clip widths, ruler ticks, scroll position, and playhead position out of the `.rfp` schema.
 9. Reorder video segments directly by dragging timeline blocks; neighboring blocks reflow during the transient preview and only a non-no-op mouse release commits one immutable recipe revision.
 10. Expose selected video-segment source audio as **On / Muted**; commit each actual change as one immutable revision, invalidate stale previews, persist the choice, and render muted single- or multi-segment compositions correctly.
-11. Reposition a timed audio clip by dragging its timeline block horizontally; pointer movement is transient UI state, mouse-up commits one immutable tick-precise start time, and clicks/no-op drags create no revision.
+11. Reposition a timed audio clip by dragging its timeline block horizontally; pointer movement is transient UI state, mouse-up commits at most one immutable millisecond-precise start time, and clicks, sub-millisecond pointer noise, or other no-op drags create no revision. Keep the dropped visual stable while the commit completes.
 
 #### Phase 2E.2 — context-sensitive Edit Tools
 

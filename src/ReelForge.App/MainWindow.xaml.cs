@@ -1681,15 +1681,19 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private async Task CompleteCompositionAudioClipDragAsync(Guid audioClipId, MouseButtonEventArgs e)
     {
         var point = e.GetPosition(CompositionTimelineCanvas);
-        var draftStart = TimeSpan.FromSeconds(Math.Max(0, _compositionAudioClipDraftStartSeconds));
+        var draftStart = TimeSpan.FromMilliseconds(Math.Round(
+            Math.Max(0, _compositionAudioClipDraftStartSeconds) * 1000,
+            MidpointRounding.AwayFromZero));
         var shouldCommit = _activeCompositionAudioClipDragId is not null &&
                            draftStart.Ticks != _compositionAudioClipOriginalStartTicks &&
                            point.Y >= 0 && point.Y <= CompositionTimelineCanvas.ActualHeight;
         ResetCompositionAudioClipDrag(render: false);
-        if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
-        RenderCompositionTimeline();
         e.Handled = true;
-        if (!shouldCommit) return;
+        if (!shouldCommit)
+        {
+            RenderCompositionTimeline();
+            return;
+        }
 
         await RunUiActionAsync("Moving composition audio clip…", async () =>
         {
@@ -1699,8 +1703,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _selectedCompositionAudioClipId = audioClipId;
             RefreshEditWorkspaceState();
             StatusText.Text =
-                $"Moved the audio clip to {FormatTimelineTime(draftStart.TotalSeconds)}. Preview the composition to rebuild it.";
+                $"Moved the audio clip to {FormatTimelineTimePrecise(draftStart.TotalSeconds)}. Preview the composition to rebuild it.";
         });
+        RenderCompositionTimeline();
     }
 
     private void ResetCompositionAudioClipDrag(bool render = true)
@@ -1844,7 +1849,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     Padding = new Thickness(7, 3, 6, 3),
                     Opacity = isDragging ? 0.86 : 1,
                     Cursor = Cursors.SizeWE,
-                    ToolTip = $"Audio: {item.DisplayName}\nStarts at {FormatTimelineTime(startSeconds)}\n{item.DurationText} • {item.MixText}\nClick to select or drag to move"
+                    ToolTip = $"Audio: {item.DisplayName}\nStarts at {FormatTimelineTimePrecise(startSeconds)}\n{item.DurationText} • {item.MixText}\nClick to select or drag to move"
                 };
                 if (isDragging)
                     audioBorder.Effect = new DropShadowEffect
@@ -1968,6 +1973,16 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             : time.ToString(@"m\:ss", CultureInfo.InvariantCulture);
     }
 
+    private static string FormatTimelineTimePrecise(double seconds)
+    {
+        var time = TimeSpan.FromMilliseconds(Math.Round(
+            Math.Max(0, seconds) * 1000,
+            MidpointRounding.AwayFromZero));
+        return time.TotalHours >= 1
+            ? time.ToString(@"h\:mm\:ss\.fff", CultureInfo.InvariantCulture)
+            : time.ToString(@"m\:ss\.fff", CultureInfo.InvariantCulture);
+    }
+
     private static string FormatGainDecibels(double gainDecibels) =>
         $"{(gainDecibels > 0 ? "+" : string.Empty)}{gainDecibels:0} dB";
 
@@ -2017,7 +2032,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             {
                 EditAudioClipNameText.Text = selectedAudio.DisplayName;
                 EditAudioClipTimingText.Text =
-                    $"Starts at {FormatTimelineTime(selectedAudio.TimelineStart.TotalSeconds)} • {selectedAudio.DurationText}";
+                    $"Starts at {FormatTimelineTimePrecise(selectedAudio.TimelineStart.TotalSeconds)} • {selectedAudio.DurationText}";
             }
 
             CompositionSegmentAudioOnButton.IsChecked = selectedSegment?.AudioEnabled == true;
@@ -2290,7 +2305,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _selectedCompositionSegmentId = null;
             _selectedCompositionAudioClipId = clip.Id;
             RenderCompositionTimeline();
-            StatusText.Text = $"Added {asset.EffectiveDisplayName} at {FormatTimelineTime(startSeconds)}.";
+            StatusText.Text =
+                $"Added {asset.EffectiveDisplayName} at {FormatTimelineTimePrecise(clip.TimelineStart.TotalSeconds)}.";
         });
     }
 

@@ -116,17 +116,19 @@ public sealed class WorkingCompositionService
     public async Task<RecipeRevision> AddAudioClipAsync(
         Guid sourceAssetId,
         TimeSpan timelineStart,
-        CancellationToken cancellationToken = default) =>
-        await UpdateAsync(recipe =>
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedStart = NormalizeAudioTimelineStart(timelineStart);
+        return await UpdateAsync(recipe =>
         {
-            ArgumentOutOfRangeException.ThrowIfLessThan(timelineStart, TimeSpan.Zero);
             var source = RequireAudioSource(sourceAssetId);
             recipe.AudioClips.Add(new CompositionAudioClip
             {
                 Source = new AssetRevisionReference { AssetId = source.Id },
-                TimelineStartTicks = timelineStart.Ticks
+                TimelineStartTicks = normalizedStart.Ticks
             });
         }, cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task<RecipeRevision> MoveSegmentAsync(
         Guid segmentId,
@@ -194,11 +196,11 @@ public sealed class WorkingCompositionService
         TimeSpan timelineStart,
         CancellationToken cancellationToken = default)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(timelineStart, TimeSpan.Zero);
+        var normalizedStart = NormalizeAudioTimelineStart(timelineStart);
         var (_, currentRevision, currentRecipe) = GetCurrent();
         var currentClip = currentRecipe.AudioClips.SingleOrDefault(clip => clip.Id == audioClipId)
             ?? throw new InvalidOperationException("The selected composition audio clip no longer exists.");
-        if (currentClip.TimelineStartTicks == timelineStart.Ticks) return currentRevision;
+        if (currentClip.TimelineStartTicks == normalizedStart.Ticks) return currentRevision;
 
         return await UpdateAsync(recipe =>
         {
@@ -207,9 +209,16 @@ public sealed class WorkingCompositionService
                 throw new InvalidOperationException("The selected composition audio clip no longer exists.");
             recipe.AudioClips[index] = recipe.AudioClips[index] with
             {
-                TimelineStartTicks = timelineStart.Ticks
+                TimelineStartTicks = normalizedStart.Ticks
             };
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static TimeSpan NormalizeAudioTimelineStart(TimeSpan timelineStart)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(timelineStart, TimeSpan.Zero);
+        var milliseconds = Math.Round(timelineStart.TotalMilliseconds, MidpointRounding.AwayFromZero);
+        return TimeSpan.FromMilliseconds(milliseconds);
     }
 
     public async Task<RecipeRevision> SetAudioClipMixAsync(

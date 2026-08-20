@@ -470,6 +470,12 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Equal(moved.Id, noOp.Id);
         Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
 
+        var subMillisecondNoOp = await service.SetAudioClipTimelineStartAsync(
+            audioClipId,
+            TimeSpan.FromTicks(TimeSpan.FromSeconds(4.25).Ticks + 4_000));
+        Assert.Equal(moved.Id, subMillisecondNoOp.Id);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+
         var reopened = (await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath)).Project;
         var composition = reopened.Assets.Single(asset => asset.Id == reopened.WorkingCompositionAssetId);
         var recipe = Assert.IsType<CompositionRecipe>(reopened.RecipeRevisions.Single(revision =>
