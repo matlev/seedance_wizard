@@ -352,6 +352,12 @@ public sealed record ConnectionTestResult(
     string Message,
     ConnectionFailureKind FailureKind = ConnectionFailureKind.None);
 
+public enum MediaSplitBehavior
+{
+    BeforeSelectedFrame,
+    AfterSelectedFrame
+}
+
 public sealed class MediaToolConfiguration
 {
     public const long DefaultCacheSizeBytes = 10L * 1024 * 1024 * 1024;
@@ -360,6 +366,7 @@ public sealed class MediaToolConfiguration
     public string? FfprobePath { get; set; }
     public long CacheSizeBytes { get; set; } = DefaultCacheSizeBytes;
     public bool PersistModifiedMediaOnDisk { get; set; }
+    public MediaSplitBehavior SplitBehavior { get; set; } = MediaSplitBehavior.BeforeSelectedFrame;
 }
 
 public sealed record MediaToolAvailability(

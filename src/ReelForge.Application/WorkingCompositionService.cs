@@ -194,9 +194,15 @@ public sealed class WorkingCompositionService
     public async Task<CompositionSegmentSplitResult> SplitSegmentAtFrameAsync(
         Guid segmentId,
         ExactFramePosition position,
+        AnchorBoundaryEdge boundaryEdge,
+        double boundaryTimestampSeconds,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(position);
+        if (!Enum.IsDefined(boundaryEdge))
+            throw new ArgumentOutOfRangeException(nameof(boundaryEdge));
+        if (!double.IsFinite(boundaryTimestampSeconds) || boundaryTimestampSeconds < 0)
+            throw new ArgumentOutOfRangeException(nameof(boundaryTimestampSeconds));
         var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
         var (_, _, currentRecipe) = GetCurrent();
         var currentSegment = currentRecipe.Segments.SingleOrDefault(segment => segment.Id == segmentId)
@@ -238,15 +244,18 @@ public sealed class WorkingCompositionService
                     AnchorId = anchor.Id,
                     AnchorRevisionId = anchorRevision.Id
                 },
-                Edge = AnchorBoundaryEdge.BeforeFrame
+                Edge = boundaryEdge
             };
             var sourceDuration = sourceAsset.DurationSeconds ?? sourceAsset.Encoding?.DurationSeconds ??
                                  sourceAsset.Virtual?.ExpectedMediaProperties?.DurationSeconds;
             var originalStart = ResolveApproximateBoundary(project, currentSegment.Start, sourceDuration) ?? 0;
             var originalEnd = ResolveApproximateBoundary(project, currentSegment.End, sourceDuration) ?? sourceDuration;
-            var leadingDuration = Math.Max(0, anchorRevision.TimestampSeconds - originalStart);
+            if (boundaryTimestampSeconds <= originalStart ||
+                originalEnd is { } validatedEnd && boundaryTimestampSeconds >= validatedEnd)
+                throw new InvalidOperationException("The selected split boundary must leave media on both sides.");
+            var leadingDuration = Math.Max(0, boundaryTimestampSeconds - originalStart);
             var trailingDuration = originalEnd is { } end
-                ? Math.Max(0, end - anchorRevision.TimestampSeconds)
+                ? Math.Max(0, end - boundaryTimestampSeconds)
                 : (double?)null;
 
             leadingClip.Virtual!.ExpectedMediaProperties!.DurationSeconds = leadingDuration;

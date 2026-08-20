@@ -1382,6 +1382,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             return;
         var playbackSeconds = GetCurrentTimelinePlaybackSeconds();
         var offset = playbackSeconds - span.StartSeconds;
+        var boundaryEdge = _applicationSettings.MediaTools.SplitBehavior == MediaSplitBehavior.AfterSelectedFrame
+            ? AnchorBoundaryEdge.AfterFrame
+            : AnchorBoundaryEdge.BeforeFrame;
         VideoPreview.Pause();
         SetPlaybackState(false);
         await RunUiActionAsync("Splitting composition segment at the exact playhead frame…", async () =>
@@ -1390,7 +1393,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     _workspace,
                     _mediaMaterializer,
                     _exactFrameService)
-                .SplitAsync(selected.SegmentId, TimeSpan.FromSeconds(offset));
+                .SplitAsync(selected.SegmentId, TimeSpan.FromSeconds(offset), boundaryEdge);
             _selectedCompositionSegmentId = result.TrailingSegmentId;
             _selectedCompositionAudioClipId = null;
             var leadingName = _workspace.Project!.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
@@ -1401,7 +1404,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             RefreshEditWorkspaceState();
             StatusText.Text =
                 $"Split {selected.DisplayName} into Saved Clips '{leadingName}' and '{trailingName}' at " +
-                $"source {FormatTimelineTimePrecise(result.SourceTimestampSeconds)}.";
+                $"source {FormatTimelineTimePrecise(result.SourceTimestampSeconds)} " +
+                $"({(boundaryEdge == AnchorBoundaryEdge.BeforeFrame ? "before" : "after")} selected frame).";
         });
     }
 
@@ -2416,7 +2420,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var menu = new ContextMenu();
         var split = new MenuItem
         {
-            Header = "Split at playhead",
+            Header = GetCompositionSplitActionLabel(),
             IsEnabled = CanSplitCompositionSegment(segmentId, GetCurrentTimelinePlaybackSeconds())
         };
         split.Click += async (_, _) =>
@@ -2443,6 +2447,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         menu.Opened += (_, _) =>
         {
             var currentIndex = _compositionSegments.ToList().FindIndex(item => item.SegmentId == segmentId);
+            split.Header = GetCompositionSplitActionLabel();
             split.IsEnabled = CanSplitCompositionSegment(segmentId, GetCurrentTimelinePlaybackSeconds());
             shiftLeft.IsEnabled = currentIndex > 0;
             shiftRight.IsEnabled = currentIndex >= 0 && currentIndex < _compositionSegments.Count - 1;
@@ -2475,11 +2480,19 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var span = _compositionTimelineLayout?.Segments.SingleOrDefault(candidate =>
             candidate.SegmentId == segmentId);
         var segment = _compositionSegments.SingleOrDefault(candidate => candidate.SegmentId == segmentId);
+        var splitAfter = _applicationSettings.MediaTools.SplitBehavior == MediaSplitBehavior.AfterSelectedFrame;
         return segment?.DurationSeconds is > 0 &&
                span is not null &&
-               playbackSeconds > span.StartSeconds + 0.000_000_1 &&
+               (splitAfter
+                   ? playbackSeconds >= span.StartSeconds - 0.000_000_1
+                   : playbackSeconds > span.StartSeconds + 0.000_000_1) &&
                playbackSeconds < span.StartSeconds + span.DurationSeconds - 0.000_000_1;
     }
+
+    private string GetCompositionSplitActionLabel() =>
+        _applicationSettings.MediaTools.SplitBehavior == MediaSplitBehavior.AfterSelectedFrame
+            ? "Split after playhead frame"
+            : "Split before playhead frame";
 
     private double GetCurrentTimelinePlaybackSeconds()
     {

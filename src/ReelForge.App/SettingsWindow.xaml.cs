@@ -162,6 +162,8 @@ public partial class SettingsWindow : Window
             return CreateUndoSendEditor(requirement);
         if (requirement.Key == "MediaTools.CacheSizeBytes")
             return CreateCacheSizeEditor(requirement);
+        if (requirement.Key == "MediaTools.SplitBehavior")
+            return CreateMediaSplitBehaviorEditor(requirement);
 
         var panel = CreateFieldPanel(requirement);
         var row = new Grid();
@@ -377,6 +379,51 @@ public partial class SettingsWindow : Window
         disabled.Checked += BooleanEditor_Checked;
         group.Children.Add(enabled);
         group.Children.Add(disabled);
+        panel.Children.Add(group);
+        return panel;
+    }
+
+    private FrameworkElement CreateMediaSplitBehaviorEditor(ConfigurationRequirement requirement)
+    {
+        var panel = CreateFieldPanel(requirement);
+        panel.ToolTip = requirement.Description;
+        var currentValue = _pendingValues.TryGetValue(requirement.Key, out var pending)
+            ? pending
+            : ApplicationSettingsAccessor.Get(_editor.Settings, requirement.Key);
+        var behavior = Enum.TryParse<MediaSplitBehavior>(currentValue, ignoreCase: true, out var parsed)
+            ? parsed
+            : MediaSplitBehavior.BeforeSelectedFrame;
+        var group = new StackPanel { Orientation = Orientation.Horizontal };
+        var before = new RadioButton
+        {
+            Content = "Split before selected frame",
+            IsChecked = behavior == MediaSplitBehavior.BeforeSelectedFrame,
+            GroupName = requirement.Key,
+            Style = (Style)FindResource("SettingsBooleanChoiceStyle"),
+            ToolTip = "The selected frame becomes the first frame of the second clip."
+        };
+        var after = new RadioButton
+        {
+            Content = "Split after selected frame",
+            IsChecked = behavior == MediaSplitBehavior.AfterSelectedFrame,
+            GroupName = requirement.Key,
+            Style = (Style)FindResource("SettingsBooleanChoiceStyle"),
+            ToolTip = "The selected frame becomes the last frame of the first clip."
+        };
+        before.Checked += async (_, _) =>
+        {
+            if (_rendering) return;
+            _pendingValues[requirement.Key] = MediaSplitBehavior.BeforeSelectedFrame.ToString();
+            await CommitVisibleAsync().ConfigureAwait(true);
+        };
+        after.Checked += async (_, _) =>
+        {
+            if (_rendering) return;
+            _pendingValues[requirement.Key] = MediaSplitBehavior.AfterSelectedFrame.ToString();
+            await CommitVisibleAsync().ConfigureAwait(true);
+        };
+        group.Children.Add(before);
+        group.Children.Add(after);
         panel.Children.Add(group);
         return panel;
     }

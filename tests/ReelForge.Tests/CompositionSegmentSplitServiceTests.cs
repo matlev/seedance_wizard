@@ -146,6 +146,43 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
         Assert.Empty(ProjectInvariantValidator.Validate(reopened));
     }
 
+    [Fact]
+    public async Task SplitAfterSelectedFrameIncludesThatFrameInLeadingClip()
+    {
+        var workspace = await CreateWorkspaceAsync();
+        var sourceHash = new string('c', 64);
+        var source = AddPhysicalVideo(workspace.Project!, "after-source.mp4", sourceHash, 10);
+        await new WorkingCompositionService(workspace).CreateInitialAsync(source.Id);
+        var originalSegment = new WorkingCompositionService(workspace).GetCurrent().Recipe.Segments.Single();
+        var service = new CompositionSegmentSplitService(
+            workspace,
+            new StubMaterializer(Path.Combine(_root, "after-source.mp4"), sourceHash, 10),
+            new StubExactFrameService([
+                new VideoPresentationFrame(0, 95, 1, 25, 95),
+                new VideoPresentationFrame(0, 100, 1, 25, 100),
+                new VideoPresentationFrame(0, 105, 1, 25, 105)
+            ]));
+
+        var result = await service.SplitAsync(
+            originalSegment.Id,
+            TimeSpan.FromSeconds(4.02),
+            AnchorBoundaryEdge.AfterFrame);
+
+        var (_, _, recipe) = new WorkingCompositionService(workspace).GetCurrent();
+        var leadingRecipe = Assert.IsType<TrimRecipe>(workspace.Project!.RecipeRevisions.Single(revision =>
+            revision.Id == recipe.Segments[0].Source.RecipeRevisionId).Recipe);
+        var trailingRecipe = Assert.IsType<TrimRecipe>(workspace.Project.RecipeRevisions.Single(revision =>
+            revision.Id == recipe.Segments[1].Source.RecipeRevisionId).Recipe);
+        Assert.Equal(AnchorBoundaryEdge.AfterFrame, leadingRecipe.End.Edge);
+        Assert.Equal(leadingRecipe.End, trailingRecipe.Start);
+        Assert.Equal(100, workspace.Project.AnchorRevisions.Single().PresentationTimestamp);
+        Assert.Equal(4.2, workspace.Project.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
+        Assert.Equal(5.8, workspace.Project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
+        Assert.Empty(ProjectInvariantValidator.Validate(workspace.Project));
+    }
+
     private async Task<ProjectWorkspace> CreateWorkspaceAsync()
     {
         Directory.CreateDirectory(_root);

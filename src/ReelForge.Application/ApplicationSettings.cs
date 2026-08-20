@@ -227,6 +227,8 @@ public static class ApplicationConfigurationCatalog
             MediaToolConfiguration.DefaultCacheSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture), MediaToolsSection),
         new("MediaTools.PersistModifiedMediaOnDisk", "Persist modified media on disk", "Captured frames, video clippings, and in-progress compositions are normally stored in cache to optimize space usage and are rebuilt when necessary. Persisting this media on disk will save them as normal, permanent files in your project's media folder.", false, false,
             "false", MediaToolsSection),
+        new("MediaTools.SplitBehavior", "Media split behavior", "Choose whether the selected frame belongs to the first or second resulting clip when splitting media.", false, false,
+            MediaSplitBehavior.BeforeSelectedFrame.ToString(), MediaToolsSection),
         new("TemporaryAssetHosting.CloudflareR2.AccountId", "R2 Account ID", "Cloudflare account identifier used by the R2 S3 endpoint.", true, false,
             "32-character Cloudflare account ID", R2Section),
         new("TemporaryAssetHosting.CloudflareR2.BucketName", "R2 bucket name", "Private bucket used for temporary provider references.", true, false,
@@ -268,6 +270,7 @@ public static class ApplicationSettingsAccessor
         "MediaTools.FfprobePath" => settings.MediaTools.FfprobePath ?? string.Empty,
         "MediaTools.CacheSizeBytes" => settings.MediaTools.CacheSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
         "MediaTools.PersistModifiedMediaOnDisk" => settings.MediaTools.PersistModifiedMediaOnDisk.ToString().ToLowerInvariant(),
+        "MediaTools.SplitBehavior" => settings.MediaTools.SplitBehavior.ToString(),
         "TemporaryAssetHosting.CloudflareR2.AccountId" => settings.TemporaryAssetHosting.CloudflareR2.AccountId,
         "TemporaryAssetHosting.CloudflareR2.BucketName" => settings.TemporaryAssetHosting.CloudflareR2.BucketName,
         "TemporaryAssetHosting.CloudflareR2.Endpoint" => settings.TemporaryAssetHosting.CloudflareR2.Endpoint,
@@ -309,6 +312,12 @@ public static class ApplicationSettingsAccessor
                 break;
             case "MediaTools.PersistModifiedMediaOnDisk":
                 settings.MediaTools.PersistModifiedMediaOnDisk = ParseBoolean(value, key);
+                break;
+            case "MediaTools.SplitBehavior":
+                if (!Enum.TryParse<MediaSplitBehavior>(value, ignoreCase: true, out var splitBehavior) ||
+                    !Enum.IsDefined(splitBehavior))
+                    throw new ArgumentException("Media split behavior must be BeforeSelectedFrame or AfterSelectedFrame.");
+                settings.MediaTools.SplitBehavior = splitBehavior;
                 break;
             case "TemporaryAssetHosting.CloudflareR2.AccountId": settings.TemporaryAssetHosting.CloudflareR2.AccountId = value; break;
             case "TemporaryAssetHosting.CloudflareR2.BucketName": settings.TemporaryAssetHosting.CloudflareR2.BucketName = value; break;

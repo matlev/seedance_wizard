@@ -21,9 +21,13 @@ public sealed class CompositionSegmentSplitService
     public async Task<CompositionSegmentSplitResult> SplitAsync(
         Guid segmentId,
         TimeSpan offsetWithinSegment,
+        AnchorBoundaryEdge boundaryEdge = AnchorBoundaryEdge.BeforeFrame,
         CancellationToken cancellationToken = default)
     {
-        if (offsetWithinSegment <= TimeSpan.Zero)
+        if (!Enum.IsDefined(boundaryEdge))
+            throw new ArgumentOutOfRangeException(nameof(boundaryEdge));
+        if (offsetWithinSegment < TimeSpan.Zero ||
+            (boundaryEdge == AnchorBoundaryEdge.BeforeFrame && offsetWithinSegment == TimeSpan.Zero))
             throw new ArgumentOutOfRangeException(nameof(offsetWithinSegment), "Move the playhead inside the selected segment.");
         var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
         var location = _workspace.Location ?? throw new InvalidOperationException("The open project has no location.");
@@ -53,7 +57,10 @@ public sealed class CompositionSegmentSplitService
                 project, segment.Source, source, segment.End, sourceDuration, isEnd: true, cancellationToken)
             .ConfigureAwait(false);
         var targetSeconds = startSeconds + offsetWithinSegment.TotalSeconds;
-        if (!double.IsFinite(targetSeconds) || targetSeconds <= startSeconds || targetSeconds >= endSeconds)
+        if (!double.IsFinite(targetSeconds) ||
+            targetSeconds < startSeconds ||
+            (boundaryEdge == AnchorBoundaryEdge.BeforeFrame && targetSeconds <= startSeconds) ||
+            targetSeconds >= endSeconds)
             throw new InvalidOperationException("Move the playhead inside the selected segment before splitting it.");
 
         var nearbyFrames = await _exactFrameService.IndexWindowAsync(
@@ -63,13 +70,42 @@ public sealed class CompositionSegmentSplitService
                 cancellationToken)
             .ConfigureAwait(false);
         var candidates = nearbyFrames
-            .Where(frame => frame.TimestampSeconds > startSeconds + 0.000_000_1 &&
+            .Where(frame => (boundaryEdge == AnchorBoundaryEdge.AfterFrame
+                                ? frame.TimestampSeconds >= startSeconds - 0.000_000_1
+                                : frame.TimestampSeconds > startSeconds + 0.000_000_1) &&
                             frame.TimestampSeconds < endSeconds - 0.000_000_1)
             .OrderBy(frame => frame.TimestampSeconds)
             .ToArray();
         if (candidates.Length == 0)
             throw new InvalidOperationException("No decoded frame exists strictly inside the selected segment.");
         var frame = candidates[ExactFrameContactWindow.FindNearestIndex(candidates, targetSeconds)];
+        var boundaryTimestampSeconds = frame.TimestampSeconds;
+        if (boundaryEdge == AnchorBoundaryEdge.AfterFrame)
+        {
+            var nextFrame = nearbyFrames
+                .Where(candidate => candidate.VideoStreamIndex == frame.VideoStreamIndex &&
+                                    candidate.PresentationTimestamp > frame.PresentationTimestamp)
+                .OrderBy(candidate => candidate.PresentationTimestamp)
+                .FirstOrDefault();
+            if (nextFrame is null)
+            {
+                var followingFrames = await _exactFrameService.IndexWindowAsync(
+                        source.Path,
+                        Math.Min(endSeconds, frame.TimestampSeconds + 2),
+                        radiusSeconds: 4,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                nextFrame = followingFrames
+                    .Where(candidate => candidate.VideoStreamIndex == frame.VideoStreamIndex &&
+                                        candidate.PresentationTimestamp > frame.PresentationTimestamp)
+                    .OrderBy(candidate => candidate.PresentationTimestamp)
+                    .FirstOrDefault();
+            }
+            if (nextFrame is null || nextFrame.TimestampSeconds >= endSeconds - 0.000_000_1)
+                throw new InvalidOperationException(
+                    "The selected frame is the segment's final frame, so it cannot start a non-empty second clip.");
+            boundaryTimestampSeconds = nextFrame.TimestampSeconds;
+        }
         var sourceHash = source.ContentIdentity.Sha256;
         if (source.ContentIdentity.Status != ContentHashStatus.Verified || string.IsNullOrWhiteSpace(sourceHash))
             throw new InvalidDataException("The selected segment source does not have a verified content identity.");
@@ -84,7 +120,12 @@ public sealed class CompositionSegmentSplitService
             frame.FrameNumber,
             segment.Source.RecipeRevisionId);
         return await new WorkingCompositionService(_workspace)
-            .SplitSegmentAtFrameAsync(segmentId, position, cancellationToken)
+            .SplitSegmentAtFrameAsync(
+                segmentId,
+                position,
+                boundaryEdge,
+                boundaryTimestampSeconds,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 

@@ -335,6 +335,22 @@ public sealed class ApplicationSettingsTests
             settings, "MediaTools.PersistModifiedMediaOnDisk", "sometimes"));
     }
 
+    [Fact]
+    public void MediaSplitBehaviorDefaultsBeforeAndAcceptsEitherFrameEdge()
+    {
+        var settings = new ApplicationSettings();
+
+        Assert.Equal(MediaSplitBehavior.BeforeSelectedFrame, settings.MediaTools.SplitBehavior);
+        Assert.Equal("BeforeSelectedFrame", ApplicationSettingsAccessor.Get(
+            settings, "MediaTools.SplitBehavior"));
+
+        ApplicationSettingsAccessor.Set(settings, "MediaTools.SplitBehavior", "AfterSelectedFrame");
+
+        Assert.Equal(MediaSplitBehavior.AfterSelectedFrame, settings.MediaTools.SplitBehavior);
+        Assert.Throws<ArgumentException>(() => ApplicationSettingsAccessor.Set(
+            settings, "MediaTools.SplitBehavior", "AcrossSelectedFrame"));
+    }
+
     private static ApplicationSettings ConfiguredR2Settings()
     {
         var settings = new ApplicationSettings();

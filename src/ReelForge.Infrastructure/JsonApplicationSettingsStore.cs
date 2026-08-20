@@ -121,6 +121,8 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
         settings.MediaTools ??= new MediaToolConfiguration();
         if (settings.MediaTools.CacheSizeBytes <= 0)
             settings.MediaTools.CacheSizeBytes = MediaToolConfiguration.DefaultCacheSizeBytes;
+        if (!Enum.IsDefined(settings.MediaTools.SplitBehavior))
+            settings.MediaTools.SplitBehavior = MediaSplitBehavior.BeforeSelectedFrame;
         settings.TemporaryAssetHosting ??= new TemporaryAssetHostingSettings();
         settings.TemporaryAssetHosting.CloudflareR2 ??= new CloudflareR2Settings();
         settings.VideoGenerationProviders ??= new VideoGenerationProviderSettings();
