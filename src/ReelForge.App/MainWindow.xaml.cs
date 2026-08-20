@@ -68,6 +68,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly DispatcherTimer _draftAutosaveTimer;
     private readonly DispatcherTimer _jobElapsedTimer;
     private readonly DispatcherTimer _frameBrowserDebounceTimer;
+    private readonly DispatcherTimer _compositionTimelineDragAutoScrollTimer;
     private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressDraftAutosave;
     private bool _suppressPromptSynchronization;
@@ -122,6 +123,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private bool _resumePlaybackAfterCompositionTimelineScrub;
     private double _compositionTimelineZoom = 1;
     private int _compositionTimelineZoomRevision;
+    private ProjectAsset? _compositionTimelineDragAsset;
+    private double _compositionTimelineDragViewportX;
+    private double _compositionTimelineDragAutoScrollDelta;
     private bool _compositionTimelineRenderScheduled;
     private Point _projectMediaDragStart;
     private ProjectMediaListItem? _projectMediaDragItem;
@@ -209,6 +213,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _frameBrowserDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _frameBrowserDebounceTimer.Tick += FrameBrowserDebounceTimer_Tick;
 
+        _compositionTimelineDragAutoScrollTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(40)
+        };
+        _compositionTimelineDragAutoScrollTimer.Tick += CompositionTimelineDragAutoScrollTimer_Tick;
+
         MediaToolsText.Text = _mediaTools.Summary;
         ApplyWorkspaceMode();
         Loaded += MainWindow_Loaded;
@@ -229,6 +239,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _jobCoordinator.Stop();
         _jobElapsedTimer.Stop();
         _frameBrowserDebounceTimer.Stop();
+        _compositionTimelineDragAutoScrollTimer.Stop();
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
         ReleaseActivePreviewLease();
@@ -2511,7 +2522,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         _projectMediaDragItem = null;
         var data = new DataObject(ProjectMediaDragFormat, asset.Id.ToString("D", CultureInfo.InvariantCulture));
-        DragDrop.DoDragDrop(AssetsList, data, DragDropEffects.Copy);
+        try
+        {
+            DragDrop.DoDragDrop(AssetsList, data, DragDropEffects.Copy);
+        }
+        finally
+        {
+            HideCompositionTimelineDropFeedback();
+        }
     }
 
     private static bool CanDragIntoComposition(ProjectAsset asset) =>
@@ -2537,10 +2555,10 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var canDrop = asset is not null && _compositionTimelineLayout?.Segments.Count > 0;
         e.Effects = canDrop ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
+        var x = canDrop ? GetCompositionTimelineDragContentX(e) : 0;
         HideCompositionTimelineDropFeedback();
         if (!canDrop) return;
 
-        var x = e.GetPosition(CompositionTimelineCanvas).X;
         if (asset!.MediaType == MediaType.Video)
         {
             var insertionIndex = GetCompositionVideoInsertionIndex(x);
@@ -2586,12 +2604,20 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             return;
         }
 
-        var x = e.GetPosition(CompositionTimelineCanvas).X;
-        var viewportX = x - CompositionTimelineScrollViewer.HorizontalOffset;
+        var viewportX = GetCompositionTimelineDragViewportX(e);
+        var x = CompositionTimelineScrollViewer.HorizontalOffset + viewportX;
+        _compositionTimelineDragAsset = asset;
+        _compositionTimelineDragViewportX = viewportX;
+        UpdateCompositionTimelineDragAutoScroll(viewportX);
+        RenderCompositionTimelineDropFeedback(asset!, x, viewportX);
+    }
+
+    private void RenderCompositionTimelineDropFeedback(ProjectAsset asset, double x, double viewportX)
+    {
         var overlayWidth = Math.Max(1, CompositionTimelineScrollViewer.ViewportWidth);
         var tokenWidth = CompositionTimelineDropToken.Width;
         var tokenLeft = Math.Clamp(viewportX - tokenWidth / 2, 0, Math.Max(0, overlayWidth - tokenWidth));
-        var isVideo = asset!.MediaType == MediaType.Video;
+        var isVideo = asset.MediaType == MediaType.Video;
         var markerX = isVideo
             ? _compositionTimelineLayout!.GetVideoInsertionX(GetCompositionVideoInsertionIndex(x))
             : x;
@@ -2608,6 +2634,76 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         Canvas.SetLeft(CompositionTimelineDropToken, tokenLeft);
         Canvas.SetTop(CompositionTimelineDropToken, isVideo ? 35 : 85);
         CompositionTimelineDropHint.Visibility = Visibility.Visible;
+    }
+
+    private double GetCompositionTimelineDragViewportX(DragEventArgs e) => Math.Clamp(
+        e.GetPosition(CompositionTimelineScrollViewer).X,
+        0,
+        Math.Max(1, CompositionTimelineScrollViewer.ViewportWidth));
+
+    private double GetCompositionTimelineDragContentX(DragEventArgs e) =>
+        CompositionTimelineScrollViewer.HorizontalOffset + GetCompositionTimelineDragViewportX(e);
+
+    private void UpdateCompositionTimelineDragAutoScroll(double viewportX)
+    {
+        var viewportWidth = CompositionTimelineScrollViewer.ViewportWidth;
+        if (!double.IsFinite(viewportWidth) || viewportWidth <= 0)
+        {
+            StopCompositionTimelineDragAutoScroll(clearAsset: false);
+            return;
+        }
+
+        _compositionTimelineDragAutoScrollDelta = CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            viewportX,
+            viewportWidth);
+        if (Math.Abs(_compositionTimelineDragAutoScrollDelta) < 0.1)
+        {
+            _compositionTimelineDragAutoScrollTimer.Stop();
+            return;
+        }
+        if (!_compositionTimelineDragAutoScrollTimer.IsEnabled)
+            _compositionTimelineDragAutoScrollTimer.Start();
+    }
+
+    private void CompositionTimelineDragAutoScrollTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_disposed || _compositionTimelineDragAsset is not { } asset ||
+            _compositionTimelineLayout is null ||
+            CompositionTimelineDropHint.Visibility != Visibility.Visible)
+        {
+            StopCompositionTimelineDragAutoScroll();
+            return;
+        }
+
+        var scrollViewer = CompositionTimelineScrollViewer;
+        var maximumOffset = Math.Max(0, scrollViewer.ExtentWidth - scrollViewer.ViewportWidth);
+        var desiredOffset = Math.Clamp(
+            scrollViewer.HorizontalOffset + _compositionTimelineDragAutoScrollDelta,
+            0,
+            maximumOffset);
+        if (Math.Abs(desiredOffset - scrollViewer.HorizontalOffset) < 0.1)
+        {
+            _compositionTimelineDragAutoScrollTimer.Stop();
+            return;
+        }
+
+        scrollViewer.ScrollToHorizontalOffset(desiredOffset);
+        scrollViewer.UpdateLayout();
+        var viewportX = Math.Clamp(
+            _compositionTimelineDragViewportX,
+            0,
+            Math.Max(1, scrollViewer.ViewportWidth));
+        RenderCompositionTimelineDropFeedback(
+            asset,
+            scrollViewer.HorizontalOffset + viewportX,
+            viewportX);
+    }
+
+    private void StopCompositionTimelineDragAutoScroll(bool clearAsset = true)
+    {
+        _compositionTimelineDragAutoScrollTimer.Stop();
+        _compositionTimelineDragAutoScrollDelta = 0;
+        if (clearAsset) _compositionTimelineDragAsset = null;
     }
 
     private ProjectAsset? ResolveCompositionDragAsset(IDataObject data)
@@ -2628,6 +2724,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void HideCompositionTimelineDropFeedback()
     {
+        StopCompositionTimelineDragAutoScroll();
         if (CompositionTimelineDropHint is not null)
             CompositionTimelineDropHint.Visibility = Visibility.Collapsed;
     }

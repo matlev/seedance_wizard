@@ -248,4 +248,38 @@ public sealed class CompositionTimelineLayoutTests
             currentOffset: 600,
             viewportWidth: 600));
     }
+
+    [Fact]
+    public void DragEdgeAutoScrollIsIdleInTheCenterAndAcceleratesTowardEdges()
+    {
+        Assert.Equal(0, CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            pointerX: 300,
+            viewportWidth: 600));
+        Assert.Equal(-24, CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            pointerX: 24,
+            viewportWidth: 600));
+        Assert.Equal(24, CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            pointerX: 576,
+            viewportWidth: 600));
+        Assert.Equal(-48, CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            pointerX: 0,
+            viewportWidth: 600));
+        Assert.Equal(48, CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            pointerX: 600,
+            viewportWidth: 600));
+    }
+
+    [Fact]
+    public void DragEdgeAutoScrollHandlesNarrowViewportsAndOutsidePointers()
+    {
+        Assert.Equal(-48, CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            pointerX: -20,
+            viewportWidth: 60));
+        Assert.Equal(0, CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            pointerX: 30,
+            viewportWidth: 60));
+        Assert.Equal(48, CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            pointerX: 80,
+            viewportWidth: 60));
+    }
 }

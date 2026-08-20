@@ -91,6 +91,38 @@ public sealed record CompositionTimelineReorderPreview(
 
 public static class CompositionTimelineLayout
 {
+    public static double GetEdgeAutoScrollDelta(
+        double pointerX,
+        double viewportWidth,
+        double edgeZoneWidth = 48,
+        double maximumStep = 48)
+    {
+        if (!double.IsFinite(pointerX))
+            throw new ArgumentOutOfRangeException(nameof(pointerX));
+        if (!double.IsFinite(viewportWidth) || viewportWidth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(viewportWidth));
+        if (!double.IsFinite(edgeZoneWidth) || edgeZoneWidth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(edgeZoneWidth));
+        if (!double.IsFinite(maximumStep) || maximumStep <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maximumStep));
+
+        var effectiveEdgeWidth = Math.Min(edgeZoneWidth, viewportWidth / 2);
+        if (pointerX < effectiveEdgeWidth)
+        {
+            var penetration = Math.Clamp((effectiveEdgeWidth - pointerX) / effectiveEdgeWidth, 0, 1);
+            return -maximumStep * penetration;
+        }
+        if (pointerX > viewportWidth - effectiveEdgeWidth)
+        {
+            var penetration = Math.Clamp(
+                (pointerX - (viewportWidth - effectiveEdgeWidth)) / effectiveEdgeWidth,
+                0,
+                1);
+            return maximumStep * penetration;
+        }
+        return 0;
+    }
+
     public static CompositionTimelineLayoutResult Calculate(
         IReadOnlyList<CompositionTimelineSegmentInput> segments,
         double viewportWidth,
