@@ -3,7 +3,7 @@
 namespace ReelForge.Core;
 
 public enum MediaType { Image, Video, Audio }
-public enum AssetOrigin { Imported, Generated, EditorDerived, ExtractedFrame, Exported }
+public enum AssetOrigin { Imported, Generated, EditorDerived, ExtractedFrame, Exported, ExtractedAudio }
 public enum AssetStorageKind { Physical, Virtual }
 public enum VirtualAssetKind { Other, SavedClip, Composition, ExtractedFrame }
 public enum PhysicalAssetDurability { Source, Generated, Exported, Promoted }

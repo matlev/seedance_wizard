@@ -441,6 +441,10 @@ Direct video-segment reordering follows the same separation. While the pointer i
 
 The committed composition exposes **Export**, which atomically writes its `FinalExport` materialization to a user-selected MP4 path without changing project state. Saved Clips and Saved Frames expose the same user-facing concept with their appropriate format. Export never replaces or mutates the logical source.
 
+**Extract audio** is a distinct, explicit Project Media operation rather than a cache-retention choice. A physical video resolves its durable source bytes; a Saved Clip resolves its exact pinned recipe revision through the shared materializer. FFmpeg selects the first audio stream and creates an audio-only M4A/AAC file under `assets/audio/`. ReelForge inspects and hashes the completed file before adding a durable physical `Audio` asset with `ExtractedAudio` origin and source asset/revision provenance. The source remains unchanged, duplicate filenames receive a non-destructive numeric suffix, and a source known to have no audio disables the action.
+
+This initial action extracts the entire selected physical video or Saved Clip. A future timeline **Detach audio** action must instead respect the selected segment's exact in/out boundaries and revision-pinned source, then decide whether it creates an independent timed audio clip, mutes the original segment, or offers both as one explicit operation. It is intentionally deferred until segment trim/split semantics are established; it must not silently mean the same thing as whole-source extraction.
+
 For users who prefer space efficiency, modified representations remain disposable cache entries and reconstruct on demand. The default-off **Persist modified media on disk** setting instead copies materialized Saved Frames, Saved Clips, and Working Composition revisions into `assets/modified/{frames|clips|compositions}`. These are project-owned permanent representations, but they do not become additional `ProjectAsset` rows and do not change the Project Media grouping. Turning the setting off stops future persistence and does not silently delete files already retained.
 
 ## Disposable cache

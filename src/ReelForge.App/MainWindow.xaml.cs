@@ -48,6 +48,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private readonly ExactVideoFrameService _exactFrameService;
     private readonly RecipeMediaMaterializer _mediaMaterializer;
+    private readonly FfmpegAudioExtractionEngine _audioExtractionEngine;
     private readonly IGeneratedOutputIngestionService _outputIngestion;
     private GenerationWorkflow _generationWorkflow = null!;
     private IProviderAssetPreparationService? _providerPreparation;
@@ -155,6 +156,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             mediaCacheRoot,
             mediaInspector: _mediaInspector,
             persistModifiedMediaOnDisk: configuredTools.PersistModifiedMediaOnDisk);
+        _audioExtractionEngine = new FfmpegAudioExtractionEngine(_mediaTools.FfmpegPath, processRunner);
         _projectStore = new PortableProjectStore();
         _assetImporter = new AssetImportService(_mediaInspector);
         _workspace = new ProjectWorkspace(_projectStore, _assetImporter);
@@ -721,6 +723,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
         _exactFrameService.UpdateExecutablePaths(_mediaTools.FfmpegPath, _mediaTools.FfprobePath);
         _mediaMaterializer.UpdateExecutablePath(_mediaTools.FfmpegPath);
+        _audioExtractionEngine.UpdateExecutablePath(_mediaTools.FfmpegPath);
         _mediaMaterializer.UpdatePersistencePreference(
             _applicationSettings.MediaTools.PersistModifiedMediaOnDisk);
         _exactFrameService.UpdateMaximumCacheBytes(_applicationSettings.MediaTools.CacheSizeBytes);
@@ -2186,6 +2189,27 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (item is not null) item.IsSelected = true;
     }
 
+    private void AssetsContextMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu) return;
+        var extractAudioItem = menu.Items.OfType<MenuItem>()
+            .Single(item => Equals(item.Tag, "ExtractAudio"));
+        var asset = GetSelectedAsset();
+        var isEligibleVideo = asset is { MediaType: MediaType.Video } &&
+                              (asset.StorageKind == AssetStorageKind.Physical ||
+                               asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
+        extractAudioItem.Visibility = isEligibleVideo ? Visibility.Visible : Visibility.Collapsed;
+        if (!isEligibleVideo) return;
+
+        var knownEncoding = asset!.StorageKind == AssetStorageKind.Physical
+            ? asset.Encoding
+            : asset.Virtual?.ExpectedMediaProperties;
+        extractAudioItem.IsEnabled = knownEncoding?.Audio is not null || knownEncoding is null;
+        extractAudioItem.ToolTip = extractAudioItem.IsEnabled
+            ? "Create a permanent audio file from this video's sound."
+            : "This video has no audio stream to extract.";
+    }
+
     private void AssetsList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _projectMediaDragStart = e.GetPosition(AssetsList);
@@ -2399,6 +2423,48 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         {
             var path = await service.ExportAsync(asset.Id, recipeRevisionId, videoDialog.FileName);
             StatusText.Text = $"Exported {asset.EffectiveDisplayName} to {path}.";
+        });
+    }
+
+    private async void ExtractAudio_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetSelectedAsset() is not { MediaType: MediaType.Video } source) return;
+        var recipeRevisionId = source.Virtual?.Kind == VirtualAssetKind.SavedClip
+            ? source.Virtual.CurrentRecipeRevisionId
+            : null;
+        if (source.StorageKind == AssetStorageKind.Virtual && recipeRevisionId is null)
+        {
+            MessageBox.Show(this, "This Saved Clip does not have a committed recipe revision.",
+                "Extract audio", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(source.EffectiveDisplayName));
+        var dialog = new AssetNameDialog(
+            $"{stem} audio.m4a",
+            title: "Extract audio",
+            heading: "EXTRACT AUDIO",
+            description: "Create a permanent .m4a audio file in this project's media folder. The source video remains unchanged.",
+            confirmLabel: "Extract")
+        {
+            Owner = this
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        await RunUiActionAsync($"Extracting audio from {source.EffectiveDisplayName}…", async () =>
+        {
+            var service = new AudioExtractionService(
+                _workspace,
+                _mediaMaterializer,
+                _audioExtractionEngine,
+                new Sha256ContentHashService(),
+                _mediaInspector);
+            var extracted = await service.ExtractAsAssetAsync(
+                source.Id,
+                recipeRevisionId,
+                dialog.FileName);
+            RefreshProjectCollections(extracted.Id);
+            StatusText.Text = $"Extracted audio as {extracted.FileName}.";
         });
     }
 

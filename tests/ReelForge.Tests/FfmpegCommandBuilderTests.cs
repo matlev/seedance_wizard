@@ -41,6 +41,27 @@ public sealed class FfmpegCommandBuilderTests
     }
 
     [Fact]
+    public void ExtractAudioSelectsFirstAudioStreamAndCreatesM4a()
+    {
+        var arguments = FfmpegCommandBuilder.BuildExtractAudioArguments(
+            @"C:\Project media\source clip.mp4",
+            @"C:\Project media\source clip audio.m4a");
+
+        Assert.Contains("0:a:0", arguments);
+        Assert.Contains("-vn", arguments);
+        Assert.Equal("aac", arguments[arguments.ToList().IndexOf("-c:a") + 1]);
+        Assert.Equal("192k", arguments[arguments.ToList().IndexOf("-b:a") + 1]);
+        Assert.Equal(@"C:\Project media\source clip audio.m4a", arguments[^1]);
+    }
+
+    [Fact]
+    public void ExtractAudioRejectsAnOutputWithTheWrongFileType()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            FfmpegCommandBuilder.BuildExtractAudioArguments("source.mp4", "audio.mp3"));
+    }
+
+    [Fact]
     public void FrameAccurateTrimRejectsReversedRange()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>

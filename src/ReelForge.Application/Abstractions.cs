@@ -39,6 +39,14 @@ public interface IMediaInspectionService
         CancellationToken cancellationToken = default);
 }
 
+public interface IAudioExtractionEngine
+{
+    Task ExtractToM4aAsync(
+        string inputPath,
+        string outputPath,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IContentHashService
 {
     Task<ContentIdentity> ComputeAsync(string path, CancellationToken cancellationToken = default);

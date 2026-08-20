@@ -241,6 +241,26 @@ public static class FfmpegCommandBuilder
         ];
     }
 
+    public static IReadOnlyList<string> BuildExtractAudioArguments(string inputPath, string outputPath)
+    {
+        ValidateMediaPath(inputPath, nameof(inputPath));
+        ValidateMediaPath(outputPath, nameof(outputPath));
+        if (!Path.GetExtension(outputPath).Equals(".m4a", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Extracted audio output must use the .m4a file type.", nameof(outputPath));
+
+        return
+        [
+            "-hide_banner", "-y",
+            "-i", inputPath,
+            "-map", "0:a:0",
+            "-vn",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-movflags", "+faststart",
+            outputPath
+        ];
+    }
+
     public static IReadOnlyList<string> BuildExtractExactFrameArguments(
         string inputPath,
         string outputPath,
@@ -443,6 +463,38 @@ public sealed record AudioOverlayInput(
     TimeSpan TimelineStart,
     bool IsMuted = false,
     double GainDecibels = 0);
+
+public sealed class FfmpegAudioExtractionEngine : IAudioExtractionEngine
+{
+    private readonly IExternalProcessRunner _runner;
+    private string? _ffmpegPath;
+
+    public FfmpegAudioExtractionEngine(string? ffmpegPath, IExternalProcessRunner runner)
+    {
+        _ffmpegPath = ffmpegPath;
+        _runner = runner ?? throw new ArgumentNullException(nameof(runner));
+    }
+
+    public void UpdateExecutablePath(string? ffmpegPath) => _ffmpegPath = ffmpegPath;
+
+    public async Task ExtractToM4aAsync(
+        string inputPath,
+        string outputPath,
+        CancellationToken cancellationToken = default)
+    {
+        var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
+            "FFmpeg is not configured. Configure it in Settings > Media Tools to extract audio.");
+        var result = await _runner.RunAsync(
+                new ExternalProcessRequest(
+                    ffmpegPath,
+                    FfmpegCommandBuilder.BuildExtractAudioArguments(inputPath, outputPath)),
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
+        if (!File.Exists(outputPath) || new FileInfo(outputPath).Length <= 0)
+            throw new InvalidDataException("FFmpeg completed without producing extracted audio.");
+    }
+}
 
 public sealed record NormalizedConcatInput(
     string Path,

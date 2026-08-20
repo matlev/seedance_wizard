@@ -339,6 +339,14 @@ In progress. The first slices project the committed Working Composition into a h
 6. Commit discrete changed values once and treat unchanged choices as no-ops. Hold continuous slider/drag manipulation as mutable UI draft state, then create one immutable recipe revision when the interaction is applied or completed; cancellation creates no revision.
 7. Add selected audio-clip **On / Muted** and gain controls. Persist typed per-clip mix values, include them in deterministic render identity, compile them into FFmpeg before timeline delay/mixing, and commit a gain gesture only when the slider interaction completes.
 
+#### Phase 2E.3 — durable audio extraction utility
+
+1. Add **Extract audio…** to physical videos and Saved Clips in Project Media; keep the action hidden for images, Saved Frames, audio files, and compositions.
+2. Resolve physical sources directly and Saved Clips through their exact committed recipe revisions, then create an audio-only M4A/AAC file with FFmpeg without changing the source.
+3. Inspect and hash the completed file before adding it as a durable physical Audio asset under `assets/audio/`, with source asset/revision provenance and non-destructive duplicate naming.
+4. Disable extraction when stored encoding metadata confirms the video has no audio; re-inspect/materialize sources whose metadata is not yet known before invoking FFmpeg.
+5. Keep timeline **Detach audio** separate and deferred until segment trim/split semantics can define exact boundaries and whether the operation also mutes the selected video segment.
+
 #### Editor capability research outcome
 
 The market-research synthesis and the owner's fifteen product decisions are accepted as post-foundation direction in [Editor capability direction](editor-capability-direction.md). ReelForge targets an AI-native finishing editor for AI short-film makers, social creators, and hobby filmmakers rather than a general-purpose professional NLE. The research establishes future architecture for typed effect stacks, generic parameter automation, multitrack/time semantics, analysis artifacts, durable repair/Bake outputs, provider-neutral media editing, universal logical generation references, optional ML engines, and continuity-focused differentiation.
