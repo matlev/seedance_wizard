@@ -118,6 +118,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private double _compositionAudioClipDragPointerOffset;
     private double _compositionAudioClipDraftStartSeconds;
     private long _compositionAudioClipOriginalStartTicks;
+    private double _compositionTimelineZoom = 1;
+    private int _compositionTimelineZoomRevision;
     private bool _compositionTimelineRenderScheduled;
     private Point _projectMediaDragStart;
     private ProjectMediaListItem? _projectMediaDragItem;
@@ -1580,6 +1582,44 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void CompositionTimelineScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e) =>
         RenderCompositionTimeline();
 
+    private void CompositionTimelineZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        var zoom = Math.Round(Math.Clamp(e.NewValue, 1, 8) * 4) / 4;
+        if (CompositionTimelineZoomText is not null)
+            CompositionTimelineZoomText.Text = $"{zoom * 100:0}%";
+        if (Math.Abs(_compositionTimelineZoom - zoom) < 0.001) return;
+
+        var oldWidth = _compositionTimelineLayout?.ContentWidth ?? 0;
+        var viewportWidth = CompositionTimelineScrollViewer?.ViewportWidth ?? 0;
+        var focusRatio = oldWidth > 0 && double.IsFinite(viewportWidth)
+            ? Math.Clamp(
+                (CompositionTimelineScrollViewer.HorizontalOffset + viewportWidth / 2) / oldWidth,
+                0,
+                1)
+            : 0.5;
+        _compositionTimelineZoom = zoom;
+        RenderCompositionTimeline();
+
+        var revision = ++_compositionTimelineZoomRevision;
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (_disposed || revision != _compositionTimelineZoomRevision) return;
+            CompositionTimelineScrollViewer.UpdateLayout();
+            var desiredOffset = focusRatio * CompositionTimelineScrollViewer.ExtentWidth -
+                                CompositionTimelineScrollViewer.ViewportWidth / 2;
+            CompositionTimelineScrollViewer.ScrollToHorizontalOffset(Math.Clamp(
+                desiredOffset,
+                0,
+                Math.Max(0, CompositionTimelineScrollViewer.ExtentWidth -
+                            CompositionTimelineScrollViewer.ViewportWidth)));
+        }, DispatcherPriority.Render);
+    }
+
+    private void CompositionTimelineReset_Click(object sender, RoutedEventArgs e)
+    {
+        CompositionTimelineZoomSlider.Value = 1;
+    }
+
     private void ScheduleCompositionTimelineRender()
     {
         if (_compositionTimelineRenderScheduled || _disposed) return;
@@ -1656,7 +1696,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 .ToArray(),
             segmentId,
             point.X,
-            viewportWidth);
+            viewportWidth,
+            zoomFactor: _compositionTimelineZoom);
         _compositionSegmentDragTargetIndex = preview.InsertionIndex;
         CompositionTimelineCanvas.Cursor = Cursors.SizeAll;
         RenderCompositionTimeline();
@@ -1823,7 +1864,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 timelineItems
                     .Select(item => new CompositionTimelineSegmentInput(item.SegmentId, item.DurationSeconds))
                     .ToArray(),
-                viewportWidth);
+                viewportWidth,
+                zoomFactor: _compositionTimelineZoom);
             CompositionTimelineCanvas.Children.Clear();
             CompositionTimelineCanvas.Width = _compositionTimelineLayout.ContentWidth;
             CompositionTimelineDurationText.Text = _compositionTimelineLayout.Segments.Count == 0
@@ -1988,7 +2030,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void DrawCompositionTimelineRuler(CompositionTimelineLayoutResult layout)
     {
         if (layout.Segments.Count == 0) return;
-        var tickCount = Math.Clamp((int)(layout.ContentWidth / 140), 2, 8);
+        var tickCount = Math.Clamp((int)(layout.ContentWidth / 140), 2, 80);
         for (var index = 0; index <= tickCount; index++)
         {
             var x = layout.ContentWidth * index / tickCount;

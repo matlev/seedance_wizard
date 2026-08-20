@@ -136,4 +136,73 @@ public sealed class CompositionTimelineLayoutTests
         Assert.Equal(result.Segments[1].Left, result.GetVideoInsertionX(1));
         Assert.Equal(result.ContentWidth, result.GetVideoInsertionX(2));
     }
+
+    [Fact]
+    public void ZoomExpandsGeometryWithoutChangingTimelineTimeMapping()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var normal = CompositionTimelineLayout.Calculate(
+            [
+                new CompositionTimelineSegmentInput(first, 2),
+                new CompositionTimelineSegmentInput(second, 8)
+            ],
+            viewportWidth: 600,
+            minimumSegmentWidth: 100,
+            pixelsPerSecond: 20);
+        var zoomed = CompositionTimelineLayout.Calculate(
+            [
+                new CompositionTimelineSegmentInput(first, 2),
+                new CompositionTimelineSegmentInput(second, 8)
+            ],
+            viewportWidth: 600,
+            minimumSegmentWidth: 100,
+            pixelsPerSecond: 20,
+            zoomFactor: 2.5);
+
+        Assert.Equal(normal.ContentWidth * 2.5, zoomed.ContentWidth, precision: 6);
+        Assert.Equal(normal.Segments[0].Width * 2.5, zoomed.Segments[0].Width, precision: 6);
+        Assert.Equal(normal.Segments[1].Left * 2.5, zoomed.Segments[1].Left, precision: 6);
+        Assert.Equal(normal.ProjectedDurationSeconds, zoomed.ProjectedDurationSeconds);
+        Assert.Equal(5, zoomed.GetTimeAtX(zoomed.GetPlayheadX(5)), precision: 6);
+    }
+
+    [Fact]
+    public void ReorderPreviewUsesZoomedSegmentMidpoints()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var third = Guid.NewGuid();
+        var inputs = new[]
+        {
+            new CompositionTimelineSegmentInput(first, 2),
+            new CompositionTimelineSegmentInput(second, 4),
+            new CompositionTimelineSegmentInput(third, 8)
+        };
+        var remaining = CompositionTimelineLayout.Calculate(
+            inputs[1..],
+            viewportWidth: 600,
+            zoomFactor: 3);
+        var result = CompositionTimelineLayout.CalculateReorder(
+            inputs,
+            first,
+            pointerX: remaining.Segments[0].Left + remaining.Segments[0].Width + 1,
+            viewportWidth: 600,
+            zoomFactor: 3);
+
+        Assert.Equal(1, result.InsertionIndex);
+        Assert.Equal([second, first, third], result.OrderedSegmentIds);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(0.5)]
+    [InlineData(double.NaN)]
+    public void ZoomRejectsValuesBelowOneOrNonFinite(double zoomFactor)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => CompositionTimelineLayout.Calculate(
+            [new CompositionTimelineSegmentInput(Guid.NewGuid(), 1)],
+            viewportWidth: 600,
+            zoomFactor: zoomFactor));
+    }
 }

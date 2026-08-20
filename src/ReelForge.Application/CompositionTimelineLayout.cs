@@ -72,7 +72,8 @@ public static class CompositionTimelineLayout
         IReadOnlyList<CompositionTimelineSegmentInput> segments,
         double viewportWidth,
         double minimumSegmentWidth = 88,
-        double pixelsPerSecond = 24)
+        double pixelsPerSecond = 24,
+        double zoomFactor = 1)
     {
         ArgumentNullException.ThrowIfNull(segments);
         if (!double.IsFinite(viewportWidth) || viewportWidth < 0)
@@ -81,9 +82,11 @@ public static class CompositionTimelineLayout
             throw new ArgumentOutOfRangeException(nameof(minimumSegmentWidth));
         if (!double.IsFinite(pixelsPerSecond) || pixelsPerSecond <= 0)
             throw new ArgumentOutOfRangeException(nameof(pixelsPerSecond));
+        if (!double.IsFinite(zoomFactor) || zoomFactor < 1)
+            throw new ArgumentOutOfRangeException(nameof(zoomFactor));
         if (segments.Count == 0)
             return new CompositionTimelineLayoutResult(
-                Math.Max(1, viewportWidth), 0, 0, false, []);
+                Math.Max(1, viewportWidth * zoomFactor), 0, 0, false, []);
 
         var knownDurations = segments
             .Select(segment => ValidDuration(segment.DurationSeconds))
@@ -95,19 +98,20 @@ public static class CompositionTimelineLayout
             .Select(segment => ValidDuration(segment.DurationSeconds) ?? fallbackDuration)
             .ToArray();
         var projectedDuration = effectiveDurations.Sum();
-        var contentWidth = Math.Max(
+        var baseContentWidth = Math.Max(
             Math.Max(1, viewportWidth),
             Math.Max(segments.Count * minimumSegmentWidth, projectedDuration * pixelsPerSecond));
+        var contentWidth = baseContentWidth * zoomFactor;
         var minimumWidthTotal = segments.Count * minimumSegmentWidth;
-        var distributableWidth = Math.Max(0, contentWidth - minimumWidthTotal);
+        var distributableWidth = Math.Max(0, baseContentWidth - minimumWidthTotal);
 
         var spans = new List<CompositionTimelineSegmentSpan>(segments.Count);
         double left = 0;
         double startSeconds = 0;
         for (var index = 0; index < segments.Count; index++)
         {
-            var width = minimumSegmentWidth +
-                        distributableWidth * effectiveDurations[index] / projectedDuration;
+            var width = (minimumSegmentWidth +
+                         distributableWidth * effectiveDurations[index] / projectedDuration) * zoomFactor;
             if (index == segments.Count - 1) width = contentWidth - left;
             spans.Add(new CompositionTimelineSegmentSpan(
                 segments[index].SegmentId,
@@ -133,7 +137,8 @@ public static class CompositionTimelineLayout
         double pointerX,
         double viewportWidth,
         double minimumSegmentWidth = 88,
-        double pixelsPerSecond = 24)
+        double pixelsPerSecond = 24,
+        double zoomFactor = 1)
     {
         ArgumentNullException.ThrowIfNull(segments);
         if (!segments.Any(segment => segment.SegmentId == draggedSegmentId))
@@ -145,7 +150,12 @@ public static class CompositionTimelineLayout
         if (remaining.Length == 0)
             return new CompositionTimelineReorderPreview(0, [draggedSegmentId]);
 
-        var remainingLayout = Calculate(remaining, viewportWidth, minimumSegmentWidth, pixelsPerSecond);
+        var remainingLayout = Calculate(
+            remaining,
+            viewportWidth,
+            minimumSegmentWidth,
+            pixelsPerSecond,
+            zoomFactor);
         var insertionIndex = remainingLayout.Segments.Count;
         for (var index = 0; index < remainingLayout.Segments.Count; index++)
         {
