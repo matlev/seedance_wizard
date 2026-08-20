@@ -69,6 +69,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly DispatcherTimer _jobElapsedTimer;
     private readonly DispatcherTimer _frameBrowserDebounceTimer;
     private readonly DispatcherTimer _compositionTimelineDragAutoScrollTimer;
+    private readonly DispatcherTimer _compositionTimelineItemDragAutoScrollTimer;
     private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressDraftAutosave;
     private bool _suppressPromptSynchronization;
@@ -126,6 +127,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private ProjectAsset? _compositionTimelineDragAsset;
     private double _compositionTimelineDragViewportX;
     private double _compositionTimelineDragAutoScrollDelta;
+    private double _compositionTimelineItemDragViewportX;
+    private double _compositionTimelineItemDragAutoScrollDelta;
     private bool _compositionTimelineRenderScheduled;
     private Point _projectMediaDragStart;
     private ProjectMediaListItem? _projectMediaDragItem;
@@ -219,6 +222,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         };
         _compositionTimelineDragAutoScrollTimer.Tick += CompositionTimelineDragAutoScrollTimer_Tick;
 
+        _compositionTimelineItemDragAutoScrollTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(40)
+        };
+        _compositionTimelineItemDragAutoScrollTimer.Tick += CompositionTimelineItemDragAutoScrollTimer_Tick;
+
         MediaToolsText.Text = _mediaTools.Summary;
         ApplyWorkspaceMode();
         Loaded += MainWindow_Loaded;
@@ -240,6 +249,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _jobElapsedTimer.Stop();
         _frameBrowserDebounceTimer.Stop();
         _compositionTimelineDragAutoScrollTimer.Stop();
+        _compositionTimelineItemDragAutoScrollTimer.Stop();
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
         ReleaseActivePreviewLease();
@@ -1731,18 +1741,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             Math.Abs(point.Y - _compositionSegmentDragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
             return;
 
-        _activeCompositionSegmentDragId = segmentId;
-        _compositionSegmentDragPointerX = point.X;
-        var viewportWidth = GetCompositionTimelineViewportWidth();
-        var preview = CompositionTimelineLayout.CalculateReorder(
-            _compositionSegments
-                .Select(item => new CompositionTimelineSegmentInput(item.SegmentId, item.DurationSeconds))
-                .ToArray(),
-            segmentId,
-            point.X,
-            viewportWidth,
-            zoomFactor: _compositionTimelineZoom);
-        _compositionSegmentDragTargetIndex = preview.InsertionIndex;
+        UpdateCompositionSegmentDragPointer(segmentId, point.X);
+        UpdateCompositionTimelineItemDragAutoScroll(point.X);
         CompositionTimelineCanvas.Cursor = Cursors.SizeAll;
         RenderCompositionTimeline();
         e.Handled = true;
@@ -1840,6 +1840,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void ResetCompositionSegmentDrag(bool render = true)
     {
+        StopCompositionTimelineItemDragAutoScroll();
         _pendingCompositionSegmentDragId = null;
         _activeCompositionSegmentDragId = null;
         _compositionSegmentDragOriginalIndex = -1;
@@ -1884,9 +1885,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             return;
 
         if (_compositionTimelineLayout is null) return;
-        _activeCompositionAudioClipDragId = audioClipId;
-        _compositionAudioClipDraftStartSeconds = _compositionTimelineLayout.GetTimeAtX(
-            point.X - _compositionAudioClipDragPointerOffset);
+        UpdateCompositionAudioClipDragPointer(audioClipId, point.X);
+        UpdateCompositionTimelineItemDragAutoScroll(point.X);
         CompositionTimelineCanvas.Cursor = Cursors.SizeWE;
         RenderCompositionTimeline();
         e.Handled = true;
@@ -1924,6 +1924,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void ResetCompositionAudioClipDrag(bool render = true)
     {
+        StopCompositionTimelineItemDragAutoScroll();
         _pendingCompositionAudioClipDragId = null;
         _activeCompositionAudioClipDragId = null;
         _compositionAudioClipDragPointerOffset = 0;
@@ -1931,6 +1932,94 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         CompositionTimelineCanvas.Cursor = null;
         if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
         if (render) RenderCompositionTimeline();
+    }
+
+    private void UpdateCompositionSegmentDragPointer(Guid segmentId, double contentX)
+    {
+        _activeCompositionSegmentDragId = segmentId;
+        _compositionSegmentDragPointerX = contentX;
+        var preview = CompositionTimelineLayout.CalculateReorder(
+            _compositionSegments
+                .Select(item => new CompositionTimelineSegmentInput(item.SegmentId, item.DurationSeconds))
+                .ToArray(),
+            segmentId,
+            contentX,
+            GetCompositionTimelineViewportWidth(),
+            zoomFactor: _compositionTimelineZoom);
+        _compositionSegmentDragTargetIndex = preview.InsertionIndex;
+    }
+
+    private void UpdateCompositionAudioClipDragPointer(Guid audioClipId, double contentX)
+    {
+        if (_compositionTimelineLayout is null) return;
+        _activeCompositionAudioClipDragId = audioClipId;
+        _compositionAudioClipDraftStartSeconds = _compositionTimelineLayout.GetTimeAtX(
+            contentX - _compositionAudioClipDragPointerOffset);
+    }
+
+    private void UpdateCompositionTimelineItemDragAutoScroll(double contentX)
+    {
+        var scrollViewer = CompositionTimelineScrollViewer;
+        var viewportWidth = scrollViewer.ViewportWidth;
+        if (!double.IsFinite(viewportWidth) || viewportWidth <= 0)
+        {
+            StopCompositionTimelineItemDragAutoScroll();
+            return;
+        }
+
+        var rawViewportX = contentX - scrollViewer.HorizontalOffset;
+        _compositionTimelineItemDragViewportX = Math.Clamp(rawViewportX, 0, viewportWidth);
+        _compositionTimelineItemDragAutoScrollDelta = CompositionTimelineLayout.GetEdgeAutoScrollDelta(
+            rawViewportX,
+            viewportWidth);
+        if (Math.Abs(_compositionTimelineItemDragAutoScrollDelta) < 0.1)
+        {
+            _compositionTimelineItemDragAutoScrollTimer.Stop();
+            return;
+        }
+        if (!_compositionTimelineItemDragAutoScrollTimer.IsEnabled)
+            _compositionTimelineItemDragAutoScrollTimer.Start();
+    }
+
+    private void CompositionTimelineItemDragAutoScrollTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_disposed ||
+            (_activeCompositionSegmentDragId is null && _activeCompositionAudioClipDragId is null) ||
+            _compositionTimelineLayout is null)
+        {
+            StopCompositionTimelineItemDragAutoScroll();
+            return;
+        }
+
+        var scrollViewer = CompositionTimelineScrollViewer;
+        var maximumOffset = Math.Max(0, scrollViewer.ExtentWidth - scrollViewer.ViewportWidth);
+        var desiredOffset = Math.Clamp(
+            scrollViewer.HorizontalOffset + _compositionTimelineItemDragAutoScrollDelta,
+            0,
+            maximumOffset);
+        if (Math.Abs(desiredOffset - scrollViewer.HorizontalOffset) < 0.1)
+        {
+            _compositionTimelineItemDragAutoScrollTimer.Stop();
+            return;
+        }
+
+        scrollViewer.ScrollToHorizontalOffset(desiredOffset);
+        scrollViewer.UpdateLayout();
+        var contentX = scrollViewer.HorizontalOffset + Math.Clamp(
+            _compositionTimelineItemDragViewportX,
+            0,
+            Math.Max(1, scrollViewer.ViewportWidth));
+        if (_activeCompositionSegmentDragId is Guid segmentId)
+            UpdateCompositionSegmentDragPointer(segmentId, contentX);
+        else if (_activeCompositionAudioClipDragId is Guid audioClipId)
+            UpdateCompositionAudioClipDragPointer(audioClipId, contentX);
+        RenderCompositionTimeline();
+    }
+
+    private void StopCompositionTimelineItemDragAutoScroll()
+    {
+        _compositionTimelineItemDragAutoScrollTimer.Stop();
+        _compositionTimelineItemDragAutoScrollDelta = 0;
     }
 
     private void RenderCompositionTimeline()

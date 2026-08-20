@@ -332,6 +332,7 @@ In progress. The first slices project the committed Working Composition into a h
 13. Seek a rendered composition preview by clicking or dragging its timeline ruler. Preserve the preview's prior play/pause state, clamp ruler positions to composition bounds, and keep seeking unavailable for stale or unrendered revisions. Ruler navigation changes playback state only and creates no recipe revision.
 14. Auto-scroll a zoomed timeline when the playing composition's playhead leaves the visible viewport, returning it near the left edge or clamping at the final scroll extent. Keep a default-on **Auto-scroll during playback** checkbox beside the Timeline heading; toggling it acts immediately and remains session-only rather than becoming project or application settings state.
 15. Auto-scroll a zoomed timeline while Project Media is held near either horizontal viewport edge. Continue scrolling while the pointer remains stationary, increase speed toward the edge, keep the insertion marker synchronized with the content passing beneath the pointer, and stop on drop, leave, cancellation, or the scroll boundary.
+16. Apply the same timer-driven edge scrolling while reordering an existing video segment or repositioning an audio clip. Recompute the transient reorder target or millisecond placement against content revealed beneath the stationary pointer, then retain the one-revision-on-release and no-op/cancellation behavior.
 
 #### Phase 2E.2 — context-sensitive Edit Tools
 
