@@ -110,6 +110,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private double _compositionSegmentDragPointerX;
     private int _compositionSegmentDragOriginalIndex = -1;
     private int _compositionSegmentDragTargetIndex = -1;
+    private Guid? _pendingCompositionAudioClipDragId;
+    private Guid? _activeCompositionAudioClipDragId;
+    private Point _compositionAudioClipDragStart;
+    private double _compositionAudioClipDragPointerOffset;
+    private double _compositionAudioClipDraftStartSeconds;
+    private long _compositionAudioClipOriginalStartTicks;
     private bool _compositionTimelineRenderScheduled;
     private Point _projectMediaDragStart;
     private ProjectMediaListItem? _projectMediaDragItem;
@@ -1485,6 +1491,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void CompositionTimelineCanvas_PreviewMouseMove(object sender, MouseEventArgs e)
     {
+        if (_pendingCompositionAudioClipDragId is Guid audioClipId)
+        {
+            UpdateCompositionAudioClipDrag(audioClipId, e);
+            return;
+        }
         if (_pendingCompositionSegmentDragId is not Guid segmentId) return;
         if (e.LeftButton != MouseButtonState.Pressed)
         {
@@ -1516,6 +1527,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private async void CompositionTimelineCanvas_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (_pendingCompositionAudioClipDragId is Guid audioClipId)
+        {
+            await CompleteCompositionAudioClipDragAsync(audioClipId, e);
+            return;
+        }
         if (_pendingCompositionSegmentDragId is not Guid segmentId) return;
         var point = e.GetPosition(CompositionTimelineCanvas);
         var targetIndex = _compositionSegmentDragTargetIndex;
@@ -1542,8 +1558,12 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private void CompositionTimelineCanvas_LostMouseCapture(object sender, MouseEventArgs e)
     {
-        if (_pendingCompositionSegmentDragId is null) return;
-        ResetCompositionSegmentDrag();
+        if (_pendingCompositionAudioClipDragId is not null)
+        {
+            ResetCompositionAudioClipDrag();
+            return;
+        }
+        if (_pendingCompositionSegmentDragId is not null) ResetCompositionSegmentDrag();
     }
 
     private void ResetCompositionSegmentDrag(bool render = true)
@@ -1560,11 +1580,80 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private void CompositionTimelineAudioClip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border { Tag: Guid audioClipId }) return;
+        if (GetSelectedCompositionAudioClip(audioClipId) is not { } audioClip) return;
         _selectedCompositionSegmentId = null;
         _selectedCompositionAudioClipId = audioClipId;
+        var point = e.GetPosition(CompositionTimelineCanvas);
+        var startX = _compositionTimelineLayout?.GetPlayheadX(audioClip.TimelineStart.TotalSeconds) ?? point.X;
+        _pendingCompositionAudioClipDragId = audioClipId;
+        _activeCompositionAudioClipDragId = null;
+        _compositionAudioClipDragStart = point;
+        _compositionAudioClipDragPointerOffset = Math.Max(0, point.X - startX);
+        _compositionAudioClipDraftStartSeconds = audioClip.TimelineStart.TotalSeconds;
+        _compositionAudioClipOriginalStartTicks = audioClip.TimelineStart.Ticks;
+        CompositionTimelineCanvas.CaptureMouse();
         UpdateCompositionActionState();
         RenderCompositionTimeline();
         e.Handled = true;
+    }
+
+    private void UpdateCompositionAudioClipDrag(Guid audioClipId, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            ResetCompositionAudioClipDrag();
+            return;
+        }
+
+        var point = e.GetPosition(CompositionTimelineCanvas);
+        if (_activeCompositionAudioClipDragId is null &&
+            Math.Abs(point.X - _compositionAudioClipDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(point.Y - _compositionAudioClipDragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        if (_compositionTimelineLayout is null) return;
+        _activeCompositionAudioClipDragId = audioClipId;
+        _compositionAudioClipDraftStartSeconds = _compositionTimelineLayout.GetTimeAtX(
+            point.X - _compositionAudioClipDragPointerOffset);
+        CompositionTimelineCanvas.Cursor = Cursors.SizeWE;
+        RenderCompositionTimeline();
+        e.Handled = true;
+    }
+
+    private async Task CompleteCompositionAudioClipDragAsync(Guid audioClipId, MouseButtonEventArgs e)
+    {
+        var point = e.GetPosition(CompositionTimelineCanvas);
+        var draftStart = TimeSpan.FromSeconds(Math.Max(0, _compositionAudioClipDraftStartSeconds));
+        var shouldCommit = _activeCompositionAudioClipDragId is not null &&
+                           draftStart.Ticks != _compositionAudioClipOriginalStartTicks &&
+                           point.Y >= 0 && point.Y <= CompositionTimelineCanvas.ActualHeight;
+        ResetCompositionAudioClipDrag(render: false);
+        if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
+        RenderCompositionTimeline();
+        e.Handled = true;
+        if (!shouldCommit) return;
+
+        await RunUiActionAsync("Moving composition audio clip…", async () =>
+        {
+            await new WorkingCompositionService(_workspace)
+                .SetAudioClipTimelineStartAsync(audioClipId, draftStart);
+            _selectedCompositionSegmentId = null;
+            _selectedCompositionAudioClipId = audioClipId;
+            RefreshEditWorkspaceState();
+            StatusText.Text =
+                $"Moved the audio clip to {FormatTimelineTime(draftStart.TotalSeconds)}. Preview the composition to rebuild it.";
+        });
+    }
+
+    private void ResetCompositionAudioClipDrag(bool render = true)
+    {
+        _pendingCompositionAudioClipDragId = null;
+        _activeCompositionAudioClipDragId = null;
+        _compositionAudioClipDragPointerOffset = 0;
+        _compositionAudioClipOriginalStartTicks = 0;
+        CompositionTimelineCanvas.Cursor = null;
+        if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
+        if (render) RenderCompositionTimeline();
     }
 
     private void RenderCompositionTimeline()
@@ -1667,8 +1756,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             var selectedAudioId = _selectedCompositionAudioClipId;
             foreach (var item in _compositionAudioClips)
             {
+                var isDragging = item.AudioClipId == _activeCompositionAudioClipDragId;
                 var startSeconds = Math.Clamp(
-                    item.TimelineStart.TotalSeconds,
+                    isDragging ? _compositionAudioClipDraftStartSeconds : item.TimelineStart.TotalSeconds,
                     0,
                     _compositionTimelineLayout.ProjectedDurationSeconds);
                 var left = _compositionTimelineLayout.GetPlayheadX(startSeconds);
@@ -1694,8 +1784,18 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                     BorderThickness = new Thickness(isSelected ? 2 : 1),
                     CornerRadius = new CornerRadius(3),
                     Padding = new Thickness(7, 3, 6, 3),
-                    ToolTip = $"Audio: {item.DisplayName}\nStarts at {FormatTimelineTime(startSeconds)}\n{item.DurationText}\nClick to select"
+                    Opacity = isDragging ? 0.86 : 1,
+                    Cursor = Cursors.SizeWE,
+                    ToolTip = $"Audio: {item.DisplayName}\nStarts at {FormatTimelineTime(startSeconds)}\n{item.DurationText}\nClick to select or drag to move"
                 };
+                if (isDragging)
+                    audioBorder.Effect = new DropShadowEffect
+                    {
+                        Color = Colors.Black,
+                        BlurRadius = 10,
+                        ShadowDepth = 3,
+                        Opacity = 0.65
+                    };
                 audioBorder.Child = new TextBlock
                 {
                     Text = $"♪ {item.DisplayName}",
@@ -1717,7 +1817,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 Stroke = FindResource("AccentBrush") as Brush ?? Brushes.MediumPurple,
                 StrokeThickness = 2,
                 IsHitTestVisible = false,
-                Visibility = _activeCompositionPreviewRevisionId is null || _activeCompositionSegmentDragId is not null
+            Visibility = _activeCompositionPreviewRevisionId is null ||
+                         _activeCompositionSegmentDragId is not null ||
+                         _activeCompositionAudioClipDragId is not null
                     ? Visibility.Collapsed
                     : Visibility.Visible
             };
@@ -1866,6 +1968,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _selectedCompositionAudioClipId is { } id
             ? _compositionAudioClips.FirstOrDefault(item => item.AudioClipId == id)
             : null;
+
+    private CompositionAudioClipListItem? GetSelectedCompositionAudioClip(Guid audioClipId) =>
+        _compositionAudioClips.FirstOrDefault(item => item.AudioClipId == audioClipId);
 
     private static CompositionRecipe AssertCompositionRecipe(RecipeRevision revision) =>
         revision.Recipe as CompositionRecipe

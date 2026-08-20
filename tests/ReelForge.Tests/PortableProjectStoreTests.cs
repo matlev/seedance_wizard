@@ -439,6 +439,45 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Empty(new WorkingCompositionService(reopenedWorkspace).GetCurrent().Recipe.AudioClips);
     }
 
+    [Fact]
+    public async Task WorkingCompositionAudioMoveCommitsOnceAndPersists()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Composition audio move");
+        var video = CreatePhysicalAsset("video.mp4", "assets/videos/video.mp4");
+        var audio = CreatePhysicalAsset("music.wav", "assets/audio/music.wav");
+        audio.MediaType = MediaType.Audio;
+        workspace.Project!.AddAsset(video);
+        workspace.Project.AddAsset(audio);
+        await workspace.SaveAsync();
+        var service = new WorkingCompositionService(workspace);
+        await service.CreateInitialAsync(video.Id);
+        var added = await service.AddAudioClipAsync(audio.Id, TimeSpan.FromSeconds(1));
+        var audioClipId = Assert.Single(Assert.IsType<CompositionRecipe>(added.Recipe).AudioClips).Id;
+        var revisionCount = workspace.Project.RecipeRevisions.Count;
+
+        var moved = await service.SetAudioClipTimelineStartAsync(audioClipId, TimeSpan.FromSeconds(4.25));
+
+        Assert.Equal(
+            TimeSpan.FromSeconds(4.25),
+            Assert.Single(Assert.IsType<CompositionRecipe>(moved.Recipe).AudioClips).TimelineStart);
+        Assert.Equal(
+            TimeSpan.FromSeconds(1),
+            Assert.Single(Assert.IsType<CompositionRecipe>(added.Recipe).AudioClips).TimelineStart);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+
+        var noOp = await service.SetAudioClipTimelineStartAsync(audioClipId, TimeSpan.FromSeconds(4.25));
+        Assert.Equal(moved.Id, noOp.Id);
+        Assert.Equal(revisionCount + 1, workspace.Project.RecipeRevisions.Count);
+
+        var reopened = (await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath)).Project;
+        var composition = reopened.Assets.Single(asset => asset.Id == reopened.WorkingCompositionAssetId);
+        var recipe = Assert.IsType<CompositionRecipe>(reopened.RecipeRevisions.Single(revision =>
+            revision.Id == composition.Virtual!.CurrentRecipeRevisionId).Recipe);
+        Assert.Equal(TimeSpan.FromSeconds(4.25), Assert.Single(recipe.AudioClips).TimelineStart);
+        Assert.Empty(ProjectInvariantValidator.Validate(reopened));
+    }
+
     private static ProjectAsset CreatePhysicalAsset(
         string fileName,
         string relativePath,

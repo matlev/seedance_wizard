@@ -189,6 +189,29 @@ public sealed class WorkingCompositionService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<RecipeRevision> SetAudioClipTimelineStartAsync(
+        Guid audioClipId,
+        TimeSpan timelineStart,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(timelineStart, TimeSpan.Zero);
+        var (_, currentRevision, currentRecipe) = GetCurrent();
+        var currentClip = currentRecipe.AudioClips.SingleOrDefault(clip => clip.Id == audioClipId)
+            ?? throw new InvalidOperationException("The selected composition audio clip no longer exists.");
+        if (currentClip.TimelineStartTicks == timelineStart.Ticks) return currentRevision;
+
+        return await UpdateAsync(recipe =>
+        {
+            var index = recipe.AudioClips.FindIndex(clip => clip.Id == audioClipId);
+            if (index < 0)
+                throw new InvalidOperationException("The selected composition audio clip no longer exists.");
+            recipe.AudioClips[index] = recipe.AudioClips[index] with
+            {
+                TimelineStartTicks = timelineStart.Ticks
+            };
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<RecipeRevision> RemoveSegmentAsync(
         Guid segmentId,
         CancellationToken cancellationToken = default) =>
