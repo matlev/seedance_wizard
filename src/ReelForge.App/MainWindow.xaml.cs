@@ -1590,10 +1590,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         if (Math.Abs(_compositionTimelineZoom - zoom) < 0.001) return;
 
         var oldWidth = _compositionTimelineLayout?.ContentWidth ?? 0;
-        var viewportWidth = CompositionTimelineScrollViewer?.ViewportWidth ?? 0;
-        var focusRatio = oldWidth > 0 && double.IsFinite(viewportWidth)
+        var scrollViewer = CompositionTimelineScrollViewer;
+        var viewportWidth = scrollViewer?.ViewportWidth ?? 0;
+        var focusRatio = scrollViewer is not null && oldWidth > 0 && double.IsFinite(viewportWidth)
             ? Math.Clamp(
-                (CompositionTimelineScrollViewer.HorizontalOffset + viewportWidth / 2) / oldWidth,
+                (scrollViewer.HorizontalOffset + viewportWidth / 2) / oldWidth,
                 0,
                 1)
             : 0.5;
@@ -1603,15 +1604,14 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         var revision = ++_compositionTimelineZoomRevision;
         _ = Dispatcher.BeginInvoke(() =>
         {
-            if (_disposed || revision != _compositionTimelineZoomRevision) return;
-            CompositionTimelineScrollViewer.UpdateLayout();
-            var desiredOffset = focusRatio * CompositionTimelineScrollViewer.ExtentWidth -
-                                CompositionTimelineScrollViewer.ViewportWidth / 2;
-            CompositionTimelineScrollViewer.ScrollToHorizontalOffset(Math.Clamp(
+            if (_disposed || revision != _compositionTimelineZoomRevision || scrollViewer is null) return;
+            scrollViewer.UpdateLayout();
+            var desiredOffset = focusRatio * scrollViewer.ExtentWidth -
+                                scrollViewer.ViewportWidth / 2;
+            scrollViewer.ScrollToHorizontalOffset(Math.Clamp(
                 desiredOffset,
                 0,
-                Math.Max(0, CompositionTimelineScrollViewer.ExtentWidth -
-                            CompositionTimelineScrollViewer.ViewportWidth)));
+                Math.Max(0, scrollViewer.ExtentWidth - scrollViewer.ViewportWidth)));
         }, DispatcherPriority.Render);
     }
 
