@@ -40,14 +40,6 @@ public partial class MainWindow : Window, IDisposable
         double ItemWidth,
         double MinimumTrailingWidth);
 
-    private sealed record CompositionDraftSegment(
-        Guid SegmentId,
-        AssetRevisionReference Source,
-        double TimelineStartSeconds,
-        double SourceStartSeconds,
-        double DurationSeconds,
-        bool AudioEnabled);
-
     private readonly ObservableCollection<ProjectMediaListItem> _assets = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
     private readonly ObservableCollection<FrameContactListItem> _contactFrames = [];
@@ -101,7 +93,7 @@ public partial class MainWindow : Window, IDisposable
     private Line? _compositionTimelinePlayhead;
     private Guid? _activeCompositionPreviewRevisionId;
     private Guid? _activeCompositionDraftRevisionId;
-    private IReadOnlyList<CompositionDraftSegment> _compositionDraftSegments = [];
+    private CompositionAuditionPlan? _compositionAuditionPlan;
     private int _activeCompositionDraftSegmentIndex = -1;
     private double _compositionDraftPositionSeconds;
     private int _compositionDraftOpenVersion;
@@ -1945,15 +1937,13 @@ public partial class MainWindow : Window, IDisposable
 
     private double GetCurrentTimelinePlaybackSeconds()
     {
-        if (_activeCompositionDraftRevisionId is null ||
+        if (_activeCompositionDraftRevisionId is null || _compositionAuditionPlan is null ||
             _activeCompositionDraftSegmentIndex < 0 ||
-            _activeCompositionDraftSegmentIndex >= _compositionDraftSegments.Count)
+            _activeCompositionDraftSegmentIndex >= _compositionAuditionPlan.Segments.Count)
             return MediaPreviewPanelControl.PositionSeconds;
-        var segment = _compositionDraftSegments[_activeCompositionDraftSegmentIndex];
-        return Math.Clamp(
-            segment.TimelineStartSeconds + MediaPreviewPanelControl.PositionSeconds - segment.SourceStartSeconds,
-            segment.TimelineStartSeconds,
-            segment.TimelineStartSeconds + segment.DurationSeconds);
+        return _compositionAuditionPlan.GetGlobalPosition(
+            _activeCompositionDraftSegmentIndex,
+            MediaPreviewPanelControl.PositionSeconds);
     }
 
     private bool IsWorkingCompositionSelected() =>
@@ -3477,25 +3467,7 @@ public partial class MainWindow : Window, IDisposable
                 var revision = _workspace.Project.RecipeRevisions.Single(candidate => candidate.Id == revisionId);
                 var recipe = revision.Recipe as CompositionRecipe
                     ?? throw new InvalidDataException("The Working Composition recipe is invalid.");
-                var draftSegments = new List<CompositionDraftSegment>();
-                var timelineStart = 0d;
-                foreach (var segment in recipe.Segments)
-                {
-                    var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId)
-                        ?? throw new InvalidDataException("A composition source is missing.");
-                    var duration = CompositionSegmentTiming.ResolveDuration(_workspace.Project, segment, source)
-                        ?? throw new InvalidDataException($"The duration of '{source.EffectiveDisplayName}' is unknown.");
-                    draftSegments.Add(new CompositionDraftSegment(
-                        segment.Id,
-                        segment.Source,
-                        timelineStart,
-                        ResolveCompositionBoundarySeconds(_workspace.Project, segment.Start, source, isEnd: false),
-                        duration,
-                        segment.AudioEnabled));
-                    timelineStart += duration;
-                }
-                if (draftSegments.Count == 0)
-                    throw new InvalidDataException("The Working Composition has no video segments.");
+                var auditionPlan = CompositionAuditionPlan.Create(_workspace.Project, recipe);
 
                 string? auditionAudioWarning = null;
                 try
@@ -3505,7 +3477,7 @@ public partial class MainWindow : Window, IDisposable
                         _workspace.Location,
                         composition.Id,
                         revisionId,
-                        timelineStart);
+                        auditionPlan.DurationSeconds);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
@@ -3515,20 +3487,18 @@ public partial class MainWindow : Window, IDisposable
                 ClearMediaPreview();
                 if (_workspace.Project?.Id != selectedProjectId || ProjectMediaPanelControl.SelectedItem != selectedItem) return;
                 _activeCompositionDraftRevisionId = revisionId;
-                _compositionDraftSegments = draftSegments;
-                var requestedPosition = Math.Clamp(
-                    _pendingCompositionTimelineSeekSeconds ?? 0,
-                    0,
-                    timelineStart);
+                _compositionAuditionPlan = auditionPlan;
+                var requestedPosition = auditionPlan.ClampGlobalPosition(
+                    _pendingCompositionTimelineSeekSeconds ?? 0);
                 _pendingCompositionTimelineSeekSeconds = null;
                 _compositionDraftPositionSeconds = requestedPosition;
-                MediaPreviewPanelControl.SetTimelineRange(0, timelineStart);
+                MediaPreviewPanelControl.SetTimelineRange(0, auditionPlan.DurationSeconds);
                 if (auditionAudio is not null)
                 {
                     MediaPreviewPanelControl.OpenLeasedAuditionAudio(auditionAudio, requestedPosition);
                     auditionAudio = null;
                 }
-                var requestedSegmentIndex = FindCompositionDraftSegmentIndex(requestedPosition);
+                var requestedSegmentIndex = auditionPlan.FindSegmentIndex(requestedPosition);
                 await OpenCompositionDraftSegmentAsync(
                     requestedSegmentIndex,
                     requestedPosition,
@@ -3553,12 +3523,12 @@ public partial class MainWindow : Window, IDisposable
         double globalSeconds,
         bool playAfterOpen)
     {
-        if (_workspace.Project is null || _workspace.Location is null ||
+        if (_workspace.Project is null || _workspace.Location is null || _compositionAuditionPlan is null ||
             _activeCompositionDraftRevisionId is null ||
-            segmentIndex < 0 || segmentIndex >= _compositionDraftSegments.Count)
+            segmentIndex < 0 || segmentIndex >= _compositionAuditionPlan.Segments.Count)
             return;
         var openVersion = ++_compositionDraftOpenVersion;
-        var segment = _compositionDraftSegments[segmentIndex];
+        var segment = _compositionAuditionPlan.Segments[segmentIndex];
         PauseCompositionAuditionAudio();
         var lease = await _mediaMaterializer.MaterializeAsync(
             _workspace.Project,
@@ -3573,46 +3543,32 @@ public partial class MainWindow : Window, IDisposable
         }
 
         _activeCompositionDraftSegmentIndex = segmentIndex;
-        _compositionDraftPositionSeconds = Math.Clamp(
-            globalSeconds,
-            segment.TimelineStartSeconds,
-            segment.TimelineStartSeconds + segment.DurationSeconds);
-        var offset = _compositionDraftPositionSeconds - segment.TimelineStartSeconds;
+        _compositionDraftPositionSeconds = _compositionAuditionPlan.ClampGlobalPosition(globalSeconds);
         MediaPreviewPanelControl.HidePlaceholder();
         MediaPreviewPanelControl.OpenLeasedVideo(
             lease,
             requiresWarmup: true,
             playAfterPriming: playAfterOpen,
-            startSeconds: segment.SourceStartSeconds + offset,
+            startSeconds: _compositionAuditionPlan.GetSourcePosition(segmentIndex, _compositionDraftPositionSeconds),
             forceMuted: !segment.AudioEnabled,
             useExternalTimeline: true);
         MediaPreviewPanelControl.SetPosition(_compositionDraftPositionSeconds);
         UpdateCompositionTimelinePlayhead(_compositionDraftPositionSeconds);
     }
 
-    private int FindCompositionDraftSegmentIndex(double globalSeconds)
-    {
-        if (_compositionDraftSegments.Count == 0) return -1;
-        for (var index = 0; index < _compositionDraftSegments.Count; index++)
-        {
-            var segment = _compositionDraftSegments[index];
-            if (globalSeconds < segment.TimelineStartSeconds + segment.DurationSeconds - 0.000_000_1)
-                return index;
-        }
-        return _compositionDraftSegments.Count - 1;
-    }
-
     private async Task<bool> AdvanceCompositionDraftSegmentAsync()
     {
         if (_advancingCompositionDraft || _activeCompositionDraftRevisionId is null ||
+            _compositionAuditionPlan is null ||
             _activeCompositionDraftSegmentIndex < 0)
             return false;
-        var nextIndex = _activeCompositionDraftSegmentIndex + 1;
-        if (nextIndex >= _compositionDraftSegments.Count) return false;
+        if (!_compositionAuditionPlan.TryGetNextSegmentIndex(
+                _activeCompositionDraftSegmentIndex,
+                out var nextIndex)) return false;
         _advancingCompositionDraft = true;
         try
         {
-            var next = _compositionDraftSegments[nextIndex];
+            var next = _compositionAuditionPlan.Segments[nextIndex];
             await OpenCompositionDraftSegmentAsync(nextIndex, next.TimelineStartSeconds, playAfterOpen: true);
             return true;
         }
@@ -3620,27 +3576,6 @@ public partial class MainWindow : Window, IDisposable
         {
             _advancingCompositionDraft = false;
         }
-    }
-
-    private static double ResolveCompositionBoundarySeconds(
-        VideoProject project,
-        RecipeBoundary boundary,
-        ProjectAsset source,
-        bool isEnd)
-    {
-        var duration = source.DurationSeconds ?? source.Encoding?.DurationSeconds ??
-                       source.Virtual?.ExpectedMediaProperties?.DurationSeconds ?? 0;
-        return boundary.Kind switch
-        {
-            RecipeBoundaryKind.SourceStart => 0,
-            RecipeBoundaryKind.SourceEnd => duration,
-            RecipeBoundaryKind.Timestamp => boundary.TimestampSeconds ?? (isEnd ? duration : 0),
-            RecipeBoundaryKind.Anchor when boundary.Anchor is { } reference =>
-                project.AnchorRevisions.Single(revision =>
-                    revision.Id == reference.AnchorRevisionId && revision.AnchorId == reference.AnchorId)
-                    .TimestampSeconds,
-            _ => isEnd ? duration : 0
-        };
     }
 
     private async Task ShowVirtualAssetPreviewAsync(
@@ -3741,7 +3676,7 @@ public partial class MainWindow : Window, IDisposable
     {
         _activeCompositionPreviewRevisionId = null;
         _activeCompositionDraftRevisionId = null;
-        _compositionDraftSegments = [];
+        _compositionAuditionPlan = null;
         _activeCompositionDraftSegmentIndex = -1;
         _compositionDraftPositionSeconds = 0;
         _compositionDraftOpenVersion++;
@@ -3830,13 +3765,13 @@ public partial class MainWindow : Window, IDisposable
                     .FirstOrDefault();
             if (target is null) return;
 
-            if (_activeCompositionDraftRevisionId is not null &&
+            if (_activeCompositionDraftRevisionId is not null && _compositionAuditionPlan is not null &&
                 _activeCompositionDraftSegmentIndex >= 0 &&
-                _activeCompositionDraftSegmentIndex < _compositionDraftSegments.Count)
+                _activeCompositionDraftSegmentIndex < _compositionAuditionPlan.Segments.Count)
             {
-                var segment = _compositionDraftSegments[_activeCompositionDraftSegmentIndex];
-                var globalSeconds = segment.TimelineStartSeconds + target.TimestampSeconds -
-                                    segment.SourceStartSeconds;
+                var globalSeconds = _compositionAuditionPlan.GetGlobalPosition(
+                    _activeCompositionDraftSegmentIndex,
+                    target.TimestampSeconds);
                 await SeekCompositionDraftAsync(globalSeconds, playAfterSeek: false);
             }
             else
@@ -3907,20 +3842,10 @@ public partial class MainWindow : Window, IDisposable
 
     private async Task SeekCompositionDraftAsync(double seconds, bool playAfterSeek)
     {
-        if (_activeCompositionDraftRevisionId is null || _compositionDraftSegments.Count == 0) return;
-        var target = Math.Clamp(seconds, 0, MediaPreviewPanelControl.MaximumPositionSeconds);
+        if (_activeCompositionDraftRevisionId is null || _compositionAuditionPlan is null) return;
+        var target = _compositionAuditionPlan.ClampGlobalPosition(seconds);
         SyncCompositionAuditionAudio(target, playAfterSeek);
-        var targetIndex = _compositionDraftSegments.Count - 1;
-        for (var index = 0; index < _compositionDraftSegments.Count; index++)
-        {
-            var segment = _compositionDraftSegments[index];
-            if (target < segment.TimelineStartSeconds + segment.DurationSeconds - 0.000_000_1)
-            {
-                targetIndex = index;
-                break;
-            }
-        }
-        var targetSegment = _compositionDraftSegments[targetIndex];
+        var targetIndex = _compositionAuditionPlan.FindSegmentIndex(target);
         _compositionDraftPositionSeconds = target;
         if (targetIndex != _activeCompositionDraftSegmentIndex)
         {
@@ -3928,7 +3853,7 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
 
-        var localSeconds = targetSegment.SourceStartSeconds + target - targetSegment.TimelineStartSeconds;
+        var localSeconds = _compositionAuditionPlan.GetSourcePosition(targetIndex, target);
         MediaPreviewPanelControl.SeekVideo(Math.Max(0, localSeconds));
         MediaPreviewPanelControl.SetPosition(target);
         MediaPreviewPanelControl.ShowTimelinePosition(target);
@@ -3952,10 +3877,11 @@ public partial class MainWindow : Window, IDisposable
         var mediaDuration = MediaPreviewPanelControl.MediaDuration;
 
         if (MediaPreviewPanelControl.IsPlaying && _activeCompositionDraftRevisionId is not null &&
+            _compositionAuditionPlan is not null &&
             _activeCompositionDraftSegmentIndex >= 0 &&
-            _activeCompositionDraftSegmentIndex < _compositionDraftSegments.Count)
+            _activeCompositionDraftSegmentIndex < _compositionAuditionPlan.Segments.Count)
         {
-            var activeSegment = _compositionDraftSegments[_activeCompositionDraftSegmentIndex];
+            var activeSegment = _compositionAuditionPlan.Segments[_activeCompositionDraftSegmentIndex];
             if (mediaPosition.TotalSeconds >=
                 activeSegment.SourceStartSeconds + activeSegment.DurationSeconds - 0.01)
             {
@@ -3973,15 +3899,13 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
 
-        if (_activeCompositionDraftRevisionId is not null &&
+        if (_activeCompositionDraftRevisionId is not null && _compositionAuditionPlan is not null &&
             _activeCompositionDraftSegmentIndex >= 0 &&
-            _activeCompositionDraftSegmentIndex < _compositionDraftSegments.Count)
+            _activeCompositionDraftSegmentIndex < _compositionAuditionPlan.Segments.Count)
         {
-            var segment = _compositionDraftSegments[_activeCompositionDraftSegmentIndex];
-            var currentSeconds = Math.Clamp(
-                segment.TimelineStartSeconds + mediaPosition.TotalSeconds - segment.SourceStartSeconds,
-                segment.TimelineStartSeconds,
-                segment.TimelineStartSeconds + segment.DurationSeconds);
+            var currentSeconds = _compositionAuditionPlan.GetGlobalPosition(
+                _activeCompositionDraftSegmentIndex,
+                mediaPosition.TotalSeconds);
             _compositionDraftPositionSeconds = currentSeconds;
             if (MediaPreviewPanelControl.IsPlaying && MediaPreviewPanelControl.IsAuditionAudioReady &&
                 Math.Abs(MediaPreviewPanelControl.AuditionAudioPositionSeconds - currentSeconds) > 0.2)
