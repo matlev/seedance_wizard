@@ -20,12 +20,12 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
 
     private readonly string _defaultsPath;
     public JsonApplicationSettingsStore(
-        string? defaultsPath = null,
-        string? localSettingsPath = null)
+        string localSettingsPath,
+        string? defaultsPath = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(localSettingsPath);
         _defaultsPath = defaultsPath ?? Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        LocalSettingsPath = localSettingsPath ?? Path.Combine(localApplicationData, "ReelForge", "appsettings.local.json");
+        LocalSettingsPath = Path.GetFullPath(localSettingsPath);
     }
 
     public string LocalSettingsPath { get; }

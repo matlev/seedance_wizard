@@ -14,6 +14,7 @@
     <ProjectReference Include="..\ReelForge.Core\ReelForge.Core.csproj" />
     <ProjectReference Include="..\ReelForge.Application\ReelForge.Application.csproj" />
     <ProjectReference Include="..\ReelForge.Infrastructure\ReelForge.Infrastructure.csproj" />
+    <ProjectReference Include="..\ReelForge.Platform.Windows\ReelForge.Platform.Windows.csproj" />
   </ItemGroup>
 
   <ItemGroup>

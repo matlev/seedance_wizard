@@ -9,7 +9,7 @@ public sealed class FileApplicationDiagnosticLog : IApplicationDiagnosticLog, ID
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private string _logDirectory;
 
-    public FileApplicationDiagnosticLog(string? logDirectory = null)
+    public FileApplicationDiagnosticLog(string logDirectory)
     {
         _logDirectory = ResolveLogDirectory(logDirectory);
     }
@@ -56,11 +56,8 @@ public sealed class FileApplicationDiagnosticLog : IApplicationDiagnosticLog, ID
         }
     }
 
-    public static string GetDefaultLogDirectory()
-        => ApplicationStoragePaths.GetDefaultLogDirectory();
-
-    public static string ResolveLogDirectory(string? configuredPath) =>
-        ApplicationStoragePaths.ResolveDirectory(configuredPath, GetDefaultLogDirectory());
+    public static string ResolveLogDirectory(string configuredPath) =>
+        ApplicationPathResolver.ResolveDirectory(configuredPath);
 
     public static IReadOnlyList<string> FindExistingLogs(string directory)
     {

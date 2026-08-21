@@ -16,10 +16,10 @@ public sealed class JsonGenerationJobStore : IGenerationJobStore
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
     };
 
-    public JsonGenerationJobStore(string? filePath = null)
+    public JsonGenerationJobStore(string filePath)
     {
-        var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        FilePath = filePath ?? Path.Combine(localApplicationData, "ReelForge", "active-jobs.json");
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        FilePath = Path.GetFullPath(filePath);
     }
 
     public string FilePath { get; }

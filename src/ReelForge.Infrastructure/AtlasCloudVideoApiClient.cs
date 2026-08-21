@@ -277,7 +277,7 @@ internal sealed class AtlasCloudVideoApiClient
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             throw new VideoGenerationProviderException(
-                "An AtlasCloud API key is required. Store it in Windows Credential Manager before submitting.",
+                $"An AtlasCloud API key is required. Store it in {_secretStore.DisplayName} before submitting.",
                 providerCode: "missing_api_key");
         }
 

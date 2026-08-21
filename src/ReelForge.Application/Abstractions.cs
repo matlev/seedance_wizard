@@ -309,6 +309,8 @@ public sealed class GenerationWorkflowOptions
 
 public interface ISecretStore
 {
+    string DisplayName => "secure credential store";
+    string GetDisplayKey(string key) => key;
     Task SetAsync(string key, string value, CancellationToken cancellationToken = default);
     Task<string?> GetAsync(string key, CancellationToken cancellationToken = default);
     async Task<bool> ExistsAsync(string key, CancellationToken cancellationToken = default) =>

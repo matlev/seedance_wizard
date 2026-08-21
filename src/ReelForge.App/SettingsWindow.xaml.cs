@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
     private readonly IMediaToolDiscovery _mediaToolDiscovery;
     private readonly ITemporaryAssetHost _temporaryAssetHost;
     private readonly FileApplicationDiagnosticLog _diagnosticLog;
+    private readonly ISecretStore _secretStore;
     private readonly Dictionary<string, string> _pendingValues = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextBox> _visibleEditors = new(StringComparer.Ordinal);
     private Task<bool>? _activeCommit;
@@ -39,6 +40,7 @@ public partial class SettingsWindow : Window
         _mediaToolDiscovery = mediaToolDiscovery;
         _temporaryAssetHost = temporaryAssetHost;
         _diagnosticLog = diagnosticLog;
+        _secretStore = secretStore;
         GeneralCategory.IsSelected = true;
         StateChanged += SettingsWindow_StateChanged;
     }
@@ -478,7 +480,8 @@ public partial class SettingsWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = requirement.Secret
-                ? $"{requirement.Description} Windows Credential Manager key: ReelForge:{requirement.CredentialManagerKey}"
+                ? $"{requirement.Description} {_secretStore.DisplayName} key: " +
+                  _secretStore.GetDisplayKey(requirement.CredentialManagerKey!)
                 : requirement.Description,
             TextWrapping = TextWrapping.Wrap,
             Foreground = (System.Windows.Media.Brush)FindResource("MutedTextBrush"),
@@ -580,7 +583,7 @@ public partial class SettingsWindow : Window
         {
             await _secrets.ReplaceAsync(requirement, value).ConfigureAwait(true);
             value = string.Empty;
-            PersistenceStatusText.Text = $"{requirement.DisplayName} stored in Windows Credential Manager.";
+            PersistenceStatusText.Text = $"{requirement.DisplayName} stored in {_secretStore.DisplayName}.";
             await RenderSectionAsync(_activeSection!).ConfigureAwait(true);
         }
         catch (Exception exception)
@@ -595,7 +598,7 @@ public partial class SettingsWindow : Window
         if ((sender as FrameworkElement)?.Tag is not ConfigurationRequirement requirement) return;
         if (MessageBox.Show(
                 this,
-                $"Remove {requirement.DisplayName} from Windows Credential Manager?",
+                $"Remove {requirement.DisplayName} from {_secretStore.DisplayName}?",
                 "Remove credential",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes) return;

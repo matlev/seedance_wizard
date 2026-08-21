@@ -19,7 +19,7 @@ public sealed class GeneralApplicationSettings
     public string LastProjectFilePath { get; set; } = string.Empty;
     public List<string> RecentProjectFilePaths { get; set; } = [];
     public int UndoSendSeconds { get; set; }
-    public string LogDirectory { get; set; } = ApplicationStoragePaths.GetDefaultLogDirectory();
+    public string LogDirectory { get; set; } = string.Empty;
     public Dictionary<string, ProjectUserInterfaceState> ProjectStates { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -41,21 +41,6 @@ public sealed class ProjectUserInterfaceState
     public ProjectWorkspaceKind Workspace { get; set; } = ProjectWorkspaceKind.Generate;
     public string? SelectedMediaKind { get; set; }
     public Guid? SelectedMediaId { get; set; }
-}
-
-public static class ApplicationStoragePaths
-{
-    public static string GetDefaultLogDirectory()
-    {
-        var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localApplicationData, "ReelForge", "Logs");
-    }
-
-    public static string ResolveDirectory(string? configuredPath, string defaultPath)
-    {
-        var path = string.IsNullOrWhiteSpace(configuredPath) ? defaultPath : configuredPath;
-        return Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
-    }
 }
 
 public sealed class RecentProjectTracker
@@ -180,7 +165,7 @@ public sealed class ManagedCredentialMap
 
 public sealed class ManagedCredentialDeclaration
 {
-    public const string Marker = "<MANAGED BY WINDOWS CREDENTIAL MANAGER>";
+    public const string Marker = "<MANAGED BY SECURE CREDENTIAL STORE>";
 
     public ManagedCredentialDeclaration() { }
 
@@ -218,7 +203,7 @@ public static class ApplicationConfigurationCatalog
         new("General.UndoSendSeconds", "Undo Send", "Wait before sending a generation request so it can still be cancelled locally (0 to 30 seconds).", false, false,
             "0", GeneralSection),
         new("General.LogDirectory", "Log location", "Folder used for verbose ReelForge diagnostic logs.", false, false,
-            ApplicationStoragePaths.GetDefaultLogDirectory(), GeneralSection),
+            "Use the platform default log folder", GeneralSection),
         new("MediaTools.FfmpegPath", "FFmpeg path", "Explicit ffmpeg.exe path. Leave empty to use PATH auto-detection.", false, false,
             @"C:\path\to\ffmpeg.exe", MediaToolsSection),
         new("MediaTools.FfprobePath", "ffprobe path", "Explicit ffprobe.exe path. Leave empty to use PATH auto-detection.", false, false,
@@ -295,9 +280,7 @@ public static class ApplicationSettingsAccessor
                 break;
             case "General.LogDirectory":
                 if (value.Length == 0) throw new ArgumentException("Log location cannot be empty.");
-                settings.General.LogDirectory = ApplicationStoragePaths.ResolveDirectory(
-                    value,
-                    ApplicationStoragePaths.GetDefaultLogDirectory());
+                settings.General.LogDirectory = ApplicationPathResolver.ResolveDirectory(value);
                 break;
             case "MediaTools.FfmpegPath": settings.MediaTools.FfmpegPath = EmptyToNull(value); break;
             case "MediaTools.FfprobePath": settings.MediaTools.FfprobePath = EmptyToNull(value); break;

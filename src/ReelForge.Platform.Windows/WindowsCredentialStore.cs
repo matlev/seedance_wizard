@@ -1,10 +1,10 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using ReelForge.Application;
 
-namespace ReelForge.Infrastructure;
+namespace ReelForge.Platform.Windows;
 
 [SupportedOSPlatform("windows")]
 public sealed class WindowsCredentialStore : ISecretStore
@@ -18,6 +18,14 @@ public sealed class WindowsCredentialStore : ISecretStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(targetPrefix);
         _targetPrefix = targetPrefix;
+    }
+
+    public string DisplayName => "Windows Credential Manager";
+
+    public string GetDisplayKey(string key)
+    {
+        ValidateKey(key);
+        return GetTargetName(key);
     }
 
     public Task SetAsync(string key, string value, CancellationToken cancellationToken = default)
@@ -42,17 +50,13 @@ public sealed class WindowsCredentialStore : ISecretStore
             };
 
             if (!CredWrite(ref credential, 0))
-            {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows Credential Manager could not store the secret.");
-            }
+                throw new Win32Exception(Marshal.GetLastWin32Error(),
+                    $"{DisplayName} could not store the secret.");
         }
         finally
         {
             if (secretBytes.Length > 0)
-            {
                 Marshal.Copy(new byte[secretBytes.Length], 0, secretPointer, secretBytes.Length);
-            }
-
             Array.Clear(secretBytes);
             Marshal.FreeCoTaskMem(secretPointer);
         }
@@ -64,8 +68,7 @@ public sealed class WindowsCredentialStore : ISecretStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         ValidateKey(key);
-
-        var value = ReadCredential(GetTargetName(_targetPrefix, key));
+        var value = ReadCredential(GetTargetName(key));
         return Task.FromResult(value.Found ? value.Value : null);
     }
 
@@ -73,38 +76,47 @@ public sealed class WindowsCredentialStore : ISecretStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         ValidateKey(key);
-
-        return Task.FromResult(CredentialExists(GetTargetName(_targetPrefix, key)));
+        return Task.FromResult(CredentialExists(GetTargetName(key)));
     }
 
-    private static bool CredentialExists(string targetName)
+    public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidateKey(key);
+        if (!CredDelete(GetTargetName(key), CredentialTypeGeneric, 0))
+        {
+            var error = Marshal.GetLastWin32Error();
+            if (error != ErrorNotFound)
+                throw new Win32Exception(error, $"{DisplayName} could not delete the secret.");
+        }
+        return Task.CompletedTask;
+    }
+
+    private bool CredentialExists(string targetName)
     {
         if (!CredRead(targetName, CredentialTypeGeneric, 0, out var credentialPointer))
         {
             var error = Marshal.GetLastWin32Error();
             if (error == ErrorNotFound) return false;
-            throw new Win32Exception(error, "Windows Credential Manager could not inspect the secret.");
+            throw new Win32Exception(error, $"{DisplayName} could not inspect the secret.");
         }
-
         CredFree(credentialPointer);
         return true;
     }
 
-    private static (bool Found, string? Value) ReadCredential(string targetName)
+    private (bool Found, string? Value) ReadCredential(string targetName)
     {
         if (!CredRead(targetName, CredentialTypeGeneric, 0, out var credentialPointer))
         {
             var error = Marshal.GetLastWin32Error();
             if (error == ErrorNotFound) return (false, null);
-            throw new Win32Exception(error, "Windows Credential Manager could not read the secret.");
+            throw new Win32Exception(error, $"{DisplayName} could not read the secret.");
         }
         try
         {
             var credential = Marshal.PtrToStructure<NativeCredential>(credentialPointer);
             if (credential.CredentialBlob == IntPtr.Zero || credential.CredentialBlobSize == 0)
-            {
                 return (true, string.Empty);
-            }
 
             var bytes = new byte[credential.CredentialBlobSize];
             Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
@@ -123,34 +135,13 @@ public sealed class WindowsCredentialStore : ISecretStore
         }
     }
 
-    public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        ValidateKey(key);
-
-        if (!CredDelete(GetTargetName(key), CredentialTypeGeneric, 0))
-        {
-            var error = Marshal.GetLastWin32Error();
-            if (error != ErrorNotFound)
-            {
-                throw new Win32Exception(error, "Windows Credential Manager could not delete the secret.");
-            }
-        }
-
-        return Task.CompletedTask;
-    }
-
-    private string GetTargetName(string key) => GetTargetName(_targetPrefix, key);
-
-    private static string GetTargetName(string targetPrefix, string key) => $"{targetPrefix}:{key}";
+    private string GetTargetName(string key) => $"{_targetPrefix}:{key}";
 
     private static void ValidateKey(string key)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         if (key.IndexOfAny(['\r', '\n', '\0']) >= 0)
-        {
             throw new ArgumentException("Credential keys contain invalid characters.", nameof(key));
-        }
     }
 
     [DllImport("advapi32.dll", EntryPoint = "CredWriteW", CharSet = CharSet.Unicode, SetLastError = true)]

@@ -365,7 +365,7 @@ public sealed class BytePlusModelArkSeedance25Provider :
         var apiKey = await _secretStore.GetAsync(CredentialKey, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new VideoGenerationProviderException(
-                "A BytePlus ModelArk API key is required. Store it in Windows Credential Manager before submitting.",
+                $"A BytePlus ModelArk API key is required. Store it in {_secretStore.DisplayName} before submitting.",
                 providerCode: "missing_api_key");
         return apiKey;
     }

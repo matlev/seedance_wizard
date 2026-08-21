@@ -18,6 +18,7 @@ using Microsoft.Win32;
 using ReelForge.Application;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
+using ReelForge.Platform.Windows;
 using Line = System.Windows.Shapes.Line;
 
 namespace ReelForge.App;
@@ -74,6 +75,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly HttpClient _downloadHttpClient;
     private IVideoGenerationProvider _generationProvider;
     private readonly IMediaToolDiscovery _mediaToolDiscovery;
+    private readonly ApplicationPaths _applicationPaths;
     private readonly IApplicationSettingsStore _applicationSettingsStore;
     private readonly RecentProjectTracker _recentProjectTracker;
     private readonly ITemporaryAssetHost _temporaryAssetHost;
@@ -173,18 +175,16 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         InitializeComponent();
         _activeJobSpriteFrames = LoadActiveJobSpriteFrames();
 
+        _applicationPaths = new WindowsApplicationPathProvider().GetPaths();
         _mediaToolDiscovery = new MediaToolDiscovery();
-        _applicationSettingsStore = new JsonApplicationSettingsStore();
+        _applicationSettingsStore = new JsonApplicationSettingsStore(_applicationPaths.LocalSettingsFilePath);
         _recentProjectTracker = new RecentProjectTracker(_applicationSettingsStore);
         _applicationSettings = LoadApplicationSettings();
         var configuredTools = _applicationSettings.MediaTools;
         _mediaTools = _mediaToolDiscovery.Discover(configuredTools.FfmpegPath, configuredTools.FfprobePath);
         var processRunner = new ExternalProcessRunner();
         _mediaInspector = new FfprobeMediaInspectionService(_mediaTools.FfprobePath, processRunner);
-        var mediaCacheRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "ReelForge",
-            "Cache");
+        var mediaCacheRoot = _applicationPaths.MediaCacheDirectory;
         _exactFrameService = new ExactVideoFrameService(
             _mediaTools.FfmpegPath,
             _mediaTools.FfprobePath,
@@ -215,7 +215,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _generationProvider = new FakeVideoGenerationProvider();
         RefreshProviderRuntime(preferredProviderId: null);
         _jobCoordinator = new GenerationJobCoordinator(
-            new JsonGenerationJobStore(),
+            new JsonGenerationJobStore(_applicationPaths.ActiveGenerationJobsFilePath),
             ResolveAsyncProvider,
             this);
         _jobCoordinator.JobsChanged += JobCoordinator_JobsChanged;
@@ -302,14 +302,17 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private ApplicationSettings LoadApplicationSettings()
     {
+        ApplicationSettings settings;
         try
         {
-            return _applicationSettingsStore.LoadAsync().GetAwaiter().GetResult();
+            settings = _applicationSettingsStore.LoadAsync().GetAwaiter().GetResult();
         }
         catch
         {
-            return new ApplicationSettings();
+            settings = new ApplicationSettings();
         }
+        ApplicationSettingsPlatformDefaults.Apply(settings, _applicationPaths);
+        return settings;
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -777,6 +780,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         window.ShowDialog();
         var selectedProviderId = _generationProvider.Capabilities.ProviderId;
         _applicationSettings = await _applicationSettingsStore.LoadAsync();
+        ApplicationSettingsPlatformDefaults.Apply(_applicationSettings, _applicationPaths);
         _mediaTools = _mediaToolDiscovery.Discover(
             _applicationSettings.MediaTools.FfmpegPath,
             _applicationSettings.MediaTools.FfprobePath);
@@ -1035,12 +1039,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
     private string GetDefaultProjectsDirectory()
     {
-        if (!string.IsNullOrWhiteSpace(_applicationSettings.General.ProjectsRoot))
-            return Environment.ExpandEnvironmentVariables(_applicationSettings.General.ProjectsRoot);
-        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        if (string.IsNullOrWhiteSpace(documents))
-            documents = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents");
-        return Path.Combine(documents, "ReelForge", "Projects");
+        var configured = _applicationSettings.General.ProjectsRoot;
+        return ApplicationPathResolver.ResolveDirectory(
+            string.IsNullOrWhiteSpace(configured) ? _applicationPaths.DefaultProjectsDirectory : configured);
     }
 
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
