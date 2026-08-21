@@ -16,6 +16,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using ReelForge.App.Bootstrap;
 using ReelForge.App.Views.Dialogs;
+using ReelForge.App.Views.Generation;
 using ReelForge.App.Views.Jobs;
 using ReelForge.App.Views.ProjectMedia;
 using ReelForge.App.Views.Projects;
@@ -192,7 +193,7 @@ public partial class MainWindow : Window, IDisposable
         projectMediaView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ProjectMediaListItem.GroupName)));
         ProjectMediaPanelControl.SetItemsSource(projectMediaView);
         GenerationsList.ItemsSource = _generations;
-        ReferenceAssetsGrid.ItemsSource = _referenceChoices;
+        GenerationPanelControl.SetReferences(_referenceChoices);
         ContactFramesList.ItemsSource = _contactFrames;
         SavedFramesList.ItemsSource = _savedFrames;
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -300,10 +301,8 @@ public partial class MainWindow : Window, IDisposable
         _suppressDraftAutosave = true;
         try
         {
-            ProviderComboBox.ItemsSource = null;
-            ProviderComboBox.ItemsSource = providerRuntime.Choices;
-            ProviderComboBox.SelectedItem = selected;
-            ConfigureGenerationPanel();
+            GenerationPanelControl.SetProviders(providerRuntime.Choices, selected);
+            GenerationPanelControl.ConfigureProvider(_generationProvider);
         }
         finally
         {
@@ -455,63 +454,13 @@ public partial class MainWindow : Window, IDisposable
         StatusText.Text = "Application settings and provider availability applied.";
     }
 
-    private void ConfigureGenerationPanel()
+    private void GenerationPanel_ProviderChanged(object? sender, GenerationProviderChangedEventArgs e)
     {
-        var capabilities = _generationProvider.Capabilities;
-        ProviderText.Text = $"{capabilities.DisplayName}\n{capabilities.ModelVersion} • no paid API calls";
-
-        var costText = _generationProvider.CostBehavior == GenerationProviderCostBehavior.NoCharge
-            ? "No network or billing"
-            : "Potentially billable; explicit confirmation required for every submission";
-        ProviderText.Text = $"{capabilities.ModelVersion}\n{costText}";
-        GenerateButton.Content = _generationProvider.CostBehavior == GenerationProviderCostBehavior.NoCharge
-            ? "Run fake generation"
-            : "Review and submit generation…";
-        var supportsWatermark = capabilities.ProviderParameters.ContainsKey("watermark");
-        var supportsAudioToggle = capabilities.ProviderParameters.ContainsKey("generate_audio") ||
-                                  capabilities.ProviderParameters.ContainsKey("generateAudio");
-        GenerateAudioCheckBox.Visibility = supportsAudioToggle ? Visibility.Visible : Visibility.Collapsed;
-        WatermarkCheckBox.Visibility = supportsWatermark ? Visibility.Visible : Visibility.Collapsed;
-        WatermarkHelpText.Visibility = supportsWatermark ? Visibility.Visible : Visibility.Collapsed;
-        var supportsOutputFormat = capabilities.ProviderParameters.ContainsKey("output_format");
-        OutputFormatPanel.Visibility = supportsOutputFormat
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        AudioAndWatermarkPanel.Visibility = supportsAudioToggle || supportsWatermark
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        OutputSettingsHeading.Visibility = supportsAudioToggle || supportsWatermark || supportsOutputFormat
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        ModeComboBox.ItemsSource = capabilities.Modes;
-        ModeComboBox.SelectedItem = capabilities.Modes.Contains(GenerationMode.ReferenceToVideo)
-            ? GenerationMode.ReferenceToVideo
-            : capabilities.Modes[0];
-
-        DurationSlider.Minimum = capabilities.MinimumDurationSeconds;
-        DurationSlider.Maximum = capabilities.MaximumDurationSeconds;
-        DurationSlider.Value = Math.Clamp(15, capabilities.MinimumDurationSeconds, capabilities.MaximumDurationSeconds);
-
-        AspectRatioComboBox.ItemsSource = capabilities.AspectRatios;
-        AspectRatioComboBox.SelectedItem = capabilities.AspectRatios.Contains("16:9")
-            ? "16:9"
-            : capabilities.AspectRatios[0];
-
-        ResolutionComboBox.ItemsSource = capabilities.Resolutions;
-        ResolutionComboBox.SelectedItem = capabilities.Resolutions.Contains("720p")
-            ? "720p"
-            : capabilities.Resolutions[0];
-    }
-
-    private void ProviderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (ProviderComboBox.SelectedItem is not GenerationProviderChoice choice) return;
-        _generationProvider = choice.Provider;
+        _generationProvider = e.Choice.Provider;
         _suppressDraftAutosave = true;
         try
         {
-            ConfigureGenerationPanel();
+            GenerationPanelControl.ConfigureProvider(_generationProvider);
         }
         finally
         {
@@ -521,26 +470,32 @@ public partial class MainWindow : Window, IDisposable
         ScheduleDraftAutosave();
     }
 
-    private void GenerationDraftChanged(object sender, EventArgs e) => ScheduleDraftAutosave();
-
-    private void PromptTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void GenerationPanel_DraftChanged(object? sender, EventArgs e)
     {
         if (!_suppressPromptSynchronization &&
             ExpandedPromptPanel is not null &&
             ExpandedPromptPanel.Visibility == Visibility.Visible)
-            SynchronizePromptText(PromptTextBox, ExpandedPromptTextBox);
+            SetExpandedPromptText(GenerationPanelControl.Prompt);
         ScheduleDraftAutosave();
     }
 
     private void ExpandedPromptTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_suppressPromptSynchronization) return;
-        SynchronizePromptText(ExpandedPromptTextBox, PromptTextBox);
+        _suppressPromptSynchronization = true;
+        try
+        {
+            GenerationPanelControl.Prompt = ExpandedPromptTextBox.Text;
+        }
+        finally
+        {
+            _suppressPromptSynchronization = false;
+        }
     }
 
-    private void ExpandPrompt_Click(object sender, RoutedEventArgs e)
+    private void GenerationPanel_ExpandPromptRequested(object? sender, EventArgs e)
     {
-        SynchronizePromptText(PromptTextBox, ExpandedPromptTextBox);
+        SetExpandedPromptText(GenerationPanelControl.Prompt);
         ExpandedPromptPanel.Visibility = Visibility.Visible;
         ExpandedPromptTextBox.Focus();
         ExpandedPromptTextBox.CaretIndex = ExpandedPromptTextBox.Text.Length;
@@ -557,71 +512,31 @@ public partial class MainWindow : Window, IDisposable
 
     private void CollapseExpandedPrompt()
     {
-        SynchronizePromptText(ExpandedPromptTextBox, PromptTextBox);
-        ExpandedPromptPanel.Visibility = Visibility.Collapsed;
-        PromptTextBox.Focus();
-        PromptTextBox.CaretIndex = PromptTextBox.Text.Length;
-    }
-
-    private void SynchronizePromptText(TextBox source, TextBox destination)
-    {
-        if (string.Equals(source.Text, destination.Text, StringComparison.Ordinal)) return;
         _suppressPromptSynchronization = true;
         try
         {
-            destination.Text = source.Text;
+            GenerationPanelControl.Prompt = ExpandedPromptTextBox.Text;
         }
         finally
         {
             _suppressPromptSynchronization = false;
         }
+        ExpandedPromptPanel.Visibility = Visibility.Collapsed;
+        GenerationPanelControl.FocusPromptAtEnd();
     }
 
-    private void GenerationMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void SetExpandedPromptText(string text)
     {
-        var selectedMode = ModeComboBox.SelectedItem is GenerationMode mode
-            ? mode
-            : GenerationMode.TextToVideo;
-        ReferenceAssetsGrid.IsEnabled = selectedMode is not GenerationMode.TextToVideo;
-        ReferenceAssetsHelpText.Text = selectedMode is GenerationMode.TextToVideo
-            ? "Text-to-video does not use reference assets. Choose ImageToVideo or ReferenceToVideo to select and describe references."
-            : "Select project assets to use as references. Role, order, label, and notes are frozen into history.";
-        if (selectedMode is GenerationMode.ImageToVideo &&
-            _generationProvider.Capabilities.AspectRatios.Contains("adaptive"))
+        if (string.Equals(text, ExpandedPromptTextBox.Text, StringComparison.Ordinal)) return;
+        _suppressPromptSynchronization = true;
+        try
         {
-            AspectRatioComboBox.SelectedItem = "adaptive";
+            ExpandedPromptTextBox.Text = text;
         }
-        else if (selectedMode is GenerationMode.TextToVideo &&
-                 string.Equals(AspectRatioComboBox.SelectedItem as string, "adaptive", StringComparison.OrdinalIgnoreCase))
+        finally
         {
-            var concreteRatio = _generationProvider.Capabilities.AspectRatios.Contains("16:9")
-                ? "16:9"
-                : _generationProvider.Capabilities.AspectRatios.FirstOrDefault(ratio =>
-                    !string.Equals(ratio, "adaptive", StringComparison.OrdinalIgnoreCase));
-            if (concreteRatio is not null) AspectRatioComboBox.SelectedItem = concreteRatio;
+            _suppressPromptSynchronization = false;
         }
-        ScheduleDraftAutosave();
-    }
-
-    private void ReferenceAssetsGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) =>
-        Dispatcher.BeginInvoke(ScheduleDraftAutosave, DispatcherPriority.Background);
-
-    private void ReferenceChoiceChanged(object sender, RoutedEventArgs e) =>
-        Dispatcher.BeginInvoke(ScheduleDraftAutosave, DispatcherPriority.Background);
-
-    private void DuplicateReferenceOccurrence_Click(object sender, RoutedEventArgs e)
-    {
-        if (ReferenceAssetsGrid.SelectedItem is not GenerationReferenceChoice selected)
-        {
-            GenerationStatusText.Text = "Select a reference row to add another occurrence.";
-            return;
-        }
-        var duplicate = selected.Duplicate(_referenceChoices.Count);
-        _referenceChoices.Add(duplicate);
-        ReferenceAssetsGrid.SelectedItem = duplicate;
-        ReferenceAssetsGrid.ScrollIntoView(duplicate);
-        ScheduleDraftAutosave();
-        GenerationStatusText.Text = $"Added another occurrence of {duplicate.DisplayName}.";
     }
 
     private void ScheduleDraftAutosave()
@@ -638,11 +553,11 @@ public partial class MainWindow : Window, IDisposable
         try
         {
             await _generationWorkflow.SaveDraftAsync(CaptureDraftFromUi());
-            GenerationStatusText.Text = "Draft autosaved.";
+            GenerationPanelControl.Status = "Draft autosaved.";
         }
         catch (Exception exception)
         {
-            GenerationStatusText.Text = $"Draft autosave failed: {exception.Message}";
+            GenerationPanelControl.Status = $"Draft autosave failed: {exception.Message}";
         }
     }
 
@@ -2518,7 +2433,7 @@ public partial class MainWindow : Window, IDisposable
         StatusText.Text = $"Selected generation {generation.Id}.";
     }
 
-    private async void Generate_Click(object sender, RoutedEventArgs e)
+    private async void GenerationPanel_SubmitRequested(object? sender, EventArgs e)
     {
         if (!EnsureProjectOpen())
         {
@@ -2534,7 +2449,7 @@ public partial class MainWindow : Window, IDisposable
             var apiKey = await _secretStore.GetAsync(apiKeyProvider.ApiKeyCredentialKey);
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                GenerationStatusText.Text = $"Store a {_generationProvider.Capabilities.DisplayName} API key before live submission.";
+                GenerationPanelControl.Status = $"Store a {_generationProvider.Capabilities.DisplayName} API key before live submission.";
                 return;
             }
 
@@ -2551,7 +2466,7 @@ public partial class MainWindow : Window, IDisposable
                 MessageBoxResult.No);
             if (confirmation != MessageBoxResult.Yes)
             {
-                GenerationStatusText.Text = "Submission cancelled.";
+                GenerationPanelControl.Status = "Submission cancelled.";
                 return;
             }
 
@@ -2946,7 +2861,7 @@ public partial class MainWindow : Window, IDisposable
                              choice.LogicalObjectId == anchor.Id))
                     choice.UpdateThumbnail(thumbnail);
                 ProjectMediaPanelControl.RefreshItems();
-                ReferenceAssetsGrid.Items.Refresh();
+                GenerationPanelControl.RefreshReferences();
                 ClearMediaPreview();
                 PreviewPlaceholder.Visibility = Visibility.Collapsed;
                 ImagePreview.Source = thumbnail;
@@ -2968,9 +2883,9 @@ public partial class MainWindow : Window, IDisposable
         });
     }
 
-    private void ReferenceAssetsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void GenerationPanel_ReferenceSelected(object? sender, GenerationReferenceSelectedEventArgs e)
     {
-        if (ReferenceAssetsGrid.SelectedItem is not GenerationReferenceChoice choice) return;
+        var choice = e.Choice;
         var mediaItem = _assets.FirstOrDefault(item => choice.ObjectKind switch
         {
             GenerationReferenceObjectKind.Asset => item.Asset?.Id == choice.LogicalObjectId,
@@ -3228,7 +3143,7 @@ public partial class MainWindow : Window, IDisposable
             _pendingSubmissionDelays[generation.Id] = delayCancellation;
             RefreshProjectCollections();
             GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
-            GenerationStatusText.Text = $"Generation queued locally for {delaySeconds} seconds. Use Cancel Job in Jobs to undo.";
+            GenerationPanelControl.Status = $"Generation queued locally for {delaySeconds} seconds. Use Cancel Job in Jobs to undo.";
             StatusText.Text = "Generation has not been sent to the provider yet.";
             _ = SubmitAfterUndoSendDelayAsync(
                 generation.Id,
@@ -3243,7 +3158,7 @@ public partial class MainWindow : Window, IDisposable
         }
         catch (GenerationValidationException exception)
         {
-            GenerationStatusText.Text = exception.Message;
+            GenerationPanelControl.Status = exception.Message;
         }
         catch (Exception exception)
         {
@@ -3326,11 +3241,11 @@ public partial class MainWindow : Window, IDisposable
     {
         if (usesActiveWorkspace)
         {
-            GenerateButton.IsEnabled = false;
+            GenerationPanelControl.IsSubmissionEnabled = false;
             SetProjectActionsEnabled(false);
         }
         IProgress<GenerationWorkflowProgress>? progress = usesActiveWorkspace
-            ? new Progress<GenerationWorkflowProgress>(update => GenerationStatusText.Text = update.Message)
+            ? new Progress<GenerationWorkflowProgress>(update => GenerationPanelControl.Status = update.Message)
             : null;
         try
         {
@@ -3352,18 +3267,18 @@ public partial class MainWindow : Window, IDisposable
                     projectName,
                     provider.Capabilities.DisplayName);
                 if (sourceIsActiveNow)
-                    GenerationStatusText.Text = "Generation submitted. Follow its progress in the Jobs tab.";
+                    GenerationPanelControl.Status = "Generation submitted. Follow its progress in the Jobs tab.";
                 StatusText.Text = $"Generation accepted by {provider.Capabilities.DisplayName}.";
             }
             else if (generation.Status is GenerationStatus.Failed or GenerationStatus.Cancelled)
             {
                 await _jobCoordinator.CompleteUnacceptedSubmissionAsync(generation);
-                if (sourceIsActiveNow) GenerationStatusText.Text = FormatGenerationOutcome(generation);
+                if (sourceIsActiveNow) GenerationPanelControl.Status = FormatGenerationOutcome(generation);
                 StatusText.Text = $"Generation state: {generation.Status}; no provider job is being monitored.";
             }
             else
             {
-                if (sourceIsActiveNow) GenerationStatusText.Text = FormatGenerationOutcome(generation);
+                if (sourceIsActiveNow) GenerationPanelControl.Status = FormatGenerationOutcome(generation);
                 StatusText.Text = $"Generation state: {generation.Status}; ingestion: {generation.IngestionStatus}.";
             }
         }
@@ -3371,7 +3286,7 @@ public partial class MainWindow : Window, IDisposable
         {
             if (usesActiveWorkspace)
             {
-                GenerateButton.IsEnabled = true;
+                GenerationPanelControl.IsSubmissionEnabled = true;
                 SetProjectActionsEnabled(true);
             }
         }
@@ -3386,7 +3301,7 @@ public partial class MainWindow : Window, IDisposable
             if (!await _jobCoordinator.CancelPendingAsync(e.GenerationId)) return;
             if (_pendingSubmissionDelays.TryGetValue(e.GenerationId, out var delay)) delay.Cancel();
             RemovePendingSubmissionDelay(e.GenerationId, delay);
-            GenerationStatusText.Text = "Queued generation cancelled.";
+            GenerationPanelControl.Status = "Queued generation cancelled.";
             StatusText.Text = "Provider status: Cancelled";
         }
         catch (Exception exception)
@@ -3426,12 +3341,12 @@ public partial class MainWindow : Window, IDisposable
         GenerationDraft draft,
         GenerationSubmissionAuthorization? authorization)
     {
-        GenerateButton.IsEnabled = false;
+        GenerationPanelControl.IsSubmissionEnabled = false;
         SetProjectActionsEnabled(false);
         var provider = _generationProvider;
         var projectLocation = _workspace.Location;
         var projectName = _workspace.Project?.Name;
-        var progress = new Progress<GenerationWorkflowProgress>(update => GenerationStatusText.Text = update.Message);
+        var progress = new Progress<GenerationWorkflowProgress>(update => GenerationPanelControl.Status = update.Message);
 
         try
         {
@@ -3454,18 +3369,18 @@ public partial class MainWindow : Window, IDisposable
                     projectLocation,
                     projectName,
                     provider.Capabilities.DisplayName);
-                GenerationStatusText.Text = "Generation submitted. Follow its progress in the Jobs tab.";
+                GenerationPanelControl.Status = "Generation submitted. Follow its progress in the Jobs tab.";
                 StatusText.Text = $"Generation accepted by {provider.Capabilities.DisplayName}.";
             }
             else
             {
-                GenerationStatusText.Text = FormatGenerationOutcome(generation);
+                GenerationPanelControl.Status = FormatGenerationOutcome(generation);
                 StatusText.Text = $"Generation state: {generation.Status}; ingestion: {generation.IngestionStatus}.";
             }
         }
         catch (GenerationValidationException exception)
         {
-            GenerationStatusText.Text = exception.Message;
+            GenerationPanelControl.Status = exception.Message;
         }
         catch (Exception exception)
         {
@@ -3473,7 +3388,7 @@ public partial class MainWindow : Window, IDisposable
         }
         finally
         {
-            GenerateButton.IsEnabled = true;
+            GenerationPanelControl.IsSubmissionEnabled = true;
             SetProjectActionsEnabled(true);
         }
     }
@@ -3484,7 +3399,7 @@ public partial class MainWindow : Window, IDisposable
         OpenProjectButton.IsEnabled = isEnabled;
         ImportAssetsButton.IsEnabled = isEnabled;
         SettingsButton.IsEnabled = isEnabled;
-        ProviderComboBox.IsEnabled = isEnabled;
+        GenerationPanelControl.IsProviderEnabled = isEnabled;
     }
 
     private void TryAutoPreviewGeneratedOutput(GenerationRecord generation, bool owningProjectIsOpen)
@@ -3501,16 +3416,14 @@ public partial class MainWindow : Window, IDisposable
         ProjectMediaPanelControl.SelectedItem = _assets.FirstOrDefault(item => item.Asset?.Id == outputId);
     }
 
-    private async void PrepareDerivedDraft_Click(object sender, RoutedEventArgs e)
+    private async void GenerationPanel_DerivedDraftRequested(object? sender, DerivedDraftRequestedEventArgs e)
     {
         if (GenerationsList.SelectedItem is not GenerationRecord source)
         {
-            GenerationStatusText.Text = "Select a generation in history before creating a derived draft.";
+            GenerationPanelControl.Status = "Select a generation in history before creating a derived draft.";
             return;
         }
-        if (sender is not Button { Tag: string relationshipName } ||
-            !Enum.TryParse<GenerationRelationshipType>(relationshipName, out var relationship))
-            return;
+        var relationship = e.RelationshipType;
 
         if (relationship is GenerationRelationshipType.ContinueAfter or GenerationRelationshipType.ContinueBefore)
         {
@@ -3521,7 +3434,7 @@ public partial class MainWindow : Window, IDisposable
         var draft = GenerationWorkflow.CreateDerivedDraft(source, relationship);
         LoadDraftIntoUi(draft);
         await _generationWorkflow.SaveDraftAsync(draft);
-        GenerationStatusText.Text =
+        GenerationPanelControl.Status =
             $"Drafted {relationship} from generation {source.Id}. Review it, then use the submission button.";
     }
 
@@ -3537,7 +3450,7 @@ public partial class MainWindow : Window, IDisposable
             .ToArray();
         if (outputs.Length == 0)
         {
-            GenerationStatusText.Text = "This generation has no durable video output to continue from.";
+            GenerationPanelControl.Status = "This generation has no durable video output to continue from.";
             return;
         }
 
@@ -3656,7 +3569,7 @@ public partial class MainWindow : Window, IDisposable
         await _generationWorkflow.SaveDraftAsync(draft);
         if (_frameSourceAssetId == sourceAsset.Id) await RefreshSavedFramesAsync(CancellationToken.None);
         RightPanelTabs.SelectedIndex = 1;
-        GenerationStatusText.Text = parentGeneration is null
+        GenerationPanelControl.Status = parentGeneration is null
             ? "Continuation draft created from imported media. No generation parent was invented."
             : $"Drafted {relationship} from generation {parentGeneration.Id}. Review the exact Saved Frame reference before submitting.";
     }
@@ -3688,7 +3601,7 @@ public partial class MainWindow : Window, IDisposable
         throw new InvalidOperationException($"{provider.Capabilities.DisplayName} does not support a continuation-compatible image reference mode.");
     }
 
-    private async void ClearLineage_Click(object sender, RoutedEventArgs e)
+    private async void GenerationPanel_NewRootRequested(object? sender, EventArgs e)
     {
         if (!EnsureProjectOpen()) return;
         var draft = CaptureDraftFromUi();
@@ -3696,53 +3609,37 @@ public partial class MainWindow : Window, IDisposable
         draft.RelationshipType = null;
         LoadDraftIntoUi(draft);
         await _generationWorkflow.SaveDraftAsync(draft);
-        GenerationStatusText.Text = "Started a new root generation draft.";
+        GenerationPanelControl.Status = "Started a new root generation draft.";
     }
 
     private GenerationDraft CaptureDraftFromUi()
     {
-        var mode = (GenerationMode)(ModeComboBox.SelectedItem ?? GenerationMode.TextToVideo);
-        List<GenerationReferenceDraft> selectedReferences = mode == GenerationMode.TextToVideo
-            ? []
-            : _referenceChoices
-                .Where(choice => choice.IsSelected)
-                .OrderBy(choice => choice.Order)
-                .Select(choice => new GenerationReferenceDraft
-                {
-                    ReferenceId = choice.ReferenceId,
-                    ObjectKind = choice.ObjectKind,
-                    LogicalObjectId = choice.LogicalObjectId,
-                    AnchorRevisionId = choice.AnchorRevisionId,
-                    Role = choice.Role,
-                    Order = choice.Order,
-                    Label = NullIfWhiteSpace(choice.Label),
-                    Notes = NullIfWhiteSpace(choice.Notes)
-                })
-                .ToList();
+        var state = GenerationPanelControl.CaptureState();
+        var selectedReferences = GenerationReferenceEditor.Capture(state.Mode, _referenceChoices);
         var parameters = new Dictionary<string, string>(StringComparer.Ordinal);
         if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("generate_audio"))
         {
-            parameters["generate_audio"] = (GenerateAudioCheckBox.IsChecked == true).ToString().ToLowerInvariant();
+            parameters["generate_audio"] = state.GenerateAudio.ToString().ToLowerInvariant();
         }
         else if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("generateAudio"))
         {
-            parameters["generateAudio"] = (GenerateAudioCheckBox.IsChecked == true).ToString().ToLowerInvariant();
+            parameters["generateAudio"] = state.GenerateAudio.ToString().ToLowerInvariant();
         }
         if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("watermark"))
-            parameters["watermark"] = (WatermarkCheckBox.IsChecked == true).ToString().ToLowerInvariant();
+            parameters["watermark"] = state.Watermark.ToString().ToLowerInvariant();
         if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("output_format"))
-            parameters["output_format"] = GetSelectedOutputFormat();
+            parameters["output_format"] = state.OutputFormat;
 
         var current = _workspace.Project?.CurrentGenerationDraft;
         return new GenerationDraft
         {
             ProviderId = _generationProvider.Capabilities.ProviderId,
             ModelVersion = _generationProvider.Capabilities.ModelVersion,
-            Prompt = PromptTextBox.Text,
-            Mode = mode,
-            DurationSeconds = (int)DurationSlider.Value,
-            AspectRatio = (string)(AspectRatioComboBox.SelectedItem ?? "16:9"),
-            Resolution = (string)(ResolutionComboBox.SelectedItem ?? "720p"),
+            Prompt = state.Prompt,
+            Mode = state.Mode,
+            DurationSeconds = state.DurationSeconds,
+            AspectRatio = state.AspectRatio,
+            Resolution = state.Resolution,
             References = selectedReferences,
             ProviderParameters = parameters,
             ParentGenerationId = current?.ParentGenerationId,
@@ -3758,64 +3655,27 @@ public partial class MainWindow : Window, IDisposable
         {
             var providerChoice = _providerChoices.FirstOrDefault(choice =>
                 choice.Provider.Capabilities.ProviderId == draft.ProviderId);
-            if (providerChoice is not null) ProviderComboBox.SelectedItem = providerChoice;
-            PromptTextBox.Text = draft.Prompt;
-            ModeComboBox.SelectedItem = draft.Mode;
-            DurationSlider.Value = Math.Clamp(
+            if (providerChoice is not null)
+            {
+                _generationProvider = providerChoice.Provider;
+                GenerationPanelControl.SelectProvider(providerChoice);
+                GenerationPanelControl.ConfigureProvider(_generationProvider);
+            }
+            GenerationPanelControl.LoadState(new GenerationPanelFormState(
+                draft.Prompt,
+                draft.Mode,
                 draft.DurationSeconds,
-                _generationProvider.Capabilities.MinimumDurationSeconds,
-                _generationProvider.Capabilities.MaximumDurationSeconds);
-            if (_generationProvider.Capabilities.AspectRatios.Contains(draft.AspectRatio))
-                AspectRatioComboBox.SelectedItem = draft.AspectRatio;
-            if (_generationProvider.Capabilities.Resolutions.Contains(draft.Resolution))
-                ResolutionComboBox.SelectedItem = draft.Resolution;
-            GenerateAudioCheckBox.IsChecked = ReadDraftBoolean(draft, "generate_audio", "generateAudio", true);
-            WatermarkCheckBox.IsChecked = ReadDraftBoolean(draft, "watermark", null, false);
-            SelectOutputFormat(draft.ProviderParameters.GetValueOrDefault("output_format", "mp4"));
+                draft.AspectRatio,
+                draft.Resolution,
+                ReadDraftBoolean(draft, "generate_audio", "generateAudio", true),
+                ReadDraftBoolean(draft, "watermark", null, false),
+                draft.ProviderParameters.GetValueOrDefault("output_format", "mp4")));
 
-            foreach (var group in draft.References.GroupBy(reference =>
-                         (reference.ObjectKind, reference.LogicalObjectId)))
-            {
-                var matching = _referenceChoices.Where(choice =>
-                    choice.ObjectKind == group.Key.ObjectKind &&
-                    choice.LogicalObjectId == group.Key.LogicalObjectId).ToList();
-                if (matching.Count == 0) continue;
-                while (matching.Count < group.Count())
-                {
-                    var duplicate = matching[0].Duplicate(_referenceChoices.Count);
-                    duplicate.IsSelected = false;
-                    _referenceChoices.Add(duplicate);
-                    matching.Add(duplicate);
-                }
-            }
-
-            foreach (var choice in _referenceChoices)
-            {
-                choice.IsSelected = false;
-                choice.Role = null;
-                choice.Label = null;
-                choice.Notes = null;
-            }
-            foreach (var reference in draft.References.OrderBy(item => item.Order))
-            {
-                var choice = _referenceChoices.FirstOrDefault(item =>
-                                 item.ReferenceId == reference.ReferenceId) ??
-                             _referenceChoices.FirstOrDefault(item =>
-                                 !item.IsSelected && item.ObjectKind == reference.ObjectKind &&
-                                 item.LogicalObjectId == reference.LogicalObjectId);
-                if (choice is null) continue;
-                choice.IsSelected = true;
-                choice.ReferenceId = reference.ReferenceId;
-                choice.AnchorRevisionId = reference.AnchorRevisionId ?? choice.AnchorRevisionId;
-                choice.Role = reference.Role;
-                choice.Order = reference.Order ?? choice.Order;
-                choice.Label = reference.Label;
-                choice.Notes = reference.Notes;
-            }
-            ReferenceAssetsGrid.Items.Refresh();
-            LineageText.Text = draft.ParentGenerationId is { } parent
+            GenerationReferenceEditor.ApplyDraft(draft.References, _referenceChoices);
+            GenerationPanelControl.RefreshReferences();
+            GenerationPanelControl.SetLineage(draft.ParentGenerationId is { } parent
                 ? $"{draft.RelationshipType} • parent {parent}"
-                : "New root generation";
+                : "New root generation");
         }
         finally
         {
@@ -4609,16 +4469,6 @@ public partial class MainWindow : Window, IDisposable
         UpdatePreviewAudioControls();
     }
 
-    private void DurationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (DurationText is not null)
-        {
-            DurationText.Text = $"{(int)e.NewValue}s";
-        }
-
-        ScheduleDraftAutosave();
-    }
-
     private void UpdatePlaybackPosition()
     {
         if (VideoPreview.Source is null)
@@ -4982,7 +4832,7 @@ public partial class MainWindow : Window, IDisposable
             var mediaItem = _assets.FirstOrDefault(candidate => candidate.Anchor?.Id == item.Anchor.Id);
             if (mediaItem is not null) mediaItem.Thumbnail = item.Thumbnail;
         }
-        ReferenceAssetsGrid.Items.Refresh();
+        GenerationPanelControl.RefreshReferences();
         ProjectMediaPanelControl.RefreshItems();
         SavedFramesEmptyText.Visibility = _savedFrames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         SavedFramesList.SelectedItem = selectedAnchorId is { } id
@@ -5342,7 +5192,7 @@ public partial class MainWindow : Window, IDisposable
                      choice.ObjectKind == GenerationReferenceObjectKind.FrameAnchor &&
                      choice.LogicalObjectId == item.Anchor.Id))
             choice.UpdateAnchor(item.Anchor, item.Revision, sourceName);
-        ReferenceAssetsGrid.Items.Refresh();
+        GenerationPanelControl.RefreshReferences();
         InspectorText.Text = FormatSavedFrameInspector(item);
         StatusText.Text = "Saved Frame details updated.";
     }
@@ -5438,9 +5288,9 @@ public partial class MainWindow : Window, IDisposable
         RefreshEditWorkspaceState();
 
         InspectorText.Text = "Select an asset or generation to inspect its details and history.";
-        PromptTextBox.Text = string.Empty;
-        GenerationStatusText.Text = string.Empty;
-        LineageText.Text = "New root generation";
+        GenerationPanelControl.Prompt = string.Empty;
+        GenerationPanelControl.Status = string.Empty;
+        GenerationPanelControl.SetLineage("New root generation");
         ClearMediaPreview();
     }
 
@@ -5539,17 +5389,6 @@ public partial class MainWindow : Window, IDisposable
         {
             _suppressProjectMediaSelection = false;
         }
-    }
-
-    private string GetSelectedOutputFormat() =>
-        (OutputFormatComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "mp4";
-
-    private void SelectOutputFormat(string value)
-    {
-        OutputFormatComboBox.SelectedItem = OutputFormatComboBox.Items
-            .OfType<ComboBoxItem>()
-            .FirstOrDefault(item => string.Equals(item.Content?.ToString(), value, StringComparison.OrdinalIgnoreCase))
-            ?? OutputFormatComboBox.Items[0];
     }
 
     private static bool ReadDraftBoolean(
@@ -5766,7 +5605,6 @@ public sealed class FrameContactListItem
     public string TimestampText => TimeSpan.FromSeconds(Math.Max(0, Frame.TimestampSeconds))
         .ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
 }
-
 public sealed class SavedFrameListItem
 {
     public SavedFrameListItem(
@@ -5789,7 +5627,6 @@ public sealed class SavedFrameListItem
     public string TimestampText => TimeSpan.FromSeconds(Math.Max(0, Revision.TimestampSeconds))
         .ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);
 }
-
 public sealed class CompositionSegmentListItem
 {
     public CompositionSegmentListItem(
@@ -5877,89 +5714,4 @@ public sealed class CompositionAudioClipListItem
     public string MixText { get; }
     public double? DurationSeconds { get; }
     public string DurationText { get; }
-}
-
-public sealed class GenerationReferenceChoice
-{
-    private static readonly IReadOnlyList<GenerationReferenceRole?> ReferenceRoles =
-        Enum.GetValues<GenerationReferenceRole>().Cast<GenerationReferenceRole?>().Prepend(null).ToArray();
-    private readonly IReadOnlyList<GenerationReferenceRole?> _availableRoles = ReferenceRoles;
-
-    public GenerationReferenceChoice(ProjectAsset asset, int order, BitmapSource? thumbnail = null)
-    {
-        UpdateAsset(asset, thumbnail);
-        Order = order;
-    }
-
-    public GenerationReferenceChoice(
-        FrameAnchor anchor,
-        FrameAnchorRevision revision,
-        string? sourceDisplayName,
-        int order)
-    {
-        UpdateAnchor(anchor, revision, sourceDisplayName);
-        Order = order;
-    }
-
-    public Guid ReferenceId { get; set; } = Guid.NewGuid();
-    public GenerationReferenceObjectKind ObjectKind { get; private set; }
-    public Guid LogicalObjectId { get; private set; }
-    public Guid? AnchorRevisionId { get; set; }
-    public string DisplayName { get; private set; } = string.Empty;
-    public MediaType MediaType { get; private set; }
-    public string MediaTypeText { get; private set; } = string.Empty;
-    public string Glyph { get; private set; } = "•";
-    public BitmapSource? Thumbnail { get; private set; }
-    public bool HasThumbnail => Thumbnail is not null;
-    public IReadOnlyList<GenerationReferenceRole?> AvailableRoles => _availableRoles;
-    public bool IsSelected { get; set; }
-    public GenerationReferenceRole? Role { get; set; }
-    public int Order { get; set; }
-    public string? Label { get; set; }
-    public string? Notes { get; set; }
-
-    public void UpdateAsset(ProjectAsset asset, BitmapSource? thumbnail = null)
-    {
-        ObjectKind = GenerationReferenceObjectKind.Asset;
-        LogicalObjectId = asset.Id;
-        AnchorRevisionId = null;
-        DisplayName = asset.EffectiveDisplayName;
-        MediaType = asset.MediaType;
-        MediaTypeText = asset.Virtual?.Kind == VirtualAssetKind.SavedClip
-            ? "Saved Clip • Video"
-            : asset.MediaType.ToString();
-        Glyph = asset.Virtual?.Kind == VirtualAssetKind.SavedClip
-            ? "✂"
-            : asset.MediaType switch
-            {
-                MediaType.Video => "▶",
-                MediaType.Image => "▧",
-                MediaType.Audio => "♪",
-                _ => "•"
-            };
-        if (thumbnail is not null) Thumbnail = thumbnail;
-    }
-
-    public void UpdateAnchor(FrameAnchor anchor, FrameAnchorRevision revision, string? sourceDisplayName)
-    {
-        ObjectKind = GenerationReferenceObjectKind.FrameAnchor;
-        LogicalObjectId = anchor.Id;
-        AnchorRevisionId = revision.Id;
-        DisplayName = $"Saved Frame • {anchor.DisplayLabel ?? "Untitled"}" +
-                      (string.IsNullOrWhiteSpace(sourceDisplayName) ? string.Empty : $" ({sourceDisplayName})");
-        MediaType = MediaType.Image;
-        MediaTypeText = "Saved Frame • Image";
-        Glyph = "▣";
-    }
-
-    public void UpdateThumbnail(BitmapSource? thumbnail) => Thumbnail = thumbnail;
-
-    public GenerationReferenceChoice Duplicate(int order)
-    {
-        var duplicate = (GenerationReferenceChoice)MemberwiseClone();
-        duplicate.ReferenceId = Guid.NewGuid();
-        duplicate.Order = order;
-        duplicate.IsSelected = true;
-        return duplicate;
-    }
 }

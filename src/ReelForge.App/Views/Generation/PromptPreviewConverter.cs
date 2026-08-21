@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
 
-namespace ReelForge.App;
+namespace ReelForge.App.Views.Generation;
 
 public sealed class PromptPreviewConverter : IValueConverter
 {

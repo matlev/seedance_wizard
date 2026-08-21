@@ -1,0 +1,209 @@
+<UserControl x:Class="ReelForge.App.Views.Generation.GenerationPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="12">
+            <TextBlock Text="GENERATION PROVIDER" FontWeight="SemiBold"
+                       Foreground="{DynamicResource MutedTextBrush}" />
+            <ComboBox x:Name="ProviderComboBox" DisplayMemberPath="DisplayName" Margin="0,5,0,0"
+                      SelectionChanged="ProviderComboBox_SelectionChanged" />
+            <TextBlock x:Name="ProviderText" Foreground="{DynamicResource TextBrush}"
+                       FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,12" />
+
+            <DockPanel Margin="0,0,0,4">
+                <Button DockPanel.Dock="Right" Width="27" Height="25" Padding="5" Margin="0"
+                        ToolTip="Expand the prompt text area" Click="ExpandPrompt_Click"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                    <Path Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5"
+                          StrokeStartLineCap="Square" StrokeEndLineCap="Square"
+                          Data="M 1,6 L1,1 L6,1 M10,1 L15,1 L15,6 M15,10 L15,15 L10,15 M6,15 L1,15 L1,10" />
+                </Button>
+                <TextBlock Text="Prompt" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+            </DockPanel>
+            <TextBox x:Name="PromptTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="110"
+                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                     TextChanged="DraftControl_Changed" />
+
+            <TextBlock Text="Mode" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"
+                       Margin="0,12,0,4" />
+            <ComboBox x:Name="ModeComboBox" SelectionChanged="ModeComboBox_SelectionChanged" />
+
+            <TextBlock Text="Duration" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"
+                       Margin="0,12,0,4" />
+            <DockPanel>
+                <TextBlock x:Name="DurationText" Foreground="{DynamicResource TextBrush}"
+                           FontWeight="SemiBold" DockPanel.Dock="Right" Width="40"
+                           TextAlignment="Right" VerticalAlignment="Center" />
+                <Slider x:Name="DurationSlider" IsSnapToTickEnabled="True" TickFrequency="1"
+                        ValueChanged="DurationSlider_ValueChanged" />
+            </DockPanel>
+
+            <TextBlock Text="Aspect ratio" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"
+                       Margin="0,12,0,4" />
+            <ComboBox x:Name="AspectRatioComboBox" SelectionChanged="DraftControl_Changed" />
+
+            <TextBlock Text="Resolution" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"
+                       Margin="0,12,0,4" />
+            <ComboBox x:Name="ResolutionComboBox" SelectionChanged="DraftControl_Changed" />
+
+            <TextBlock x:Name="OutputSettingsHeading" Text="Output settings"
+                       Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,12,0,4" />
+            <WrapPanel x:Name="AudioAndWatermarkPanel">
+                <CheckBox x:Name="GenerateAudioCheckBox" Content="Generate audio" IsChecked="True"
+                          Checked="DraftControl_Changed" Unchecked="DraftControl_Changed" Margin="0,0,12,0" />
+                <CheckBox x:Name="WatermarkCheckBox" Content="Add provider watermark"
+                          ToolTip="The provider controls the watermark design. These APIs do not accept custom watermark text."
+                          Checked="DraftControl_Changed" Unchecked="DraftControl_Changed" />
+            </WrapPanel>
+            <TextBlock x:Name="WatermarkHelpText"
+                       Text="The provider controls the watermark design; custom watermark text is not supported."
+                       TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                       Foreground="{DynamicResource MutedTextBrush}" />
+            <WrapPanel x:Name="OutputFormatPanel" Margin="0,5,0,0">
+                <TextBlock Text="Format" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox x:Name="OutputFormatComboBox" Width="90" SelectionChanged="DraftControl_Changed">
+                    <ComboBoxItem Content="mp4" IsSelected="True" />
+                    <ComboBoxItem Content="mov" />
+                </ComboBox>
+            </WrapPanel>
+
+            <DockPanel Margin="0,12,0,4">
+                <Button DockPanel.Dock="Right" Content="Add another occurrence"
+                        Click="DuplicateReferenceOccurrence_Click" Padding="7,3"
+                        ToolTip="Use the selected reference more than once with a different role or order" />
+                <TextBlock Text="References" Foreground="{DynamicResource TextBrush}"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+            <TextBlock x:Name="ReferenceAssetsHelpText"
+                       Text="Select physical assets or Saved Frames. Role, order, label, notes, and the exact Saved Frame revision are frozen into history."
+                       TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" />
+            <DataGrid x:Name="ReferenceAssetsGrid" Height="175" Margin="0,4,0,0" AutoGenerateColumns="False"
+                      CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column"
+                      CellEditEnding="ReferenceAssetsGrid_CellEditEnding" SelectionUnit="FullRow"
+                      SelectionChanged="ReferenceAssetsGrid_SelectionChanged"
+                      RowHeight="34" CanUserSortColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Use" Width="46">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Click="ReferenceChoiceChanged" ToolTip="Include this asset as a reference" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Reference" Width="210" IsReadOnly="True">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid Margin="3,1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="28" Height="25" Background="#0B0D12"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                        <Grid>
+                                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                            <TextBlock x:Name="ReferenceGlyph" Text="{Binding Glyph}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource MutedTextBrush}" FontSize="14" />
+                                        </Grid>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
+                                        <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding MediaTypeText}" FontSize="10"
+                                                   Foreground="{DynamicResource MutedTextBrush}" />
+                                    </StackPanel>
+                                    <Grid.ToolTip>
+                                        <ToolTip Placement="Mouse" MaxWidth="290"
+                                                 Background="{DynamicResource PanelRaisedBrush}"
+                                                 Foreground="{DynamicResource TextBrush}"
+                                                 BorderBrush="{DynamicResource BorderBrush}">
+                                            <StackPanel>
+                                                <Border Width="250" Height="140" Background="#050609"
+                                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                                    <Grid>
+                                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                                        <TextBlock x:Name="ReferencePreviewGlyph" Text="{Binding Glyph}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   FontSize="36" Foreground="{DynamicResource MutedTextBrush}" />
+                                                    </Grid>
+                                                </Border>
+                                                <TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap"
+                                                           FontWeight="SemiBold" Margin="0,7,0,0" />
+                                                <TextBlock Text="{Binding MediaTypeText}"
+                                                           Foreground="{DynamicResource MutedTextBrush}" />
+                                                <TextBlock Text="Click the row to show this reference in the viewer."
+                                                           FontSize="10" Foreground="{DynamicResource MutedTextBrush}"
+                                                           Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </ToolTip>
+                                    </Grid.ToolTip>
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                        <Setter TargetName="ReferenceGlyph" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="ReferencePreviewGlyph" Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Role" Width="125">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <ComboBox ItemsSource="{Binding AvailableRoles}"
+                                          SelectedItem="{Binding Role, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectionChanged="ReferenceChoiceChanged" Margin="2" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Order" Width="58">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Order, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         LostKeyboardFocus="ReferenceChoiceChanged" Margin="2" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Label" Width="120">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         LostKeyboardFocus="ReferenceChoiceChanged" Margin="2" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Notes" Width="180">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Notes, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         LostKeyboardFocus="ReferenceChoiceChanged" Margin="2" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock x:Name="LineageText" Text="New root generation" TextWrapping="Wrap" Margin="0,9,0,0"
+                       Foreground="{DynamicResource MutedTextBrush}" />
+            <WrapPanel Margin="0,6,0,0">
+                <Button Content="New root draft" Click="NewRoot_Click" Margin="0,0,5,5" />
+                <Button Content="Draft retry" Tag="RetryOf" Click="DerivedDraft_Click" Margin="0,0,5,5" />
+                <Button Content="Duplicate / variant" Tag="VariantOf" Click="DerivedDraft_Click" Margin="0,0,5,5" />
+                <Button Content="Branch / based on" Tag="BasedOn" Click="DerivedDraft_Click" Margin="0,0,5,5" />
+                <Button Content="Continue after" Tag="ContinueAfter" Click="DerivedDraft_Click" Margin="0,0,5,5" />
+                <Button Content="Continue before" Tag="ContinueBefore" Click="DerivedDraft_Click" Margin="0,0,5,5" />
+            </WrapPanel>
+
+            <Button x:Name="GenerateButton" Content="Run fake generation" Click="Submit_Click"
+                    Background="{DynamicResource AccentBrush}" Foreground="White" Margin="0,14,0,0" />
+            <TextBlock x:Name="GenerationStatusText" TextWrapping="Wrap"
+                       Foreground="{DynamicResource MutedTextBrush}" Margin="3,8" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

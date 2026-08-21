@@ -1,6 +1,6 @@
 using ReelForge.Application;
 
-namespace ReelForge.App;
+namespace ReelForge.App.Views.Generation;
 
 public sealed class GenerationProviderChoice
 {
