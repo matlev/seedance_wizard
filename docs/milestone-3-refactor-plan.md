@@ -2,6 +2,8 @@
 
 Status: approved and in execution
 
+The audited remaining target and ordered execution contract after Stages 0–5 and the completed Stage 6 slices is recorded in [Milestone 3 remaining architecture and migration plan](milestone-3-remaining-plan.md).
+
 Review baseline: 2026-08-20, branch `milestone-2`, after Milestone 2 completion
 
 ## Executive conclusion

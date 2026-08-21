@@ -10,7 +10,7 @@ Timeline-foundation completion: 2026-08-20
 
 This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, exact physical- and virtual-video frame materialization, recursive virtual-recipe rendering, compatible/normalized composition rendering, and the Milestone 2 composition/timeline foundation are implemented. The next gate is a repository-wide architecture review and approved Milestone 3 structural-refactor plan before a broader editor-feature program.
 
-The completed repository audit and proposed staged target are recorded in [Milestone 3 architecture review and refactor plan](milestone-3-refactor-plan.md). That proposal preserves the current four-layer direction, adds a justified Windows platform boundary, decomposes by feature and responsibility, and keeps the refactor behavior-preserving.
+The completed repository audit and proposed staged target are recorded in [Milestone 3 architecture review and refactor plan](milestone-3-refactor-plan.md). The remaining execution contract after the completed backend stages and first WPF extractions is recorded in [Milestone 3 remaining architecture and migration plan](milestone-3-remaining-plan.md). Together they preserve the current four-layer direction, the justified Windows platform boundary, feature ownership, and behavior-preserving migration order.
 
 ## Architectural direction
 
