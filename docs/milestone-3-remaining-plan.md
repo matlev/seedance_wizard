@@ -101,7 +101,7 @@ Each unit is independently buildable, testable, commit-sized, and reviewed befor
 
 ### Unit 1 — decompose Working Composition editing
 
-Status: implementation and automated verification complete; human smoke acceptance pending.
+Status: complete. Implementation, automated verification, deep review, and human smoke acceptance passed.
 
 Write set: `ReelForge.Application/Editing/Composition/**`, existing composition services/facade, and focused composition tests.
 
@@ -123,7 +123,7 @@ Move indexing, cancellation, progressive contact-window refresh, keyboard naviga
 
 Write set: a focused App coordinator, Project Media shell wiring, and file-operation tests.
 
-Move rename/export/extract/delete/move/copy/import policy and dialogs behind typed outcomes. Keep cross-feature selection routing explicit. Human smoke: every Project Media kind, dependency-protected deletion, physical rename, copy/move between projects, audio extraction, and drag import.
+Move rename/export/extract/delete/move/copy/import policy and dialogs behind typed outcomes. Keep cross-feature selection routing explicit. Preserve the planned presentation enhancement allowing each Project Media group (Videos, Audio, Saved Frames, Saved Clips, and Compositions) to be independently collapsed or expanded without changing project-domain state. Human smoke: every Project Media kind, group collapse/expand behavior, dependency-protected deletion, physical rename, copy/move between projects, audio extraction, and drag import.
 
 ### Unit 5 — extract generation workspace orchestration
 
