@@ -16,4 +16,18 @@ Automated tests remain network-isolated and must never submit a paid provider re
 | Settings and platform integration | Change settings rapidly, configure/browse/auto-detect each media tool, update/remove a credential, change log/cache locations, and restart. | Atomic settings remain readable; platform defaults and overrides resolve correctly; credentials never appear in JSON/logs; configuration survives restart. |
 | Cache and diagnostics | Hold one derived item in use while producing enough media to trigger eviction; inspect the configured verbose log. | Active leases are not evicted; disposable entries can rebuild; diagnostics identify failures without exposing credentials. |
 
+## Deferred known bugs
+
+### Baked composition playback is not restored after restart
+
+Reproduction:
+
+1. Bake a Working Composition and play the baked result.
+2. Close ReelForge and reopen it.
+3. Play the same composition without baking it again.
+
+Current behavior: ReelForge starts the fast composition audition instead of reopening the existing baked composition representation. The user must bake the composition again to play the non-audition version.
+
+Expected behavior: when the unchanged composition still has a valid baked representation, reopening the project should make that representation available for normal composition playback without requiring another bake. This issue is recorded for later correction and is intentionally outside the current behavior-preserving refactor slice.
+
 The Windows shell remains the current manual presentation target. Screenshot-perfect automation is not required; extracted presenter/state logic should carry deterministic tests as it is introduced.
