@@ -98,10 +98,7 @@ public sealed class PhysicalAssetMaterializer : IMediaMaterializer
         if (asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
             throw new InvalidOperationException("Materialization requires a durable physical source asset.");
 
-        var root = Path.GetFullPath(location.RootDirectory + Path.DirectorySeparatorChar);
-        var path = Path.GetFullPath(Path.Combine(location.RootDirectory, asset.Physical.RelativePath));
-        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("The physical asset path escapes the project directory.");
+        var path = ProjectPathPolicy.ResolveContainedPath(location, asset.Physical.RelativePath);
         if (!File.Exists(path))
         {
             asset.Physical.Availability = PhysicalAssetAvailability.Missing;

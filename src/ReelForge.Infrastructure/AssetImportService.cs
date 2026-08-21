@@ -85,9 +85,7 @@ public sealed class AssetImportService : IAssetImportService
                 CreatedAt = DateTimeOffset.UtcNow,
                 Physical = new PhysicalAssetStorage
                 {
-                    RelativePath = Path
-                        .GetRelativePath(location.RootDirectory, destinationPath)
-                        .Replace(Path.DirectorySeparatorChar, '/'),
+                    RelativePath = ProjectPathPolicy.GetRelativePath(location, destinationPath),
                     Durability = PhysicalAssetDurability.Source,
                     ContentIdentity = contentIdentity,
                     Availability = PhysicalAssetAvailability.Available

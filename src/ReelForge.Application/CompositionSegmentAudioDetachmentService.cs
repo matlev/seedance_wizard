@@ -105,8 +105,7 @@ public sealed class CompositionSegmentAudioDetachmentService
                 },
                 Physical = new PhysicalAssetStorage
                 {
-                    RelativePath = Path.GetRelativePath(location.RootDirectory, finalPath)
-                        .Replace(Path.DirectorySeparatorChar, '/'),
+                    RelativePath = ProjectPathPolicy.GetRelativePath(location, finalPath),
                     Durability = PhysicalAssetDurability.Promoted,
                     ContentIdentity = identity,
                     Availability = PhysicalAssetAvailability.Available

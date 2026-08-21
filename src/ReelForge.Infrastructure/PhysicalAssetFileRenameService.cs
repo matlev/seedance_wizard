@@ -48,9 +48,7 @@ public sealed class PhysicalAssetFileRenameService
         {
             asset.FileName = validatedFileName;
             asset.DisplayName = validatedFileName;
-            asset.Physical.RelativePath = Path
-                .GetRelativePath(workspace.Location.RootDirectory, targetPath)
-                .Replace(Path.DirectorySeparatorChar, '/');
+            asset.Physical.RelativePath = ProjectPathPolicy.GetRelativePath(workspace.Location, targetPath);
             await workspace.SaveAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception saveException)

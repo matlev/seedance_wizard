@@ -64,7 +64,7 @@ public sealed class ProjectWorkspace
             throw new InvalidOperationException(
                 $"Virtual asset '{asset.Id}' must be materialized before a path is requested.");
 
-        return Path.GetFullPath(Path.Combine(Location!.RootDirectory, asset.Physical.RelativePath));
+        return ProjectPathPolicy.ResolveContainedPath(Location!, asset.Physical.RelativePath);
     }
 
     private void EnsureProjectIsOpen()

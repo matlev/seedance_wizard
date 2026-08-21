@@ -114,7 +114,7 @@ public sealed class HttpGeneratedOutputIngestionService : IGeneratedOutputIngest
         },
         Physical = new PhysicalAssetStorage
         {
-            RelativePath = Path.GetRelativePath(location.RootDirectory, path).Replace(Path.DirectorySeparatorChar, '/'),
+            RelativePath = ProjectPathPolicy.GetRelativePath(location, path),
             Durability = PhysicalAssetDurability.Generated,
             ContentIdentity = identity,
             Availability = PhysicalAssetAvailability.Available

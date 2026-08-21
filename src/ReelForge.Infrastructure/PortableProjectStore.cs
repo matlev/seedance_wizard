@@ -86,7 +86,7 @@ public sealed class PortableProjectStore : IProjectStore
         var dto = JsonSerializer.Deserialize<ProjectFileDto>(json, SerializerOptions)
             ?? throw new InvalidDataException("The project file did not contain a valid ReelForge project.");
         var project = ProjectPersistenceMapper.FromDto(dto);
-        RefreshPhysicalAvailability(project, root);
+        RefreshPhysicalAvailability(project, new ProjectLocation(root, fullPath));
         ProjectInvariantValidator.ThrowIfInvalid(project);
         return (project, new ProjectLocation(root, fullPath));
     }
@@ -128,13 +128,13 @@ public sealed class PortableProjectStore : IProjectStore
         }
     }
 
-    private static void RefreshPhysicalAvailability(VideoProject project, string rootDirectory)
+    private static void RefreshPhysicalAvailability(VideoProject project, ProjectLocation location)
     {
         foreach (var asset in project.Assets.Where(asset => asset.StorageKind == AssetStorageKind.Physical && asset.Physical is not null))
         {
-            var candidate = Path.GetFullPath(Path.Combine(rootDirectory, asset.Physical!.RelativePath));
-            var root = Path.GetFullPath(rootDirectory + Path.DirectorySeparatorChar);
-            asset.Physical.Availability = candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(candidate)
+            asset.Physical!.Availability =
+                ProjectPathPolicy.TryResolveContainedPath(location, asset.Physical.RelativePath, out var candidate) &&
+                File.Exists(candidate)
                 ? PhysicalAssetAvailability.Available
                 : PhysicalAssetAvailability.Missing;
         }
