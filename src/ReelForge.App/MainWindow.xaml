@@ -176,19 +176,15 @@
                 </Grid.RowDefinitions>
 
                 <mediaPreview:MediaPreviewPanel x:Name="MediaPreviewPanelControl" Grid.Row="0"
-                                                VideoOpened="VideoPreview_MediaOpened"
-                                                VideoEnded="VideoPreview_MediaEnded"
-                                                AuditionAudioOpened="CompositionAuditionAudio_MediaOpened"
+                                                VideoReady="MediaPreview_VideoReady"
+                                                PlaybackEnded="MediaPreview_PlaybackEnded"
                                                 AuditionAudioFailed="CompositionAuditionAudio_MediaFailed"
                                                 PlaybackRequested="Playback_Click"
                                                 PreviousFrameRequested="PreviousFrame_Click"
                                                 NextFrameRequested="NextFrame_Click"
-                                                ScrubStarted="PositionSlider_PreviewMouseLeftButtonDown"
-                                                ScrubMoved="PositionSlider_PreviewMouseMove"
-                                                ScrubCompleted="PositionSlider_PreviewMouseLeftButtonUp"
-                                                PositionChanged="PositionSlider_ValueChanged"
-                                                VolumeChanged="VolumeSlider_ValueChanged"
-                                                MuteRequested="Mute_Click" />
+                                                ScrubPositionChanged="MediaPreview_ScrubPositionChanged"
+                                                ScrubCompleted="MediaPreview_ScrubCompleted"
+                                                PositionTick="MediaPreview_PositionTick" />
 
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" />
 
