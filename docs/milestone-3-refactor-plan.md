@@ -1,6 +1,6 @@
 # Milestone 3 architecture review and refactor plan
 
-Status: proposed execution plan; planning only until reviewed and approved
+Status: approved and in execution
 
 Review baseline: 2026-08-20, branch `milestone-2`, after Milestone 2 completion
 
