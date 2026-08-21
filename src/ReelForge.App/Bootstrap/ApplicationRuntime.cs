@@ -1,3 +1,4 @@
+using System.Net.Http;
 using ReelForge.Application;
 using ReelForge.Infrastructure;
 using ReelForge.Platform.Windows;
@@ -18,7 +19,7 @@ internal sealed class ApplicationRuntime : IDisposable
     private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
     private bool _disposed;
 
-    private ApplicationRuntime(IGenerationJobFinalizer generationJobFinalizer)
+    private ApplicationRuntime()
     {
         Paths = new WindowsApplicationPathProvider().GetPaths();
         MediaToolDiscovery = new MediaToolDiscovery();
@@ -54,6 +55,7 @@ internal sealed class ApplicationRuntime : IDisposable
         _r2HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _downloadHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         OutputIngestion = new HttpGeneratedOutputIngestionService(_downloadHttpClient, MediaInspector);
+        JobFinalizer = new GenerationJobFinalizer(Workspace, ProjectStore, OutputIngestion);
         TemporaryAssetHost = new CloudflareR2TemporaryAssetHost(
             ApplicationSettingsStore,
             SecretStore,
@@ -62,11 +64,10 @@ internal sealed class ApplicationRuntime : IDisposable
         JobCoordinator = new GenerationJobCoordinator(
             new JsonGenerationJobStore(Paths.ActiveGenerationJobsFilePath),
             ResolveAsyncProvider,
-            generationJobFinalizer);
+            JobFinalizer);
     }
 
-    public static ApplicationRuntime Create(IGenerationJobFinalizer generationJobFinalizer) =>
-        new(generationJobFinalizer);
+    public static ApplicationRuntime Create() => new();
 
     public ApplicationPaths Paths { get; }
     public IMediaToolDiscovery MediaToolDiscovery { get; }
@@ -83,6 +84,7 @@ internal sealed class ApplicationRuntime : IDisposable
     public RecipeMediaMaterializer MediaMaterializer { get; }
     public FfmpegAudioExtractionEngine AudioExtractionEngine { get; }
     public IGeneratedOutputIngestionService OutputIngestion { get; }
+    public GenerationJobFinalizer JobFinalizer { get; }
     public ISecretStore SecretStore { get; }
     public FileApplicationDiagnosticLog DiagnosticLog { get; }
     public ITemporaryAssetHost TemporaryAssetHost { get; }
@@ -188,7 +190,7 @@ internal sealed class ApplicationRuntime : IDisposable
         return settings;
     }
 
-    private HttpClient CreateProviderHttpClient(string baseUrl, string providerName) => new()
+    private static HttpClient CreateProviderHttpClient(string baseUrl, string providerName) => new()
     {
         BaseAddress = RequireHttpsBaseUri(baseUrl, providerName),
         Timeout = TimeSpan.FromMinutes(10)

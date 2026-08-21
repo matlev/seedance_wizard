@@ -24,7 +24,7 @@ namespace ReelForge.App;
 
 internal enum MediaPreparationMode { None, SelectFrame, MakeClip }
 
-public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
+public partial class MainWindow : Window, IDisposable
 {
     private sealed record TimelineStickyContent(
         FrameworkElement Element,
@@ -64,7 +64,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ExactVideoFrameService _exactFrameService;
     private readonly RecipeMediaMaterializer _mediaMaterializer;
     private readonly FfmpegAudioExtractionEngine _audioExtractionEngine;
-    private readonly IGeneratedOutputIngestionService _outputIngestion;
     private GenerationWorkflow _generationWorkflow = null!;
     private IProviderAssetPreparationService? _providerPreparation;
     private readonly ISecretStore _secretStore;
@@ -170,7 +169,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         InitializeComponent();
         _activeJobSpriteFrames = LoadActiveJobSpriteFrames();
 
-        _runtime = ApplicationRuntime.Create(this);
+        _runtime = ApplicationRuntime.Create();
         _mediaToolDiscovery = _runtime.MediaToolDiscovery;
         _applicationSettingsStore = _runtime.ApplicationSettingsStore;
         _recentProjectTracker = _runtime.RecentProjectTracker;
@@ -185,11 +184,11 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _assetTransferService = _runtime.AssetTransferService;
         _secretStore = _runtime.SecretStore;
         _diagnosticLog = _runtime.DiagnosticLog;
-        _outputIngestion = _runtime.OutputIngestion;
         _temporaryAssetHost = _runtime.TemporaryAssetHost;
         _generationProvider = new FakeVideoGenerationProvider();
         RefreshProviderRuntime(preferredProviderId: null);
         _jobCoordinator = _runtime.JobCoordinator;
+        _runtime.JobFinalizer.Finalized += JobFinalizer_Finalized;
         _jobCoordinator.JobsChanged += JobCoordinator_JobsChanged;
         _jobCoordinator.JobStatusChanged += JobCoordinator_JobStatusChanged;
 
@@ -248,6 +247,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _disposed = true;
         _jobCoordinator.JobsChanged -= JobCoordinator_JobsChanged;
         _jobCoordinator.JobStatusChanged -= JobCoordinator_JobStatusChanged;
+        _runtime.JobFinalizer.Finalized -= JobFinalizer_Finalized;
         _jobElapsedTimer.Stop();
         _frameBrowserDebounceTimer.Stop();
         _compositionTimelineDragAutoScrollTimer.Stop();
@@ -351,6 +351,22 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 JobsActivityIndicator.ToolTip =
                     $"{e.ProjectName}: job status changed from {e.PreviousStatus} to {e.CurrentStatus}.";
             }
+        }, DispatcherPriority.Background);
+    }
+
+    private void JobFinalizer_Finalized(object? sender, GenerationJobFinalizedEventArgs e)
+    {
+        if (_disposed || Dispatcher.HasShutdownStarted || !e.ActiveProjectUpdated) return;
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            var generation = _workspace.Project?.Generations.SingleOrDefault(candidate =>
+                candidate.Id == e.GenerationId);
+            if (generation is null) return;
+            RefreshProjectCollections();
+            TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
+            StatusText.Text = e.Status == GenerationStatus.Succeeded
+                ? "Generated output added as durable project media."
+                : $"Generation finished with status {e.Status}.";
         }, DispatcherPriority.Background);
     }
 
@@ -559,87 +575,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             frame.Freeze();
             return (BitmapSource)frame;
         }).ToArray();
-    }
-
-    public Task FinalizeAsync(TrackedGenerationJob job, CancellationToken cancellationToken = default)
-    {
-        if (Dispatcher.CheckAccess()) return FinalizeJobOnUiAsync(job, cancellationToken);
-        return Dispatcher.InvokeAsync(() => FinalizeJobOnUiAsync(job, cancellationToken)).Task.Unwrap();
-    }
-
-    private async Task FinalizeJobOnUiAsync(TrackedGenerationJob job, CancellationToken cancellationToken)
-    {
-        var activeLocation = _workspace.Location;
-        var isActiveProject = activeLocation is not null &&
-                              Path.GetFullPath(activeLocation.ProjectFilePath)
-                                  .Equals(Path.GetFullPath(job.ProjectFilePath), StringComparison.OrdinalIgnoreCase);
-
-        VideoProject project;
-        ProjectLocation location;
-        if (isActiveProject)
-        {
-            project = _workspace.Project
-                ?? throw new InvalidOperationException("The active project could not be loaded for job completion.");
-            location = activeLocation!;
-        }
-        else
-        {
-            (project, location) = await _projectStore.OpenAsync(job.ProjectFilePath, cancellationToken);
-        }
-
-        var generation = project.Generations.SingleOrDefault(candidate => candidate.Id == job.GenerationId)
-            ?? throw new InvalidOperationException("The generation record no longer exists in its project.");
-        generation.Status = job.Status;
-        generation.Error = job.Error;
-        foreach (var pair in job.ResponseMetadata) generation.ResponseMetadata[pair.Key] = pair.Value;
-        generation.ResponseMetadata["localMonitoring"] = "application-job-coordinator";
-
-        if (job.Status is GenerationStatus.Failed or GenerationStatus.Cancelled)
-        {
-            generation.CompletedAt = DateTimeOffset.UtcNow;
-            await _projectStore.SaveAsync(project, location, CancellationToken.None);
-        }
-        else if (job.Status == GenerationStatus.Succeeded &&
-                 generation.IngestionStatus != OutputIngestionStatus.Succeeded)
-        {
-            generation.CompletedAt = DateTimeOffset.UtcNow;
-            generation.IngestionStatus = OutputIngestionStatus.Running;
-            await _projectStore.SaveAsync(project, location, CancellationToken.None);
-            try
-            {
-                var assets = await _outputIngestion
-                    .IngestAsync(location, generation.Id, job.Outputs, cancellationToken);
-                foreach (var asset in assets)
-                {
-                    project.AddAsset(asset);
-                    generation.OutputAssetIds.Add(asset.Id);
-                }
-                generation.IngestionStatus = OutputIngestionStatus.Succeeded;
-                generation.Error = null;
-                await _projectStore.SaveAsync(project, location, CancellationToken.None);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                generation.IngestionStatus = OutputIngestionStatus.Failed;
-                generation.Error = new GenerationError
-                {
-                    ProviderCode = "local_ingestion_failed",
-                    Message = exception.Message,
-                    TechnicalDetails = exception.ToString()
-                };
-                await _projectStore.SaveAsync(project, location, CancellationToken.None);
-                throw;
-            }
-        }
-
-        if (isActiveProject)
-        {
-            RefreshProjectCollections();
-            TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
-            StatusText.Text = job.Status == GenerationStatus.Succeeded
-                ? "Generated output added as durable project media."
-                : $"Generation finished with status {job.Status}.";
-        }
     }
 
     private async void Settings_Click(object sender, RoutedEventArgs e)
