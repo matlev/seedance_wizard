@@ -158,10 +158,21 @@ public partial class MainWindow : Window, IDisposable
     private bool _disposed;
     private bool _isMediaImportInProgress;
 
+    // Transitional compatibility surface while transport policy moves into MediaPreviewPanel.
+    private MediaElement VideoPreview => MediaPreviewPanelControl.VideoElement;
+    private Border PlaybackControlsBorder => MediaPreviewPanelControl.ControlsElement;
+    private Button PlaybackButton => MediaPreviewPanelControl.PlaybackButtonElement;
+    private Button PreviousFrameButton => MediaPreviewPanelControl.PreviousFrameButtonElement;
+    private Button NextFrameButton => MediaPreviewPanelControl.NextFrameButtonElement;
+    private Slider PositionSlider => MediaPreviewPanelControl.PositionSliderElement;
+    private TextBlock TimeText => MediaPreviewPanelControl.TimeTextElement;
+    private Button MuteButton => MediaPreviewPanelControl.MuteButtonElement;
+    private Slider VolumeSlider => MediaPreviewPanelControl.VolumeSliderElement;
+
     public MainWindow()
     {
         InitializeComponent();
-        _compositionAuditionAudio = new CompositionAuditionAudioController(CompositionAuditionAudio);
+        _compositionAuditionAudio = MediaPreviewPanelControl.AuditionAudio;
 
         _runtime = ApplicationRuntime.Create();
         _mediaToolDiscovery = _runtime.MediaToolDiscovery;
@@ -239,8 +250,7 @@ public partial class MainWindow : Window, IDisposable
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
         _compositionRenderCancellation?.Cancel();
-        CompositionAuditionAudio.Stop();
-        CompositionAuditionAudio.Close();
+        _compositionAuditionAudio.Stop();
         ReleaseCompositionAuditionAudioLease();
         ReleaseActivePreviewLease();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
@@ -1067,7 +1077,7 @@ public partial class MainWindow : Window, IDisposable
                 _activeCompositionPreviewRevisionId = revision.Id;
                 _activePreviewLease = lease;
                 lease = null;
-                PreviewPlaceholder.Visibility = Visibility.Collapsed;
+                MediaPreviewPanelControl.HidePlaceholder();
                 OpenVideoPreview(_activePreviewLease.Path, requiresWarmup: true);
                 UpdateCompositionActionState();
                 StatusText.Text = "Working Composition preview is ready.";
@@ -2683,9 +2693,7 @@ public partial class MainWindow : Window, IDisposable
                 ProjectMediaPanelControl.RefreshItems();
                 GenerationPanelControl.RefreshReferences();
                 ClearMediaPreview();
-                PreviewPlaceholder.Visibility = Visibility.Collapsed;
-                ImagePreview.Source = thumbnail;
-                ImagePreview.Visibility = Visibility.Visible;
+                MediaPreviewPanelControl.ShowImage(thumbnail);
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
                     new SavedFrameListItem(anchor, revision, thumbnail, error: null));
                 StatusText.Text = $"Selected Saved Frame {item.DisplayName}.";
@@ -2694,8 +2702,7 @@ public partial class MainWindow : Window, IDisposable
             {
                 if (_workspace.Project?.Id != selectedProjectId) return;
                 ClearMediaPreview();
-                PreviewPlaceholder.Text = $"Saved Frame preview unavailable\n\n{exception.Message}";
-                PreviewPlaceholder.Visibility = Visibility.Visible;
+                MediaPreviewPanelControl.ShowPlaceholder($"Saved Frame preview unavailable\n\n{exception.Message}");
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
                     new SavedFrameListItem(anchor, revision, thumbnail: null, exception.Message));
                 StatusText.Text = $"Could not display {item.DisplayName}.";
@@ -3506,14 +3513,13 @@ public partial class MainWindow : Window, IDisposable
     private void ShowAssetPreview(ProjectAsset asset)
     {
         ClearMediaPreview();
-        PreviewPlaceholder.Visibility = Visibility.Collapsed;
+        MediaPreviewPanelControl.HidePlaceholder();
 
         var absolutePath = _workspace.GetAbsoluteAssetPath(asset);
         if (!File.Exists(absolutePath))
         {
-            PreviewPlaceholder.Text = $"Missing media file\n{asset.FileName}\n\nMoving a file in Explorer does not add it to another project's .rfp file.";
-            PreviewPlaceholder.TextAlignment = TextAlignment.Center;
-            PreviewPlaceholder.Visibility = Visibility.Visible;
+            MediaPreviewPanelControl.ShowPlaceholder(
+                $"Missing media file\n{asset.FileName}\n\nMoving a file in Explorer does not add it to another project's .rfp file.");
             return;
         }
         if (asset.MediaType == MediaType.Image)
@@ -3524,8 +3530,7 @@ public partial class MainWindow : Window, IDisposable
             bitmap.UriSource = new Uri(absolutePath, UriKind.Absolute);
             bitmap.EndInit();
             bitmap.Freeze();
-            ImagePreview.Source = bitmap;
-            ImagePreview.Visibility = Visibility.Visible;
+            MediaPreviewPanelControl.ShowImage(bitmap);
             return;
         }
 
@@ -3657,7 +3662,7 @@ public partial class MainWindow : Window, IDisposable
             segment.TimelineStartSeconds,
             segment.TimelineStartSeconds + segment.DurationSeconds);
         var offset = _compositionDraftPositionSeconds - segment.TimelineStartSeconds;
-        PreviewPlaceholder.Visibility = Visibility.Collapsed;
+        MediaPreviewPanelControl.HidePlaceholder();
         OpenVideoPreview(
             lease.Path,
             requiresWarmup: true,
@@ -3759,7 +3764,7 @@ public partial class MainWindow : Window, IDisposable
                     _activeCompositionPreviewRevisionId = asset.Virtual.CurrentRecipeRevisionId;
                 _activePreviewLease = lease;
                 lease = null;
-                PreviewPlaceholder.Visibility = Visibility.Collapsed;
+                MediaPreviewPanelControl.HidePlaceholder();
                 OpenVideoPreview(
                     _activePreviewLease.Path,
                     requiresWarmup: asset.Virtual?.Kind != VirtualAssetKind.SavedClip);
@@ -3769,8 +3774,7 @@ public partial class MainWindow : Window, IDisposable
             {
                 if (_workspace.Project?.Id != selectedProjectId) return;
                 ClearMediaPreview();
-                PreviewPlaceholder.Text = $"{kindName} preview unavailable\n\n{exception.Message}";
-                PreviewPlaceholder.Visibility = Visibility.Visible;
+                MediaPreviewPanelControl.ShowPlaceholder($"{kindName} preview unavailable\n\n{exception.Message}");
                 StatusText.Text = $"Could not prepare {asset.EffectiveDisplayName}.";
             }
             finally
@@ -3884,11 +3888,7 @@ public partial class MainWindow : Window, IDisposable
         PreviousFrameButton.IsEnabled = false;
         NextFrameButton.IsEnabled = false;
         UpdatePreviewAudioControls();
-        ImagePreview.Source = null;
-        ImagePreview.Visibility = Visibility.Collapsed;
-        PreviewPlaceholder.Text = "Select a video or image asset to preview";
-        PreviewPlaceholder.TextAlignment = TextAlignment.Center;
-        PreviewPlaceholder.Visibility = Visibility.Visible;
+        MediaPreviewPanelControl.ResetVisuals();
         PositionSlider.Maximum = 1;
         PositionSlider.Value = 0;
         TimeText.Text = "00:00 / 00:00";
@@ -4203,20 +4203,17 @@ public partial class MainWindow : Window, IDisposable
     private void SetPlaybackState(bool isPlaying)
     {
         _isVideoPlaying = isPlaying;
-        if (PlaybackButton is null || PlayGlyph is null || PauseGlyph is null) return;
-        PlayGlyph.Visibility = isPlaying ? Visibility.Collapsed : Visibility.Visible;
-        PauseGlyph.Visibility = isPlaying ? Visibility.Visible : Visibility.Collapsed;
-        PlaybackButton.ToolTip = isPlaying ? "Pause preview" : "Play preview";
+        MediaPreviewPanelControl.SetPlaybackState(isPlaying);
     }
 
     private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (VideoPreview is null || MuteButton is null) return;
         VideoPreview.Volume = e.NewValue;
-        if (CompositionAuditionAudio is not null) CompositionAuditionAudio.Volume = e.NewValue;
+        _compositionAuditionAudio.SetVolume(e.NewValue);
         _userPreviewMuted = e.NewValue <= 0;
         VideoPreview.IsMuted = _previewAudioForcedMuted || _userPreviewMuted;
-        if (CompositionAuditionAudio is not null) CompositionAuditionAudio.IsMuted = _userPreviewMuted;
+        _compositionAuditionAudio.SetMuted(_userPreviewMuted);
         UpdatePreviewAudioControls();
         if (e.NewValue > 0) _volumeBeforeMute = e.NewValue;
     }
@@ -4229,7 +4226,7 @@ public partial class MainWindow : Window, IDisposable
             VolumeSlider.Value = _volumeBeforeMute > 0 ? _volumeBeforeMute : 1;
             _userPreviewMuted = false;
             VideoPreview.IsMuted = _previewAudioForcedMuted;
-            CompositionAuditionAudio.IsMuted = false;
+            _compositionAuditionAudio.SetMuted(false);
             UpdatePreviewAudioControls();
             return;
         }
@@ -4237,7 +4234,7 @@ public partial class MainWindow : Window, IDisposable
         _volumeBeforeMute = VolumeSlider.Value;
         _userPreviewMuted = true;
         VideoPreview.IsMuted = true;
-        CompositionAuditionAudio.IsMuted = true;
+        _compositionAuditionAudio.SetMuted(true);
         UpdatePreviewAudioControls();
     }
 
