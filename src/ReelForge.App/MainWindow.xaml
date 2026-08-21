@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:ReelForge.App"
         xmlns:jobs="clr-namespace:ReelForge.App.Views.Jobs"
+        xmlns:projectMedia="clr-namespace:ReelForge.App.Views.ProjectMedia"
         Title="ReelForge" Height="900" Width="1440"
         MinHeight="680" MinWidth="1080"
         AllowDrop="True"
@@ -181,64 +182,10 @@
                         <RowDefinition x:Name="GenerationSplitterRow" Height="5" />
                         <RowDefinition x:Name="GenerationHistoryRow" Height="*" MinHeight="80" />
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Text="PROJECT MEDIA" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,2,4,8" />
-                        <ListBox x:Name="AssetsList" Grid.Row="1" SelectionChanged="AssetsList_SelectionChanged"
-                                 PreviewMouseRightButtonDown="AssetsList_PreviewMouseRightButtonDown"
-                                 PreviewMouseLeftButtonDown="AssetsList_PreviewMouseLeftButtonDown"
-                                 PreviewMouseMove="AssetsList_PreviewMouseMove">
-                        <ListBox.GroupStyle>
-                            <GroupStyle>
-                                <GroupStyle.HeaderTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold"
-                                                   Foreground="{StaticResource MutedTextBrush}" Margin="5,10,4,4" />
-                                    </DataTemplate>
-                                </GroupStyle.HeaderTemplate>
-                            </GroupStyle>
-                        </ListBox.GroupStyle>
-                        <ListBox.ContextMenu>
-                            <ContextMenu Opened="AssetsContextMenu_Opened">
-                                <MenuItem Header="Change filename…" Click="RenameAsset_Click" />
-                                <MenuItem Header="Export…" Click="ExportSelectedMedia_Click" />
-                                <MenuItem Header="Extract audio…" Tag="ExtractAudio" Click="ExtractAudio_Click" />
-                                <Separator />
-                                <MenuItem Header="Copy to Project…" Click="CopyAssetToProject_Click" />
-                                <MenuItem Header="Move to Project…" Click="MoveAssetToProject_Click" />
-                                <Separator />
-                                <MenuItem Header="Delete from Project…" Foreground="#FF9B9B" Click="DeleteAsset_Click" />
-                            </ContextMenu>
-                        </ListBox.ContextMenu>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Border Padding="8" Margin="1" CornerRadius="3">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="48" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Width="42" Height="30" Background="#0B0D12" BorderBrush="{StaticResource BorderBrush}"
-                                                BorderThickness="1" CornerRadius="2" VerticalAlignment="Center">
-                                            <Grid>
-                                                <TextBlock Text="{Binding Glyph}" Foreground="{StaticResource MutedTextBrush}"
-                                                           FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
-                                            </Grid>
-                                        </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="7,0,0,0">
-                                            <TextBlock Text="{Binding DisplayName}" Style="{StaticResource ApplicationTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding KindText}" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Grid>
+                    <projectMedia:ProjectMediaPanel x:Name="ProjectMediaPanelControl" Grid.Row="0"
+                                                    SelectedItemChanged="ProjectMediaPanel_SelectedItemChanged"
+                                                    ActionRequested="ProjectMediaPanel_ActionRequested"
+                                                    DragCompleted="ProjectMediaPanel_DragCompleted" />
                     <GridSplitter x:Name="GenerationPanelSplitter" Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
                                   ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
                     <Grid x:Name="GenerationHistoryPanel" Grid.Row="2">
