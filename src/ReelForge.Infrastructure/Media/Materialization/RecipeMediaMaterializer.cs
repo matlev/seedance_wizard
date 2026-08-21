@@ -8,7 +8,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
 {
     private const string ConcatAlgorithmVersion = "composition-concat-v2";
     private const string AudioOverlayAlgorithmVersion = "composition-audio-overlay-v3";
-    private const string AuditionAudioAlgorithmVersion = "composition-audition-audio-v1";
     private const string SourceAudioAlgorithmVersion = "composition-source-audio-v1";
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly IExactVideoFrameService _exactFrameService;
@@ -18,6 +17,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
     private readonly MediaRenderCache _renderCache;
     private readonly ModifiedMediaRetentionService _retentionService;
     private readonly SavedClipTrimRenderer _trimRenderer;
+    private readonly CompositionAuditionAudioRenderer _auditionAudioRenderer;
     private readonly FfmpegRendererFingerprintProvider _fingerprintProvider;
     private string? _ffmpegPath;
     private bool _disposed;
@@ -46,6 +46,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         var boundaryResolver = new RecipeBoundaryResolver(exactFrameService);
         _trimRenderer = new SavedClipTrimRenderer(
             runner, _renderCache, _fingerprintProvider, boundaryResolver);
+        _auditionAudioRenderer = new CompositionAuditionAudioRenderer(
+            runner, _renderCache, _fingerprintProvider, mediaInspector);
         _physicalMaterializer = new PhysicalAssetMaterializer(_contentHashService, exactFrameService);
     }
 
@@ -117,119 +119,15 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             "audio-only-audition");
         if (plan.Root is not CompositionRenderPlanNode composition)
             throw new InvalidDataException("Audio audition requires a composition recipe.");
-        var activeClips = composition.AudioClips
-            .Where(clip => !clip.IsMuted &&
-                           TimeSpan.FromTicks(clip.TimelineStartTicks).TotalSeconds < compositionDurationSeconds)
-            .ToArray();
-        if (activeClips.Length == 0) return null;
-
-        var leases = new List<MaterializedMediaLease>();
-        try
-        {
-            var inputs = new List<AudioOverlayInput>();
-            foreach (var clip in activeClips)
-            {
-                var sourceAsset = project.Assets.Single(asset => asset.Id == clip.Source.AssetId);
-                var request = new MaterializationRequest(
-                    new AssetMaterializationTarget(clip.Source.AssetId, clip.Source switch
-                    {
-                        TrimRenderPlanNode trim => trim.RecipeRevisionId,
-                        ExtractFrameRenderPlanNode frame => frame.RecipeRevisionId,
-                        CompositionRenderPlanNode nested => nested.RecipeRevisionId,
-                        _ => null
-                    }),
-                    MaterializationPurpose.Preview,
-                    Profile: "audio-only-audition-source");
-                var lease = await ExecuteNodeAsync(
-                        project, location, sourceAsset, clip.Source, request, cancellationToken)
-                    .ConfigureAwait(false);
-                leases.Add(lease);
-                var encoding = lease.Encoding ?? sourceAsset.Encoding ?? sourceAsset.Virtual?.ExpectedMediaProperties;
-                if ((clip.FadeInMilliseconds > 0 || clip.FadeOutMilliseconds > 0) &&
-                    encoding?.DurationSeconds is not > 0 && _mediaInspector is not null)
-                    encoding = await _mediaInspector.InspectAsync(lease.Path, cancellationToken).ConfigureAwait(false);
-                var timelineStart = TimeSpan.FromTicks(clip.TimelineStartTicks);
-                var remainingComposition = Math.Max(0, compositionDurationSeconds - timelineStart.TotalSeconds);
-                var audibleDuration = encoding?.DurationSeconds ?? sourceAsset.DurationSeconds;
-                audibleDuration = audibleDuration is > 0
-                    ? Math.Min(audibleDuration.Value, remainingComposition)
-                    : remainingComposition;
-                inputs.Add(new AudioOverlayInput(
-                    lease.Path,
-                    timelineStart,
-                    IsMuted: false,
-                    clip.GainDecibels,
-                    clip.Pan,
-                    ClampFade(clip.FadeInMilliseconds, audibleDuration),
-                    ClampFade(clip.FadeOutMilliseconds, audibleDuration),
-                    audibleDuration));
-            }
-
-            var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
-                "FFmpeg is not configured. Configure it in Settings > Media Tools to audition composition audio.");
-            var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-            var key = MediaRenderCache.HashText(string.Join('|',
-                AuditionAudioAlgorithmVersion,
-                composition.VirtualAssetId.ToString("N"),
-                composition.RecipeRevisionId.ToString("N"),
-                compositionDurationSeconds.ToString("R", CultureInfo.InvariantCulture),
-                string.Join(';', leases.Select(lease =>
-                    lease.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty)),
-                fingerprint));
-            var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "compositions");
-            var cachePath = Path.Combine(cacheDirectory, $"{key}.m4a");
-            if (MediaRenderCache.IsUsableFile(cachePath))
-                return await OpenCacheLeaseAsync(cachePath, fallbackEncoding: null, cancellationToken)
-                    .ConfigureAwait(false);
-
-            var cacheLock = _renderCache.GetLock(key);
-            await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                if (MediaRenderCache.IsUsableFile(cachePath))
-                    return await OpenCacheLeaseAsync(cachePath, fallbackEncoding: null, cancellationToken)
-                        .ConfigureAwait(false);
-                Directory.CreateDirectory(cacheDirectory);
-                var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.m4a");
-                try
-                {
-                    var arguments = FfmpegCommandBuilder.BuildAuditionAudioMixArguments(
-                        inputs,
-                        compositionDurationSeconds,
-                        temporaryPath);
-                    var result = await _runner.RunAsync(
-                            new ExternalProcessRequest(ffmpegPath, arguments),
-                            cancellationToken: cancellationToken)
-                        .ConfigureAwait(false);
-                    if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                    if (!MediaRenderCache.IsUsableFile(temporaryPath))
-                        throw new InvalidDataException("FFmpeg completed without producing the audition audio mix.");
-                    try
-                    {
-                        File.Move(temporaryPath, cachePath, overwrite: false);
-                    }
-                    catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
-                    {
-                        File.Delete(temporaryPath);
-                    }
-                }
-                finally
-                {
-                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-                }
-                return await OpenCacheLeaseAsync(cachePath, fallbackEncoding: null, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                cacheLock.Release();
-            }
-        }
-        finally
-        {
-            for (var index = leases.Count - 1; index >= 0; index--)
-                await leases[index].DisposeAsync().ConfigureAwait(false);
-        }
+        return await _auditionAudioRenderer.RenderAsync(
+                _ffmpegPath,
+                project,
+                location,
+                composition,
+                compositionDurationSeconds,
+                ExecuteNodeAsync,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<MaterializedMediaLease> MaterializeSegmentAsync(
