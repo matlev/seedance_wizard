@@ -30,4 +30,16 @@ Current behavior: ReelForge starts the fast composition audition instead of reop
 
 Expected behavior: when the unchanged composition still has a valid baked representation, reopening the project should make that representation available for normal composition playback without requiring another bake. This issue is recorded for later correction and is intentionally outside the current behavior-preserving refactor slice.
 
+### Frame stepping cannot cross fast-audition cuts
+
+Reproduction:
+
+1. Create a Working Composition containing at least two video segments.
+2. Start the fast composition audition without baking it.
+3. Pause on the final decoded frame of one segment and advance one frame, or pause on the first decoded frame of the following segment and rewind one frame.
+
+Current behavior: frame stepping stops at the active source segment boundary. It does not open the adjacent segment and select its first or final decoded frame.
+
+Expected behavior: advancing from the final frame of a segment should select the first decoded frame of the next segment, and rewinding from the first frame should select the final decoded frame of the previous segment. This may be pre-existing behavior; it is intentionally deferred until the Milestone 3 structural refactor is complete.
+
 The Windows shell remains the current manual presentation target. Screenshot-perfect automation is not required; extracted presenter/state logic should carry deterministic tests as it is introduced.
