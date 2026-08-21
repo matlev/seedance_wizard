@@ -6,8 +6,7 @@ namespace ReelForge.Infrastructure;
 public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSegmentMaterializer, IDisposable
 {
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
-    private readonly IExactVideoFrameService _exactFrameService;
-    private readonly IContentHashService _contentHashService;
+    private readonly FrameAnchorMaterializer _frameAnchorMaterializer;
     private readonly MediaRenderCache _renderCache;
     private readonly ModifiedMediaRetentionService _retentionService;
     private readonly SavedClipTrimRenderer _trimRenderer;
@@ -32,11 +31,10 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheRoot);
         _ffmpegPath = ffmpegPath;
         _fingerprintProvider = new FfmpegRendererFingerprintProvider(runner, SavedClipTrimRenderer.AlgorithmVersion);
-        _exactFrameService = exactFrameService;
-        _contentHashService = contentHashService ?? new Sha256ContentHashService();
-        _renderCache = new MediaRenderCache(cacheRoot, _contentHashService, mediaInspector);
+        var resolvedContentHashService = contentHashService ?? new Sha256ContentHashService();
+        _renderCache = new MediaRenderCache(cacheRoot, resolvedContentHashService, mediaInspector);
         _retentionService = new ModifiedMediaRetentionService(
-            _renderCache, _contentHashService, persistModifiedMediaOnDisk);
+            _renderCache, resolvedContentHashService, persistModifiedMediaOnDisk);
         var boundaryResolver = new RecipeBoundaryResolver(exactFrameService);
         _trimRenderer = new SavedClipTrimRenderer(
             runner, _renderCache, _fingerprintProvider, boundaryResolver);
@@ -46,7 +44,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             runner, _renderCache, _fingerprintProvider, mediaInspector);
         _compositionVideoRenderer = new CompositionVideoRenderer(
             runner, _renderCache, _fingerprintProvider, _compositionAudioRenderer, mediaInspector);
-        _physicalMaterializer = new PhysicalAssetMaterializer(_contentHashService, exactFrameService);
+        _physicalMaterializer = new PhysicalAssetMaterializer(resolvedContentHashService, exactFrameService);
+        _frameAnchorMaterializer = new FrameAnchorMaterializer(_physicalMaterializer, exactFrameService);
     }
 
     public void UpdateExecutablePath(string? ffmpegPath)
@@ -69,8 +68,14 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         ArgumentNullException.ThrowIfNull(request);
         if (request.Target is AnchorMaterializationTarget anchorTarget)
         {
-            var anchorMedia = await MaterializeAnchorAsync(
-                    project, location, anchorTarget, request.Purpose, request.Profile, cancellationToken)
+            var anchorMedia = await _frameAnchorMaterializer.MaterializeAsync(
+                    project,
+                    location,
+                    anchorTarget,
+                    request.Purpose,
+                    request.Profile,
+                    MaterializeAsync,
+                    cancellationToken)
                 .ConfigureAwait(false);
             return await _retentionService.PersistIfRequestedAsync(
                     project, location, request.Target, anchorMedia, cancellationToken)
@@ -156,53 +161,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             Profile: "single-composition-segment");
         return await MaterializeCompositionSegmentAsync(
                 project, location, outputAsset, segment, request, cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    private async Task<MaterializedMediaLease> MaterializeAnchorAsync(
-        VideoProject project,
-        ProjectLocation location,
-        AnchorMaterializationTarget target,
-        MaterializationPurpose purpose,
-        string? profile,
-        CancellationToken cancellationToken)
-    {
-        var revision = project.AnchorRevisions.SingleOrDefault(candidate =>
-                candidate.Id == target.AnchorRevisionId && candidate.AnchorId == target.AnchorId)
-            ?? throw new InvalidOperationException($"Frame anchor revision '{target.AnchorRevisionId}' no longer exists.");
-        var sourceAsset = project.Assets.SingleOrDefault(candidate => candidate.Id == revision.SourceAssetId)
-            ?? throw new InvalidOperationException($"Anchor source asset '{revision.SourceAssetId}' no longer exists.");
-        if (sourceAsset.StorageKind == AssetStorageKind.Physical)
-            return await _physicalMaterializer.MaterializeAsync(
-                    project,
-                    location,
-                    new MaterializationRequest(target, purpose, Profile: profile),
-                    cancellationToken)
-                .ConfigureAwait(false);
-        if (revision.SourceRecipeRevisionId is not { } sourceRevisionId)
-            throw new InvalidDataException("An exact position in virtual media is missing its pinned source revision.");
-
-        await using var source = await MaterializeAsync(
-                project,
-                location,
-                new MaterializationRequest(
-                    new AssetMaterializationTarget(sourceAsset.Id, sourceRevisionId),
-                    MaterializationPurpose.FrameExtraction),
-                cancellationToken)
-            .ConfigureAwait(false);
-        if (!string.Equals(
-                source.ContentIdentity.Sha256,
-                revision.SourceContentHash,
-                StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException(
-                "The materialized virtual source no longer matches the content identity pinned by the exact position.");
-        return await _exactFrameService.ExtractAsync(
-                source.Path,
-                revision.SourceContentHash,
-                revision,
-                purpose,
-                profile,
-                cancellationToken)
             .ConfigureAwait(false);
     }
 
