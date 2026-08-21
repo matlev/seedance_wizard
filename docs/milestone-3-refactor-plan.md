@@ -368,7 +368,7 @@ Each numbered stage is a program of small, independently buildable commits. Do n
 - Preserve this inventory and the 199-test green baseline.
 - Add reusable test project/workspace builders and fakes only for already duplicated setup.
 - Add characterization for the duplicate workspace generation snapshot rule, project/settings/job atomic writes, provider authorization isolation, cache leases, and composition audition lifecycle before moving owners.
-- Record the concise manual acceptance matrix for project switching, jobs/recovery, generation preparation, frame/clip tools, timeline arrangement, audition, preview/export, and settings.
+- Maintain the [Milestone 3 manual acceptance matrix](milestone-3-manual-acceptance.md) for project switching, jobs/recovery, generation preparation, frame/clip tools, timeline arrangement, audition, preview/export, settings, cache, and diagnostics.
 
 Exit: stronger guardrails; no production behavior or physical ownership changes.
 
