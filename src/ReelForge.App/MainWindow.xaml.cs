@@ -2,7 +2,6 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
-using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,10 +14,10 @@ using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using ReelForge.App.Bootstrap;
 using ReelForge.Application;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
-using ReelForge.Platform.Windows;
 using Line = System.Windows.Shapes.Line;
 
 namespace ReelForge.App;
@@ -50,6 +49,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private readonly ObservableCollection<SavedFrameListItem> _savedFrames = [];
     private readonly ObservableCollection<CompositionSegmentListItem> _compositionSegments = [];
     private readonly ObservableCollection<CompositionAudioClipListItem> _compositionAudioClips = [];
+    private readonly ApplicationRuntime _runtime;
     private readonly List<TimelineStickyContent> _compositionTimelineStickyContent = [];
     private readonly IReadOnlyList<BitmapSource> _activeJobSpriteFrames;
     private readonly HashSet<Guid> _viewedTerminalJobIds = [];
@@ -59,7 +59,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
-    private readonly AssetImportService _assetImporter;
     private readonly ProjectAssetTransferService _assetTransferService;
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private readonly ExactVideoFrameService _exactFrameService;
@@ -70,12 +69,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     private IProviderAssetPreparationService? _providerPreparation;
     private readonly ISecretStore _secretStore;
     private readonly FileApplicationDiagnosticLog _diagnosticLog;
-    private readonly List<HttpClient> _providerHttpClients = [];
-    private readonly HttpClient _r2HttpClient;
-    private readonly HttpClient _downloadHttpClient;
     private IVideoGenerationProvider _generationProvider;
     private readonly IMediaToolDiscovery _mediaToolDiscovery;
-    private readonly ApplicationPaths _applicationPaths;
     private readonly IApplicationSettingsStore _applicationSettingsStore;
     private readonly RecentProjectTracker _recentProjectTracker;
     private readonly ITemporaryAssetHost _temporaryAssetHost;
@@ -175,49 +170,26 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         InitializeComponent();
         _activeJobSpriteFrames = LoadActiveJobSpriteFrames();
 
-        _applicationPaths = new WindowsApplicationPathProvider().GetPaths();
-        _mediaToolDiscovery = new MediaToolDiscovery();
-        _applicationSettingsStore = new JsonApplicationSettingsStore(_applicationPaths.LocalSettingsFilePath);
-        _recentProjectTracker = new RecentProjectTracker(_applicationSettingsStore);
-        _applicationSettings = LoadApplicationSettings();
-        var configuredTools = _applicationSettings.MediaTools;
-        _mediaTools = _mediaToolDiscovery.Discover(configuredTools.FfmpegPath, configuredTools.FfprobePath);
-        var processRunner = new ExternalProcessRunner();
-        _mediaInspector = new FfprobeMediaInspectionService(_mediaTools.FfprobePath, processRunner);
-        var mediaCacheRoot = _applicationPaths.MediaCacheDirectory;
-        _exactFrameService = new ExactVideoFrameService(
-            _mediaTools.FfmpegPath,
-            _mediaTools.FfprobePath,
-            processRunner,
-            mediaCacheRoot,
-            maximumCacheBytes: configuredTools.CacheSizeBytes);
-        _mediaMaterializer = new RecipeMediaMaterializer(
-            _mediaTools.FfmpegPath,
-            processRunner,
-            _exactFrameService,
-            mediaCacheRoot,
-            mediaInspector: _mediaInspector,
-            persistModifiedMediaOnDisk: configuredTools.PersistModifiedMediaOnDisk);
-        _audioExtractionEngine = new FfmpegAudioExtractionEngine(_mediaTools.FfmpegPath, processRunner);
-        _projectStore = new PortableProjectStore();
-        _assetImporter = new AssetImportService(_mediaInspector);
-        _workspace = new ProjectWorkspace(_projectStore, _assetImporter);
-        _assetTransferService = new ProjectAssetTransferService(_projectStore, _assetImporter);
-        _secretStore = new WindowsCredentialStore();
-        _diagnosticLog = new FileApplicationDiagnosticLog(_applicationSettings.General.LogDirectory);
-        _r2HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        _downloadHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        _outputIngestion = new HttpGeneratedOutputIngestionService(_downloadHttpClient, _mediaInspector);
-        _temporaryAssetHost = new CloudflareR2TemporaryAssetHost(
-            _applicationSettingsStore,
-            _secretStore,
-            new CloudflareR2ClientFactory(_r2HttpClient));
+        _runtime = ApplicationRuntime.Create(this);
+        _mediaToolDiscovery = _runtime.MediaToolDiscovery;
+        _applicationSettingsStore = _runtime.ApplicationSettingsStore;
+        _recentProjectTracker = _runtime.RecentProjectTracker;
+        _applicationSettings = _runtime.Settings;
+        _mediaTools = _runtime.MediaTools;
+        _mediaInspector = _runtime.MediaInspector;
+        _exactFrameService = _runtime.ExactFrameService;
+        _mediaMaterializer = _runtime.MediaMaterializer;
+        _audioExtractionEngine = _runtime.AudioExtractionEngine;
+        _projectStore = _runtime.ProjectStore;
+        _workspace = _runtime.Workspace;
+        _assetTransferService = _runtime.AssetTransferService;
+        _secretStore = _runtime.SecretStore;
+        _diagnosticLog = _runtime.DiagnosticLog;
+        _outputIngestion = _runtime.OutputIngestion;
+        _temporaryAssetHost = _runtime.TemporaryAssetHost;
         _generationProvider = new FakeVideoGenerationProvider();
         RefreshProviderRuntime(preferredProviderId: null);
-        _jobCoordinator = new GenerationJobCoordinator(
-            new JsonGenerationJobStore(_applicationPaths.ActiveGenerationJobsFilePath),
-            ResolveAsyncProvider,
-            this);
+        _jobCoordinator = _runtime.JobCoordinator;
         _jobCoordinator.JobsChanged += JobCoordinator_JobsChanged;
         _jobCoordinator.JobStatusChanged += JobCoordinator_JobStatusChanged;
 
@@ -276,7 +248,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         _disposed = true;
         _jobCoordinator.JobsChanged -= JobCoordinator_JobsChanged;
         _jobCoordinator.JobStatusChanged -= JobCoordinator_JobStatusChanged;
-        _jobCoordinator.Stop();
         _jobElapsedTimer.Stop();
         _frameBrowserDebounceTimer.Stop();
         _compositionTimelineDragAutoScrollTimer.Stop();
@@ -291,28 +262,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Dispose();
         _pendingSubmissionDelays.Clear();
-        foreach (var client in _providerHttpClients) client.Dispose();
-        _r2HttpClient.Dispose();
-        _downloadHttpClient.Dispose();
-        _mediaMaterializer.Dispose();
-        _exactFrameService.Dispose();
-        if (_diagnosticLog is IDisposable disposableDiagnosticLog) disposableDiagnosticLog.Dispose();
+        _runtime.Dispose();
         GC.SuppressFinalize(this);
-    }
-
-    private ApplicationSettings LoadApplicationSettings()
-    {
-        ApplicationSettings settings;
-        try
-        {
-            settings = _applicationSettingsStore.LoadAsync().GetAwaiter().GetResult();
-        }
-        catch
-        {
-            settings = new ApplicationSettings();
-        }
-        ApplicationSettingsPlatformDefaults.Apply(settings, _applicationPaths);
-        return settings;
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -350,69 +301,21 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         }
     }
 
-    private static Uri RequireHttpsBaseUri(string value, string providerName)
-    {
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
-            throw new InvalidOperationException($"{providerName} API base URL must be an absolute HTTPS URL.");
-        return uri;
-    }
-
     private void RefreshProviderRuntime(string? preferredProviderId)
     {
-        var choices = new List<GenerationProviderChoice>();
-        var preparationServices = new Dictionary<string, IProviderAssetPreparationService>(StringComparer.Ordinal);
-        var fakeProvider = new FakeVideoGenerationProvider();
-        choices.Add(new GenerationProviderChoice(fakeProvider));
-
-        if (_applicationSettings.VideoGenerationProviders.BytePlus.Enabled)
-        {
-            var client = CreateProviderHttpClient(
-                _applicationSettings.VideoGenerationProviders.BytePlus.ApiBaseUrl,
-                "BytePlus");
-            choices.Add(new GenerationProviderChoice(new BytePlusModelArkSeedance25Provider(
-                client,
-                _secretStore,
-                new ProjectAssetReferenceResolver())));
-            preparationServices[BytePlusModelArkSeedance25Provider.ProviderId] =
-                new BytePlusModelArkAssetPreparationService(_temporaryAssetHost);
-        }
-
-        if (_applicationSettings.VideoGenerationProviders.AtlasCloud.Enabled)
-        {
-            var client = CreateProviderHttpClient(
-                _applicationSettings.VideoGenerationProviders.AtlasCloud.ApiBaseUrl,
-                "AtlasCloud");
-            choices.Add(new GenerationProviderChoice(new AtlasCloudSeedance25Provider(
-                client,
-                _secretStore,
-                new ProjectAssetReferenceResolver(),
-                _diagnosticLog)));
-            choices.Add(new GenerationProviderChoice(new AtlasCloudMiniMaxH3Provider(
-                client,
-                _secretStore,
-                new ProjectAssetReferenceResolver(),
-                _diagnosticLog)));
-            var atlasCloudPreparation = new AtlasCloudAssetPreparationService(client, _secretStore, _diagnosticLog);
-            preparationServices[AtlasCloudSeedance25Provider.ProviderId] = atlasCloudPreparation;
-            preparationServices[AtlasCloudMiniMaxH3Provider.ProviderId] = atlasCloudPreparation;
-        }
-
-        _providerChoices = choices;
-        _providerPreparation = preparationServices.Count == 0
-            ? null
-            : new ProviderAssetPreparationRouter(preparationServices);
-        _generationWorkflow = CreateGenerationWorkflow(_workspace, _providerPreparation);
-
-        var selected = choices.FirstOrDefault(choice =>
-                           choice.Provider.Capabilities.ProviderId.Equals(preferredProviderId, StringComparison.Ordinal))
-                       ?? choices[0];
-        _generationProvider = selected.Provider;
+        var providerRuntime = _runtime.RefreshProviders(preferredProviderId);
+        _providerChoices = providerRuntime.Choices;
+        _providerPreparation = providerRuntime.PreparationService;
+        _generationWorkflow = providerRuntime.Workflow;
+        _generationProvider = providerRuntime.SelectedProvider;
+        var selected = providerRuntime.Choices.First(choice =>
+            ReferenceEquals(choice.Provider, providerRuntime.SelectedProvider));
         var suppressAutosave = _suppressDraftAutosave;
         _suppressDraftAutosave = true;
         try
         {
             ProviderComboBox.ItemsSource = null;
-            ProviderComboBox.ItemsSource = choices;
+            ProviderComboBox.ItemsSource = providerRuntime.Choices;
             ProviderComboBox.SelectedItem = selected;
             ConfigureGenerationPanel();
         }
@@ -421,31 +324,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
             _suppressDraftAutosave = suppressAutosave;
         }
     }
-
-    private HttpClient CreateProviderHttpClient(string baseUrl, string providerName)
-    {
-        var client = new HttpClient
-        {
-            BaseAddress = RequireHttpsBaseUri(baseUrl, providerName),
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-        _providerHttpClients.Add(client);
-        return client;
-    }
-
-    private GenerationWorkflow CreateGenerationWorkflow(
-        ProjectWorkspace workspace,
-        IProviderAssetPreparationService? providerPreparation) =>
-        new(
-            workspace,
-            _mediaMaterializer,
-            _outputIngestion,
-            providerPreparation);
-
-    private IAsyncVideoGenerationProvider? ResolveAsyncProvider(string providerId) =>
-        _providerChoices.FirstOrDefault(choice =>
-            choice.Provider.Capabilities.ProviderId.Equals(providerId, StringComparison.Ordinal))?.Provider
-        as IAsyncVideoGenerationProvider;
 
     private void JobCoordinator_JobsChanged(object? sender, EventArgs e)
     {
@@ -779,11 +657,8 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
         };
         window.ShowDialog();
         var selectedProviderId = _generationProvider.Capabilities.ProviderId;
-        _applicationSettings = await _applicationSettingsStore.LoadAsync();
-        ApplicationSettingsPlatformDefaults.Apply(_applicationSettings, _applicationPaths);
-        _mediaTools = _mediaToolDiscovery.Discover(
-            _applicationSettings.MediaTools.FfmpegPath,
-            _applicationSettings.MediaTools.FfprobePath);
+        _applicationSettings = await _runtime.ReloadSettingsAsync();
+        _mediaTools = _runtime.MediaTools;
         _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
         _exactFrameService.UpdateExecutablePaths(_mediaTools.FfmpegPath, _mediaTools.FfprobePath);
         _mediaMaterializer.UpdateExecutablePath(_mediaTools.FfmpegPath);
@@ -1041,7 +916,7 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
     {
         var configured = _applicationSettings.General.ProjectsRoot;
         return ApplicationPathResolver.ResolveDirectory(
-            string.IsNullOrWhiteSpace(configured) ? _applicationPaths.DefaultProjectsDirectory : configured);
+            string.IsNullOrWhiteSpace(configured) ? _runtime.Paths.DefaultProjectsDirectory : configured);
     }
 
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
@@ -3717,9 +3592,9 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
                 var submissionWorkflow = activeWorkflow;
                 if (!usesActiveWorkspace)
                 {
-                    submissionWorkspace = new ProjectWorkspace(_projectStore, _assetImporter);
+                    submissionWorkspace = _runtime.CreateProjectWorkspace();
                     await submissionWorkspace.OpenAsync(projectLocation.ProjectFilePath);
-                    submissionWorkflow = CreateGenerationWorkflow(submissionWorkspace, providerPreparation);
+                    submissionWorkflow = _runtime.CreateGenerationWorkflow(submissionWorkspace, providerPreparation);
                 }
                 var generation = submissionWorkspace.Project?.Generations.SingleOrDefault(item => item.Id == generationId)
                     ?? throw new InvalidOperationException("The locally queued generation no longer exists in its owning project.");
@@ -6186,17 +6061,6 @@ public partial class MainWindow : Window, IDisposable, IGenerationJobFinalizer
 
         return $"{value:0.##} {units[unit]}";
     }
-}
-
-public sealed class GenerationProviderChoice
-{
-    public GenerationProviderChoice(IVideoGenerationProvider provider)
-    {
-        Provider = provider;
-    }
-
-    public IVideoGenerationProvider Provider { get; }
-    public string DisplayName => Provider.Capabilities.DisplayName;
 }
 
 public sealed class FrameContactListItem

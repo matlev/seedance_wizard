@@ -61,7 +61,8 @@ ReelForge.Application  <---  ReelForge.Infrastructure
 
 - **Core** owns project state, physical and virtual asset definitions, typed recipes, anchors, timelines, generation provenance, and graph invariants. It has no file-system, FFmpeg, HTTP, or WPF dependencies.
 - **Application** owns use cases and ports for project persistence, materialization, cache access, exports, provider preparation, and graph validation.
-- **Infrastructure** implements current-format JSON persistence, durable-file import, content identity, cache storage, FFmpeg planning/rendering, provider upload integration, and Windows services.
+- **Infrastructure** implements current-format JSON persistence, durable-file import, content identity, cache storage, FFmpeg planning/rendering, and provider/upload integrations without owning desktop-OS defaults.
+- **Platform.Windows** implements the Windows application-path provider and Credential Manager secret store behind Application contracts.
 - **App** treats physical and virtual assets uniformly in selection and editing UI. It requests previews, provider inputs, and exports through application services rather than resolving paths or launching FFmpeg itself.
 - **Tests** verify recipes, incompatible-format rejection, graph validity, deterministic cache keys, render plans, cleanup, and provider payloads without making paid provider calls.
 
@@ -70,6 +71,8 @@ ReelForge.Application  <---  ReelForge.Infrastructure
 The post-Milestone 2 refactor has two simultaneous acceptance goals: a human should be able to find where behavior lives, and non-platform-specific behavior should have no reason to know which desktop OS hosts it. This is preparation for a possible future macOS presentation/platform layer, not approval to port ReelForge, replace WPF, select a Mac UI framework, or delay working Windows behavior.
 
 The existing boundary is a useful starting point: Core, Application, and Infrastructure target portable .NET while only the desktop App targets Windows/WPF. The review must preserve that direction and identify the portable media, provider, persistence, and application responsibilities currently mixed with Windows implementations inside Infrastructure. Project and folder splits follow measured ownership and compilation boundaries; the target is not a mandatory one-project-per-concept layout.
+
+Milestone 3 now enforces this with `ReelForge.Platform.Windows` and a Windows-only companion test project. `WindowsApplicationPathProvider` supplies explicit settings, active-job, cache, log, and projects locations; `WindowsCredentialStore` owns the native Credential Manager calls and exposes its platform display metadata through `ISecretStore`. Portable JSON stores and diagnostics require their locations as constructor inputs. The WPF composition root in `Bootstrap/ApplicationRuntime` creates concrete services, provider HTTP clients, the global job coordinator, and disposal lifetimes outside `MainWindow`; configuration refresh remains explicit rather than using a service locator or DI container.
 
 Core and Application must not reference WPF or native Windows facilities. Portable media, provider, and persistence components must not consume WPF types. Windows P/Invoke, Credential Manager, native dialogs, shell behavior, WPF media presentation, and other genuine OS integrations belong to an explicitly Windows-owned implementation or presentation boundary. Extract a platform contract only for a real variation point—such as secret storage, application-data locations, media-tool discovery, hardware discovery, or shell integration—not merely because macOS may exist someday.
 
@@ -110,7 +113,7 @@ Portability should be enforceable without speculative abstraction. The review sh
 
 The application defaults to `FakeVideoGenerationProvider`. Constructing the window, opening a project, autosaving a draft, validating settings, polling local state, and running tests cannot submit a BytePlus or AtlasCloud generation. A potentially billable submission requires a short-lived `GenerationSubmissionAuthorization`; its interactive factory is visible only to the desktop and test assemblies. The desktop creates a production authorization only inside the generation-button event after the human accepts a per-request charge warning. Tests use a separate internal network-isolated authorization with custom `HttpMessageHandler` instances, never the public internet.
 
-BytePlus and AtlasCloud credentials are stored under separate keys through `ISecretStore` in Windows Credential Manager and are never persisted in project JSON. `IApiKeyVideoGenerationProvider` supplies the provider-specific credential key without making the workflow depend on a particular vendor. Temporary upload/data URLs and completed output URLs remain transport representations. Logical reference IDs/revisions/hashes and sanitized preparation scope are the durable history.
+BytePlus and AtlasCloud credentials are stored under separate keys through `ISecretStore` and are never persisted in project JSON. The Windows host supplies Windows Credential Manager and its display metadata; providers refer only to the configured secure credential store. `IApiKeyVideoGenerationProvider` supplies the provider-specific credential key without making the workflow depend on a particular vendor. Temporary upload/data URLs and completed output URLs remain transport representations. Logical reference IDs/revisions/hashes and sanitized preparation scope are the durable history.
 
 ### Future commercial execution boundary
 

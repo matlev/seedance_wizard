@@ -404,6 +404,8 @@ Milestone 3 will execute the approved architecture-review plan across the comple
 
 The repository-wide baseline, target project/folder map, responsibility audit, portability and FFmpeg-distribution boundaries, risk ordering, enforceable checks, and staged execution proposal are recorded in [Milestone 3 architecture review and refactor plan](milestone-3-refactor-plan.md). Review and approve that plan before Stage 1 changes production ownership.
 
+Progress: the plan is approved. Stage 0 established executable dependency-direction checks, a manual acceptance matrix, and concurrent atomic active-job persistence. Stage 1 introduced the Windows platform/test projects, moved machine-local path and Credential Manager ownership behind portable contracts, injected explicit settings/job/log/cache/project locations, neutralized portable secure-store wording, and moved service construction, provider HTTP-client ownership, job-coordinator construction, and disposal into `Bootstrap/ApplicationRuntime`. The complete suite currently consists of 203 portable tests and 3 Windows-platform tests.
+
 Expected scope includes:
 
 1. Reorganize the solution into coherent projects, feature folders, and subfolders while preserving intentional architectural layers.
