@@ -4,6 +4,7 @@
         xmlns:local="clr-namespace:ReelForge.App"
         xmlns:jobs="clr-namespace:ReelForge.App.Views.Jobs"
         xmlns:generation="clr-namespace:ReelForge.App.Views.Generation"
+        xmlns:inspector="clr-namespace:ReelForge.App.Views.Inspector"
         xmlns:projectMedia="clr-namespace:ReelForge.App.Views.ProjectMedia"
         Title="ReelForge" Height="900" Width="1440"
         MinHeight="680" MinWidth="1080"
@@ -581,15 +582,7 @@
                 <Grid>
                 <TabControl x:Name="RightPanelTabs" Margin="8" Style="{StaticResource RightPanelTabControlStyle}">
                     <TabItem x:Name="InspectorTab" Header="Inspector">
-                        <Grid Margin="10">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="MEDIA / SOURCE &amp; HISTORY" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="2,4,2,8" />
-                            <TextBox x:Name="InspectorText" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                                     Text="Select an asset or generation to inspect its details and history." />
-                        </Grid>
+                        <inspector:InspectorPanel x:Name="InspectorPanelControl" />
                     </TabItem>
                     <TabItem x:Name="GenerateTab" Header="Generate">
                         <generation:GenerationPanel x:Name="GenerationPanelControl"

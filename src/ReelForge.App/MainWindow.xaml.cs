@@ -17,6 +17,7 @@ using Microsoft.Win32;
 using ReelForge.App.Bootstrap;
 using ReelForge.App.Views.Dialogs;
 using ReelForge.App.Views.Generation;
+using ReelForge.App.Views.Inspector;
 using ReelForge.App.Views.Jobs;
 using ReelForge.App.Views.ProjectMedia;
 using ReelForge.App.Views.Projects;
@@ -284,7 +285,7 @@ public partial class MainWindow : Window, IDisposable
         catch (Exception exception)
         {
             StatusText.Text = $"The last project could not be reopened: {exception.Message}";
-            InspectorText.Text = $"Automatic project reopen failed\n\n{exception}";
+            InspectorPanelControl.Text = $"Automatic project reopen failed\n\n{exception}";
         }
     }
 
@@ -748,7 +749,7 @@ public partial class MainWindow : Window, IDisposable
 
         if (asset.StorageKind == AssetStorageKind.Virtual)
         {
-            InspectorText.Text = FormatAssetInspector(asset);
+            InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
             ConfigureMediaPreparationFor(asset);
             await ShowVirtualAssetPreviewAsync(asset, item, selectedProjectId);
             return;
@@ -764,7 +765,7 @@ public partial class MainWindow : Window, IDisposable
                     asset.Physical.Availability = PhysicalAssetAvailability.Missing;
                     await _workspace.SaveAsync();
                     if (_workspace.Project?.Id != selectedProjectId) return;
-                    InspectorText.Text = FormatAssetInspector(asset);
+                    InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
                     ShowAssetPreview(asset);
                     FrameWorkspaceStatusText.Text = "Source media is missing";
                     StatusText.Text = $"{asset.FileName} is missing from its recorded project location.";
@@ -786,7 +787,7 @@ public partial class MainWindow : Window, IDisposable
                 }
 
                 if (_workspace.Project?.Id != selectedProjectId) return;
-                InspectorText.Text = FormatAssetInspector(asset);
+                InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
                 ShowAssetPreview(asset);
                 ConfigureMediaPreparationFor(asset);
                 StatusText.Text = $"Selected {asset.FileName}.";
@@ -2429,7 +2430,7 @@ public partial class MainWindow : Window, IDisposable
         }
 
         ProjectMediaPanelControl.SelectedItem = null;
-        InspectorText.Text = FormatGenerationInspector(generation);
+        InspectorPanelControl.Text = InspectorTextFormatter.FormatGeneration(generation);
         StatusText.Text = $"Selected generation {generation.Id}.";
     }
 
@@ -2733,7 +2734,7 @@ public partial class MainWindow : Window, IDisposable
             {
                 await PhysicalAssetFileRenameService.RenameAsync(_workspace, asset, dialog.FileName);
                 RefreshProjectCollections(asset.Id);
-                InspectorText.Text = FormatAssetInspector(asset);
+                InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
                 StatusText.Text = $"Renamed stored media file to {asset.FileName}.";
             });
     }
@@ -2866,7 +2867,7 @@ public partial class MainWindow : Window, IDisposable
                 PreviewPlaceholder.Visibility = Visibility.Collapsed;
                 ImagePreview.Source = thumbnail;
                 ImagePreview.Visibility = Visibility.Visible;
-                InspectorText.Text = FormatSavedFrameInspector(
+                InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
                     new SavedFrameListItem(anchor, revision, thumbnail, error: null));
                 StatusText.Text = $"Selected Saved Frame {item.DisplayName}.";
             }
@@ -2876,7 +2877,7 @@ public partial class MainWindow : Window, IDisposable
                 ClearMediaPreview();
                 PreviewPlaceholder.Text = $"Saved Frame preview unavailable\n\n{exception.Message}";
                 PreviewPlaceholder.Visibility = Visibility.Visible;
-                InspectorText.Text = FormatSavedFrameInspector(
+                InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
                     new SavedFrameListItem(anchor, revision, thumbnail: null, exception.Message));
                 StatusText.Text = $"Could not display {item.DisplayName}.";
             }
@@ -2921,7 +2922,7 @@ public partial class MainWindow : Window, IDisposable
                 ProjectMediaPanelControl.SelectedItem = null;
                 ClearMediaPreview();
                 RefreshProjectCollections();
-                InspectorText.Text = "Select project media or a generation to inspect its details and history.";
+                InspectorPanelControl.Reset();
                 StatusText.Text = $"Deleted Saved Clip '{asset.EffectiveDisplayName}'. The source video was unchanged.";
             });
             return;
@@ -3078,7 +3079,7 @@ public partial class MainWindow : Window, IDisposable
 
         if (absolutePath is not null && File.Exists(absolutePath)) File.Delete(absolutePath);
         ProjectMediaPanelControl.SelectedItem = null;
-        InspectorText.Text = "Select an asset or generation to inspect its details and history.";
+        InspectorPanelControl.Reset();
         ClearMediaPreview();
         RefreshProjectCollections();
     }
@@ -3909,7 +3910,7 @@ public partial class MainWindow : Window, IDisposable
         if (_workspace.Project is null || _workspace.Location is null) return;
         if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
         {
-            InspectorText.Text = FormatAssetInspector(asset);
+            InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
             await OpenCompositionDraftPreviewAsync(asset, selectedItem, selectedProjectId);
             return;
         }
@@ -3933,7 +3934,7 @@ public partial class MainWindow : Window, IDisposable
                     return;
                 }
 
-                InspectorText.Text = FormatAssetInspector(asset, lease.Encoding);
+                InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset, lease.Encoding);
                 ClearMediaPreview();
                 if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
                     _activeCompositionPreviewRevisionId = asset.Virtual.CurrentRecipeRevisionId;
@@ -5162,7 +5163,7 @@ public partial class MainWindow : Window, IDisposable
         RemoveSavedFrameButton.IsEnabled = true;
         SavedFrameLabelTextBox.Text = item.Anchor.DisplayLabel ?? string.Empty;
         SavedFrameNotesTextBox.Text = item.Anchor.Notes ?? string.Empty;
-        InspectorText.Text = FormatSavedFrameInspector(item);
+        InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(item);
     }
 
     private void ClearSavedFrameEditor()
@@ -5193,7 +5194,7 @@ public partial class MainWindow : Window, IDisposable
                      choice.LogicalObjectId == item.Anchor.Id))
             choice.UpdateAnchor(item.Anchor, item.Revision, sourceName);
         GenerationPanelControl.RefreshReferences();
-        InspectorText.Text = FormatSavedFrameInspector(item);
+        InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(item);
         StatusText.Text = "Saved Frame details updated.";
     }
 
@@ -5231,22 +5232,6 @@ public partial class MainWindow : Window, IDisposable
         StatusText.Text = disposition == AnchorRemovalDisposition.Archived
             ? "The referenced Saved Frame was archived; existing history still resolves it."
             : "Saved Frame removed.";
-    }
-
-    private static string FormatSavedFrameInspector(SavedFrameListItem item)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine(item.DisplayLabel);
-        builder.AppendLine($"Saved Frame: {item.Anchor.Id}");
-        builder.AppendLine($"Revision: {item.Revision.RevisionNumber} ({item.Revision.Id})");
-        builder.AppendLine($"Position: {FormatFrameTimestamp(item.Revision.TimestampSeconds)}");
-        builder.AppendLine($"Stream: {item.Revision.VideoStreamIndex}");
-        builder.AppendLine($"Presentation timestamp: {item.Revision.PresentationTimestamp}");
-        builder.AppendLine($"Time base: {item.Revision.TimeBaseNumerator}/{item.Revision.TimeBaseDenominator}");
-        builder.AppendLine($"Source SHA-256: {item.Revision.SourceContentHash}");
-        if (!string.IsNullOrWhiteSpace(item.Anchor.Notes)) builder.AppendLine($"Notes: {item.Anchor.Notes}");
-        if (!string.IsNullOrWhiteSpace(item.Error)) builder.AppendLine($"Preview unavailable: {item.Error}");
-        return builder.ToString();
     }
 
     private static string FormatFrameTimestamp(double seconds) =>
@@ -5287,7 +5272,7 @@ public partial class MainWindow : Window, IDisposable
         MediaPreparationSelectionText.Text = "Select a video in Project Media";
         RefreshEditWorkspaceState();
 
-        InspectorText.Text = "Select an asset or generation to inspect its details and history.";
+        InspectorPanelControl.Reset();
         GenerationPanelControl.Prompt = string.Empty;
         GenerationPanelControl.Status = string.Empty;
         GenerationPanelControl.SetLineage("New root generation");
@@ -5448,149 +5433,13 @@ public partial class MainWindow : Window, IDisposable
     private void ShowError(string title, Exception exception)
     {
         StatusText.Text = exception.Message;
-        InspectorText.Text = $"{title}\n\n{exception}";
+        InspectorPanelControl.Text = $"{title}\n\n{exception}";
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
-    }
-
-    private static string FormatAssetInspector(
-        ProjectAsset asset,
-        MediaEncodingMetadata? realizedEncoding = null)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine(asset.FileName);
-        builder.AppendLine($"ID: {asset.Id}");
-        builder.AppendLine($"Type: {asset.MediaType}");
-        builder.AppendLine($"Storage: {asset.StorageKind}");
-        builder.AppendLine($"Created from: {asset.Origin}");
-        builder.AppendLine($"Path: {asset.Physical?.RelativePath ?? "materialized on demand"}");
-        if (asset.Physical is { } physical)
-        {
-            builder.AppendLine($"Availability: {physical.Availability}");
-        }
-        if (asset.Physical?.ContentIdentity is { } identity)
-        {
-            builder.AppendLine($"SHA-256: {identity.Sha256 ?? identity.Status.ToString()}");
-        }
-        builder.AppendLine($"Created: {asset.CreatedAt.LocalDateTime:g}");
-
-        if (asset.DurationSeconds is not null)
-        {
-            builder.AppendLine($"Duration: {asset.DurationSeconds:0.###} seconds");
-        }
-
-        var encoding = realizedEncoding ?? asset.Encoding;
-        if (encoding is null)
-        {
-            builder.AppendLine();
-            builder.AppendLine("Encoding metadata unavailable. Install/configure ffprobe, then reselect the asset.");
-            return builder.ToString();
-        }
-
-        builder.AppendLine();
-        builder.AppendLine("CONTAINER");
-        builder.AppendLine($"Format: {encoding.ContainerFormat ?? "—"}");
-        builder.AppendLine($"Size: {FormatBytes(encoding.SizeBytes)}");
-        builder.AppendLine($"Bit rate: {encoding.BitRate?.ToString("N0", CultureInfo.InvariantCulture) ?? "—"} bps");
-
-        if (encoding.Video is { } video)
-        {
-            builder.AppendLine();
-            builder.AppendLine("VIDEO");
-            builder.AppendLine($"Codec: {video.Codec ?? "—"} / {video.CodecProfile ?? "—"}");
-            builder.AppendLine($"Dimensions: {video.Width?.ToString(CultureInfo.InvariantCulture) ?? "—"} × {video.Height?.ToString(CultureInfo.InvariantCulture) ?? "—"}");
-            builder.AppendLine($"Pixel format: {video.PixelFormat ?? "—"}");
-            builder.AppendLine($"Frame rate: {video.FrameRate ?? "—"}");
-            builder.AppendLine($"Time base: {video.TimeBase ?? "—"}");
-            builder.AppendLine($"Codec level: {video.CodecLevel?.ToString(CultureInfo.InvariantCulture) ?? "—"}");
-        }
-
-        if (encoding.Audio is { } audio)
-        {
-            builder.AppendLine();
-            builder.AppendLine("AUDIO");
-            builder.AppendLine($"Codec: {audio.Codec ?? "—"}");
-            builder.AppendLine($"Sample rate: {audio.SampleRate?.ToString(CultureInfo.InvariantCulture) ?? "—"} Hz");
-            builder.AppendLine($"Channels: {audio.Channels?.ToString(CultureInfo.InvariantCulture) ?? "—"}");
-            builder.AppendLine($"Layout: {audio.ChannelLayout ?? "—"}");
-        }
-
-        return builder.ToString();
-    }
-
-    private static string FormatGenerationInspector(GenerationRecord generation)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine($"Generation {generation.Id}");
-        builder.AppendLine($"Status: {generation.Status}");
-        builder.AppendLine($"Output ingestion: {generation.IngestionStatus}");
-        builder.AppendLine($"Provider: {generation.RequestSnapshot.ProviderId}");
-        builder.AppendLine($"Model: {generation.RequestSnapshot.ModelVersion}");
-        builder.AppendLine($"Provider job: {generation.ProviderJobId ?? "—"}");
-        builder.AppendLine($"Requested: {generation.RequestedAt.LocalDateTime:g}");
-        builder.AppendLine($"Completed: {generation.CompletedAt?.LocalDateTime.ToString("g", CultureInfo.CurrentCulture) ?? "—"}");
-        builder.AppendLine();
-        builder.AppendLine("PROMPT");
-        builder.AppendLine(generation.RequestSnapshot.Prompt);
-        builder.AppendLine();
-        builder.AppendLine("SETTINGS");
-        builder.AppendLine($"Mode: {generation.RequestSnapshot.Mode}");
-        builder.AppendLine($"Duration: {generation.RequestSnapshot.DurationSeconds}s");
-        builder.AppendLine($"Aspect ratio: {generation.RequestSnapshot.AspectRatio}");
-        builder.AppendLine($"Resolution: {generation.RequestSnapshot.Resolution}");
-        builder.AppendLine($"References: {generation.RequestSnapshot.References.Count}");
-        builder.AppendLine($"Lineage: {generation.RelationshipType?.ToString() ?? "root"}");
-        builder.AppendLine($"Parent: {generation.ParentGenerationId?.ToString() ?? "—"}");
-        builder.AppendLine($"Output assets: {generation.OutputAssetIds.Count}");
-
-        foreach (var reference in generation.RequestSnapshot.References.OrderBy(item => item.Order))
-        {
-            builder.AppendLine(
-                $"  [{reference.Order}] {reference.ObjectKind} {reference.LogicalObjectId} • {reference.Role?.ToString() ?? "general"}" +
-                (string.IsNullOrWhiteSpace(reference.Label) ? string.Empty : $" • {reference.Label}"));
-            if (generation.ReferenceMaterializations.TryGetValue(reference.ReferenceId, out var receipt))
-            {
-                builder.AppendLine($"      prepared bytes: {receipt.ProducedContentHash ?? "—"}");
-                builder.AppendLine($"      preparation: {receipt.ProviderScope ?? "local"}");
-            }
-        }
-
-        foreach (var pair in generation.ResponseMetadata)
-        {
-            builder.AppendLine($"{pair.Key}: {pair.Value}");
-        }
-
-        if (generation.Error is not null)
-        {
-            builder.AppendLine();
-            builder.AppendLine("ERROR");
-            builder.AppendLine(generation.Error.Message);
-            builder.AppendLine(generation.Error.TechnicalDetails);
-        }
-
-        return builder.ToString();
     }
 
     private static string FormatTime(TimeSpan time) =>
         time.TotalHours >= 1 ? time.ToString(@"hh\:mm\:ss") : time.ToString(@"mm\:ss");
 
-    private static string FormatBytes(long? bytes)
-    {
-        if (bytes is null)
-        {
-            return "—";
-        }
-
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        var value = (double)bytes.Value;
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-
-        return $"{value:0.##} {units[unit]}";
-    }
 }
 public sealed class FrameContactListItem
 {

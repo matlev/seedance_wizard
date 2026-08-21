@@ -1,0 +1,19 @@
+<UserControl x:Class="ReelForge.App.Views.Inspector.InspectorPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <TextBlock Text="MEDIA / SOURCE &amp; HISTORY"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource MutedTextBrush}"
+                   Margin="2,4,2,8" />
+        <TextBox x:Name="InspectorText"
+                 Grid.Row="1"
+                 IsReadOnly="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto" />
+    </Grid>
+</UserControl>
