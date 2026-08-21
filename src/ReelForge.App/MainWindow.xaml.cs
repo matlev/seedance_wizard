@@ -101,8 +101,6 @@ public partial class MainWindow : Window, IDisposable
     private double? _pendingContactFrameTimestamp;
     private Guid? _frameSourceAssetId;
     private string? _frameSourceContentHash;
-    private MaterializedMediaLease? _activePreviewLease;
-    private MaterializedMediaLease? _activeCompositionAuditionAudioLease;
     private CancellationTokenSource? _compositionRenderCancellation;
     private CompositionTimelineLayoutResult? _compositionTimelineLayout;
     private Line? _compositionTimelinePlayhead;
@@ -219,9 +217,7 @@ public partial class MainWindow : Window, IDisposable
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
         _compositionRenderCancellation?.Cancel();
-        MediaPreviewPanelControl.StopAuditionAudio();
-        ReleaseCompositionAuditionAudioLease();
-        ReleaseActivePreviewLease();
+        MediaPreviewPanelControl.Dispose();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Dispose();
         _pendingSubmissionDelays.Clear();
@@ -1041,10 +1037,9 @@ public partial class MainWindow : Window, IDisposable
                 }
                 ClearMediaPreview();
                 _activeCompositionPreviewRevisionId = revision.Id;
-                _activePreviewLease = lease;
-                lease = null;
                 MediaPreviewPanelControl.HidePlaceholder();
-                OpenVideoPreview(_activePreviewLease.Path, requiresWarmup: true);
+                MediaPreviewPanelControl.OpenLeasedVideo(lease, requiresWarmup: true);
+                lease = null;
                 UpdateCompositionActionState();
                 StatusText.Text = "Working Composition preview is ready.";
             }
@@ -3558,10 +3553,8 @@ public partial class MainWindow : Window, IDisposable
                 MediaPreviewPanelControl.SetTimelineRange(0, timelineStart);
                 if (auditionAudio is not null)
                 {
-                    _activeCompositionAuditionAudioLease = auditionAudio;
+                    MediaPreviewPanelControl.OpenLeasedAuditionAudio(auditionAudio, requestedPosition);
                     auditionAudio = null;
-                    MediaPreviewPanelControl.SetIndependentAudioAvailable(true);
-                    OpenCompositionAuditionAudio(_activeCompositionAuditionAudioLease.Path, requestedPosition);
                 }
                 var requestedSegmentIndex = FindCompositionDraftSegmentIndex(requestedPosition);
                 await OpenCompositionDraftSegmentAsync(
@@ -3570,7 +3563,7 @@ public partial class MainWindow : Window, IDisposable
                     playAfterOpen: false);
                 StatusText.Text = auditionAudioWarning is not null
                     ? $"Fast composition audition ready without independent audio: {auditionAudioWarning}"
-                    : _activeCompositionAuditionAudioLease is not null
+                    : MediaPreviewPanelControl.HasAuditionAudioLease
                         ? "Fast composition audition ready with independent audio clips. " +
                           "Use Preview composition to verify final mix fidelity and render continuity."
                         : "Fast composition audition ready. Source video and source audio play at cuts; " +
@@ -3607,9 +3600,6 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
 
-        MediaPreviewPanelControl.Pause();
-        ReleaseActivePreviewLease();
-        _activePreviewLease = lease;
         _activeCompositionDraftSegmentIndex = segmentIndex;
         _compositionDraftPositionSeconds = Math.Clamp(
             globalSeconds,
@@ -3617,12 +3607,13 @@ public partial class MainWindow : Window, IDisposable
             segment.TimelineStartSeconds + segment.DurationSeconds);
         var offset = _compositionDraftPositionSeconds - segment.TimelineStartSeconds;
         MediaPreviewPanelControl.HidePlaceholder();
-        OpenVideoPreview(
-            lease.Path,
+        MediaPreviewPanelControl.OpenLeasedVideo(
+            lease,
             requiresWarmup: true,
             playAfterPriming: playAfterOpen,
             startSeconds: segment.SourceStartSeconds + offset,
-            forceMuted: !segment.AudioEnabled);
+            forceMuted: !segment.AudioEnabled,
+            useExternalTimeline: true);
         MediaPreviewPanelControl.SetPosition(_compositionDraftPositionSeconds);
         UpdateCompositionTimelinePlayhead(_compositionDraftPositionSeconds);
     }
@@ -3716,12 +3707,11 @@ public partial class MainWindow : Window, IDisposable
                 ClearMediaPreview();
                 if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
                     _activeCompositionPreviewRevisionId = asset.Virtual.CurrentRecipeRevisionId;
-                _activePreviewLease = lease;
-                lease = null;
                 MediaPreviewPanelControl.HidePlaceholder();
-                OpenVideoPreview(
-                    _activePreviewLease.Path,
+                MediaPreviewPanelControl.OpenLeasedVideo(
+                    lease,
                     requiresWarmup: asset.Virtual?.Kind != VirtualAssetKind.SavedClip);
+                lease = null;
                 StatusText.Text = $"Selected {kindName} {asset.EffectiveDisplayName}.";
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
@@ -3754,11 +3744,6 @@ public partial class MainWindow : Window, IDisposable
             useExternalTimeline: _activeCompositionDraftRevisionId is not null);
     }
 
-    private void OpenCompositionAuditionAudio(string absolutePath, double startSeconds)
-    {
-        MediaPreviewPanelControl.OpenAuditionAudio(absolutePath, startSeconds);
-    }
-
     private void CompositionAuditionAudio_MediaFailed(object sender, ExceptionRoutedEventArgs e)
     {
         StopCompositionAuditionAudio();
@@ -3778,8 +3763,6 @@ public partial class MainWindow : Window, IDisposable
     private void StopCompositionAuditionAudio()
     {
         MediaPreviewPanelControl.StopAuditionAudio();
-        ReleaseCompositionAuditionAudioLease();
-        MediaPreviewPanelControl.SetIndependentAudioAvailable(false);
     }
 
     private void ClearMediaPreview()
@@ -3794,7 +3777,6 @@ public partial class MainWindow : Window, IDisposable
         _isCompositionTimelineScrubbing = false;
         _resumePlaybackAfterCompositionTimelineScrub = false;
         if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
-        ReleaseActivePreviewLease();
         MediaPreviewPanelControl.Reset();
         UpdateCompositionTimelinePlayhead(0);
     }
@@ -3808,18 +3790,6 @@ public partial class MainWindow : Window, IDisposable
 
         var selectedItem = ProjectMediaPanelControl.SelectedItem;
         _ = OpenCompositionDraftPreviewAsync(composition, selectedItem, _workspace.Project?.Id);
-    }
-
-    private void ReleaseActivePreviewLease()
-    {
-        var lease = Interlocked.Exchange(ref _activePreviewLease, null);
-        if (lease is not null) lease.DisposeAsync().AsTask().GetAwaiter().GetResult();
-    }
-
-    private void ReleaseCompositionAuditionAudioLease()
-    {
-        var lease = Interlocked.Exchange(ref _activeCompositionAuditionAudioLease, null);
-        if (lease is not null) lease.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     private void MediaPreview_VideoReady(object? sender, MediaPreviewReadyEventArgs e)

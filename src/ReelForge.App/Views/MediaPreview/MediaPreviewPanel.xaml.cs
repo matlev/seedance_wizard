@@ -3,12 +3,14 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using ReelForge.Application;
 
 namespace ReelForge.App.Views.MediaPreview;
 
-public partial class MediaPreviewPanel : UserControl
+public partial class MediaPreviewPanel : UserControl, IDisposable
 {
     private readonly CompositionAuditionAudioController _auditionAudio;
+    private readonly MediaPreviewLeaseOwner _leases = new();
     private readonly DispatcherTimer _positionTimer;
     private bool _isPriming;
     private bool _requiresWarmup;
@@ -24,6 +26,7 @@ public partial class MediaPreviewPanel : UserControl
     private bool _isInitialized;
     private double _pendingStartSeconds;
     private double _volumeBeforeMute = 1;
+    private bool _disposed;
 
     public MediaPreviewPanel()
     {
@@ -72,15 +75,31 @@ public partial class MediaPreviewPanel : UserControl
         bool forceMuted = false,
         bool useExternalTimeline = false)
     {
+        CloseVideoSource();
+        _leases.ReleaseVideo();
+        OpenVideoCore(
+            absolutePath,
+            requiresWarmup,
+            playAfterPriming,
+            startSeconds,
+            forceMuted,
+            useExternalTimeline);
+    }
+
+    private void OpenVideoCore(
+        string absolutePath,
+        bool requiresWarmup,
+        bool playAfterPriming,
+        double startSeconds,
+        bool forceMuted,
+        bool useExternalTimeline)
+    {
         _forcedMuted = forceMuted;
         _requiresWarmup = requiresWarmup;
         _playAfterPriming = playAfterPriming;
         _pendingStartSeconds = Math.Max(0, startSeconds);
         _useExternalTimeline = useExternalTimeline;
         _hasEnded = false;
-        VideoPreview.Stop();
-        VideoPreview.Close();
-        VideoPreview.Source = null;
         VideoPreview.IsMuted = true;
         VideoPreview.Source = new Uri(absolutePath, UriKind.Absolute);
         VideoPreview.Visibility = Visibility.Visible;
@@ -152,7 +171,13 @@ public partial class MediaPreviewPanel : UserControl
         VideoPreview.Stop();
         VideoPreview.Close();
         VideoPreview.Source = null;
-        OpenVideo(path, requiresWarmup, playAfterPriming: true, forceMuted: forceMuted);
+        OpenVideoCore(
+            path,
+            requiresWarmup,
+            playAfterPriming: true,
+            startSeconds: 0,
+            forceMuted: forceMuted,
+            useExternalTimeline: false);
         return true;
     }
 
@@ -162,7 +187,7 @@ public partial class MediaPreviewPanel : UserControl
         NextFrameButton.IsEnabled = enabled;
     }
 
-    public void OpenAuditionAudio(string absolutePath, double startSeconds)
+    private void OpenAuditionAudio(string absolutePath, double startSeconds)
     {
         _auditionAudio.Open(absolutePath, startSeconds, VolumeSlider.Value);
         UpdateAudioControls();
@@ -176,16 +201,41 @@ public partial class MediaPreviewPanel : UserControl
     public void StopAuditionAudio()
     {
         _auditionAudio.Stop();
+        _leases.ReleaseAuditionAudio();
+        HasIndependentAudio = false;
         UpdateAudioControls();
     }
 
-    public void SetIndependentAudioAvailable(bool available)
+    private void SetIndependentAudioAvailable(bool available)
     {
         HasIndependentAudio = available;
         UpdateAudioControls();
     }
 
     public bool HasIndependentAudio { get; private set; }
+
+    public bool HasAuditionAudioLease => _leases.HasAuditionAudio;
+
+    public void OpenLeasedVideo(
+        MaterializedMediaLease lease,
+        bool requiresWarmup,
+        bool playAfterPriming = false,
+        double startSeconds = 0,
+        bool forceMuted = false,
+        bool useExternalTimeline = false)
+    {
+        CloseVideoSource();
+        var path = _leases.AdoptVideo(lease);
+        OpenVideoCore(path, requiresWarmup, playAfterPriming, startSeconds, forceMuted, useExternalTimeline);
+    }
+
+    public void OpenLeasedAuditionAudio(MaterializedMediaLease lease, double startSeconds)
+    {
+        StopAuditionAudio();
+        var path = _leases.AdoptAuditionAudio(lease);
+        SetIndependentAudioAvailable(true);
+        OpenAuditionAudio(path, startSeconds);
+    }
 
     public void EnterPrecisionMode()
     {
@@ -232,9 +282,10 @@ public partial class MediaPreviewPanel : UserControl
         _forcedMuted = false;
         _useExternalTimeline = false;
         if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
-        VideoPreview.Stop();
-        VideoPreview.Close();
-        VideoPreview.Source = null;
+        CloseVideoSource();
+        _auditionAudio.Stop();
+        _leases.ReleaseAll();
+        HasIndependentAudio = false;
         VideoPreview.Visibility = Visibility.Collapsed;
         PlaybackControlsBorder.Visibility = Visibility.Collapsed;
         PlaybackButton.IsEnabled = false;
@@ -247,6 +298,17 @@ public partial class MediaPreviewPanel : UserControl
         PositionSlider.Value = 0;
         ShowPosition(TimeSpan.Zero, TimeSpan.Zero);
         UpdateAudioControls();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _positionTimer.Stop();
+        CloseVideoSource();
+        _auditionAudio.Stop();
+        _leases.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     public void UpdatePositionDisplay()
@@ -413,6 +475,13 @@ public partial class MediaPreviewPanel : UserControl
 
     private static string FormatTime(TimeSpan time) =>
         time.TotalHours >= 1 ? time.ToString(@"hh\:mm\:ss") : time.ToString(@"mm\:ss");
+
+    private void CloseVideoSource()
+    {
+        VideoPreview.Stop();
+        VideoPreview.Close();
+        VideoPreview.Source = null;
+    }
 }
 
 public sealed class MediaPreviewReadyEventArgs(bool shouldPlay) : EventArgs
