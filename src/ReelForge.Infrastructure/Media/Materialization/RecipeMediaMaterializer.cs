@@ -1,7 +1,4 @@
-using System.Collections.Concurrent;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using ReelForge.Application;
 using ReelForge.Core;
 
@@ -19,11 +16,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
     private readonly IExternalProcessRunner _runner;
     private readonly IContentHashService _contentHashService;
     private readonly IMediaInspectionService? _mediaInspector;
-    private readonly string _cacheRoot;
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _cacheLocks = new(StringComparer.Ordinal);
-    private readonly SemaphoreSlim _fingerprintLock = new(1, 1);
+    private readonly MediaRenderCache _renderCache;
+    private readonly FfmpegRendererFingerprintProvider _fingerprintProvider;
     private string? _ffmpegPath;
-    private string? _rendererFingerprint;
     private volatile bool _persistModifiedMediaOnDisk;
     private bool _disposed;
 
@@ -41,10 +36,11 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheRoot);
         _ffmpegPath = ffmpegPath;
         _runner = runner;
+        _fingerprintProvider = new FfmpegRendererFingerprintProvider(runner, TrimAlgorithmVersion);
         _exactFrameService = exactFrameService;
-        _cacheRoot = Path.GetFullPath(cacheRoot);
         _contentHashService = contentHashService ?? new Sha256ContentHashService();
         _mediaInspector = mediaInspector;
+        _renderCache = new MediaRenderCache(cacheRoot, _contentHashService, mediaInspector);
         _persistModifiedMediaOnDisk = persistModifiedMediaOnDisk;
         _physicalMaterializer = new PhysicalAssetMaterializer(_contentHashService, exactFrameService);
     }
@@ -52,7 +48,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
     public void UpdateExecutablePath(string? ffmpegPath)
     {
         _ffmpegPath = ffmpegPath;
-        _rendererFingerprint = null;
+        _fingerprintProvider.Reset();
     }
 
     public void UpdatePersistencePreference(bool persistModifiedMediaOnDisk) =>
@@ -167,8 +163,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
 
             var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
                 "FFmpeg is not configured. Configure it in Settings > Media Tools to audition composition audio.");
-            var fingerprint = await GetRendererFingerprintAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-            var key = HashText(string.Join('|',
+            var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
+            var key = MediaRenderCache.HashText(string.Join('|',
                 AuditionAudioAlgorithmVersion,
                 composition.VirtualAssetId.ToString("N"),
                 composition.RecipeRevisionId.ToString("N"),
@@ -176,17 +172,17 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                 string.Join(';', leases.Select(lease =>
                     lease.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty)),
                 fingerprint));
-            var cacheDirectory = Path.Combine(_cacheRoot, "compositions");
+            var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "compositions");
             var cachePath = Path.Combine(cacheDirectory, $"{key}.m4a");
-            if (IsUsableCacheFile(cachePath))
+            if (MediaRenderCache.IsUsableFile(cachePath))
                 return await OpenCacheLeaseAsync(cachePath, fallbackEncoding: null, cancellationToken)
                     .ConfigureAwait(false);
 
-            var cacheLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+            var cacheLock = _renderCache.GetLock(key);
             await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                if (IsUsableCacheFile(cachePath))
+                if (MediaRenderCache.IsUsableFile(cachePath))
                     return await OpenCacheLeaseAsync(cachePath, fallbackEncoding: null, cancellationToken)
                         .ConfigureAwait(false);
                 Directory.CreateDirectory(cacheDirectory);
@@ -202,13 +198,13 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                             cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
                     if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                    if (!IsUsableCacheFile(temporaryPath))
+                    if (!MediaRenderCache.IsUsableFile(temporaryPath))
                         throw new InvalidDataException("FFmpeg completed without producing the audition audio mix.");
                     try
                     {
                         File.Move(temporaryPath, cachePath, overwrite: false);
                     }
-                    catch (IOException) when (IsUsableCacheFile(cachePath))
+                    catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
                     {
                         File.Delete(temporaryPath);
                     }
@@ -322,7 +318,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         {
             var persistentPath = GetPersistentRepresentationPath(project, location, target, media.Path);
             var key = $"persistent|{persistentPath}";
-            var persistentLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+            var persistentLock = _renderCache.GetLock(key);
             await persistentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
@@ -612,8 +608,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                 videoEncoding = await _mediaInspector.InspectAsync(video.Path, cancellationToken).ConfigureAwait(false);
             var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
                 "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or export compositions.");
-            var fingerprint = await GetRendererFingerprintAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-            var key = HashText(string.Join('|',
+            var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
+            var key = MediaRenderCache.HashText(string.Join('|',
                 AudioOverlayAlgorithmVersion,
                 composition.NodeHash,
                 video.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty,
@@ -629,16 +625,16 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                 request.Purpose,
                 request.Profile ?? string.Empty,
                 fingerprint));
-            var cacheDirectory = Path.Combine(_cacheRoot, "compositions");
+            var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "compositions");
             var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
-            if (IsUsableCacheFile(cachePath))
+            if (MediaRenderCache.IsUsableFile(cachePath))
                 return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
 
-            var cacheLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+            var cacheLock = _renderCache.GetLock(key);
             await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                if (IsUsableCacheFile(cachePath))
+                if (MediaRenderCache.IsUsableFile(cachePath))
                     return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
                 Directory.CreateDirectory(cacheDirectory);
                 var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
@@ -677,13 +673,13 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                             cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
                     if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                    if (!IsUsableCacheFile(temporaryPath))
+                    if (!MediaRenderCache.IsUsableFile(temporaryPath))
                         throw new InvalidDataException("FFmpeg completed without producing the composition audio mix.");
                     try
                     {
                         File.Move(temporaryPath, cachePath, overwrite: false);
                     }
-                    catch (IOException) when (IsUsableCacheFile(cachePath))
+                    catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
                     {
                         File.Delete(temporaryPath);
                     }
@@ -724,24 +720,24 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
     {
         var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
             "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or export compositions.");
-        var fingerprint = await GetRendererFingerprintAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-        var key = HashText(string.Join('|',
+        var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
+        var key = MediaRenderCache.HashText(string.Join('|',
             SourceAudioAlgorithmVersion,
             segment.SegmentHash,
             input.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty,
             request.Purpose,
             request.Profile ?? string.Empty,
             fingerprint));
-        var cacheDirectory = Path.Combine(_cacheRoot, "compositions");
+        var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "compositions");
         var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
-        if (IsUsableCacheFile(cachePath))
+        if (MediaRenderCache.IsUsableFile(cachePath))
             return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
 
-        var cacheLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+        var cacheLock = _renderCache.GetLock(key);
         await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (IsUsableCacheFile(cachePath))
+            if (MediaRenderCache.IsUsableFile(cachePath))
                 return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
             Directory.CreateDirectory(cacheDirectory);
             var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
@@ -753,13 +749,13 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                         cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
                 if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                if (!IsUsableCacheFile(temporaryPath))
+                if (!MediaRenderCache.IsUsableFile(temporaryPath))
                     throw new InvalidDataException("FFmpeg completed without producing the muted composition preview.");
                 try
                 {
                     File.Move(temporaryPath, cachePath, overwrite: false);
                 }
-                catch (IOException) when (IsUsableCacheFile(cachePath))
+                catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
                 {
                     File.Delete(temporaryPath);
                 }
@@ -814,8 +810,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
     {
         var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
             "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or export compositions.");
-        var fingerprint = await GetRendererFingerprintAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-        var key = HashText(string.Join('|',
+        var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
+        var key = MediaRenderCache.HashText(string.Join('|',
             ConcatAlgorithmVersion,
             composition.NodeHash,
             string.Join(';', inputs.Select(input => input.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty)),
@@ -825,16 +821,16 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             request.Purpose,
             request.Profile ?? string.Empty,
             fingerprint));
-        var cacheDirectory = Path.Combine(_cacheRoot, "compositions");
+        var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "compositions");
         var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
-        if (IsUsableCacheFile(cachePath))
+        if (MediaRenderCache.IsUsableFile(cachePath))
             return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
 
-        var cacheLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+        var cacheLock = _renderCache.GetLock(key);
         await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (IsUsableCacheFile(cachePath))
+            if (MediaRenderCache.IsUsableFile(cachePath))
                 return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
             Directory.CreateDirectory(cacheDirectory);
             var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
@@ -857,13 +853,13 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                         cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
                 if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                if (!IsUsableCacheFile(temporaryPath))
+                if (!MediaRenderCache.IsUsableFile(temporaryPath))
                     throw new InvalidDataException("FFmpeg completed without producing the composition preview.");
                 try
                 {
                     File.Move(temporaryPath, cachePath, overwrite: false);
                 }
-                catch (IOException) when (IsUsableCacheFile(cachePath))
+                catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
                 {
                     File.Delete(temporaryPath);
                 }
@@ -956,24 +952,24 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         var sourceAsset = project.Assets.Single(candidate => candidate.Id == sourceReference.AssetId);
         var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
             "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or use Saved Clips.");
-        var fingerprint = await GetRendererFingerprintAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-        var key = HashText(string.Join('|',
+        var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
+        var key = MediaRenderCache.HashText(string.Join('|',
             TrimAlgorithmVersion,
             nodeHash,
             source.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty,
             request.Purpose.ToString(),
             request.Profile ?? string.Empty,
             fingerprint));
-        var cacheDirectory = Path.Combine(_cacheRoot, "clips");
+        var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "clips");
         var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
-        if (IsUsableCacheFile(cachePath))
+        if (MediaRenderCache.IsUsableFile(cachePath))
             return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
 
-        var cacheLock = _cacheLocks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
+        var cacheLock = _renderCache.GetLock(key);
         await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (IsUsableCacheFile(cachePath))
+            if (MediaRenderCache.IsUsableFile(cachePath))
                 return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
             var durationSeconds = source.Encoding?.DurationSeconds ??
                                   sourceAsset.DurationSeconds ??
@@ -995,13 +991,13 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                         cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
                 if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                if (!IsUsableCacheFile(temporaryPath))
+                if (!MediaRenderCache.IsUsableFile(temporaryPath))
                     throw new InvalidDataException("FFmpeg completed without producing the Saved Clip preview.");
                 try
                 {
                     File.Move(temporaryPath, cachePath, overwrite: false);
                 }
-                catch (IOException) when (IsUsableCacheFile(cachePath))
+                catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
                 {
                     File.Delete(temporaryPath);
                 }
@@ -1113,90 +1109,25 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             revision.SourceAssetId == source.AssetId &&
             revision.SourceRecipeRevisionId == source.RecipeRevisionId);
 
-    private async Task<string> GetRendererFingerprintAsync(string ffmpegPath, CancellationToken cancellationToken)
-    {
-        if (_rendererFingerprint is not null) return _rendererFingerprint;
-        await _fingerprintLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (_rendererFingerprint is not null) return _rendererFingerprint;
-            var result = await _runner.RunAsync(
-                    new ExternalProcessRequest(ffmpegPath, ["-version"]),
-                    cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-            if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-            var versionLine = result.StandardOutput
-                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-                .FirstOrDefault() ?? "unknown-ffmpeg-version";
-            _rendererFingerprint = HashText($"{TrimAlgorithmVersion}|{versionLine}");
-            return _rendererFingerprint;
-        }
-        finally
-        {
-            _fingerprintLock.Release();
-        }
-    }
-
     private async Task<MaterializedMediaLease> OpenCacheLeaseAsync(
         string cachePath,
         ProjectAsset asset,
         CancellationToken cancellationToken) =>
-        await OpenCacheLeaseAsync(cachePath, asset.Virtual?.ExpectedMediaProperties, cancellationToken)
+        await _renderCache.OpenLeaseAsync(cachePath, asset.Virtual?.ExpectedMediaProperties, cancellationToken)
             .ConfigureAwait(false);
 
     private async Task<MaterializedMediaLease> OpenCacheLeaseAsync(
         string cachePath,
         MediaEncodingMetadata? fallbackEncoding,
         CancellationToken cancellationToken)
-    {
-        var normalizedPath = MediaCacheLeaseRegistry.Acquire(cachePath);
-        try
-        {
-            File.SetLastWriteTimeUtc(normalizedPath, DateTime.UtcNow);
-            var identity = await _contentHashService.ComputeAsync(normalizedPath, cancellationToken).ConfigureAwait(false);
-            var encoding = fallbackEncoding;
-            if (_mediaInspector is not null)
-            {
-                try
-                {
-                    encoding = await _mediaInspector.InspectAsync(normalizedPath, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (Exception exception) when (exception is not OperationCanceledException)
-                {
-                    // Optional representation metadata must not make a valid cached render unusable.
-                }
-            }
-            return new MaterializedMediaLease(
-                normalizedPath,
-                identity,
-                encoding,
-                isDurableSource: false,
-                release: () =>
-                {
-                    MediaCacheLeaseRegistry.Release(normalizedPath);
-                    return ValueTask.CompletedTask;
-                });
-        }
-        catch
-        {
-            MediaCacheLeaseRegistry.Release(normalizedPath);
-            throw;
-        }
-    }
-
-    private static bool IsUsableCacheFile(string path) =>
-        File.Exists(path) && new FileInfo(path).Length > 0;
-
-    private static string HashText(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        => await _renderCache.OpenLeaseAsync(cachePath, fallbackEncoding, cancellationToken)
+            .ConfigureAwait(false);
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        _fingerprintLock.Dispose();
-        foreach (var cacheLock in _cacheLocks.Values) cacheLock.Dispose();
-        _cacheLocks.Clear();
+        _fingerprintProvider.Dispose();
+        _renderCache.Dispose();
     }
 }
