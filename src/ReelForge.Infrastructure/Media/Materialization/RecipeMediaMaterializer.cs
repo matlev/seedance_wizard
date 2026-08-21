@@ -6,7 +6,6 @@ namespace ReelForge.Infrastructure;
 
 public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSegmentMaterializer, IDisposable
 {
-    private const string TrimAlgorithmVersion = "saved-clip-trim-v1";
     private const string ConcatAlgorithmVersion = "composition-concat-v2";
     private const string AudioOverlayAlgorithmVersion = "composition-audio-overlay-v3";
     private const string AuditionAudioAlgorithmVersion = "composition-audition-audio-v1";
@@ -18,7 +17,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
     private readonly IMediaInspectionService? _mediaInspector;
     private readonly MediaRenderCache _renderCache;
     private readonly ModifiedMediaRetentionService _retentionService;
-    private readonly RecipeBoundaryResolver _boundaryResolver;
+    private readonly SavedClipTrimRenderer _trimRenderer;
     private readonly FfmpegRendererFingerprintProvider _fingerprintProvider;
     private string? _ffmpegPath;
     private bool _disposed;
@@ -37,14 +36,16 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheRoot);
         _ffmpegPath = ffmpegPath;
         _runner = runner;
-        _fingerprintProvider = new FfmpegRendererFingerprintProvider(runner, TrimAlgorithmVersion);
+        _fingerprintProvider = new FfmpegRendererFingerprintProvider(runner, SavedClipTrimRenderer.AlgorithmVersion);
         _exactFrameService = exactFrameService;
         _contentHashService = contentHashService ?? new Sha256ContentHashService();
         _mediaInspector = mediaInspector;
         _renderCache = new MediaRenderCache(cacheRoot, _contentHashService, mediaInspector);
         _retentionService = new ModifiedMediaRetentionService(
             _renderCache, _contentHashService, persistModifiedMediaOnDisk);
-        _boundaryResolver = new RecipeBoundaryResolver(exactFrameService);
+        var boundaryResolver = new RecipeBoundaryResolver(exactFrameService);
+        _trimRenderer = new SavedClipTrimRenderer(
+            runner, _renderCache, _fingerprintProvider, boundaryResolver);
         _physicalMaterializer = new PhysicalAssetMaterializer(_contentHashService, exactFrameService);
     }
 
@@ -362,8 +363,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                 sourceRequest,
                 cancellationToken)
             .ConfigureAwait(false);
-        return await RenderTrimAsync(
-                project, outputAsset, sourceReference, trim.NodeHash, trim.Start, trim.End,
+        return await _trimRenderer.RenderAsync(
+                _ffmpegPath, project, outputAsset, sourceReference, trim.NodeHash, trim.Start, trim.End,
                 source, request, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -681,8 +682,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         await using var source = await ExecuteNodeAsync(
                 project, location, sourceAsset, segment.Source, sourceRequest, cancellationToken)
             .ConfigureAwait(false);
-        return await RenderTrimAsync(
-                project, outputAsset, sourceReference, segment.SegmentHash,
+        return await _trimRenderer.RenderAsync(
+                _ffmpegPath, project, outputAsset, sourceReference, segment.SegmentHash,
                 segment.Start, segment.End, source, request, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -825,83 +826,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                 Profile = frame.ImageProfile ?? request.Profile
             },
             cancellationToken);
-    }
-
-    private async Task<MaterializedMediaLease> RenderTrimAsync(
-        VideoProject project,
-        ProjectAsset outputAsset,
-        AssetRevisionReference sourceReference,
-        string nodeHash,
-        RecipeBoundary start,
-        RecipeBoundary end,
-        MaterializedMediaLease source,
-        MaterializationRequest request,
-        CancellationToken cancellationToken)
-    {
-        var sourceAsset = project.Assets.Single(candidate => candidate.Id == sourceReference.AssetId);
-        var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
-            "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or use Saved Clips.");
-        var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-        var key = MediaRenderCache.HashText(string.Join('|',
-            TrimAlgorithmVersion,
-            nodeHash,
-            source.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty,
-            request.Purpose.ToString(),
-            request.Profile ?? string.Empty,
-            fingerprint));
-        var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "clips");
-        var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
-        if (MediaRenderCache.IsUsableFile(cachePath))
-            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-
-        var cacheLock = _renderCache.GetLock(key);
-        await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (MediaRenderCache.IsUsableFile(cachePath))
-                return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-            var durationSeconds = source.Encoding?.DurationSeconds ??
-                                  sourceAsset.DurationSeconds ??
-                                  sourceAsset.Encoding?.DurationSeconds;
-            var startSeconds = await _boundaryResolver.ResolveSecondsAsync(
-                project, sourceReference, sourceAsset, source, start, durationSeconds, isEnd: false, cancellationToken).ConfigureAwait(false);
-            var endSeconds = await _boundaryResolver.ResolveSecondsAsync(
-                project, sourceReference, sourceAsset, source, end, durationSeconds, isEnd: true, cancellationToken).ConfigureAwait(false);
-            if (startSeconds < 0 || endSeconds <= startSeconds)
-                throw new InvalidDataException("The Saved Clip recipe resolves to an empty or invalid source range.");
-            Directory.CreateDirectory(cacheDirectory);
-            var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
-            try
-            {
-                var arguments = FfmpegCommandBuilder.BuildFrameAccurateTrimArguments(
-                    source.Path, temporaryPath, startSeconds, endSeconds);
-                var result = await _runner.RunAsync(
-                        new ExternalProcessRequest(ffmpegPath, arguments),
-                        cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
-                if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                if (!MediaRenderCache.IsUsableFile(temporaryPath))
-                    throw new InvalidDataException("FFmpeg completed without producing the Saved Clip preview.");
-                try
-                {
-                    File.Move(temporaryPath, cachePath, overwrite: false);
-                }
-                catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
-                {
-                    File.Delete(temporaryPath);
-                }
-            }
-            finally
-            {
-                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-            }
-
-            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            cacheLock.Release();
-        }
     }
 
     private async Task<MaterializedMediaLease> OpenCacheLeaseAsync(
