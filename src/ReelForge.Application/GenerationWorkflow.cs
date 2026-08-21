@@ -7,7 +7,7 @@ public sealed class GenerationWorkflow
 {
     private readonly ProjectWorkspace _workspace;
     private readonly GenerationReferencePreparer _referencePreparer;
-    private readonly IGeneratedOutputIngestionService _outputIngestion;
+    private readonly GenerationMonitor _monitor;
 
     public GenerationWorkflow(
         ProjectWorkspace workspace,
@@ -16,8 +16,8 @@ public sealed class GenerationWorkflow
         IProviderAssetPreparationService? providerPreparation = null)
     {
         _workspace = workspace;
-        _outputIngestion = outputIngestion;
         _referencePreparer = new GenerationReferencePreparer(workspace, materializer, providerPreparation);
+        _monitor = new GenerationMonitor(workspace, outputIngestion);
     }
 
     public async Task SaveDraftAsync(GenerationDraft draft, CancellationToken cancellationToken = default)
@@ -203,7 +203,7 @@ public sealed class GenerationWorkflow
 
         try
         {
-            return await MonitorAndIngestAsync(
+            return await _monitor.MonitorAsync(
                     provider,
                     record,
                     options ?? new GenerationWorkflowOptions(),
@@ -235,95 +235,6 @@ public sealed class GenerationWorkflow
         GenerationRecord source,
         GenerationRelationshipType relationshipType) =>
         GenerationRequestFactory.CreateDerivedDraft(source, relationshipType);
-
-    private async Task<GenerationRecord> MonitorAndIngestAsync(
-        IAsyncVideoGenerationProvider provider,
-        GenerationRecord record,
-        GenerationWorkflowOptions options,
-        IProgress<GenerationWorkflowProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        var started = DateTimeOffset.UtcNow;
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (DateTimeOffset.UtcNow - started >= options.PollTimeout)
-            {
-                record.ResponseMetadata["localMonitoring"] = "timed-out";
-                await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
-                progress?.Report(new GenerationWorkflowProgress(
-                    record.Status,
-                    record.IngestionStatus,
-                    "Local monitoring timed out. The remote job remains available to resume."));
-                return record;
-            }
-
-            var job = await provider.GetJobAsync(record.ProviderJobId!, cancellationToken).ConfigureAwait(false);
-            record.Status = job.Status;
-            record.Error = job.Error;
-            MergeMetadata(record.ResponseMetadata, job.ResponseMetadata);
-            record.ResponseMetadata["localMonitoring"] = "active";
-            progress?.Report(new GenerationWorkflowProgress(
-                record.Status,
-                record.IngestionStatus,
-                $"Remote job: {record.Status}"));
-            await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
-
-            if (job.Status is GenerationStatus.Failed or GenerationStatus.Cancelled)
-            {
-                record.CompletedAt = DateTimeOffset.UtcNow;
-                await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
-                return record;
-            }
-
-            if (job.Status == GenerationStatus.Succeeded)
-            {
-                record.CompletedAt = DateTimeOffset.UtcNow;
-                record.IngestionStatus = OutputIngestionStatus.Pending;
-                await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
-                progress?.Report(new GenerationWorkflowProgress(
-                    record.Status,
-                    record.IngestionStatus,
-                    "Remote generation completed. Downloading and verifying output…"));
-                try
-                {
-                    record.IngestionStatus = OutputIngestionStatus.Running;
-                    await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
-                    var assets = await _outputIngestion
-                        .IngestAsync(_workspace.Location!, record.Id, job.Outputs, cancellationToken)
-                        .ConfigureAwait(false);
-                    foreach (var asset in assets)
-                    {
-                        _workspace.Project!.AddAsset(asset);
-                        record.OutputAssetIds.Add(asset.Id);
-                    }
-                    record.IngestionStatus = OutputIngestionStatus.Succeeded;
-                    record.Error = null;
-                }
-                catch (Exception exception) when (exception is not OperationCanceledException)
-                {
-                    record.IngestionStatus = OutputIngestionStatus.Failed;
-                    record.Error = new GenerationError
-                    {
-                        ProviderCode = "local_ingestion_failed",
-                        Message = exception.Message,
-                        TechnicalDetails = exception.GetType().FullName
-                    };
-                }
-
-                await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
-                progress?.Report(new GenerationWorkflowProgress(
-                    record.Status,
-                    record.IngestionStatus,
-                    record.IngestionStatus == OutputIngestionStatus.Succeeded
-                        ? "Output downloaded, verified, and added to the project."
-                        : "Remote generation completed, but local output ingestion failed."));
-                return record;
-            }
-
-            await Task.Delay(options.PollInterval, cancellationToken).ConfigureAwait(false);
-        }
-    }
 
     private static void ValidateLineage(GenerationDraft draft, VideoProject project)
     {
