@@ -30,7 +30,7 @@ The principal remaining production concentration is `MainWindow.xaml.cs`, curren
 - generation draft, continuation preparation, Undo Send, submission, and cross-project result coordination;
 - shell workspace state, project lifecycle, refresh, status, and cross-feature routing.
 
-The largest non-UI exception is `WorkingCompositionService`. It still combines composition lifecycle, transactional recipe revision updates, segment commands, audio commands, split asset/anchor construction, source validation, cloning, provenance, persistence, and rollback. Test projects also remain broad, CI topology is not yet established, and the final naming/dead-code audit has not begun.
+The original largest non-UI exception, `WorkingCompositionService`, has now been decomposed behind its compatibility facade. Composition lifecycle, current-state access, transactional recipe revision edits, segment commands, audio commands, and exact split mutation have focused owners under `Editing/Composition` and `Editing/Audio`. Test projects remain broad, CI topology is not yet established, and the final naming/dead-code audit has not begun.
 
 ## Remaining target architecture
 
@@ -100,6 +100,8 @@ Add architecture checks for App and Platform.Windows references, portable non-Wi
 Each unit is independently buildable, testable, commit-sized, and reviewed before the next overlapping unit begins.
 
 ### Unit 1 — decompose Working Composition editing
+
+Status: implementation and automated verification complete; human smoke acceptance pending.
 
 Write set: `ReelForge.Application/Editing/Composition/**`, existing composition services/facade, and focused composition tests.
 

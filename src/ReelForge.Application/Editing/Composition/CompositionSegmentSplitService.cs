@@ -1,4 +1,5 @@
 using ReelForge.Core;
+using ReelForge.Application.Editing.Composition;
 
 namespace ReelForge.Application;
 
@@ -7,6 +8,8 @@ public sealed class CompositionSegmentSplitService
     private readonly ProjectWorkspace _workspace;
     private readonly IMediaMaterializer _materializer;
     private readonly IExactVideoFrameService _exactFrameService;
+    private readonly CompositionCurrentAccessor _current;
+    private readonly CompositionSplitMutation _splitMutation;
 
     public CompositionSegmentSplitService(
         ProjectWorkspace workspace,
@@ -16,6 +19,9 @@ public sealed class CompositionSegmentSplitService
         _workspace = workspace;
         _materializer = materializer;
         _exactFrameService = exactFrameService;
+        _current = new CompositionCurrentAccessor(workspace);
+        var editor = new TransactionalCompositionRevisionEditor(workspace, _current);
+        _splitMutation = new CompositionSplitMutation(_current, editor);
     }
 
     public async Task<CompositionSegmentSplitResult> SplitAsync(
@@ -31,7 +37,7 @@ public sealed class CompositionSegmentSplitService
             throw new ArgumentOutOfRangeException(nameof(offsetWithinSegment), "Move the playhead inside the selected segment.");
         var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
         var location = _workspace.Location ?? throw new InvalidOperationException("The open project has no location.");
-        var (_, _, recipe) = new WorkingCompositionService(_workspace).GetCurrent();
+        var (_, _, recipe) = _current.GetCurrent();
         var segment = recipe.Segments.SingleOrDefault(candidate => candidate.Id == segmentId)
             ?? throw new InvalidOperationException("The selected composition segment no longer exists.");
         var sourceAsset = project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId)
@@ -119,8 +125,7 @@ public sealed class CompositionSegmentSplitService
             frame.TimeBaseDenominator,
             frame.FrameNumber,
             segment.Source.RecipeRevisionId);
-        return await new WorkingCompositionService(_workspace)
-            .SplitSegmentAtFrameAsync(
+        return await _splitMutation.SplitAsync(
                 segmentId,
                 position,
                 boundaryEdge,

@@ -55,10 +55,57 @@ public sealed class CompositionSegmentAudioDetachmentServiceTests : IDisposable
         Assert.Empty(ProjectInvariantValidator.Validate(reopened));
     }
 
-    private async Task<ProjectWorkspace> CreateWorkspaceAsync()
+    [Fact]
+    public async Task SaveFailureRollsBackDetachedAudioAndCompositionState()
+    {
+        var store = new ToggleFailingProjectStore();
+        var workspace = await CreateWorkspaceAsync(store);
+        var project = workspace.Project!;
+        var first = AddVideo(project, "rollback-first.mp4", 4);
+        var second = AddVideo(project, "rollback-second.mp4", 6);
+        var compositionService = new WorkingCompositionService(workspace);
+        var composition = await compositionService.CreateInitialAsync(first.Id);
+        await compositionService.AddSegmentAsync(second.Id);
+        var before = compositionService.GetCurrent();
+        var draft = Assert.Single(project.RecipeDrafts);
+        var originalModifiedAt = project.ModifiedAt;
+        var originalAssets = project.Assets.ToArray();
+        var originalSources = composition.Provenance!.SourceAssetIds.ToArray();
+        var originalDraftBasedOnRevisionId = draft.BasedOnRevisionId;
+        var originalDraftRecipe = draft.EditableRecipe;
+        var originalDraftModifiedAt = draft.ModifiedAt;
+        var extraction = new StubExtractionEngine();
+        store.FailSaves = true;
+        var service = new CompositionSegmentAudioDetachmentService(
+            workspace,
+            new StubSegmentMaterializer(Path.Combine(_root, "rollback-selected-segment.mp4")),
+            extraction,
+            new Sha256ContentHashService(),
+            new AudioOnlyInspector());
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.DetachAsync(before.Recipe.Segments[1].Id, "rollback detached.m4a"));
+
+        var after = compositionService.GetCurrent();
+        Assert.Equal(originalModifiedAt, project.ModifiedAt);
+        Assert.Equal(originalAssets, project.Assets);
+        Assert.Same(before.Asset, after.Asset);
+        Assert.Same(before.Revision, after.Revision);
+        Assert.Same(before.Recipe, after.Recipe);
+        Assert.Equal(originalDraftBasedOnRevisionId, draft.BasedOnRevisionId);
+        Assert.Same(originalDraftRecipe, draft.EditableRecipe);
+        Assert.Equal(originalDraftModifiedAt, draft.ModifiedAt);
+        Assert.Equal(originalSources, composition.Provenance.SourceAssetIds);
+        Assert.DoesNotContain(project.Assets, asset => asset.Provenance?.Operation == "detach-segment-audio");
+        Assert.Empty(after.Recipe.AudioClips);
+        Assert.False(File.Exists(Path.Combine(_root, "assets", "audio", "rollback detached.m4a")));
+        Assert.All(extraction.OutputPaths, path => Assert.False(File.Exists(path)));
+    }
+
+    private async Task<ProjectWorkspace> CreateWorkspaceAsync(IProjectStore? store = null)
     {
         Directory.CreateDirectory(_root);
-        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        var workspace = new ProjectWorkspace(store ?? new PortableProjectStore(), new UnusedImporter());
         await workspace.CreateAsync(_root, "Segment Audio Detachment");
         return workspace;
     }
@@ -136,11 +183,16 @@ public sealed class CompositionSegmentAudioDetachmentServiceTests : IDisposable
 
     private sealed class StubExtractionEngine : IAudioExtractionEngine
     {
+        public List<string> OutputPaths { get; } = [];
+
         public Task ExtractToM4aAsync(
             string inputPath,
             string outputPath,
-            CancellationToken cancellationToken = default) =>
-            File.WriteAllBytesAsync(outputPath, [4, 5, 6, 7], cancellationToken);
+            CancellationToken cancellationToken = default)
+        {
+            OutputPaths.Add(outputPath);
+            return File.WriteAllBytesAsync(outputPath, [4, 5, 6, 7], cancellationToken);
+        }
     }
 
     private sealed class AudioOnlyInspector : IMediaInspectionService
@@ -168,5 +220,31 @@ public sealed class CompositionSegmentAudioDetachmentServiceTests : IDisposable
             ProjectLocation location,
             IEnumerable<string> sourcePaths,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class ToggleFailingProjectStore : IProjectStore
+    {
+        private readonly PortableProjectStore _inner = new();
+
+        public bool FailSaves { get; set; }
+
+        public Task<(VideoProject Project, ProjectLocation Location)> CreateAsync(
+            string rootDirectory,
+            string name,
+            CancellationToken cancellationToken = default) =>
+            _inner.CreateAsync(rootDirectory, name, cancellationToken);
+
+        public Task<(VideoProject Project, ProjectLocation Location)> OpenAsync(
+            string projectFilePath,
+            CancellationToken cancellationToken = default) =>
+            _inner.OpenAsync(projectFilePath, cancellationToken);
+
+        public Task SaveAsync(
+            VideoProject project,
+            ProjectLocation location,
+            CancellationToken cancellationToken = default) =>
+            FailSaves
+                ? Task.FromException(new IOException("Simulated project save failure."))
+                : _inner.SaveAsync(project, location, cancellationToken);
     }
 }

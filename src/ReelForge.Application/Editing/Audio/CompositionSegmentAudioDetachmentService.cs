@@ -1,4 +1,6 @@
 using System.Globalization;
+using ReelForge.Application.Editing.Audio;
+using ReelForge.Application.Editing.Composition;
 using ReelForge.Core;
 
 namespace ReelForge.Application;
@@ -10,6 +12,8 @@ public sealed class CompositionSegmentAudioDetachmentService
     private readonly IAudioExtractionEngine _extractionEngine;
     private readonly IContentHashService _contentHashService;
     private readonly IMediaInspectionService _mediaInspector;
+    private readonly CompositionCurrentAccessor _current;
+    private readonly CompositionAudioCommands _audioCommands;
 
     public CompositionSegmentAudioDetachmentService(
         ProjectWorkspace workspace,
@@ -23,6 +27,9 @@ public sealed class CompositionSegmentAudioDetachmentService
         _extractionEngine = extractionEngine;
         _contentHashService = contentHashService;
         _mediaInspector = mediaInspector;
+        _current = new CompositionCurrentAccessor(workspace);
+        var editor = new TransactionalCompositionRevisionEditor(workspace, _current);
+        _audioCommands = new CompositionAudioCommands(_current, editor);
     }
 
     public async Task<DetachedCompositionAudioResult> DetachAsync(
@@ -32,8 +39,7 @@ public sealed class CompositionSegmentAudioDetachmentService
     {
         var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
         var location = _workspace.Location ?? throw new InvalidOperationException("The open project has no location.");
-        var compositionService = new WorkingCompositionService(_workspace);
-        var (composition, revision, recipe) = compositionService.GetCurrent();
+        var (composition, revision, recipe) = _current.GetCurrent();
         var segmentIndex = recipe.Segments.FindIndex(segment => segment.Id == segmentId);
         if (segmentIndex < 0)
             throw new InvalidOperationException("The selected composition segment no longer exists.");
@@ -56,6 +62,7 @@ public sealed class CompositionSegmentAudioDetachmentService
         var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(audioDirectory, fileName);
         using var fileCommit = AtomicFileCommit.Create(finalPath, "detach-audio", ".m4a");
         ProjectAsset? detachedAsset = null;
+        var projectModifiedAt = project.ModifiedAt;
         try
         {
             await using (var media = await _segmentMaterializer.MaterializeSegmentAsync(
@@ -117,7 +124,7 @@ public sealed class CompositionSegmentAudioDetachmentService
                 Virtual = null
             };
             project.AddAsset(detachedAsset);
-            var compositionResult = await compositionService.AddDetachedSegmentAudioAsync(
+            var compositionResult = await _audioCommands.AddDetachedAsync(
                     segmentId,
                     detachedAsset.Id,
                     timelineStart,
@@ -133,6 +140,7 @@ public sealed class CompositionSegmentAudioDetachmentService
         {
             if (detachedAsset is not null) project.Assets.Remove(detachedAsset);
             if (File.Exists(finalPath)) File.Delete(finalPath);
+            project.ModifiedAt = projectModifiedAt;
             throw;
         }
     }
