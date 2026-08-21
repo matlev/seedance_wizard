@@ -21,6 +21,7 @@ using ReelForge.App.Views.Generation;
 using ReelForge.App.Views.Inspector;
 using ReelForge.App.Views.Jobs;
 using ReelForge.App.Views.MediaPreparation;
+using ReelForge.App.Views.MediaPreview;
 using ReelForge.App.Views.ProjectMedia;
 using ReelForge.App.Views.Projects;
 using ReelForge.App.Views.Settings;
@@ -127,10 +128,7 @@ public partial class MainWindow : Window, IDisposable
     private double? _pendingCompositionTimelineSeekSeconds;
     private bool _previewAudioForcedMuted;
     private bool _userPreviewMuted;
-    private bool _compositionAuditionAudioReady;
-    private bool _compositionAuditionAudioPriming;
-    private bool _playCompositionAuditionAudioAfterOpen;
-    private double _pendingCompositionAuditionAudioPosition;
+    private readonly CompositionAuditionAudioController _compositionAuditionAudio;
     private Guid? _selectedCompositionSegmentId;
     private Guid? _selectedCompositionAudioClipId;
     private Guid? _pendingCompositionSegmentDragId;
@@ -163,6 +161,7 @@ public partial class MainWindow : Window, IDisposable
     public MainWindow()
     {
         InitializeComponent();
+        _compositionAuditionAudio = new CompositionAuditionAudioController(CompositionAuditionAudio);
 
         _runtime = ApplicationRuntime.Create();
         _mediaToolDiscovery = _runtime.MediaToolDiscovery;
@@ -3805,40 +3804,13 @@ public partial class MainWindow : Window, IDisposable
 
     private void OpenCompositionAuditionAudio(string absolutePath, double startSeconds)
     {
-        _compositionAuditionAudioReady = false;
-        _compositionAuditionAudioPriming = false;
-        _playCompositionAuditionAudioAfterOpen = false;
-        _pendingCompositionAuditionAudioPosition = Math.Max(0, startSeconds);
-        CompositionAuditionAudio.Stop();
-        CompositionAuditionAudio.Close();
-        CompositionAuditionAudio.Source = null;
-        CompositionAuditionAudio.IsMuted = true;
-        CompositionAuditionAudio.Volume = VolumeSlider.Value;
-        CompositionAuditionAudio.Source = new Uri(absolutePath, UriKind.Absolute);
-        CompositionAuditionAudio.Play();
+        _compositionAuditionAudio.Open(absolutePath, startSeconds, VolumeSlider.Value);
         UpdatePreviewAudioControls();
     }
 
     private async void CompositionAuditionAudio_MediaOpened(object sender, RoutedEventArgs e)
     {
-        var openedSource = CompositionAuditionAudio.Source;
-        _compositionAuditionAudioPriming = true;
-        CompositionAuditionAudio.IsMuted = true;
-        CompositionAuditionAudio.Position = TimeSpan.FromSeconds(_pendingCompositionAuditionAudioPosition);
-        CompositionAuditionAudio.Play();
-        await Task.Delay(50);
-        if (CompositionAuditionAudio.Source != openedSource) return;
-
-        CompositionAuditionAudio.Pause();
-        CompositionAuditionAudio.Position = TimeSpan.FromSeconds(_pendingCompositionAuditionAudioPosition);
-        CompositionAuditionAudio.IsMuted = _userPreviewMuted;
-        _compositionAuditionAudioPriming = false;
-        _compositionAuditionAudioReady = true;
-        if (_playCompositionAuditionAudioAfterOpen)
-        {
-            _playCompositionAuditionAudioAfterOpen = false;
-            CompositionAuditionAudio.Play();
-        }
+        await _compositionAuditionAudio.HandleOpenedAsync(_userPreviewMuted);
         UpdatePreviewAudioControls();
     }
 
@@ -3850,38 +3822,17 @@ public partial class MainWindow : Window, IDisposable
 
     private void SyncCompositionAuditionAudio(double globalSeconds, bool play)
     {
-        if (CompositionAuditionAudio.Source is null) return;
-        _pendingCompositionAuditionAudioPosition = Math.Clamp(globalSeconds, 0, PositionSlider.Maximum);
-        _playCompositionAuditionAudioAfterOpen = play;
-        if (!_compositionAuditionAudioReady || _compositionAuditionAudioPriming) return;
-        CompositionAuditionAudio.Position = TimeSpan.FromSeconds(_pendingCompositionAuditionAudioPosition);
-        CompositionAuditionAudio.IsMuted = _userPreviewMuted;
-        if (play)
-        {
-            _playCompositionAuditionAudioAfterOpen = false;
-            CompositionAuditionAudio.Play();
-        }
-        else
-        {
-            CompositionAuditionAudio.Pause();
-        }
+        _compositionAuditionAudio.Sync(globalSeconds, PositionSlider.Maximum, play, _userPreviewMuted);
     }
 
     private void PauseCompositionAuditionAudio()
     {
-        _playCompositionAuditionAudioAfterOpen = false;
-        if (CompositionAuditionAudio.Source is not null) CompositionAuditionAudio.Pause();
+        _compositionAuditionAudio.Pause();
     }
 
     private void StopCompositionAuditionAudio()
     {
-        _compositionAuditionAudioReady = false;
-        _compositionAuditionAudioPriming = false;
-        _playCompositionAuditionAudioAfterOpen = false;
-        _pendingCompositionAuditionAudioPosition = 0;
-        CompositionAuditionAudio.Stop();
-        CompositionAuditionAudio.Close();
-        CompositionAuditionAudio.Source = null;
+        _compositionAuditionAudio.Stop();
         ReleaseCompositionAuditionAudioLease();
         UpdatePreviewAudioControls();
     }
@@ -4335,8 +4286,8 @@ public partial class MainWindow : Window, IDisposable
                 segment.TimelineStartSeconds,
                 segment.TimelineStartSeconds + segment.DurationSeconds);
             _compositionDraftPositionSeconds = currentSeconds;
-            if (_isVideoPlaying && _compositionAuditionAudioReady &&
-                Math.Abs(CompositionAuditionAudio.Position.TotalSeconds - currentSeconds) > 0.2)
+            if (_isVideoPlaying && _compositionAuditionAudio.IsReady &&
+                Math.Abs(_compositionAuditionAudio.Position.TotalSeconds - currentSeconds) > 0.2)
                 SyncCompositionAuditionAudio(currentSeconds, play: true);
             if (!_isScrubbing) PositionSlider.Value = currentSeconds;
             TimeText.Text = $"{FormatTime(TimeSpan.FromSeconds(currentSeconds))} / " +
