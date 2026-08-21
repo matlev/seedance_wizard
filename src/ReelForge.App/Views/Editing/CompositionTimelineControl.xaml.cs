@@ -195,7 +195,10 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     private void ZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         var zoom = Math.Round(Math.Clamp(e.NewValue, 1, 8) * 4) / 4;
-        ZoomText.Text = $"{zoom * 100:0}%";
+        if (ZoomText is not null)
+        {
+            ZoomText.Text = $"{zoom * 100:0}%";
+        }
         if (Math.Abs(zoom - _zoom) < 0.001)
         {
             return;
