@@ -400,7 +400,7 @@ The review is planning work only. It must not begin opportunistic file moves or 
 
 ## Milestone 3 — whole-codebase structural refactor and reorganization
 
-Milestone 3 will execute the approved architecture-review plan across the complete repository. Its goal is a navigable, appropriately decomposed, SOLID codebase whose physical organization communicates responsibility and whose components can be changed and tested without relying on oversized coordinators or accidental coupling.
+Milestone 3 will execute the approved architecture-review plan across the complete repository. Its primary goal is to cut down the severe file bloat caused by too many concerns and make the code human-readable, explorable, reviewable, and maintainable. Its physical organization must communicate responsibility so a contributor can locate and meaningfully review a feature without reading thousands of unrelated lines. This is not satisfied by moving the same monolith into partial classes or arbitrary folders; components must have cohesive reasons to change and be independently understandable, changeable, and testable.
 
 The repository-wide baseline, target project/folder map, responsibility audit, portability and FFmpeg-distribution boundaries, risk ordering, enforceable checks, and staged execution proposal are recorded in [Milestone 3 architecture review and refactor plan](milestone-3-refactor-plan.md). Review and approve that plan before Stage 1 changes production ownership.
 

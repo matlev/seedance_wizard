@@ -17,6 +17,7 @@ Status: active rules for Milestone 3 and later work
 - do not add root-level grab-bag files, generic `Helpers`/`Utils` folders, or unrelated types to an existing large file because it is convenient.
 - one file may contain closely related private/internal value types. Split public concepts when they have different owners or reasons to change.
 - file length is a review signal, not a quota. Prefer cohesive types over artificial micro-files.
+- optimize physical structure for human exploration and review: a contributor should be able to locate a feature owner and understand a local change without traversing unrelated workflows or oversized coordinator state.
 - name application operations for creator intent (`DetachSegmentAudio`, `PrepareGenerationReferences`), and infrastructure for mechanism (`FfmpegAudioExtractionEngine`, `JsonProjectStore`).
 
 ## WPF presentation

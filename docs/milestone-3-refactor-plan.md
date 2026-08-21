@@ -23,7 +23,9 @@ WPF App / composition root
 
 The main problem is not a failed architecture or an incorrect domain model. It is that rapid Milestone 2 delivery accumulated too many responsibilities inside physically flat projects and a handful of oversized coordinators. The most visible example is `MainWindow.xaml.cs`, but treating that file alone would merely move the same coupling into arbitrary partial classes.
 
-Milestone 3 should be a behavior-preserving structural program. It should establish explicit feature ownership, platform boundaries, focused application services, a small WPF shell, cohesive media infrastructure, mirrored tests, and enforceable dependency checks. It must not redesign the `.rfp` schema, add editor features, add paid network behavior, or perform a big-bang rewrite.
+Milestone 3 should be a behavior-preserving structural program. Its primary human goal is to make ReelForge meaningfully readable, explorable, reviewable, and maintainable. It must reduce the huge file bloat caused by types accumulating too many concerns—not simply redistribute the same bloat across arbitrary partial classes or folders. A reviewer should be able to locate a feature, understand its collaborators, and assess a change without first reconstructing thousands of lines of unrelated state and behavior.
+
+The refactor should establish explicit feature ownership, platform boundaries, focused application services, a small WPF shell, cohesive media infrastructure, mirrored tests, and enforceable dependency checks. It must not redesign the `.rfp` schema, add editor features, add paid network behavior, or perform a big-bang rewrite.
 
 One new production project is justified: `ReelForge.Platform.Windows`. Windows Credential Manager and Windows-specific application-path ownership need a compilation/lifecycle boundary. Provider, persistence, and FFmpeg code should first become feature folders inside the existing portable Infrastructure project; extra assemblies are warranted only if later packaging or dependency evidence establishes a real boundary.
 
@@ -59,6 +61,21 @@ Largest production surfaces:
 | `ProjectInvariantValidator.cs` | 458 | validation for every current domain aggregate and cross-reference |
 
 The line counts are review signals, not proposed hard limits. Cohesion and reasons to change decide boundaries. Small files must not be manufactured solely to satisfy a number.
+
+## Human-centered acceptance goals
+
+Milestone 3 is successful only if a human contributor can meaningfully review and navigate the result:
+
+- feature folders reveal where project lifecycle, generation, providers, media tooling, editing, jobs, settings, and persistence live;
+- a production file has a coherent reason to change and does not require reviewing unrelated workflows to understand a local edit;
+- `MainWindow` becomes a recognizable shell, not a renamed or repartitioned implementation monolith;
+- backend facades coordinate explicit collaborators rather than retaining every mechanism privately in one oversized class;
+- names communicate creator intent at application boundaries and technical mechanism at infrastructure boundaries;
+- common workflows can be followed from presentation to use case to domain/infrastructure through a short, predictable dependency path;
+- pull requests can be reviewed in feature-sized diffs with relevant tests beside the affected responsibility;
+- new contributors can browse the repository map and locate the likely owner before using full-text search.
+
+No arbitrary maximum line count is an acceptance test. The test is whether the remaining size is explained by genuine cohesion, not accumulated unrelated concerns.
 
 ## Current strengths to preserve
 
