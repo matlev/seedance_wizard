@@ -109,6 +109,8 @@ Preserve the public facade while extracting the accessor, transaction owner, lif
 
 ### Unit 2 — extract the Composition Timeline control
 
+Status: implementation, automated verification, and deep review complete; human smoke acceptance pending.
+
 Write set: `ReelForge.App/Views/Editing/CompositionTimeline*`, the inline timeline XAML, timeline-specific shell wiring, and focused timeline presentation tests if deterministic logic is extracted.
 
 Move the complete timeline visual and local gesture state behind semantic events. Preserve current timeline calculations and application commands. Run layout, split, detachment, audition-plan, and WPF build checks. Human smoke: complete Timeline Arrangement and Audition rows, including rapid cross-cut scrubbing.

@@ -258,86 +258,20 @@
                                                Foreground="{StaticResource MutedTextBrush}" />
                                 </StackPanel>
                             </DockPanel>
-                            <Border x:Name="CompositionTimelineBorder" Grid.Row="1" MinHeight="168" Margin="0,0,0,8" Padding="8,6,8,4"
-                                    Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1" CornerRadius="4" AllowDrop="True"
-                                    PreviewDragEnter="CompositionTimeline_PreviewDragEnter"
-                                    PreviewDragOver="CompositionTimeline_PreviewDragOver"
-                                    PreviewDragLeave="CompositionTimeline_PreviewDragLeave"
-                                    PreviewDrop="CompositionTimeline_PreviewDrop">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="*" />
-                                    </Grid.RowDefinitions>
-                                    <DockPanel Margin="2,0,2,5">
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                            <TextBlock Text="Zoom" Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="10" VerticalAlignment="Center" Margin="0,0,5,0" />
-                                            <Slider x:Name="CompositionTimelineZoomSlider" Width="92"
-                                                    Minimum="1" Maximum="8" Value="1"
-                                                    TickFrequency="0.25" IsSnapToTickEnabled="True"
-                                                    SmallChange="0.25" LargeChange="1"
-                                                    VerticalAlignment="Center"
-                                                    ValueChanged="CompositionTimelineZoomSlider_ValueChanged"
-                                                    ToolTip="Zoom the timeline horizontally without changing the composition" />
-                                            <TextBlock x:Name="CompositionTimelineZoomText" Text="100%" Width="40"
-                                                       Foreground="{StaticResource TextBrush}" FontSize="10"
-                                                       TextAlignment="Right" VerticalAlignment="Center" />
-                                            <Button Content="Reset" Padding="6,1" Margin="6,0,12,0"
-                                                    Click="CompositionTimelineReset_Click"
-                                                    ToolTip="Reset the timeline to its default scale" />
-                                            <TextBlock x:Name="CompositionTimelineDurationText"
-                                                       Foreground="{StaticResource MutedTextBrush}" FontSize="11"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="TIMELINE" Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                            <CheckBox x:Name="CompositionTimelineAutoScrollCheckBox"
-                                                      Content="Auto-scroll during playback" IsChecked="True"
-                                                      VerticalAlignment="Center" Margin="12,0,0,0"
-                                                      Foreground="{StaticResource TextBrush}"
-                                                      ToolTip="Keep the composition playhead visible while playback advances. This choice is not saved." />
-                                        </StackPanel>
-                                    </DockPanel>
-                                    <ScrollViewer x:Name="CompositionTimelineScrollViewer" Grid.Row="1"
-                                                  HorizontalScrollBarVisibility="Auto"
-                                                  VerticalScrollBarVisibility="Auto"
-                                                  ScrollChanged="CompositionTimelineScrollViewer_ScrollChanged"
-                                                  SizeChanged="CompositionTimelineScrollViewer_SizeChanged">
-                                        <Canvas x:Name="CompositionTimelineCanvas" Height="124"
-                                                Background="#0B0D12" ClipToBounds="True"
-                                                PreviewMouseLeftButtonDown="CompositionTimelineCanvas_PreviewMouseLeftButtonDown"
-                                                PreviewMouseMove="CompositionTimelineCanvas_PreviewMouseMove"
-                                                PreviewMouseLeftButtonUp="CompositionTimelineCanvas_PreviewMouseLeftButtonUp"
-                                                LostMouseCapture="CompositionTimelineCanvas_LostMouseCapture" />
-                                    </ScrollViewer>
-                                    <Canvas x:Name="CompositionTimelineDropHint" Grid.Row="1" Visibility="Hidden"
-                                            IsHitTestVisible="False" ClipToBounds="True">
-                                        <Border x:Name="CompositionTimelineDropMarker" Width="3" Height="67"
-                                                Panel.ZIndex="10" Background="#FF4D5D" CornerRadius="2">
-                                            <Border.Effect>
-                                                <DropShadowEffect Color="#FF2738" BlurRadius="7"
-                                                                  ShadowDepth="0" Opacity="0.9" />
-                                            </Border.Effect>
-                                        </Border>
-                                        <Border x:Name="CompositionTimelineDropToken" Width="96" Height="36"
-                                                Panel.ZIndex="5"
-                                                Background="#E83E3669" BorderBrush="{StaticResource AccentBrush}"
-                                                BorderThickness="2" CornerRadius="4" Padding="6,3">
-                                            <DockPanel LastChildFill="True">
-                                                <TextBlock Text="+" DockPanel.Dock="Left" Margin="0,0,5,0"
-                                                           Foreground="White" FontSize="17" FontWeight="SemiBold"
-                                                           VerticalAlignment="Center" />
-                                                <TextBlock x:Name="CompositionTimelineDropHintText" Foreground="White"
-                                                           FontWeight="SemiBold" FontSize="10"
-                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                            </DockPanel>
-                                        </Border>
-                                    </Canvas>
-                                </Grid>
-                            </Border>
+                            <editing:CompositionTimelineControl x:Name="CompositionTimelineControl"
+                                                               Grid.Row="1"
+                                                               Margin="0,0,0,8"
+                                                               ActivationRequested="CompositionTimeline_ActivationRequested"
+                                                               SelectionChanged="CompositionTimeline_SelectionChanged"
+                                                               SeekRequested="CompositionTimeline_SeekRequested"
+                                                               SegmentReorderRequested="CompositionTimeline_SegmentReorderRequested"
+                                                               AudioMoveRequested="CompositionTimeline_AudioMoveRequested"
+                                                               MediaDropRequested="CompositionTimeline_MediaDropRequested"
+                                                               SplitRequested="CompositionTimeline_SplitRequested"
+                                                               ShiftLeftRequested="CompositionTimeline_ShiftLeftRequested"
+                                                               ShiftRightRequested="CompositionTimeline_ShiftRightRequested"
+                                                               DetachAudioRequested="CompositionTimeline_DetachAudioRequested"
+                                                               RemoveRequested="CompositionTimeline_RemoveRequested" />
                         </Grid>
                     </Grid>
                 </Border>
