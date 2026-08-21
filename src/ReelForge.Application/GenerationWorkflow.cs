@@ -6,8 +6,7 @@ namespace ReelForge.Application;
 public sealed class GenerationWorkflow
 {
     private readonly ProjectWorkspace _workspace;
-    private readonly IMediaMaterializer _materializer;
-    private readonly IProviderAssetPreparationService? _providerPreparation;
+    private readonly GenerationReferencePreparer _referencePreparer;
     private readonly IGeneratedOutputIngestionService _outputIngestion;
 
     public GenerationWorkflow(
@@ -17,9 +16,8 @@ public sealed class GenerationWorkflow
         IProviderAssetPreparationService? providerPreparation = null)
     {
         _workspace = workspace;
-        _materializer = materializer;
         _outputIngestion = outputIngestion;
-        _providerPreparation = providerPreparation;
+        _referencePreparer = new GenerationReferencePreparer(workspace, materializer, providerPreparation);
     }
 
     public async Task SaveDraftAsync(GenerationDraft draft, CancellationToken cancellationToken = default)
@@ -132,7 +130,8 @@ public sealed class GenerationWorkflow
 
         try
         {
-            await PrepareReferencesAsync(provider, request, snapshot, authorization, record, progress, cancellationToken)
+            await _referencePreparer.PrepareAsync(
+                    provider, request, snapshot, authorization, record, progress, cancellationToken)
                 .ConfigureAwait(false);
             progress?.Report(new GenerationWorkflowProgress(record.Status, record.IngestionStatus, "Submitting generation job…"));
             var submission = await provider
@@ -236,119 +235,6 @@ public sealed class GenerationWorkflow
         GenerationRecord source,
         GenerationRelationshipType relationshipType) =>
         GenerationRequestFactory.CreateDerivedDraft(source, relationshipType);
-
-    private async Task PrepareReferencesAsync(
-        IVideoGenerationProvider provider,
-        GenerationRequest request,
-        GenerationRequestSnapshot snapshot,
-        GenerationSubmissionAuthorization? authorization,
-        GenerationRecord record,
-        IProgress<GenerationWorkflowProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        if (snapshot.References.Count == 0 || provider.CostBehavior == GenerationProviderCostBehavior.NoCharge)
-            return;
-        if (_providerPreparation is null || authorization is null)
-            throw new InvalidOperationException("This provider requires a configured reference preparation service.");
-
-        request.PreparedReferences.Clear();
-
-        foreach (var reference in snapshot.References.OrderBy(reference => reference.Order ?? int.MaxValue))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var asset = reference.ObjectKind == GenerationReferenceObjectKind.Asset
-                ? _workspace.Project!.Assets.Single(candidate => candidate.Id == reference.LogicalObjectId)
-                : null;
-            if (asset is not null &&
-                TryGetReusableProviderReference(provider.Capabilities.ProviderId, asset, reference, out var reusableReference))
-            {
-                request.PreparedReferences.Add(CreatePreparedReference(reference, asset.MediaType, reusableReference));
-                record.ReferenceMaterializations[reference.ReferenceId] = new MaterializationReceipt
-                {
-                    PlanHash = reference.RecipeRevisionId?.ToString("N"),
-                    SourceContentHash = reference.ContentHash,
-                    ProviderReferenceId = reusableReference,
-                    ProviderScope = "reused-provider-reference"
-                };
-                record.ResponseMetadata[$"reference.{reference.ReferenceId:N}.preparation"] = "reused-provider-reference";
-                continue;
-            }
-
-            progress?.Report(new GenerationWorkflowProgress(
-                record.Status,
-                record.IngestionStatus,
-                "Verifying and preparing a logical reference…"));
-            await using var media = await _materializer.MaterializeAsync(
-                    _workspace.Project!,
-                    _workspace.Location!,
-                    new MaterializationRequest(
-                        reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor
-                            ? new AnchorMaterializationTarget(
-                                reference.LogicalObjectId,
-                                reference.Anchor?.AnchorRevisionId
-                                ?? throw new InvalidOperationException("A Saved Frame snapshot must pin an exact revision."))
-                            : new AssetMaterializationTarget(reference.LogicalObjectId, reference.RecipeRevisionId),
-                        MaterializationPurpose.ProviderUpload,
-                        MaterializationRetentionPreference.Ephemeral),
-                    cancellationToken)
-                .ConfigureAwait(false);
-            var prepared = await _providerPreparation
-                .PrepareAsync(provider.Capabilities.ProviderId, reference, media, authorization, cancellationToken)
-                .ConfigureAwait(false);
-            record.ReferenceMaterializations[reference.ReferenceId] = new MaterializationReceipt
-            {
-                PlanHash = reference.Anchor?.AnchorRevisionId.ToString("N") ?? reference.RecipeRevisionId?.ToString("N"),
-                SourceContentHash = reference.ContentHash,
-                ProducedContentHash = media.ContentIdentity.Sha256,
-                Encoding = media.Encoding,
-                ProviderReferenceId = prepared.Receipt?.ProviderReferenceId,
-                ProviderScope = prepared.Receipt?.ProviderScope,
-                ProviderReferenceExpiresAt = prepared.Receipt?.ProviderReferenceExpiresAt
-            };
-            request.PreparedReferences.Add(CreatePreparedReference(
-                reference,
-                reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor ? MediaType.Image : asset!.MediaType,
-                prepared.ProviderRepresentation));
-            record.ResponseMetadata[$"reference.{reference.ReferenceId:N}.preparation"] =
-                prepared.Receipt?.ProviderScope ?? "prepared";
-        }
-
-        await _workspace.SaveAsync(CancellationToken.None).ConfigureAwait(false);
-    }
-
-    private static PreparedGenerationReference CreatePreparedReference(
-        GenerationReferenceSnapshot reference,
-        MediaType mediaType,
-        string representation) => new(
-            reference.ReferenceId,
-            reference.ObjectKind,
-            reference.LogicalObjectId,
-            mediaType,
-            reference.Role,
-            reference.Order ?? int.MaxValue,
-            representation);
-
-    private static bool TryGetReusableProviderReference(
-        string providerId,
-        ProjectAsset asset,
-        GenerationReferenceSnapshot logicalReference,
-        out string providerRepresentation)
-    {
-        providerRepresentation = string.Empty;
-        if (!asset.ProviderReferences.TryGetValue(providerId, out var reference) ||
-            string.IsNullOrWhiteSpace(reference.Value) ||
-            reference.ExpiresAt is { } expiresAt && expiresAt <= DateTimeOffset.UtcNow ||
-            reference.SourceContentHash is { } sourceHash &&
-            !sourceHash.Equals(logicalReference.ContentHash, StringComparison.OrdinalIgnoreCase) ||
-            reference.SourceRecipeRevisionId is { } revisionId &&
-            revisionId != logicalReference.RecipeRevisionId)
-        {
-            return false;
-        }
-
-        providerRepresentation = reference.Value;
-        return true;
-    }
 
     private async Task<GenerationRecord> MonitorAndIngestAsync(
         IAsyncVideoGenerationProvider provider,
