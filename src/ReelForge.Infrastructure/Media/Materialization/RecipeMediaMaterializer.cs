@@ -7,8 +7,6 @@ namespace ReelForge.Infrastructure;
 public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSegmentMaterializer, IDisposable
 {
     private const string ConcatAlgorithmVersion = "composition-concat-v2";
-    private const string AudioOverlayAlgorithmVersion = "composition-audio-overlay-v3";
-    private const string SourceAudioAlgorithmVersion = "composition-source-audio-v1";
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly IExactVideoFrameService _exactFrameService;
     private readonly IExternalProcessRunner _runner;
@@ -18,6 +16,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
     private readonly ModifiedMediaRetentionService _retentionService;
     private readonly SavedClipTrimRenderer _trimRenderer;
     private readonly CompositionAuditionAudioRenderer _auditionAudioRenderer;
+    private readonly CompositionAudioRenderer _compositionAudioRenderer;
     private readonly FfmpegRendererFingerprintProvider _fingerprintProvider;
     private string? _ffmpegPath;
     private bool _disposed;
@@ -47,6 +46,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         _trimRenderer = new SavedClipTrimRenderer(
             runner, _renderCache, _fingerprintProvider, boundaryResolver);
         _auditionAudioRenderer = new CompositionAuditionAudioRenderer(
+            runner, _renderCache, _fingerprintProvider, mediaInspector);
+        _compositionAudioRenderer = new CompositionAudioRenderer(
             runner, _renderCache, _fingerprintProvider, mediaInspector);
         _physicalMaterializer = new PhysicalAssetMaterializer(_contentHashService, exactFrameService);
     }
@@ -288,8 +289,16 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                 return result;
             }
 
-            return await RenderCompositionAudioAsync(
-                    project, location, outputAsset, composition, video, request, cancellationToken)
+            return await _compositionAudioRenderer.RenderOverlayAsync(
+                    _ffmpegPath,
+                    project,
+                    location,
+                    outputAsset,
+                    composition,
+                    video,
+                    request,
+                    ExecuteNodeAsync,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
@@ -314,8 +323,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             if (segment.AudioEnabled) return media;
             try
             {
-                return await RenderWithoutSourceAudioAsync(
-                        outputAsset, segment, media, request, cancellationToken)
+                return await _compositionAudioRenderer.RenderWithoutSourceAudioAsync(
+                        _ffmpegPath, outputAsset, segment, media, request, cancellationToken)
                     .ConfigureAwait(false);
             }
             finally
@@ -359,204 +368,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         {
             for (var index = leases.Count - 1; index >= 0; index--)
                 await leases[index].DisposeAsync().ConfigureAwait(false);
-        }
-    }
-
-    private async Task<MaterializedMediaLease> RenderCompositionAudioAsync(
-        VideoProject project,
-        ProjectLocation location,
-        ProjectAsset outputAsset,
-        CompositionRenderPlanNode composition,
-        MaterializedMediaLease video,
-        MaterializationRequest request,
-        CancellationToken cancellationToken)
-    {
-        var audioLeases = new List<MaterializedMediaLease>();
-        var audioDurations = new List<double?>();
-        try
-        {
-            foreach (var clip in composition.AudioClips)
-            {
-                var sourceAsset = project.Assets.Single(asset => asset.Id == clip.Source.AssetId);
-                var lease = await ExecuteNodeAsync(
-                        project, location, sourceAsset, clip.Source, request, cancellationToken)
-                    .ConfigureAwait(false);
-                audioLeases.Add(lease);
-                var audioEncoding = lease.Encoding ?? sourceAsset.Encoding ?? sourceAsset.Virtual?.ExpectedMediaProperties;
-                if ((clip.FadeInMilliseconds > 0 || clip.FadeOutMilliseconds > 0) &&
-                    audioEncoding?.DurationSeconds is not > 0 && _mediaInspector is not null)
-                    audioEncoding = await _mediaInspector.InspectAsync(lease.Path, cancellationToken).ConfigureAwait(false);
-                audioDurations.Add(audioEncoding?.DurationSeconds ?? sourceAsset.DurationSeconds);
-            }
-
-            var videoEncoding = video.Encoding;
-            if (_mediaInspector is not null &&
-                (videoEncoding?.Audio is null || videoEncoding.DurationSeconds is not > 0))
-                videoEncoding = await _mediaInspector.InspectAsync(video.Path, cancellationToken).ConfigureAwait(false);
-            var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
-                "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or export compositions.");
-            var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-            var key = MediaRenderCache.HashText(string.Join('|',
-                AudioOverlayAlgorithmVersion,
-                composition.NodeHash,
-                video.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty,
-                string.Join(';', audioLeases.Select(lease => lease.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty)),
-                string.Join(';', composition.AudioClips.Select(clip => string.Join(',',
-                    clip.TimelineStartTicks,
-                    clip.IsMuted,
-                    clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture),
-                    clip.Pan.ToString("R", CultureInfo.InvariantCulture),
-                    clip.FadeInMilliseconds,
-                    clip.FadeOutMilliseconds))),
-                videoEncoding?.Audio is not null,
-                request.Purpose,
-                request.Profile ?? string.Empty,
-                fingerprint));
-            var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "compositions");
-            var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
-            if (MediaRenderCache.IsUsableFile(cachePath))
-                return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-
-            var cacheLock = _renderCache.GetLock(key);
-            await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                if (MediaRenderCache.IsUsableFile(cachePath))
-                    return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-                Directory.CreateDirectory(cacheDirectory);
-                var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
-                try
-                {
-                    var arguments = FfmpegCommandBuilder.BuildAudioOverlayArguments(
-                        video.Path,
-                        videoEncoding?.Audio is not null,
-                        audioLeases.Select((lease, index) =>
-                        {
-                            var clip = composition.AudioClips[index];
-                            var timelineStart = TimeSpan.FromTicks(clip.TimelineStartTicks);
-                            var audibleDuration = audioDurations[index];
-                            if (videoEncoding?.DurationSeconds is > 0 and var videoDuration)
-                            {
-                                var remainingVideo = Math.Max(0, videoDuration - timelineStart.TotalSeconds);
-                                audibleDuration = audibleDuration is > 0
-                                    ? Math.Min(audibleDuration.Value, remainingVideo)
-                                    : remainingVideo;
-                            }
-                            var fadeIn = ClampFade(clip.FadeInMilliseconds, audibleDuration);
-                            var fadeOut = ClampFade(clip.FadeOutMilliseconds, audibleDuration);
-                            return new AudioOverlayInput(
-                                lease.Path,
-                                timelineStart,
-                                clip.IsMuted,
-                                clip.GainDecibels,
-                                clip.Pan,
-                                fadeIn,
-                                fadeOut,
-                                audibleDuration);
-                        }).ToArray(),
-                        temporaryPath);
-                    var result = await _runner.RunAsync(
-                            new ExternalProcessRequest(ffmpegPath, arguments),
-                            cancellationToken: cancellationToken)
-                        .ConfigureAwait(false);
-                    if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                    if (!MediaRenderCache.IsUsableFile(temporaryPath))
-                        throw new InvalidDataException("FFmpeg completed without producing the composition audio mix.");
-                    try
-                    {
-                        File.Move(temporaryPath, cachePath, overwrite: false);
-                    }
-                    catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
-                    {
-                        File.Delete(temporaryPath);
-                    }
-                }
-                finally
-                {
-                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-                }
-                return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-            }
-            finally
-            {
-                cacheLock.Release();
-            }
-        }
-        finally
-        {
-            for (var index = audioLeases.Count - 1; index >= 0; index--)
-                await audioLeases[index].DisposeAsync().ConfigureAwait(false);
-        }
-    }
-
-    private static TimeSpan ClampFade(long milliseconds, double? audibleDurationSeconds)
-    {
-        if (milliseconds <= 0) return TimeSpan.Zero;
-        var requested = TimeSpan.FromMilliseconds(milliseconds);
-        return audibleDurationSeconds is { } duration
-            ? TimeSpan.FromSeconds(Math.Min(requested.TotalSeconds, Math.Max(0, duration)))
-            : requested;
-    }
-
-    private async Task<MaterializedMediaLease> RenderWithoutSourceAudioAsync(
-        ProjectAsset outputAsset,
-        CompositionSegmentRenderPlan segment,
-        MaterializedMediaLease input,
-        MaterializationRequest request,
-        CancellationToken cancellationToken)
-    {
-        var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
-            "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or export compositions.");
-        var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-        var key = MediaRenderCache.HashText(string.Join('|',
-            SourceAudioAlgorithmVersion,
-            segment.SegmentHash,
-            input.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty,
-            request.Purpose,
-            request.Profile ?? string.Empty,
-            fingerprint));
-        var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "compositions");
-        var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
-        if (MediaRenderCache.IsUsableFile(cachePath))
-            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-
-        var cacheLock = _renderCache.GetLock(key);
-        await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (MediaRenderCache.IsUsableFile(cachePath))
-                return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-            Directory.CreateDirectory(cacheDirectory);
-            var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
-            try
-            {
-                var arguments = FfmpegCommandBuilder.BuildVideoWithoutAudioArguments(input.Path, temporaryPath);
-                var result = await _runner.RunAsync(
-                        new ExternalProcessRequest(ffmpegPath, arguments),
-                        cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
-                if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                if (!MediaRenderCache.IsUsableFile(temporaryPath))
-                    throw new InvalidDataException("FFmpeg completed without producing the muted composition preview.");
-                try
-                {
-                    File.Move(temporaryPath, cachePath, overwrite: false);
-                }
-                catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
-                {
-                    File.Delete(temporaryPath);
-                }
-            }
-            finally
-            {
-                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-            }
-
-            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            cacheLock.Release();
         }
     }
 
@@ -731,13 +542,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         ProjectAsset asset,
         CancellationToken cancellationToken) =>
         await _renderCache.OpenLeaseAsync(cachePath, asset.Virtual?.ExpectedMediaProperties, cancellationToken)
-            .ConfigureAwait(false);
-
-    private async Task<MaterializedMediaLease> OpenCacheLeaseAsync(
-        string cachePath,
-        MediaEncodingMetadata? fallbackEncoding,
-        CancellationToken cancellationToken)
-        => await _renderCache.OpenLeaseAsync(cachePath, fallbackEncoding, cancellationToken)
             .ConfigureAwait(false);
 
     public void Dispose()
