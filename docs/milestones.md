@@ -412,6 +412,8 @@ The media viewer visual tree and transport state machine now live in `Views/Medi
 
 Human acceptance for the first media-preview extraction covers multi-segment audition, muted source audio, layered independent audio, seeking across cuts, frame stepping, volume/mute, end replay, and switching between composition and ordinary Project Media playback. The independent composition-audition audio open/prime/synchronize/pause/stop state machine now belongs to a focused media-preview controller while composition-time policy and materialized-lease ownership remain outside it.
 
+Human acceptance also passed after the full transport-state move into `MediaPreviewPanel`, including ordinary and Saved Clip playback, composition audition, timeline scrubbing, precision-navigation audio suppression/restoration, and switching among all Project Media kinds.
+
 Expected scope includes:
 
 1. Reorganize the solution into coherent projects, feature folders, and subfolders while preserving intentional architectural layers.
