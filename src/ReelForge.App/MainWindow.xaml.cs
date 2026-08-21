@@ -49,7 +49,6 @@ public partial class MainWindow : Window, IDisposable
         bool AudioEnabled);
 
     private readonly ObservableCollection<ProjectMediaListItem> _assets = [];
-    private readonly ObservableCollection<GenerationRecord> _generations = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
     private readonly ObservableCollection<FrameContactListItem> _contactFrames = [];
     private readonly ObservableCollection<SavedFrameListItem> _savedFrames = [];
@@ -192,7 +191,6 @@ public partial class MainWindow : Window, IDisposable
         var projectMediaView = new ListCollectionView(_assets);
         projectMediaView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ProjectMediaListItem.GroupName)));
         ProjectMediaPanelControl.SetItemsSource(projectMediaView);
-        GenerationsList.ItemsSource = _generations;
         GenerationPanelControl.SetReferences(_referenceChoices);
         ContactFramesList.ItemsSource = _contactFrames;
         SavedFramesList.ItemsSource = _savedFrames;
@@ -347,7 +345,7 @@ public partial class MainWindow : Window, IDisposable
         var isGenerate = _activeWorkspace == ProjectWorkspaceKind.Generate;
         GenerateLowerWorkspace.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
         EditLowerWorkspace.Visibility = isGenerate ? Visibility.Collapsed : Visibility.Visible;
-        GenerationHistoryPanel.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
+        GenerationHistoryPanelControl.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
         GenerationPanelSplitter.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
         GenerationHistoryRow.MinHeight = isGenerate ? 80 : 0;
         GenerationHistoryRow.Height = isGenerate ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
@@ -733,7 +731,7 @@ public partial class MainWindow : Window, IDisposable
         }
 
         var selectedProjectId = _workspace.Project?.Id;
-        GenerationsList.SelectedItem = null;
+        GenerationHistoryPanelControl.ClearSelection();
         ResetFrameWorkspace();
         if (item.Anchor is not null && item.AnchorRevision is not null)
         {
@@ -2301,13 +2299,9 @@ public partial class MainWindow : Window, IDisposable
         if (GetSelectedAsset() is { } asset) ConfigureMediaPreparationFor(asset);
     }
 
-    private void GenerationsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void GenerationHistoryPanel_GenerationSelected(object? sender, GenerationSelectedEventArgs e)
     {
-        if (GenerationsList.SelectedItem is not GenerationRecord generation)
-        {
-            return;
-        }
-
+        var generation = e.Generation;
         ProjectMediaPanelControl.SelectedItem = null;
         InspectorPanelControl.Text = InspectorTextFormatter.FormatGeneration(generation);
         StatusText.Text = $"Selected generation {generation.Id}.";
@@ -3022,7 +3016,7 @@ public partial class MainWindow : Window, IDisposable
             var delayCancellation = new CancellationTokenSource();
             _pendingSubmissionDelays[generation.Id] = delayCancellation;
             RefreshProjectCollections();
-            GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+            GenerationHistoryPanelControl.SelectGeneration(generation.Id);
             GenerationPanelControl.Status = $"Generation queued locally for {delaySeconds} seconds. Use Cancel Job in Jobs to undo.";
             StatusText.Text = "Generation has not been sent to the provider yet.";
             _ = SubmitAfterUndoSendDelayAsync(
@@ -3135,7 +3129,7 @@ public partial class MainWindow : Window, IDisposable
             {
                 MergeGenerationStateIntoActiveProject(generation);
                 RefreshProjectCollections();
-                GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+                GenerationHistoryPanelControl.SelectGeneration(generation.Id);
                 TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
             }
 
@@ -3236,7 +3230,7 @@ public partial class MainWindow : Window, IDisposable
                 authorization,
                 progress);
             RefreshProjectCollections();
-            GenerationsList.SelectedItem = _generations.FirstOrDefault(item => item.Id == generation.Id);
+            GenerationHistoryPanelControl.SelectGeneration(generation.Id);
             TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
 
             if (provider is IAsyncVideoGenerationProvider &&
@@ -3298,7 +3292,7 @@ public partial class MainWindow : Window, IDisposable
 
     private async void GenerationPanel_DerivedDraftRequested(object? sender, DerivedDraftRequestedEventArgs e)
     {
-        if (GenerationsList.SelectedItem is not GenerationRecord source)
+        if (GenerationHistoryPanelControl.SelectedGeneration is not { } source)
         {
             GenerationPanelControl.Status = "Select a generation in history before creating a derived draft.";
             return;
@@ -5140,7 +5134,7 @@ public partial class MainWindow : Window, IDisposable
     {
         ExpandedPromptPanel.Visibility = Visibility.Collapsed;
         ProjectMediaPanelControl.SelectedItem = null;
-        GenerationsList.SelectedItem = null;
+        GenerationHistoryPanelControl.ClearSelection();
         _referenceChoices.Clear();
         ResetFrameWorkspace();
         PrecisionFramePanel.Visibility = Visibility.Collapsed;
@@ -5166,7 +5160,6 @@ public partial class MainWindow : Window, IDisposable
         var selectedAnchorId = ProjectMediaPanelControl.SelectedItem?.Anchor?.Id;
         var existingChoices = _referenceChoices.ToList();
         _assets.Clear();
-        _generations.Clear();
         _referenceChoices.Clear();
 
         var mediaItems = new List<ProjectMediaListItem>();
@@ -5233,8 +5226,8 @@ public partial class MainWindow : Window, IDisposable
         foreach (var item in mediaItems.OrderBy(item => item.GroupOrder).ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase))
             _assets.Add(item);
 
-        foreach (var generation in _workspace.Project.Generations.OrderByDescending(item => item.RequestedAt))
-            _generations.Add(generation);
+        GenerationHistoryPanelControl.SetGenerations(
+            _workspace.Project.Generations.OrderByDescending(item => item.RequestedAt));
 
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} media items";
         RefreshEditWorkspaceState();
