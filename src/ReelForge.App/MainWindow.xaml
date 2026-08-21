@@ -6,6 +6,7 @@
         xmlns:generation="clr-namespace:ReelForge.App.Views.Generation"
         xmlns:editing="clr-namespace:ReelForge.App.Views.Editing"
         xmlns:inspector="clr-namespace:ReelForge.App.Views.Inspector"
+        xmlns:mediaPreparation="clr-namespace:ReelForge.App.Views.MediaPreparation"
         xmlns:mediaPreview="clr-namespace:ReelForge.App.Views.MediaPreview"
         xmlns:projectMedia="clr-namespace:ReelForge.App.Views.ProjectMedia"
         Title="ReelForge" Height="900" Width="1440"
@@ -188,150 +189,24 @@
 
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" />
 
-                <Border x:Name="GenerateLowerWorkspace" Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-                    <Grid>
-                    <StackPanel x:Name="MediaPreparationHome" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
-                        <TextBlock Text="MEDIA PREPARATION" FontSize="12" FontWeight="SemiBold"
-                                   Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" />
-                        <TextBlock x:Name="MediaPreparationSelectionText" Text="Select a video in Project Media"
-                                   Style="{StaticResource ApplicationTextBlockStyle}" FontSize="18" FontWeight="SemiBold"
-                                   HorizontalAlignment="Center" Margin="0,13,0,6" />
-                        <TextBlock Text="Choose an operation when you want ReelForge to perform precise media work. Ordinary preview does not index or extract frames."
-                                   TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0">
-                            <Button x:Name="SelectFrameButton" Content="Select Frame" Click="SelectFrame_Click" IsEnabled="False"
-                                    ToolTip="Inspect exact decoded frames around the current playhead" />
-                            <Button x:Name="MakeClipButton" Content="Make Clip" Click="MakeClip_Click" IsEnabled="False"
-                                    ToolTip="Create a non-destructive Saved Clip using exact boundaries" />
-                        </StackPanel>
-                    </StackPanel>
-                    <ScrollViewer x:Name="PrecisionFramePanel" Visibility="Collapsed"
-                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                                  CanContentScroll="False">
-                    <Grid Margin="14,14,6,14">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="100" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <DockPanel>
-                            <Button DockPanel.Dock="Left" Content="← Media preparation" Click="ExitFrameSelection_Click" Margin="0,0,10,0" />
-                            <TextBlock x:Name="PrecisionOperationTitle" Text="SELECT FRAME" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
-                                       VerticalAlignment="Center" />
-                            <TextBlock x:Name="FrameWorkspaceStatusText" Text="Select a physical video" HorizontalAlignment="Right"
-                                       Foreground="{StaticResource MutedTextBrush}" />
-                        </DockPanel>
-                        <DockPanel Grid.Row="1" Margin="0,8,0,6">
-                            <WrapPanel x:Name="FrameSelectionActions">
-                                <Button Content="First frame" Click="SelectFirstFrame_Click" Margin="0,0,6,0" />
-                                <Button Content="Last frame" Click="SelectLastFrame_Click" Margin="0,0,6,0" />
-                                <Button Content="Save selected frame" Click="SaveSelectedFrame_Click"
-                                        Background="{StaticResource AccentBrush}" Foreground="White" />
-                            </WrapPanel>
-                            <WrapPanel x:Name="ClipSelectionActions" Visibility="Collapsed">
-                                <Button Content="Start at beginning" Click="UseSourceStart_Click" Margin="0,0,6,0" />
-                                <Button Content="Set start here" Click="SetClipStart_Click" Margin="0,0,6,0" />
-                                <Button Content="Set end here" Click="SetClipEnd_Click" Margin="0,0,6,0" />
-                                <Button Content="End at video end" Click="UseSourceEnd_Click" />
-                            </WrapPanel>
-                        </DockPanel>
-                        <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Background="#11141B">
-                            <Grid>
-                                <TextBlock x:Name="ContactFramesEmptyText" Text="Select a video to browse exact decoded frames."
-                                           Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                <ListBox x:Name="ContactFramesList" SelectionChanged="ContactFramesList_SelectionChanged"
-                                         PreviewKeyDown="ContactFramesList_PreviewKeyDown"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                                         Background="Transparent" BorderThickness="0" Padding="4">
-                                    <ListBox.ItemsPanel>
-                                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-                                    </ListBox.ItemsPanel>
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Width="112" Margin="2">
-                                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="#050609" Height="62">
-                                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
-                                                </Border>
-                                                <TextBlock Text="{Binding TimestampText}" FontSize="10" TextAlignment="Center"
-                                                           Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </Grid>
-                        </Border>
-                        <TextBlock x:Name="SavedFramesHeading" Grid.Row="3" Text="SAVED FRAMES" FontSize="12" FontWeight="SemiBold"
-                                   Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,5" />
-                        <Grid x:Name="SavedFramesWorkspace" Grid.Row="4" MinHeight="140">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="300" />
-                            </Grid.ColumnDefinitions>
-                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Background="#11141B">
-                                <Grid>
-                                    <TextBlock x:Name="SavedFramesEmptyText" Text="No Saved Frames yet."
-                                               Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    <ListBox x:Name="SavedFramesList" SelectionChanged="SavedFramesList_SelectionChanged"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                                             Background="Transparent" BorderThickness="0" Padding="4">
-                                        <ListBox.ItemsPanel>
-                                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-                                        </ListBox.ItemsPanel>
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Width="126" Margin="2">
-                                                    <Border BorderBrush="#8775FF" BorderThickness="2" Background="#050609" Height="66">
-                                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
-                                                    </Border>
-                                                    <TextBlock Text="{Binding DisplayLabel}" Style="{StaticResource ApplicationTextBlockStyle}"
-                                                               TextTrimming="CharacterEllipsis" Margin="1,3,1,0" />
-                                                    <TextBlock Text="{Binding TimestampText}" FontSize="10" Foreground="{StaticResource MutedTextBrush}" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                </Grid>
-                            </Border>
-                            <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                                <TextBlock Text="Label" Style="{StaticResource ApplicationTextBlockStyle}" />
-                                <TextBox x:Name="SavedFrameLabelTextBox" Margin="0,3,0,6" IsEnabled="False" />
-                                <TextBlock Text="Notes" Style="{StaticResource ApplicationTextBlockStyle}" />
-                                <TextBox x:Name="SavedFrameNotesTextBox" Margin="0,3,0,6" Height="34" TextWrapping="Wrap"
-                                         AcceptsReturn="True" VerticalScrollBarVisibility="Auto" IsEnabled="False" />
-                                <WrapPanel>
-                                    <Button x:Name="UpdateSavedFrameButton" Content="Update" Click="UpdateSavedFrame_Click" IsEnabled="False" Margin="0,0,5,0" />
-                                    <Button x:Name="JumpToSavedFrameButton" Content="Jump to frame" Click="JumpToSavedFrame_Click" IsEnabled="False" Margin="0,0,5,0" />
-                                    <Button x:Name="RemoveSavedFrameButton" Content="Remove" Click="RemoveSavedFrame_Click"
-                                            Style="{StaticResource DangerButtonStyle}" IsEnabled="False" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </Grid>
-                        <Border x:Name="ClipEditorWorkspace" Grid.Row="3" Grid.RowSpan="2" Visibility="Collapsed"
-                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
-                                Background="#11141B" Margin="0,8,0,0" Padding="12">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Text="Clip name" Style="{StaticResource ApplicationTextBlockStyle}" />
-                                    <TextBox x:Name="ClipNameTextBox" Margin="0,4,12,8" />
-                                    <TextBlock x:Name="ClipBoundarySummaryText" Text="Start: video beginning&#x0a;End: video end"
-                                               TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" />
-                                    <TextBlock Text="Choose an exact frame above, then set it as the start or end. These boundaries stay out of Saved Frames."
-                                               TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,7,12,0" />
-                                </StackPanel>
-                                <Button Grid.Column="1" Content="Save Clip" Click="SaveClip_Click"
-                                        Background="{StaticResource AccentBrush}" Foreground="White"
-                                        VerticalAlignment="Bottom" />
-                            </Grid>
-                        </Border>
-                    </Grid>
-                    </ScrollViewer>
-                    </Grid>
+                <Border x:Name="GenerateLowerWorkspace" Grid.Row="2" Background="{StaticResource PanelBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <mediaPreparation:MediaPreparationPanel x:Name="MediaPreparationPanelControl"
+                        SelectFrameRequested="MediaPreparationPanel_SelectFrameRequested"
+                        MakeClipRequested="MediaPreparationPanel_MakeClipRequested"
+                        ExitRequested="MediaPreparationPanel_ExitRequested"
+                        FirstFrameRequested="MediaPreparationPanel_FirstFrameRequested"
+                        LastFrameRequested="MediaPreparationPanel_LastFrameRequested"
+                        SaveFrameRequested="MediaPreparationPanel_SaveFrameRequested"
+                        ClipStartRequested="MediaPreparationPanel_ClipStartRequested"
+                        ClipEndRequested="MediaPreparationPanel_ClipEndRequested"
+                        SaveClipRequested="MediaPreparationPanel_SaveClipRequested"
+                        ContactFrameSelected="MediaPreparationPanel_ContactFrameSelected"
+                        FrameStepRequested="MediaPreparationPanel_FrameStepRequested"
+                        SavedFrameSelected="MediaPreparationPanel_SavedFrameSelected"
+                        SavedFrameUpdateRequested="MediaPreparationPanel_SavedFrameUpdateRequested"
+                        SavedFrameJumpRequested="MediaPreparationPanel_SavedFrameJumpRequested"
+                        SavedFrameRemoveRequested="MediaPreparationPanel_SavedFrameRemoveRequested" />
                 </Border>
                 <Border x:Name="EditLowerWorkspace" Grid.Row="2" Visibility="Collapsed"
                         Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">

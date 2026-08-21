@@ -32,8 +32,6 @@ using Line = System.Windows.Shapes.Line;
 
 namespace ReelForge.App;
 
-internal enum MediaPreparationMode { None, SelectFrame, MakeClip }
-
 public partial class MainWindow : Window, IDisposable
 {
     private sealed record TimelineStickyContent(
@@ -92,9 +90,6 @@ public partial class MainWindow : Window, IDisposable
     private int _pendingKeyboardFrameSteps;
     private bool _isKeyboardFrameNavigationRunning;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
-    private MediaPreparationMode _mediaPreparationMode;
-    private ClipBoundarySelection _clipStart = ClipBoundarySelection.SourceStart;
-    private ClipBoundarySelection _clipEnd = ClipBoundarySelection.SourceEnd;
     private bool _restoringProjectUiState;
     private CancellationTokenSource? _frameBrowserCancellation;
     private IReadOnlyList<VideoPresentationFrame> _indexedFrames = [];
@@ -173,8 +168,7 @@ public partial class MainWindow : Window, IDisposable
         projectMediaView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ProjectMediaListItem.GroupName)));
         ProjectMediaPanelControl.SetItemsSource(projectMediaView);
         GenerationPanelControl.SetReferences(_referenceChoices);
-        ContactFramesList.ItemsSource = _contactFrames;
-        SavedFramesList.ItemsSource = _savedFrames;
+        MediaPreparationPanelControl.SetItemsSources(_contactFrames, _savedFrames);
         _draftAutosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
         _draftAutosaveTimer.Tick += DraftAutosaveTimer_Tick;
 
@@ -685,7 +679,7 @@ public partial class MainWindow : Window, IDisposable
                     if (_workspace.Project?.Id != selectedProjectId) return;
                     InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
                     ShowAssetPreview(asset);
-                    FrameWorkspaceStatusText.Text = "Source media is missing";
+                    MediaPreparationPanelControl.SetWorkspaceStatus("Source media is missing");
                     StatusText.Text = $"{asset.FileName} is missing from its recorded project location.";
                     return;
                 }
@@ -720,15 +714,11 @@ public partial class MainWindow : Window, IDisposable
             MediaType: MediaType.Video,
             Physical.Availability: not PhysicalAssetAvailability.Missing
         };
-        SelectFrameButton.IsEnabled = canPrepare;
-        MakeClipButton.IsEnabled = canPrepare;
+        MediaPreparationPanelControl.ConfigureSelection(asset.EffectiveDisplayName, canPrepare);
         StartEditButton.IsEnabled = _workspace.Project?.WorkingCompositionAssetId is null &&
                                     asset.MediaType == MediaType.Video &&
                                     (asset.StorageKind == AssetStorageKind.Physical ||
                                      asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
-        MediaPreparationSelectionText.Text = canPrepare
-            ? asset.EffectiveDisplayName
-            : "Select a physical video in Project Media";
         UpdateCompositionActionState();
     }
 
@@ -2162,47 +2152,29 @@ public partial class MainWindow : Window, IDisposable
         return string.IsNullOrWhiteSpace(safe) ? "Working Composition" : safe;
     }
 
-    private async void SelectFrame_Click(object sender, RoutedEventArgs e)
+    private async void MediaPreparationPanel_SelectFrameRequested(object? sender, EventArgs e)
     {
         if (GetSelectedAsset() is not { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Video } asset)
             return;
-        EnterMediaPreparationMode(MediaPreparationMode.SelectFrame, asset);
-        await LoadFrameWorkspaceAsync(asset, _workspace.Project?.Id);
-    }
-
-    private async void MakeClip_Click(object sender, RoutedEventArgs e)
-    {
-        if (GetSelectedAsset() is not { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Video } asset)
-            return;
-        _clipStart = ClipBoundarySelection.SourceStart;
-        _clipEnd = ClipBoundarySelection.SourceEnd;
-        ClipNameTextBox.Text = $"{Path.GetFileNameWithoutExtension(asset.EffectiveDisplayName)} clip";
-        EnterMediaPreparationMode(MediaPreparationMode.MakeClip, asset);
-        UpdateClipBoundarySummary();
-        await LoadFrameWorkspaceAsync(asset, _workspace.Project?.Id);
-    }
-
-    private void EnterMediaPreparationMode(MediaPreparationMode mode, ProjectAsset asset)
-    {
-        _mediaPreparationMode = mode;
         MediaPreviewPanelControl.EnterPrecisionMode();
-        MediaPreparationHome.Visibility = Visibility.Collapsed;
-        PrecisionFramePanel.Visibility = Visibility.Visible;
-        var makingClip = mode == MediaPreparationMode.MakeClip;
-        PrecisionOperationTitle.Text = makingClip ? "MAKE CLIP" : "SELECT FRAME";
-        FrameSelectionActions.Visibility = makingClip ? Visibility.Collapsed : Visibility.Visible;
-        ClipSelectionActions.Visibility = makingClip ? Visibility.Visible : Visibility.Collapsed;
-        SavedFramesHeading.Visibility = makingClip ? Visibility.Collapsed : Visibility.Visible;
-        SavedFramesWorkspace.Visibility = makingClip ? Visibility.Collapsed : Visibility.Visible;
-        ClipEditorWorkspace.Visibility = makingClip ? Visibility.Visible : Visibility.Collapsed;
-        FrameWorkspaceStatusText.Text = asset.EffectiveDisplayName;
+        MediaPreparationPanelControl.EnterSelectFrame(asset.EffectiveDisplayName);
+        await LoadFrameWorkspaceAsync(asset, _workspace.Project?.Id);
     }
 
-    private void ExitFrameSelection_Click(object sender, RoutedEventArgs e)
+    private async void MediaPreparationPanel_MakeClipRequested(object? sender, EventArgs e)
+    {
+        if (GetSelectedAsset() is not { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Video } asset)
+            return;
+        MediaPreviewPanelControl.EnterPrecisionMode();
+        MediaPreparationPanelControl.EnterMakeClip(
+            asset.EffectiveDisplayName,
+            $"{Path.GetFileNameWithoutExtension(asset.EffectiveDisplayName)} clip");
+        await LoadFrameWorkspaceAsync(asset, _workspace.Project?.Id);
+    }
+
+    private void MediaPreparationPanel_ExitRequested(object? sender, EventArgs e)
     {
         ResetFrameWorkspace();
-        PrecisionFramePanel.Visibility = Visibility.Collapsed;
-        MediaPreparationHome.Visibility = Visibility.Visible;
         if (GetSelectedAsset() is { } asset) ConfigureMediaPreparationFor(asset);
     }
 
@@ -3187,7 +3159,7 @@ public partial class MainWindow : Window, IDisposable
             !GeneratedOutputPreviewPolicy.ShouldAutoPreview(
                 owningProjectIsOpen,
                 _activeWorkspace,
-                _mediaPreparationMode != MediaPreparationMode.None))
+                MediaPreparationPanelControl.IsPreparing))
             return;
         var outputId = generation.OutputAssetIds.LastOrDefault();
         if (outputId == Guid.Empty) return;
@@ -4031,21 +4003,21 @@ public partial class MainWindow : Window, IDisposable
     {
         if (asset.MediaType != MediaType.Video || asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
         {
-            FrameWorkspaceStatusText.Text = "Select a physical video";
+            MediaPreparationPanelControl.SetWorkspaceStatus("Select a physical video");
             return;
         }
 
         var path = _workspace.GetAbsoluteAssetPath(asset);
         if (!File.Exists(path))
         {
-            FrameWorkspaceStatusText.Text = "Source media is missing";
+            MediaPreparationPanelControl.SetWorkspaceStatus("Source media is missing");
             return;
         }
 
         var cancellation = ReplaceFrameBrowserCancellation();
         _frameSourceAssetId = asset.Id;
-        FrameWorkspaceStatusText.Text = "Indexing decoded frames…";
-        ContactFramesEmptyText.Text = "Reading exact presentation frames…";
+        MediaPreparationPanelControl.SetWorkspaceStatus("Indexing decoded frames…");
+        MediaPreparationPanelControl.ShowContactFramesMessage("Reading exact presentation frames…");
         try
         {
             await using var verifiedSource = await new PhysicalAssetMaterializer().MaterializeAsync(
@@ -4063,8 +4035,8 @@ public partial class MainWindow : Window, IDisposable
             if (_workspace.Project?.Id != selectedProjectId || _frameSourceAssetId != asset.Id) return;
             await _workspace.SaveAsync(cancellation.Token);
 
-            FrameWorkspaceStatusText.Text = $"{_indexedFrames.Count:N0} nearby decoded frames";
-            ContactFramesEmptyText.Visibility = Visibility.Collapsed;
+            MediaPreparationPanelControl.SetWorkspaceStatus($"{_indexedFrames.Count:N0} nearby decoded frames");
+            MediaPreparationPanelControl.HideContactFramesMessage();
             await RefreshContactFramesAsync(MediaPreviewPanelControl.PositionSeconds, cancellation.Token);
             await RefreshSavedFramesAsync(cancellation.Token);
         }
@@ -4074,9 +4046,8 @@ public partial class MainWindow : Window, IDisposable
         catch (Exception exception)
         {
             if (_frameSourceAssetId != asset.Id) return;
-            FrameWorkspaceStatusText.Text = "Frame browser unavailable";
-            ContactFramesEmptyText.Text = exception.Message;
-            ContactFramesEmptyText.Visibility = Visibility.Visible;
+            MediaPreparationPanelControl.SetWorkspaceStatus("Frame browser unavailable");
+            MediaPreparationPanelControl.ShowContactFramesMessage(exception.Message);
             StatusText.Text = $"Precision frame browsing is unavailable: {exception.Message}";
         }
     }
@@ -4091,15 +4062,9 @@ public partial class MainWindow : Window, IDisposable
 
     private void ResetFrameWorkspace()
     {
-        var wasPreparingMedia = _mediaPreparationMode != MediaPreparationMode.None;
-        _mediaPreparationMode = MediaPreparationMode.None;
+        var wasPreparingMedia = MediaPreparationPanelControl.IsPreparing;
         if (wasPreparingMedia) MediaPreviewPanelControl.ExitPrecisionMode();
-        if (PrecisionFramePanel is not null)
-        {
-            PrecisionFramePanel.Visibility = Visibility.Collapsed;
-            PrecisionFramePanel.ScrollToTop();
-        }
-        if (MediaPreparationHome is not null) MediaPreparationHome.Visibility = Visibility.Visible;
+        MediaPreparationPanelControl.ResetPresentation();
         _frameBrowserDebounceTimer?.Stop();
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
@@ -4112,26 +4077,8 @@ public partial class MainWindow : Window, IDisposable
         _frameSourceContentHash = null;
         _contactFrames.Clear();
         _savedFrames.Clear();
-        if (ContactFramesEmptyText is null) return;
-        SelectFrameButton.IsEnabled = false;
-        MakeClipButton.IsEnabled = false;
         StartEditButton.IsEnabled = false;
         UpdateCompositionActionState();
-        MediaPreparationSelectionText.Text = "Select a physical video in Project Media";
-        ContactFramesEmptyText.Text = "Select a video to browse exact decoded frames.";
-        ContactFramesEmptyText.Visibility = Visibility.Visible;
-        SavedFramesEmptyText.Visibility = Visibility.Visible;
-        FrameWorkspaceStatusText.Text = "Select a physical video";
-        if (PrecisionOperationTitle is not null)
-        {
-            PrecisionOperationTitle.Text = "SELECT FRAME";
-            FrameSelectionActions.Visibility = Visibility.Visible;
-            ClipSelectionActions.Visibility = Visibility.Collapsed;
-            SavedFramesHeading.Visibility = Visibility.Visible;
-            SavedFramesWorkspace.Visibility = Visibility.Visible;
-            ClipEditorWorkspace.Visibility = Visibility.Collapsed;
-        }
-        ClearSavedFrameEditor();
     }
 
     private void ScheduleContactFrameRefresh(double? targetSeconds = null)
@@ -4184,7 +4131,7 @@ public partial class MainWindow : Window, IDisposable
             .Select(group => group.First())
             .OrderBy(frame => frame.PresentationTimestamp)
             .ToArray();
-        FrameWorkspaceStatusText.Text = $"{_indexedFrames.Count:N0} nearby decoded frames";
+        MediaPreparationPanelControl.SetWorkspaceStatus($"{_indexedFrames.Count:N0} nearby decoded frames");
     }
 
     private async Task RefreshContactFramesAsync(double centerSeconds, CancellationToken cancellationToken)
@@ -4197,7 +4144,7 @@ public partial class MainWindow : Window, IDisposable
         var selectedFrames = ExactFrameContactWindow.Select(_indexedFrames, centerSeconds);
         if (selectedFrames.Count == 0) return;
 
-        ContactFramesEmptyText.Visibility = Visibility.Collapsed;
+        MediaPreparationPanelControl.HideContactFramesMessage();
         var center = selectedFrames.MinBy(frame => Math.Abs(frame.TimestampSeconds - centerSeconds))!;
         var existingItems = _contactFrames.ToDictionary(
             item => (item.Frame.VideoStreamIndex, item.Frame.PresentationTimestamp));
@@ -4223,10 +4170,9 @@ public partial class MainWindow : Window, IDisposable
                 else _contactFrames.Insert(index, desired);
             }
             while (_contactFrames.Count > desiredItems.Length) _contactFrames.RemoveAt(_contactFrames.Count - 1);
-            ContactFramesList.SelectedItem = desiredItems.Single(item =>
+            MediaPreparationPanelControl.SelectContactFrame(desiredItems.Single(item =>
                 item.Frame.VideoStreamIndex == center.VideoStreamIndex &&
-                item.Frame.PresentationTimestamp == center.PresentationTimestamp);
-            ContactFramesList.ScrollIntoView(ContactFramesList.SelectedItem);
+                item.Frame.PresentationTimestamp == center.PresentationTimestamp));
         }
         finally
         {
@@ -4284,7 +4230,7 @@ public partial class MainWindow : Window, IDisposable
         var project = _workspace.Project;
         var source = project.Assets.Single(asset => asset.Id == sourceAssetId);
         var sourcePath = _workspace.GetAbsoluteAssetPath(source);
-        var selectedAnchorId = (SavedFramesList.SelectedItem as SavedFrameListItem)?.Anchor.Id;
+        var selectedAnchorId = MediaPreparationPanelControl.SelectedSavedFrame?.Anchor.Id;
         var results = new List<SavedFrameListItem>();
         foreach (var anchor in project.Anchors.Where(anchor => !anchor.IsArchived))
         {
@@ -4326,10 +4272,10 @@ public partial class MainWindow : Window, IDisposable
         }
         GenerationPanelControl.RefreshReferences();
         ProjectMediaPanelControl.RefreshItems();
-        SavedFramesEmptyText.Visibility = _savedFrames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        SavedFramesList.SelectedItem = selectedAnchorId is { } id
+        MediaPreparationPanelControl.SetSavedFramesEmpty(_savedFrames.Count == 0);
+        MediaPreparationPanelControl.SelectSavedFrame(selectedAnchorId is { } id
             ? _savedFrames.FirstOrDefault(item => item.Anchor.Id == id)
-            : null;
+            : null);
     }
 
     private static BitmapSource LoadBitmap(string path)
@@ -4343,9 +4289,9 @@ public partial class MainWindow : Window, IDisposable
         return bitmap;
     }
 
-    private async void ContactFramesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void MediaPreparationPanel_ContactFrameSelected(object? sender, FrameContactSelectionEventArgs e)
     {
-        if (ContactFramesList.SelectedItem is not FrameContactListItem item ||
+        if (e.Item is not { } item ||
             !MediaPreviewPanelControl.HasVideoSource) return;
         SeekPreview(item.Frame.TimestampSeconds);
         if (_suppressFrameSelectionPrefetch) return;
@@ -4354,7 +4300,7 @@ public partial class MainWindow : Window, IDisposable
         {
             await RunFrameNavigationAsync(async token =>
             {
-                if (ContactFramesList.SelectedItem is not FrameContactListItem latest) return;
+                if (MediaPreparationPanelControl.SelectedContactFrame is not { } latest) return;
                 await EnsureAdjacentFramesAvailableAsync(latest.Frame, direction: 0, token);
                 await RefreshContactFramesAsync(latest.Frame.TimestampSeconds, token);
             }, cancellationToken);
@@ -4364,12 +4310,10 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private void ContactFramesList_PreviewKeyDown(object sender, KeyEventArgs e)
+    private void MediaPreparationPanel_FrameStepRequested(object? sender, FrameStepRequestedEventArgs e)
     {
-        if (e.Key is not (Key.Left or Key.Right)) return;
-        e.Handled = true;
-        if (ContactFramesList.SelectedItem is not FrameContactListItem) return;
-        _pendingKeyboardFrameSteps += e.Key == Key.Left ? -1 : 1;
+        if (MediaPreparationPanelControl.SelectedContactFrame is null) return;
+        _pendingKeyboardFrameSteps += e.Steps;
         if (_isKeyboardFrameNavigationRunning) return;
         _isKeyboardFrameNavigationRunning = true;
         _ = ProcessKeyboardFrameNavigationAsync();
@@ -4379,14 +4323,14 @@ public partial class MainWindow : Window, IDisposable
     {
         try
         {
-            while (_pendingKeyboardFrameSteps != 0 && _mediaPreparationMode != MediaPreparationMode.None)
+            while (_pendingKeyboardFrameSteps != 0 && MediaPreparationPanelControl.IsPreparing)
             {
                 var steps = _pendingKeyboardFrameSteps;
                 _pendingKeyboardFrameSteps = 0;
                 var cancellationToken = _frameBrowserCancellation?.Token ?? CancellationToken.None;
                 await RunFrameNavigationAsync(async token =>
                 {
-                    if (ContactFramesList.SelectedItem is not FrameContactListItem selected) return;
+                    if (MediaPreparationPanelControl.SelectedContactFrame is not { } selected) return;
                     var targetSeconds = EstimateKeyboardTargetSeconds(selected.Frame, steps);
                     var nearestIndex = ExactFrameContactWindow.FindNearestIndex(_indexedFrames, targetSeconds);
                     var localInterval = EstimateFrameIntervalSeconds(selected.Frame);
@@ -4412,7 +4356,7 @@ public partial class MainWindow : Window, IDisposable
         finally
         {
             _isKeyboardFrameNavigationRunning = false;
-            if (_pendingKeyboardFrameSteps != 0 && _mediaPreparationMode != MediaPreparationMode.None)
+            if (_pendingKeyboardFrameSteps != 0 && MediaPreparationPanelControl.IsPreparing)
             {
                 _isKeyboardFrameNavigationRunning = true;
                 _ = ProcessKeyboardFrameNavigationAsync();
@@ -4491,9 +4435,11 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void SelectFirstFrame_Click(object sender, RoutedEventArgs e) => await SelectBoundaryFrameAsync(first: true);
+    private async void MediaPreparationPanel_FirstFrameRequested(object? sender, EventArgs e) =>
+        await SelectBoundaryFrameAsync(first: true);
 
-    private async void SelectLastFrame_Click(object sender, RoutedEventArgs e) => await SelectBoundaryFrameAsync(first: false);
+    private async void MediaPreparationPanel_LastFrameRequested(object? sender, EventArgs e) =>
+        await SelectBoundaryFrameAsync(first: false);
 
     private async Task SelectBoundaryFrameAsync(bool first)
     {
@@ -4524,9 +4470,9 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void SaveSelectedFrame_Click(object sender, RoutedEventArgs e)
+    private async void MediaPreparationPanel_SaveFrameRequested(object? sender, EventArgs e)
     {
-        if (_workspace.Project is null || ContactFramesList.SelectedItem is not FrameContactListItem selected ||
+        if (_workspace.Project is null || MediaPreparationPanelControl.SelectedContactFrame is not { } selected ||
             _frameSourceAssetId is not { } sourceAssetId || string.IsNullOrWhiteSpace(_frameSourceContentHash))
         {
             StatusText.Text = "Select a frame in the precision strip before saving it.";
@@ -4551,40 +4497,27 @@ public partial class MainWindow : Window, IDisposable
             await _workspace.SaveAsync();
             RefreshProjectCollections();
             await RefreshSavedFramesAsync(CancellationToken.None);
-            SavedFramesList.SelectedItem = _savedFrames.FirstOrDefault(item => item.Revision.Id == revision.Id);
+            MediaPreparationPanelControl.SelectSavedFrame(
+                _savedFrames.FirstOrDefault(item => item.Revision.Id == revision.Id));
             StatusText.Text = $"Saved exact frame at {FormatFrameTimestamp(revision.TimestampSeconds)}.";
         });
     }
 
-    private void UseSourceStart_Click(object sender, RoutedEventArgs e)
-    {
-        _clipStart = ClipBoundarySelection.SourceStart;
-        UpdateClipBoundarySummary();
-    }
-
-    private void UseSourceEnd_Click(object sender, RoutedEventArgs e)
-    {
-        _clipEnd = ClipBoundarySelection.SourceEnd;
-        UpdateClipBoundarySummary();
-    }
-
-    private void SetClipStart_Click(object sender, RoutedEventArgs e)
+    private void MediaPreparationPanel_ClipStartRequested(object? sender, EventArgs e)
     {
         if (!TryGetSelectedClipFrame(out var position)) return;
-        _clipStart = ClipBoundarySelection.AtFrame(position, AnchorBoundaryEdge.BeforeFrame);
-        UpdateClipBoundarySummary();
+        MediaPreparationPanelControl.SetClipBoundary(position, isStart: true);
     }
 
-    private void SetClipEnd_Click(object sender, RoutedEventArgs e)
+    private void MediaPreparationPanel_ClipEndRequested(object? sender, EventArgs e)
     {
         if (!TryGetSelectedClipFrame(out var position)) return;
-        _clipEnd = ClipBoundarySelection.AtFrame(position, AnchorBoundaryEdge.AfterFrame);
-        UpdateClipBoundarySummary();
+        MediaPreparationPanelControl.SetClipBoundary(position, isStart: false);
     }
 
     private bool TryGetSelectedClipFrame(out ExactFramePosition position)
     {
-        if (ContactFramesList.SelectedItem is not FrameContactListItem selected ||
+        if (MediaPreparationPanelControl.SelectedContactFrame is not { } selected ||
             _frameSourceAssetId is not { } sourceAssetId ||
             string.IsNullOrWhiteSpace(_frameSourceContentHash))
         {
@@ -4604,85 +4537,46 @@ public partial class MainWindow : Window, IDisposable
         return true;
     }
 
-    private void UpdateClipBoundarySummary()
+    private async void MediaPreparationPanel_SaveClipRequested(object? sender, EventArgs e)
     {
-        if (ClipBoundarySummaryText is null) return;
-        ClipBoundarySummaryText.Text =
-            $"Start: {FormatClipBoundary(_clipStart)}\nEnd: {FormatClipBoundary(_clipEnd)}";
-    }
-
-    private static string FormatClipBoundary(ClipBoundarySelection boundary) => boundary.Kind switch
-    {
-        ClipBoundaryKind.SourceStart => "video beginning",
-        ClipBoundaryKind.SourceEnd => "video end",
-        ClipBoundaryKind.ExactFrame when boundary.ExactPosition is { } position =>
-            $"{FormatFrameTimestamp(position.PresentationTimestamp * (double)position.TimeBaseNumerator / position.TimeBaseDenominator)} " +
-            $"({boundary.Edge})",
-        _ => "not set"
-    };
-
-    private async void SaveClip_Click(object sender, RoutedEventArgs e)
-    {
-        if (_mediaPreparationMode != MediaPreparationMode.MakeClip ||
-            _frameSourceAssetId is not { } sourceAssetId)
-            return;
-        if (string.IsNullOrWhiteSpace(ClipNameTextBox.Text))
+        if (_frameSourceAssetId is not { } sourceAssetId) return;
+        if (!MediaPreparationPanelControl.TryCaptureClipDraft(out var draft))
         {
             StatusText.Text = "Enter a name for the Saved Clip.";
-            ClipNameTextBox.Focus();
+            MediaPreparationPanelControl.FocusClipName();
             return;
         }
 
         await RunUiActionAsync("Saving non-destructive clip…", async () =>
         {
             var clip = await new SavedClipService(_workspace).CreateAsync(
-                ClipNameTextBox.Text,
+                draft.Name,
                 sourceAssetId,
-                _clipStart,
-                _clipEnd);
+                draft.Start,
+                draft.End);
             RefreshProjectCollections(clip.Id);
             StatusText.Text = $"Saved Clip '{clip.EffectiveDisplayName}' created without copying source media.";
         });
     }
 
-    private void SavedFramesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void MediaPreparationPanel_SavedFrameSelected(object? sender, SavedFrameSelectionEventArgs e)
     {
-        if (SavedFramesList.SelectedItem is not SavedFrameListItem item)
-        {
-            ClearSavedFrameEditor();
-            return;
-        }
-        SavedFrameLabelTextBox.IsEnabled = true;
-        SavedFrameNotesTextBox.IsEnabled = true;
-        UpdateSavedFrameButton.IsEnabled = true;
-        JumpToSavedFrameButton.IsEnabled = true;
-        RemoveSavedFrameButton.IsEnabled = true;
-        SavedFrameLabelTextBox.Text = item.Anchor.DisplayLabel ?? string.Empty;
-        SavedFrameNotesTextBox.Text = item.Anchor.Notes ?? string.Empty;
-        InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(item);
+        if (e.Item is { } item)
+            InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(item);
     }
 
-    private void ClearSavedFrameEditor()
+    private async void MediaPreparationPanel_SavedFrameUpdateRequested(
+        object? sender,
+        SavedFrameUpdateRequestedEventArgs e)
     {
-        if (SavedFrameLabelTextBox is null) return;
-        SavedFrameLabelTextBox.Text = string.Empty;
-        SavedFrameNotesTextBox.Text = string.Empty;
-        SavedFrameLabelTextBox.IsEnabled = false;
-        SavedFrameNotesTextBox.IsEnabled = false;
-        UpdateSavedFrameButton.IsEnabled = false;
-        JumpToSavedFrameButton.IsEnabled = false;
-        RemoveSavedFrameButton.IsEnabled = false;
-    }
-
-    private async void UpdateSavedFrame_Click(object sender, RoutedEventArgs e)
-    {
-        if (_workspace.Project is null || SavedFramesList.SelectedItem is not SavedFrameListItem item) return;
-        item.Anchor.DisplayLabel = NullIfWhiteSpace(SavedFrameLabelTextBox.Text)
+        if (_workspace.Project is null) return;
+        var item = e.Item;
+        item.Anchor.DisplayLabel = NullIfWhiteSpace(e.Label)
             ?? $"Saved frame {FormatFrameTimestamp(item.Revision.TimestampSeconds)}";
-        item.Anchor.Notes = NullIfWhiteSpace(SavedFrameNotesTextBox.Text);
+        item.Anchor.Notes = NullIfWhiteSpace(e.Notes);
         _workspace.Project.Touch();
         await _workspace.SaveAsync();
-        SavedFramesList.Items.Refresh();
+        MediaPreparationPanelControl.RefreshSavedFrames();
         var sourceName = _workspace.Project.Assets
             .SingleOrDefault(asset => asset.Id == item.Revision.SourceAssetId)?.EffectiveDisplayName;
         foreach (var choice in _referenceChoices.Where(choice =>
@@ -4694,17 +4588,17 @@ public partial class MainWindow : Window, IDisposable
         StatusText.Text = "Saved Frame details updated.";
     }
 
-    private void JumpToSavedFrame_Click(object sender, RoutedEventArgs e)
+    private void MediaPreparationPanel_SavedFrameJumpRequested(object? sender, SavedFrameSelectionEventArgs e)
     {
-        if (SavedFramesList.SelectedItem is not SavedFrameListItem item) return;
+        if (e.Item is not { } item) return;
         SeekPreview(item.Revision.TimestampSeconds);
         ScheduleContactFrameRefresh(item.Revision.TimestampSeconds);
         StatusText.Text = $"Jumped to {FormatFrameTimestamp(item.Revision.TimestampSeconds)}.";
     }
 
-    private async void RemoveSavedFrame_Click(object sender, RoutedEventArgs e)
+    private async void MediaPreparationPanel_SavedFrameRemoveRequested(object? sender, SavedFrameSelectionEventArgs e)
     {
-        if (_workspace.Project is null || SavedFramesList.SelectedItem is not SavedFrameListItem item) return;
+        if (_workspace.Project is null || e.Item is not { } item) return;
         await ConfirmAndRemoveSavedFrameAsync(item.Anchor, item.DisplayLabel);
     }
 
@@ -4723,7 +4617,7 @@ public partial class MainWindow : Window, IDisposable
         var disposition = _workspace.Project.RemoveOrArchiveAnchor(anchor.Id);
         await _workspace.SaveAsync();
         RefreshProjectCollections();
-        if (_mediaPreparationMode != MediaPreparationMode.None && _frameSourceAssetId is not null)
+        if (MediaPreparationPanelControl.IsPreparing && _frameSourceAssetId is not null)
             await RefreshSavedFramesAsync(CancellationToken.None);
         StatusText.Text = disposition == AnchorRemovalDisposition.Archived
             ? "The referenced Saved Frame was archived; existing history still resolves it."
@@ -4760,12 +4654,7 @@ public partial class MainWindow : Window, IDisposable
         GenerationHistoryPanelControl.ClearSelection();
         _referenceChoices.Clear();
         ResetFrameWorkspace();
-        PrecisionFramePanel.Visibility = Visibility.Collapsed;
-        MediaPreparationHome.Visibility = Visibility.Visible;
-        SelectFrameButton.IsEnabled = false;
-        MakeClipButton.IsEnabled = false;
         StartEditButton.IsEnabled = false;
-        MediaPreparationSelectionText.Text = "Select a video in Project Media";
         RefreshEditWorkspaceState();
 
         InspectorPanelControl.Reset();
@@ -4859,7 +4748,7 @@ public partial class MainWindow : Window, IDisposable
             : selectedAnchorId is { } anchorId
                 ? _assets.FirstOrDefault(item => item.Anchor?.Id == anchorId)
                 : null;
-        var preserveActiveOperation = !hasExplicitSelection && _mediaPreparationMode != MediaPreparationMode.None;
+        var preserveActiveOperation = !hasExplicitSelection && MediaPreparationPanelControl.IsPreparing;
         if (preserveActiveOperation) _suppressProjectMediaSelection = true;
         try
         {
