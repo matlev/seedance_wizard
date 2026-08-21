@@ -70,7 +70,10 @@ public sealed class HttpGeneratedOutputIngestionService : IGeneratedOutputIngest
                     if (encoding.Video is null)
                         throw new InvalidDataException("The downloaded generation output is not an inspectable video.");
 
-                    var finalPath = GetAvailablePath(generatedDirectory, $"generation-{generationId:N}-{index + 1}{extension}");
+                    var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(
+                        generatedDirectory,
+                        $"generation-{generationId:N}-{index + 1}{extension}",
+                        FileNameCollisionStyle.Hyphenated);
                     File.Move(temporaryPath, finalPath);
                     createdPaths.Add(finalPath);
                     assets.Add(CreateAsset(location, finalPath, generationId, identity, encoding));
@@ -133,20 +136,6 @@ public sealed class HttpGeneratedOutputIngestionService : IGeneratedOutputIngest
     {
         var extension = Path.GetExtension(uri.AbsolutePath).ToLowerInvariant();
         return extension is ".mp4" or ".mov" or ".webm" ? extension : ".mp4";
-    }
-
-    private static string GetAvailablePath(string directory, string fileName)
-    {
-        var candidate = Path.Combine(directory, fileName);
-        var baseName = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-        var suffix = 2;
-        while (File.Exists(candidate))
-        {
-            candidate = Path.Combine(directory, $"{baseName}-{suffix}{extension}");
-            suffix++;
-        }
-        return candidate;
     }
 
     private static async Task CopyWithLimitAsync(

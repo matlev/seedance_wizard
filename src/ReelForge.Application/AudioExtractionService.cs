@@ -33,10 +33,14 @@ public sealed class AudioExtractionService
         var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
         var location = _workspace.Location ?? throw new InvalidOperationException("The open project has no location.");
         var source = ValidateSource(project, sourceAssetId, sourceRecipeRevisionId);
-        var fileName = ValidateFileName(requestedFileName);
+        var fileName = MediaFileNamePolicy.ValidateRequiredExtension(
+            requestedFileName,
+            ".m4a",
+            "Extracted audio",
+            nameof(requestedFileName));
         var audioDirectory = Path.GetFullPath(Path.Combine(location.RootDirectory, "assets", "audio"));
         Directory.CreateDirectory(audioDirectory);
-        var finalPath = GetAvailablePath(audioDirectory, fileName);
+        var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(audioDirectory, fileName);
         var temporaryPath = Path.Combine(audioDirectory, $".extract-audio-{Guid.NewGuid():N}.partial.m4a");
         ProjectAsset? extracted = null;
         try
@@ -134,25 +138,4 @@ public sealed class AudioExtractionService
         return source;
     }
 
-    private static string ValidateFileName(string requestedFileName)
-    {
-        var fileName = requestedFileName.Trim();
-        if (string.IsNullOrWhiteSpace(fileName) || fileName != Path.GetFileName(fileName) ||
-            fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-            fileName.EndsWith(' ') || fileName.EndsWith('.'))
-            throw new ArgumentException("Enter a valid filename without a folder path.", nameof(requestedFileName));
-        if (!Path.GetExtension(fileName).Equals(".m4a", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Extracted audio must keep the .m4a file type.", nameof(requestedFileName));
-        return fileName;
-    }
-
-    private static string GetAvailablePath(string directory, string fileName)
-    {
-        var candidate = Path.Combine(directory, fileName);
-        var stem = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-        var suffix = 2;
-        while (File.Exists(candidate)) candidate = Path.Combine(directory, $"{stem} ({suffix++}){extension}");
-        return candidate;
-    }
 }

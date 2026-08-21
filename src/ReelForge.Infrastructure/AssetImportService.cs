@@ -58,7 +58,9 @@ public sealed class AssetImportService : IAssetImportService
 
             var targetDirectory = Path.Combine(location.RootDirectory, "assets", folderName);
             Directory.CreateDirectory(targetDirectory);
-            var destinationPath = GetUniqueDestinationPath(targetDirectory, Path.GetFileName(fullSourcePath));
+            var destinationPath = CollisionFreeDestinationPolicy.GetAvailablePath(
+                targetDirectory,
+                Path.GetFileName(fullSourcePath));
 
             await CopyFileAsync(fullSourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
 
@@ -172,19 +174,4 @@ public sealed class AssetImportService : IAssetImportService
         await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
     }
 
-    private static string GetUniqueDestinationPath(string directory, string fileName)
-    {
-        var baseName = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-        var candidate = Path.Combine(directory, fileName);
-        var suffix = 2;
-
-        while (File.Exists(candidate))
-        {
-            candidate = Path.Combine(directory, $"{baseName} ({suffix}){extension}");
-            suffix++;
-        }
-
-        return candidate;
-    }
 }

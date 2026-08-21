@@ -30,10 +30,14 @@ public sealed class RenderedAssetPromotionService
         var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
         var location = _workspace.Location ?? throw new InvalidOperationException("The open project has no location.");
         ValidateVirtualRevision(project, virtualAssetId, recipeRevisionId);
-        var fileName = ValidateMp4FileName(requestedFileName);
+        var fileName = MediaFileNamePolicy.ValidateRequiredExtension(
+            requestedFileName,
+            ".mp4",
+            "Rendered composition assets",
+            nameof(requestedFileName));
         var videosDirectory = Path.GetFullPath(Path.Combine(location.RootDirectory, "assets", "videos"));
         Directory.CreateDirectory(videosDirectory);
-        var finalPath = GetAvailablePath(videosDirectory, fileName);
+        var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(videosDirectory, fileName);
         var temporaryPath = Path.Combine(videosDirectory, $".promote-{Guid.NewGuid():N}.partial");
         var assetAdded = false;
         ProjectAsset? promoted = null;
@@ -189,10 +193,14 @@ public sealed class RenderedAssetPromotionService
         var revision = project.AnchorRevisions.SingleOrDefault(candidate =>
                            candidate.Id == anchorRevisionId && candidate.AnchorId == anchorId)
                        ?? throw new InvalidOperationException("The requested Saved Frame revision no longer exists.");
-        var fileName = ValidateFileName(requestedFileName, ".png", "Saved Frame assets");
+        var fileName = MediaFileNamePolicy.ValidateRequiredExtension(
+            requestedFileName,
+            ".png",
+            "Saved Frame assets",
+            nameof(requestedFileName));
         var imagesDirectory = Path.GetFullPath(Path.Combine(location.RootDirectory, "assets", "images"));
         Directory.CreateDirectory(imagesDirectory);
-        var finalPath = GetAvailablePath(imagesDirectory, fileName);
+        var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(imagesDirectory, fileName);
         var temporaryPath = Path.Combine(imagesDirectory, $".promote-{Guid.NewGuid():N}.partial");
         var assetAdded = false;
         ProjectAsset? promoted = null;
@@ -274,21 +282,6 @@ public sealed class RenderedAssetPromotionService
         await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static string ValidateMp4FileName(string value)
-        => ValidateFileName(value, ".mp4", "Rendered composition assets");
-
-    private static string ValidateFileName(string value, string requiredExtension, string subject)
-    {
-        var fileName = value.Trim();
-        if (string.IsNullOrWhiteSpace(fileName) || fileName != Path.GetFileName(fileName) ||
-            fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-            fileName.EndsWith(' ') || fileName.EndsWith('.'))
-            throw new ArgumentException("Enter a valid filename without a folder path.", nameof(value));
-        if (!Path.GetExtension(fileName).Equals(requiredExtension, StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException($"{subject} must keep the {requiredExtension} file type.", nameof(value));
-        return fileName;
-    }
-
     private static void ValidateVirtualRevision(VideoProject project, Guid virtualAssetId, Guid recipeRevisionId)
     {
         var source = project.Assets.SingleOrDefault(asset => asset.Id == virtualAssetId)
@@ -300,13 +293,4 @@ public sealed class RenderedAssetPromotionService
             throw new InvalidOperationException("The requested recipe revision no longer exists.");
     }
 
-    private static string GetAvailablePath(string directory, string fileName)
-    {
-        var candidate = Path.Combine(directory, fileName);
-        var stem = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-        var suffix = 2;
-        while (File.Exists(candidate)) candidate = Path.Combine(directory, $"{stem} ({suffix++}){extension}");
-        return candidate;
-    }
 }

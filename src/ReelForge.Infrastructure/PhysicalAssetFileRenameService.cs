@@ -75,12 +75,7 @@ public sealed class PhysicalAssetFileRenameService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(currentFileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(requestedFileName);
-        var trimmed = requestedFileName.Trim();
-        if (!Path.GetFileName(trimmed).Equals(trimmed, StringComparison.Ordinal) ||
-            trimmed.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-            trimmed.EndsWith(' ') ||
-            trimmed.EndsWith('.'))
-            throw new ArgumentException("Enter a valid Windows filename without a folder path.", nameof(requestedFileName));
+        var trimmed = MediaFileNamePolicy.ValidateLeafFileName(requestedFileName, nameof(requestedFileName));
 
         var currentExtension = Path.GetExtension(currentFileName);
         var requestedExtension = Path.GetExtension(trimmed);

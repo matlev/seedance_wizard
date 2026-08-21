@@ -46,10 +46,14 @@ public sealed class CompositionSegmentAudioDetachmentService
                 provenance.Parameters.GetValueOrDefault("compositionSegmentId") == segmentId.ToString("D")))
             throw new InvalidOperationException("This composition segment already has detached audio on the timeline.");
         var timelineStart = ResolveTimelineStart(project, recipe, segmentIndex);
-        var fileName = ValidateFileName(requestedFileName);
+        var fileName = MediaFileNamePolicy.ValidateRequiredExtension(
+            requestedFileName,
+            ".m4a",
+            "Detached audio",
+            nameof(requestedFileName));
         var audioDirectory = Path.GetFullPath(Path.Combine(location.RootDirectory, "assets", "audio"));
         Directory.CreateDirectory(audioDirectory);
-        var finalPath = GetAvailablePath(audioDirectory, fileName);
+        var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(audioDirectory, fileName);
         var temporaryPath = Path.Combine(audioDirectory, $".detach-audio-{Guid.NewGuid():N}.partial.m4a");
         ProjectAsset? detachedAsset = null;
         try
@@ -154,27 +158,6 @@ public sealed class CompositionSegmentAudioDetachmentService
         return TimeSpan.FromMilliseconds(Math.Round(seconds * 1000, MidpointRounding.AwayFromZero));
     }
 
-    private static string ValidateFileName(string requestedFileName)
-    {
-        var fileName = requestedFileName.Trim();
-        if (string.IsNullOrWhiteSpace(fileName) || fileName != Path.GetFileName(fileName) ||
-            fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-            fileName.EndsWith(' ') || fileName.EndsWith('.'))
-            throw new ArgumentException("Enter a valid filename without a folder path.", nameof(requestedFileName));
-        if (!Path.GetExtension(fileName).Equals(".m4a", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Detached audio must keep the .m4a file type.", nameof(requestedFileName));
-        return fileName;
-    }
-
-    private static string GetAvailablePath(string directory, string fileName)
-    {
-        var candidate = Path.Combine(directory, fileName);
-        var stem = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-        var suffix = 2;
-        while (File.Exists(candidate)) candidate = Path.Combine(directory, $"{stem} ({suffix++}){extension}");
-        return candidate;
-    }
 }
 
 public sealed record DetachedCompositionAudioResult(
