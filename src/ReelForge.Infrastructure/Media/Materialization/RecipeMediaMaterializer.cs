@@ -1,4 +1,3 @@
-using System.Globalization;
 using ReelForge.Application;
 using ReelForge.Core;
 
@@ -6,17 +5,15 @@ namespace ReelForge.Infrastructure;
 
 public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSegmentMaterializer, IDisposable
 {
-    private const string ConcatAlgorithmVersion = "composition-concat-v2";
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly IExactVideoFrameService _exactFrameService;
-    private readonly IExternalProcessRunner _runner;
     private readonly IContentHashService _contentHashService;
-    private readonly IMediaInspectionService? _mediaInspector;
     private readonly MediaRenderCache _renderCache;
     private readonly ModifiedMediaRetentionService _retentionService;
     private readonly SavedClipTrimRenderer _trimRenderer;
     private readonly CompositionAuditionAudioRenderer _auditionAudioRenderer;
     private readonly CompositionAudioRenderer _compositionAudioRenderer;
+    private readonly CompositionVideoRenderer _compositionVideoRenderer;
     private readonly FfmpegRendererFingerprintProvider _fingerprintProvider;
     private string? _ffmpegPath;
     private bool _disposed;
@@ -34,11 +31,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         ArgumentNullException.ThrowIfNull(exactFrameService);
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheRoot);
         _ffmpegPath = ffmpegPath;
-        _runner = runner;
         _fingerprintProvider = new FfmpegRendererFingerprintProvider(runner, SavedClipTrimRenderer.AlgorithmVersion);
         _exactFrameService = exactFrameService;
         _contentHashService = contentHashService ?? new Sha256ContentHashService();
-        _mediaInspector = mediaInspector;
         _renderCache = new MediaRenderCache(cacheRoot, _contentHashService, mediaInspector);
         _retentionService = new ModifiedMediaRetentionService(
             _renderCache, _contentHashService, persistModifiedMediaOnDisk);
@@ -49,6 +44,8 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             runner, _renderCache, _fingerprintProvider, mediaInspector);
         _compositionAudioRenderer = new CompositionAudioRenderer(
             runner, _renderCache, _fingerprintProvider, mediaInspector);
+        _compositionVideoRenderer = new CompositionVideoRenderer(
+            runner, _renderCache, _fingerprintProvider, _compositionAudioRenderer, mediaInspector);
         _physicalMaterializer = new PhysicalAssetMaterializer(_contentHashService, exactFrameService);
     }
 
@@ -279,8 +276,14 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         MaterializedMediaLease? video = null;
         try
         {
-            video = await MaterializeCompositionVideoAsync(
-                    project, location, outputAsset, composition, request, cancellationToken)
+            video = await _compositionVideoRenderer.RenderAsync(
+                    _ffmpegPath,
+                    outputAsset,
+                    composition,
+                    request,
+                    (segment, token) => MaterializeCompositionSegmentAsync(
+                        project, location, outputAsset, segment, request, token),
+                    cancellationToken)
                 .ConfigureAwait(false);
             if (composition.AudioClips.Count == 0)
             {
@@ -304,70 +307,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         finally
         {
             if (video is not null) await video.DisposeAsync().ConfigureAwait(false);
-        }
-    }
-
-    private async Task<MaterializedMediaLease> MaterializeCompositionVideoAsync(
-        VideoProject project,
-        ProjectLocation location,
-        ProjectAsset outputAsset,
-        CompositionRenderPlanNode composition,
-        MaterializationRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (composition.Segments is [var segment])
-        {
-            var media = await MaterializeCompositionSegmentAsync(
-                    project, location, outputAsset, segment, request, cancellationToken)
-                .ConfigureAwait(false);
-            if (segment.AudioEnabled) return media;
-            try
-            {
-                return await _compositionAudioRenderer.RenderWithoutSourceAudioAsync(
-                        _ffmpegPath, outputAsset, segment, media, request, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                await media.DisposeAsync().ConfigureAwait(false);
-            }
-        }
-
-        var leases = new List<MaterializedMediaLease>();
-        try
-        {
-            foreach (var plannedSegment in composition.Segments)
-            {
-                leases.Add(await MaterializeCompositionSegmentAsync(
-                        project, location, outputAsset, plannedSegment, request, cancellationToken)
-                    .ConfigureAwait(false));
-            }
-
-            var encodings = new List<MediaEncodingMetadata?>();
-            foreach (var lease in leases)
-            {
-                var encoding = lease.Encoding;
-                if (_mediaInspector is not null &&
-                    (!lease.IsDurableSource || encoding?.Video is null || encoding.DurationSeconds is null))
-                    encoding = await _mediaInspector.InspectAsync(lease.Path, cancellationToken).ConfigureAwait(false);
-                encodings.Add(encoding);
-            }
-            var compatibility = MediaCompatibilityAnalyzer.Analyze(encodings);
-            var allAudioEnabled = composition.Segments.All(segment => segment.AudioEnabled);
-            var noAudioEnabled = composition.Segments.All(segment => !segment.AudioEnabled);
-            var includeAudio = allAudioEnabled && encodings.All(encoding => encoding?.Audio is not null);
-            var normalize = !compatibility.CanConcatWithoutNormalization || (!allAudioEnabled && !noAudioEnabled);
-            if (normalize && _mediaInspector is null && encodings.Any(encoding => !CanNormalize(encoding)))
-                throw new NotSupportedException(
-                    "Composition inputs require normalization, but complete video duration and stream metadata are unavailable.");
-            return await RenderConcatAsync(
-                    outputAsset, composition, leases, encodings, includeAudio, normalize, request, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        finally
-        {
-            for (var index = leases.Count - 1; index >= 0; index--)
-                await leases[index].DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -397,122 +336,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             .ConfigureAwait(false);
     }
 
-    private async Task<MaterializedMediaLease> RenderConcatAsync(
-        ProjectAsset outputAsset,
-        CompositionRenderPlanNode composition,
-        IReadOnlyList<MaterializedMediaLease> inputs,
-        List<MediaEncodingMetadata?> encodings,
-        bool includeAudio,
-        bool normalize,
-        MaterializationRequest request,
-        CancellationToken cancellationToken)
-    {
-        var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
-            "FFmpeg is not configured. Configure it in Settings > Media Tools to preview or export compositions.");
-        var fingerprint = await _fingerprintProvider.GetAsync(ffmpegPath, cancellationToken).ConfigureAwait(false);
-        var key = MediaRenderCache.HashText(string.Join('|',
-            ConcatAlgorithmVersion,
-            composition.NodeHash,
-            string.Join(';', inputs.Select(input => input.ContentIdentity.Sha256?.ToLowerInvariant() ?? string.Empty)),
-            includeAudio,
-            normalize,
-            string.Join(';', composition.Segments.Select(segment => segment.AudioEnabled)),
-            request.Purpose,
-            request.Profile ?? string.Empty,
-            fingerprint));
-        var cacheDirectory = Path.Combine(_renderCache.RootDirectory, "compositions");
-        var cachePath = Path.Combine(cacheDirectory, $"{key}.mp4");
-        if (MediaRenderCache.IsUsableFile(cachePath))
-            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-
-        var cacheLock = _renderCache.GetLock(key);
-        await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (MediaRenderCache.IsUsableFile(cachePath))
-                return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-            Directory.CreateDirectory(cacheDirectory);
-            var temporaryPath = Path.Combine(cacheDirectory, $".{key}.{Guid.NewGuid():N}.tmp.mp4");
-            try
-            {
-                var arguments = normalize
-                    ? FfmpegCommandBuilder.BuildNormalizedConcatArguments(
-                        inputs.Select((input, index) => new NormalizedConcatInput(
-                            input.Path,
-                            encodings[index]?.DurationSeconds
-                                ?? throw new NotSupportedException("A composition segment has no known duration for normalization."),
-                            encodings[index]?.Audio is not null,
-                            composition.Segments[index].AudioEnabled)).ToArray(),
-                        temporaryPath,
-                        CreateNormalizationProfile(encodings))
-                    : FfmpegCommandBuilder.BuildCompatibleConcatArguments(
-                        inputs.Select(input => input.Path).ToArray(), temporaryPath, includeAudio);
-                var result = await _runner.RunAsync(
-                        new ExternalProcessRequest(ffmpegPath, arguments),
-                        cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
-                if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
-                if (!MediaRenderCache.IsUsableFile(temporaryPath))
-                    throw new InvalidDataException("FFmpeg completed without producing the composition preview.");
-                try
-                {
-                    File.Move(temporaryPath, cachePath, overwrite: false);
-                }
-                catch (IOException) when (MediaRenderCache.IsUsableFile(cachePath))
-                {
-                    File.Delete(temporaryPath);
-                }
-            }
-            finally
-            {
-                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-            }
-
-            return await OpenCacheLeaseAsync(cachePath, outputAsset, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            cacheLock.Release();
-        }
-    }
-
-    private static NormalizedConcatProfile CreateNormalizationProfile(
-        IReadOnlyList<MediaEncodingMetadata?> encodings)
-    {
-        if (encodings.Any(encoding => !CanNormalize(encoding)))
-            throw new NotSupportedException(
-                "Composition normalization requires a known duration, width, height, and frame rate for every segment.");
-        var width = encodings.Max(encoding => encoding!.Video!.Width!.Value);
-        var height = encodings.Max(encoding => encoding!.Video!.Height!.Value);
-        var frameRate = encodings.Select(encoding => ParseFrameRate(encoding!.Video!.FrameRate!))
-            .FirstOrDefault(value => value > 0);
-        if (frameRate <= 0)
-            throw new NotSupportedException("Composition normalization requires a valid frame rate.");
-        return new NormalizedConcatProfile(width, height, frameRate);
-    }
-
-    private static bool CanNormalize(MediaEncodingMetadata? encoding) =>
-        encoding is
-        {
-            DurationSeconds: > 0,
-            Video.Width: > 0,
-            Video.Height: > 0,
-            Video.FrameRate: not null
-        } && ParseFrameRate(encoding.Video.FrameRate) > 0;
-
-    private static double ParseFrameRate(string value)
-    {
-        var parts = value.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 2 &&
-            double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var numerator) &&
-            double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var denominator) &&
-            denominator > 0)
-            return numerator / denominator;
-        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : 0;
-    }
-
     private Task<MaterializedMediaLease> MaterializeExtractFrameNodeAsync(
         VideoProject project,
         ProjectLocation location,
@@ -536,13 +359,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             },
             cancellationToken);
     }
-
-    private async Task<MaterializedMediaLease> OpenCacheLeaseAsync(
-        string cachePath,
-        ProjectAsset asset,
-        CancellationToken cancellationToken) =>
-        await _renderCache.OpenLeaseAsync(cachePath, asset.Virtual?.ExpectedMediaProperties, cancellationToken)
-            .ConfigureAwait(false);
 
     public void Dispose()
     {
