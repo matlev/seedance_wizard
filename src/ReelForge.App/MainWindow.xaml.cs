@@ -86,7 +86,6 @@ public partial class MainWindow : Window, IDisposable
     private readonly DispatcherTimer _compositionTimelineItemDragAutoScrollTimer;
     private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressDraftAutosave;
-    private bool _suppressPromptSynchronization;
     private bool _isVideoPlaying;
     private bool _isVideoPreviewPriming;
     private bool _videoPreviewWasMutedBeforePriming;
@@ -355,7 +354,7 @@ public partial class MainWindow : Window, IDisposable
         EditToolsTab.Visibility = isGenerate ? Visibility.Collapsed : Visibility.Visible;
         if (isGenerate && RightPanelTabs.SelectedItem == EditToolsTab) RightPanelTabs.SelectedItem = GenerateTab;
         if (!isGenerate) RightPanelTabs.SelectedItem = EditToolsTab;
-        ExpandedPromptPanel.Visibility = Visibility.Collapsed;
+        ExpandedPromptEditorControl.CloseEditor(notify: false);
         RefreshEditWorkspaceState();
         if (!isGenerate && _workspace.Project?.WorkingCompositionAssetId is { } compositionId)
         {
@@ -470,72 +469,19 @@ public partial class MainWindow : Window, IDisposable
 
     private void GenerationPanel_DraftChanged(object? sender, EventArgs e)
     {
-        if (!_suppressPromptSynchronization &&
-            ExpandedPromptPanel is not null &&
-            ExpandedPromptPanel.Visibility == Visibility.Visible)
-            SetExpandedPromptText(GenerationPanelControl.Prompt);
+        if (ExpandedPromptEditorControl.IsOpen)
+            ExpandedPromptEditorControl.UpdatePrompt(GenerationPanelControl.Prompt);
         ScheduleDraftAutosave();
     }
 
-    private void ExpandedPromptTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressPromptSynchronization) return;
-        _suppressPromptSynchronization = true;
-        try
-        {
-            GenerationPanelControl.Prompt = ExpandedPromptTextBox.Text;
-        }
-        finally
-        {
-            _suppressPromptSynchronization = false;
-        }
-    }
+    private void ExpandedPromptEditor_PromptChanged(object? sender, PromptTextChangedEventArgs e) =>
+        GenerationPanelControl.Prompt = e.Prompt;
 
-    private void GenerationPanel_ExpandPromptRequested(object? sender, EventArgs e)
-    {
-        SetExpandedPromptText(GenerationPanelControl.Prompt);
-        ExpandedPromptPanel.Visibility = Visibility.Visible;
-        ExpandedPromptTextBox.Focus();
-        ExpandedPromptTextBox.CaretIndex = ExpandedPromptTextBox.Text.Length;
-    }
+    private void GenerationPanel_ExpandPromptRequested(object? sender, EventArgs e) =>
+        ExpandedPromptEditorControl.Open(GenerationPanelControl.Prompt);
 
-    private void CollapsePrompt_Click(object sender, RoutedEventArgs e) => CollapseExpandedPrompt();
-
-    private void ExpandedPromptTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Escape) return;
-        CollapseExpandedPrompt();
-        e.Handled = true;
-    }
-
-    private void CollapseExpandedPrompt()
-    {
-        _suppressPromptSynchronization = true;
-        try
-        {
-            GenerationPanelControl.Prompt = ExpandedPromptTextBox.Text;
-        }
-        finally
-        {
-            _suppressPromptSynchronization = false;
-        }
-        ExpandedPromptPanel.Visibility = Visibility.Collapsed;
+    private void ExpandedPromptEditor_Closed(object? sender, EventArgs e) =>
         GenerationPanelControl.FocusPromptAtEnd();
-    }
-
-    private void SetExpandedPromptText(string text)
-    {
-        if (string.Equals(text, ExpandedPromptTextBox.Text, StringComparison.Ordinal)) return;
-        _suppressPromptSynchronization = true;
-        try
-        {
-            ExpandedPromptTextBox.Text = text;
-        }
-        finally
-        {
-            _suppressPromptSynchronization = false;
-        }
-    }
 
     private void ScheduleDraftAutosave()
     {
@@ -5132,7 +5078,7 @@ public partial class MainWindow : Window, IDisposable
 
     private void ResetProjectSpecificUi()
     {
-        ExpandedPromptPanel.Visibility = Visibility.Collapsed;
+        ExpandedPromptEditorControl.CloseEditor(notify: false);
         ProjectMediaPanelControl.SelectedItem = null;
         GenerationHistoryPanelControl.ClearSelection();
         _referenceChoices.Clear();
