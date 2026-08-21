@@ -12,13 +12,13 @@ public sealed class GenerationSnapshotTests : IDisposable
         Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task SubmittedGenerationDeepCopiesMutableRequest()
+    public async Task GenerationWorkflowDeepCopiesMutableDraftIntoHistory()
     {
         var store = new PortableProjectStore();
-        var inspector = new FfprobeMediaInspectionService(null, new ExternalProcessRunner());
-        var workspace = new ProjectWorkspace(store, new AssetImportService(inspector));
+        var workspace = new ProjectWorkspace(store, new UnusedImporter());
         await workspace.CreateAsync(_temporaryRoot, "Snapshot test");
-        var request = new GenerationRequest
+        var workflow = new GenerationWorkflow(workspace, new UnusedMaterializer(), new UnusedOutputIngestion());
+        var draft = new GenerationDraft
         {
             Prompt = "Original prompt",
             Mode = GenerationMode.TextToVideo,
@@ -31,9 +31,12 @@ public sealed class GenerationSnapshotTests : IDisposable
             }
         };
 
-        var record = await workspace.SubmitGenerationAsync(new FakeVideoGenerationProvider(TimeSpan.Zero), request);
-        request.Prompt = "Mutated after submission";
-        request.ProviderParameters["generateAudio"] = "false";
+        var record = await workflow.SubmitAsync(
+            new FakeVideoGenerationProvider(TimeSpan.Zero),
+            draft,
+            authorization: null);
+        draft.Prompt = "Mutated after submission";
+        draft.ProviderParameters["generateAudio"] = "false";
 
         Assert.Equal("Original prompt", record.RequestSnapshot.Prompt);
         Assert.Equal("true", record.RequestSnapshot.ProviderParameters["generateAudio"]);
@@ -44,5 +47,34 @@ public sealed class GenerationSnapshotTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_temporaryRoot)) Directory.Delete(_temporaryRoot, recursive: true);
+    }
+
+    private sealed class UnusedImporter : IAssetImportService
+    {
+        public Task<IReadOnlyList<ProjectAsset>> ImportAsync(
+            ProjectLocation location,
+            IEnumerable<string> sourcePaths,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The snapshot test does not import assets.");
+    }
+
+    private sealed class UnusedMaterializer : IMediaMaterializer
+    {
+        public Task<MaterializedMediaLease> MaterializeAsync(
+            VideoProject project,
+            ProjectLocation location,
+            MaterializationRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Text-to-video does not materialize references.");
+    }
+
+    private sealed class UnusedOutputIngestion : IGeneratedOutputIngestionService
+    {
+        public Task<IReadOnlyList<ProjectAsset>> IngestAsync(
+            ProjectLocation location,
+            Guid generationId,
+            IReadOnlyList<ProviderGenerationOutput> outputs,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The synchronous fake provider produces no outputs.");
     }
 }
