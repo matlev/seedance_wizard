@@ -5,7 +5,7 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 using ReelForge.Infrastructure;
 
-namespace ReelForge.App;
+namespace ReelForge.App.Views.Dialogs;
 
 public partial class OpenProjectDialog : Window
 {

@@ -2,7 +2,7 @@ using System.IO;
 using System.Windows;
 using ReelForge.Infrastructure;
 
-namespace ReelForge.App;
+namespace ReelForge.App.Views.Dialogs;
 
 public partial class AssetNameDialog : Window
 {

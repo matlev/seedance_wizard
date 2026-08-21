@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 
-namespace ReelForge.App;
+namespace ReelForge.App.Views.Dialogs;
 
 public partial class FrameConfirmationDialog : Window
 {

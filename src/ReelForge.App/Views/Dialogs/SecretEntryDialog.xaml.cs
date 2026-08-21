@@ -1,7 +1,7 @@
 using System.Windows;
 using ReelForge.Application;
 
-namespace ReelForge.App;
+namespace ReelForge.App.Views.Dialogs;
 
 public partial class SecretEntryDialog : Window
 {

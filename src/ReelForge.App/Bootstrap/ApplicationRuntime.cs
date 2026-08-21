@@ -90,11 +90,18 @@ internal sealed class ApplicationRuntime : IDisposable
     public ITemporaryAssetHost TemporaryAssetHost { get; }
     public GenerationJobCoordinator JobCoordinator { get; }
 
-    public async Task<ApplicationSettings> ReloadSettingsAsync(CancellationToken cancellationToken = default)
+    public async Task<ApplicationSettings> ReloadAndApplySettingsAsync(CancellationToken cancellationToken = default)
     {
         Settings = await ApplicationSettingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         ApplicationSettingsPlatformDefaults.Apply(Settings, Paths);
         MediaTools = MediaToolDiscovery.Discover(Settings.MediaTools.FfmpegPath, Settings.MediaTools.FfprobePath);
+        MediaInspector.UpdateExecutablePath(MediaTools.FfprobePath);
+        ExactFrameService.UpdateExecutablePaths(MediaTools.FfmpegPath, MediaTools.FfprobePath);
+        MediaMaterializer.UpdateExecutablePath(MediaTools.FfmpegPath);
+        AudioExtractionEngine.UpdateExecutablePath(MediaTools.FfmpegPath);
+        MediaMaterializer.UpdatePersistencePreference(Settings.MediaTools.PersistModifiedMediaOnDisk);
+        ExactFrameService.UpdateMaximumCacheBytes(Settings.MediaTools.CacheSizeBytes);
+        await ExactFrameService.TrimCacheAsync(cancellationToken).ConfigureAwait(false);
         return Settings;
     }
 

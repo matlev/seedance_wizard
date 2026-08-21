@@ -15,7 +15,9 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using ReelForge.App.Bootstrap;
+using ReelForge.App.Views.Dialogs;
 using ReelForge.App.Views.Jobs;
+using ReelForge.App.Views.Settings;
 using ReelForge.Application;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
@@ -438,16 +440,8 @@ public partial class MainWindow : Window, IDisposable
         };
         window.ShowDialog();
         var selectedProviderId = _generationProvider.Capabilities.ProviderId;
-        _applicationSettings = await _runtime.ReloadSettingsAsync();
+        _applicationSettings = await _runtime.ReloadAndApplySettingsAsync();
         _mediaTools = _runtime.MediaTools;
-        _mediaInspector.UpdateExecutablePath(_mediaTools.FfprobePath);
-        _exactFrameService.UpdateExecutablePaths(_mediaTools.FfmpegPath, _mediaTools.FfprobePath);
-        _mediaMaterializer.UpdateExecutablePath(_mediaTools.FfmpegPath);
-        _audioExtractionEngine.UpdateExecutablePath(_mediaTools.FfmpegPath);
-        _mediaMaterializer.UpdatePersistencePreference(
-            _applicationSettings.MediaTools.PersistModifiedMediaOnDisk);
-        _exactFrameService.UpdateMaximumCacheBytes(_applicationSettings.MediaTools.CacheSizeBytes);
-        await _exactFrameService.TrimCacheAsync();
         MediaToolsText.Text = _mediaTools.Summary;
         RefreshProviderRuntime(selectedProviderId);
         if (activeDraft is not null && _generationProvider.Capabilities.ProviderId.Equals(

@@ -2,7 +2,7 @@
 using System.Windows;
 using Microsoft.Win32;
 
-namespace ReelForge.App;
+namespace ReelForge.App.Views.Dialogs;
 
 public partial class NewProjectDialog : Window
 {

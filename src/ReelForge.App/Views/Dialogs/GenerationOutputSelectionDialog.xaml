@@ -1,4 +1,4 @@
-<Window x:Class="ReelForge.App.GenerationOutputSelectionDialog"
+<Window x:Class="ReelForge.App.Views.Dialogs.GenerationOutputSelectionDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Choose continuation source" Width="520" Height="300"

@@ -1,4 +1,4 @@
-<Window x:Class="ReelForge.App.FrameConfirmationDialog"
+<Window x:Class="ReelForge.App.Views.Dialogs.FrameConfirmationDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Confirm continuation frame" Width="560" Height="500"

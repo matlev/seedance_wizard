@@ -1,4 +1,4 @@
-﻿<Window x:Class="ReelForge.App.NewProjectDialog"
+﻿<Window x:Class="ReelForge.App.Views.Dialogs.NewProjectDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Create a ReelForge project"
