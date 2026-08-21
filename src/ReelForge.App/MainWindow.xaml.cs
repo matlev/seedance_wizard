@@ -203,6 +203,8 @@ public partial class MainWindow : Window, IDisposable
         _frameBrowserCancellation?.Cancel();
         _frameBrowserCancellation?.Dispose();
         _compositionRenderCancellation?.Cancel();
+        _compositionAuditionController.PositionChanged -= CompositionAudition_PositionChanged;
+        _compositionAuditionController.Dispose();
         MediaPreviewPanelControl.Dispose();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
         foreach (var pending in _pendingSubmissionDelays.Values) pending.Dispose();
@@ -1276,7 +1278,7 @@ public partial class MainWindow : Window, IDisposable
         if (_isCompositionTimelineScrubbing)
         {
             SeekCompositionTimeline(e.GetPosition(CompositionTimelineCanvas).X);
-            CompleteCompositionTimelineScrub();
+            await CompleteCompositionTimelineScrubAsync();
             e.Handled = true;
             return;
         }
@@ -1328,19 +1330,27 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_compositionTimelineLayout is null || !MediaPreviewPanelControl.HasVideoSource) return;
         var target = _compositionTimelineLayout.GetTimeAtX(x);
-        SeekPreview(target);
+        if (_compositionAuditionController.IsActive)
+            _compositionAuditionController.QueueSeek(target);
+        else
+            SeekPreview(target);
         MediaPreviewPanelControl.ClearEndedState();
         MediaPreviewPanelControl.SetPosition(target);
         UpdateCompositionTimelinePlayhead(target);
     }
 
-    private void CompleteCompositionTimelineScrub()
+    private async Task CompleteCompositionTimelineScrubAsync()
     {
         var resumePlayback = _resumePlaybackAfterCompositionTimelineScrub;
         _isCompositionTimelineScrubbing = false;
         _resumePlaybackAfterCompositionTimelineScrub = false;
         CompositionTimelineCanvas.Cursor = null;
         if (Mouse.Captured == CompositionTimelineCanvas) Mouse.Capture(null);
+        if (_compositionAuditionController.IsActive)
+        {
+            await _compositionAuditionController.CommitQueuedSeekAsync(resumePlayback);
+            return;
+        }
         if (resumePlayback)
         {
             MediaPreviewPanelControl.Play();
@@ -1353,6 +1363,7 @@ public partial class MainWindow : Window, IDisposable
 
     private void CancelCompositionTimelineScrub()
     {
+        _compositionAuditionController.CancelQueuedSeek();
         _isCompositionTimelineScrubbing = false;
         _resumePlaybackAfterCompositionTimelineScrub = false;
         CompositionTimelineCanvas.Cursor = null;
@@ -3684,13 +3695,21 @@ public partial class MainWindow : Window, IDisposable
     private bool IsAtVideoEnd() =>
         MediaPreviewPanelControl.IsAtVideoEnd(TimeSpan.FromMilliseconds(10));
 
-    private void MediaPreview_ScrubPositionChanged(object? sender, MediaPreviewPositionEventArgs e) =>
+    private void MediaPreview_ScrubPositionChanged(object? sender, MediaPreviewPositionEventArgs e)
+    {
+        if (_compositionAuditionController.IsActive)
+        {
+            _compositionAuditionController.QueueSeek(e.PositionSeconds);
+            UpdateCompositionTimelinePlayhead(e.PositionSeconds);
+            return;
+        }
         SeekPreview(e.PositionSeconds);
+    }
 
     private async void MediaPreview_ScrubCompleted(object? sender, MediaPreviewScrubCompletedEventArgs e)
     {
         if (_compositionAuditionController.IsActive)
-            await SeekCompositionDraftAsync(e.PositionSeconds, e.ResumePlayback);
+            await _compositionAuditionController.CommitSeekAsync(e.PositionSeconds, e.ResumePlayback);
         else
             SeekPreview(e.PositionSeconds);
         if (e.ResumePlayback && !_compositionAuditionController.IsActive)

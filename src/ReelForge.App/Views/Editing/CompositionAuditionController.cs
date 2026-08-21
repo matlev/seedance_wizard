@@ -6,14 +6,18 @@ using ReelForge.Infrastructure;
 
 namespace ReelForge.App.Views.Editing;
 
-public sealed class CompositionAuditionController
+public sealed class CompositionAuditionController : IDisposable
 {
     private readonly ProjectWorkspace _workspace;
     private readonly RecipeMediaMaterializer _materializer;
     private readonly MediaPreviewPanel _preview;
     private CompositionAuditionSession? _session;
+    private readonly SemaphoreSlim _segmentOpenGate = new(1, 1);
+    private CancellationTokenSource? _queuedSeekCancellation;
+    private double? _queuedSeekSeconds;
     private int _openVersion;
     private bool _advancing;
+    private bool _disposed;
 
     public CompositionAuditionController(
         ProjectWorkspace workspace,
@@ -119,12 +123,56 @@ public sealed class CompositionAuditionController
             ? Task.CompletedTask
             : OpenSegmentAsync(0, 0, playAfterOpen: true, cancellationToken);
 
+    public void QueueSeek(double globalSeconds, TimeSpan? delay = null)
+    {
+        if (_disposed || _session is null) return;
+        CancelQueuedSeek();
+        _queuedSeekSeconds = _session.Plan.ClampGlobalPosition(globalSeconds);
+        _queuedSeekCancellation = new CancellationTokenSource();
+        _ = RunQueuedSeekAsync(
+            _queuedSeekSeconds.Value,
+            delay ?? TimeSpan.FromMilliseconds(120),
+            _queuedSeekCancellation.Token);
+    }
+
+    public async Task CommitQueuedSeekAsync(bool playAfterSeek)
+    {
+        if (_session is null) return;
+        var target = _queuedSeekSeconds ?? _session.PositionSeconds;
+        CancelQueuedSeek();
+        await SeekCoreAsync(target, playAfterSeek, CancellationToken.None);
+    }
+
+    public async Task CommitSeekAsync(double globalSeconds, bool playAfterSeek)
+    {
+        CancelQueuedSeek();
+        await SeekCoreAsync(globalSeconds, playAfterSeek, CancellationToken.None);
+    }
+
+    public void CancelQueuedSeek()
+    {
+        _queuedSeekCancellation?.Cancel();
+        _queuedSeekCancellation?.Dispose();
+        _queuedSeekCancellation = null;
+        _queuedSeekSeconds = null;
+    }
+
     public async Task SeekAsync(
         double globalSeconds,
         bool playAfterSeek,
         CancellationToken cancellationToken = default)
     {
+        CancelQueuedSeek();
+        await SeekCoreAsync(globalSeconds, playAfterSeek, cancellationToken);
+    }
+
+    private async Task SeekCoreAsync(
+        double globalSeconds,
+        bool playAfterSeek,
+        CancellationToken cancellationToken)
+    {
         if (_session is null) return;
+        cancellationToken.ThrowIfCancellationRequested();
         var target = _session.Plan.ClampGlobalPosition(globalSeconds);
         _preview.SyncAuditionAudio(target, playAfterSeek);
         var targetIndex = _session.Plan.FindSegmentIndex(target);
@@ -135,6 +183,7 @@ public sealed class CompositionAuditionController
         }
 
         var position = _session.Seek(target);
+        cancellationToken.ThrowIfCancellationRequested();
         _preview.SeekVideo(Math.Max(0, position.SourceSeconds));
         _preview.SetPosition(position.GlobalSeconds);
         _preview.ShowTimelinePosition(position.GlobalSeconds);
@@ -191,10 +240,23 @@ public sealed class CompositionAuditionController
 
     public void Reset()
     {
+        if (_disposed) return;
+        CancelQueuedSeek();
         _session = null;
         _openVersion++;
         _advancing = false;
         _preview.StopAuditionAudio();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        CancelQueuedSeek();
+        _session = null;
+        _openVersion++;
+        _segmentOpenGate.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private async Task OpenSegmentAsync(
@@ -206,34 +268,65 @@ public sealed class CompositionAuditionController
         if (_workspace.Project is null || _workspace.Location is null || _session is null ||
             segmentIndex < 0 || segmentIndex >= _session.Plan.Segments.Count)
             return;
-        var session = _session;
-        var openVersion = ++_openVersion;
-        var segment = session.Plan.Segments[segmentIndex];
-        _preview.PauseAuditionAudio();
-        var lease = await _materializer.MaterializeAsync(
-            _workspace.Project,
-            _workspace.Location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(segment.Source.AssetId, segment.Source.RecipeRevisionId),
-                MaterializationPurpose.Preview),
-            cancellationToken);
-        if (openVersion != _openVersion || !ReferenceEquals(_session, session))
+        await _segmentOpenGate.WaitAsync(cancellationToken);
+        try
         {
-            await lease.DisposeAsync();
-            return;
-        }
+            var session = _session;
+            if (session is null || segmentIndex >= session.Plan.Segments.Count) return;
+            var openVersion = ++_openVersion;
+            var segment = session.Plan.Segments[segmentIndex];
+            _preview.PauseAuditionAudio();
+            var lease = await _materializer.MaterializeAsync(
+                _workspace.Project,
+                _workspace.Location,
+                new MaterializationRequest(
+                    new AssetMaterializationTarget(segment.Source.AssetId, segment.Source.RecipeRevisionId),
+                    MaterializationPurpose.Preview),
+                cancellationToken);
+            if (openVersion != _openVersion || !ReferenceEquals(_session, session) ||
+                cancellationToken.IsCancellationRequested)
+            {
+                await lease.DisposeAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+                return;
+            }
 
-        var position = session.ActivateSegment(segmentIndex, globalSeconds);
-        _preview.HidePlaceholder();
-        _preview.OpenLeasedVideo(
-            lease,
-            requiresWarmup: true,
-            playAfterPriming: playAfterOpen,
-            startSeconds: position.SourceSeconds,
-            forceMuted: !segment.AudioEnabled,
-            useExternalTimeline: true);
-        _preview.SetPosition(position.GlobalSeconds);
-        RaisePositionChanged(position.GlobalSeconds);
+            var position = session.ActivateSegment(segmentIndex, globalSeconds);
+            _preview.HidePlaceholder();
+            _preview.OpenLeasedVideo(
+                lease,
+                requiresWarmup: true,
+                playAfterPriming: playAfterOpen,
+                startSeconds: position.SourceSeconds,
+                forceMuted: !segment.AudioEnabled,
+                useExternalTimeline: true);
+            _preview.SetPosition(position.GlobalSeconds);
+            RaisePositionChanged(position.GlobalSeconds);
+        }
+        finally
+        {
+            _segmentOpenGate.Release();
+        }
+    }
+
+    private async Task RunQueuedSeekAsync(
+        double globalSeconds,
+        TimeSpan delay,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(delay, cancellationToken);
+            await SeekCoreAsync(globalSeconds, playAfterSeek: false, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            // The final committed seek remains authoritative and reports through its caller.
+            // A speculative scrub preview must never tear down the active audition session.
+        }
     }
 
     private void RaisePositionChanged(double positionSeconds) =>
