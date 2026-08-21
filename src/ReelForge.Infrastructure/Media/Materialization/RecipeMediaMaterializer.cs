@@ -18,6 +18,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
     private readonly IMediaInspectionService? _mediaInspector;
     private readonly MediaRenderCache _renderCache;
     private readonly ModifiedMediaRetentionService _retentionService;
+    private readonly RecipeBoundaryResolver _boundaryResolver;
     private readonly FfmpegRendererFingerprintProvider _fingerprintProvider;
     private string? _ffmpegPath;
     private bool _disposed;
@@ -43,6 +44,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         _renderCache = new MediaRenderCache(cacheRoot, _contentHashService, mediaInspector);
         _retentionService = new ModifiedMediaRetentionService(
             _renderCache, _contentHashService, persistModifiedMediaOnDisk);
+        _boundaryResolver = new RecipeBoundaryResolver(exactFrameService);
         _physicalMaterializer = new PhysicalAssetMaterializer(_contentHashService, exactFrameService);
     }
 
@@ -349,8 +351,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         MaterializationRequest request,
         CancellationToken cancellationToken)
     {
-        var sourceReference = GetAssetRevisionReference(trim.Source);
-        var sourceRequest = GetBoundarySourceRequest(project, sourceReference, trim.Start, trim.End, request);
+        var sourceReference = RecipeBoundaryResolver.GetAssetRevisionReference(trim.Source);
+        var sourceRequest = RecipeBoundaryResolver.GetBoundarySourceRequest(
+            project, sourceReference, trim.Start, trim.End, request);
         await using var source = await ExecuteNodeAsync(
                 project,
                 location,
@@ -672,8 +675,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             return await ExecuteNodeAsync(project, location, sourceAsset, segment.Source, request, cancellationToken)
                 .ConfigureAwait(false);
 
-        var sourceReference = GetAssetRevisionReference(segment.Source);
-        var sourceRequest = GetBoundarySourceRequest(project, sourceReference, segment.Start, segment.End, request);
+        var sourceReference = RecipeBoundaryResolver.GetAssetRevisionReference(segment.Source);
+        var sourceRequest = RecipeBoundaryResolver.GetBoundarySourceRequest(
+            project, sourceReference, segment.Start, segment.End, request);
         await using var source = await ExecuteNodeAsync(
                 project, location, sourceAsset, segment.Source, sourceRequest, cancellationToken)
             .ConfigureAwait(false);
@@ -859,9 +863,9 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             var durationSeconds = source.Encoding?.DurationSeconds ??
                                   sourceAsset.DurationSeconds ??
                                   sourceAsset.Encoding?.DurationSeconds;
-            var startSeconds = await ResolveBoundarySecondsAsync(
+            var startSeconds = await _boundaryResolver.ResolveSecondsAsync(
                 project, sourceReference, sourceAsset, source, start, durationSeconds, isEnd: false, cancellationToken).ConfigureAwait(false);
-            var endSeconds = await ResolveBoundarySecondsAsync(
+            var endSeconds = await _boundaryResolver.ResolveSecondsAsync(
                 project, sourceReference, sourceAsset, source, end, durationSeconds, isEnd: true, cancellationToken).ConfigureAwait(false);
             if (startSeconds < 0 || endSeconds <= startSeconds)
                 throw new InvalidDataException("The Saved Clip recipe resolves to an empty or invalid source range.");
@@ -899,100 +903,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             cacheLock.Release();
         }
     }
-
-    private async Task<double> ResolveBoundarySecondsAsync(
-        VideoProject project,
-        AssetRevisionReference sourceReference,
-        ProjectAsset sourceAsset,
-        MaterializedMediaLease source,
-        RecipeBoundary boundary,
-        double? sourceDurationSeconds,
-        bool isEnd,
-        CancellationToken cancellationToken)
-    {
-        if (boundary.Kind == RecipeBoundaryKind.SourceStart) return 0;
-        if (boundary.Kind == RecipeBoundaryKind.SourceEnd)
-            return ResolveSourceDuration(sourceAsset, sourceDurationSeconds);
-        if (boundary.Kind == RecipeBoundaryKind.Timestamp && boundary.TimestampSeconds is { } timestamp)
-            return timestamp;
-        if (boundary.Kind != RecipeBoundaryKind.Anchor || boundary.Anchor is null || boundary.Edge is null)
-            throw new InvalidDataException("The Saved Clip contains an incomplete boundary.");
-        var anchorRevision = project.AnchorRevisions.SingleOrDefault(candidate =>
-                candidate.Id == boundary.Anchor.AnchorRevisionId && candidate.AnchorId == boundary.Anchor.AnchorId)
-            ?? throw new InvalidOperationException(
-                $"Clip boundary revision '{boundary.Anchor.AnchorRevisionId}' no longer exists.");
-        if (anchorRevision.SourceAssetId != sourceAsset.Id ||
-            anchorRevision.SourceRecipeRevisionId != sourceReference.RecipeRevisionId)
-            throw new InvalidDataException("A Saved Clip boundary points at a different source asset.");
-        if (!string.Equals(
-                anchorRevision.SourceContentHash,
-                source.ContentIdentity.Sha256,
-                StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("The Saved Clip boundary no longer matches its source content.");
-
-        if (boundary.Edge == AnchorBoundaryEdge.BeforeFrame) return anchorRevision.TimestampSeconds;
-        var nearbyFrames = await _exactFrameService.IndexWindowAsync(
-                source.Path,
-                Math.Max(0, anchorRevision.TimestampSeconds),
-                radiusSeconds: 2,
-                cancellationToken)
-            .ConfigureAwait(false);
-        var next = nearbyFrames
-            .Where(frame => frame.VideoStreamIndex == anchorRevision.VideoStreamIndex &&
-                            frame.PresentationTimestamp > anchorRevision.PresentationTimestamp)
-            .OrderBy(frame => frame.PresentationTimestamp)
-            .FirstOrDefault();
-        if (next is not null) return next.TimestampSeconds;
-        if (isEnd) return ResolveSourceDuration(sourceAsset, sourceDurationSeconds);
-        throw new InvalidDataException("The frame following the Saved Clip start could not be resolved.");
-    }
-
-    private static double ResolveSourceDuration(ProjectAsset sourceAsset, double? materializedDurationSeconds) =>
-        materializedDurationSeconds ?? sourceAsset.DurationSeconds ?? sourceAsset.Encoding?.DurationSeconds ??
-        sourceAsset.Virtual?.ExpectedMediaProperties?.DurationSeconds
-        ?? throw new InvalidDataException("The source duration is required to resolve the end of this Saved Clip.");
-
-    private static AssetRevisionReference GetAssetRevisionReference(MediaRenderPlanNode node) => new()
-    {
-        AssetId = node.AssetId,
-        RecipeRevisionId = node switch
-        {
-            TrimRenderPlanNode trim => trim.RecipeRevisionId,
-            ExtractFrameRenderPlanNode frame => frame.RecipeRevisionId,
-            CompositionRenderPlanNode composition => composition.RecipeRevisionId,
-            _ => null
-        }
-    };
-
-    private static MaterializationRequest GetBoundarySourceRequest(
-        VideoProject project,
-        AssetRevisionReference source,
-        RecipeBoundary start,
-        RecipeBoundary end,
-        MaterializationRequest request)
-    {
-        if (source.RecipeRevisionId is null ||
-            !ReferencesVirtualExactPosition(project, start, source) &&
-            !ReferencesVirtualExactPosition(project, end, source))
-            return request;
-        return request with
-        {
-            Purpose = MaterializationPurpose.FrameExtraction,
-            Profile = null
-        };
-    }
-
-    private static bool ReferencesVirtualExactPosition(
-        VideoProject project,
-        RecipeBoundary boundary,
-        AssetRevisionReference source) =>
-        boundary.Kind == RecipeBoundaryKind.Anchor &&
-        boundary.Anchor is { } reference &&
-        project.AnchorRevisions.Any(revision =>
-            revision.Id == reference.AnchorRevisionId &&
-            revision.AnchorId == reference.AnchorId &&
-            revision.SourceAssetId == source.AssetId &&
-            revision.SourceRecipeRevisionId == source.RecipeRevisionId);
 
     private async Task<MaterializedMediaLease> OpenCacheLeaseAsync(
         string cachePath,
