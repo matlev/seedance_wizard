@@ -41,6 +41,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     private int _zoomRevision;
     private bool _renderScheduled;
     private bool _rendering;
+    private bool _mutationPending;
     private bool _disposed;
     private bool _scrubbing;
     private bool _resumePlayback;
@@ -106,11 +107,33 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         ArgumentNullException.ThrowIfNull(state);
         _state = state;
         _layout = CalculateLayoutProjection();
+        if (!_mutationPending)
+        {
+            ScheduleRender();
+        }
+    }
+
+    /// <summary>
+    /// Completes a control-to-shell mutation handoff after the shell has pushed
+    /// the authoritative timeline state for either success or failure.
+    /// </summary>
+    public void CompletePendingMutation()
+    {
+        if (!_mutationPending)
+        {
+            return;
+        }
+
+        _mutationPending = false;
+        ResetItemDrag();
+        IsHitTestVisible = true;
         ScheduleRender();
     }
 
     public void Clear()
     {
+        _mutationPending = false;
+        IsHitTestVisible = true;
         CancelInteractions();
         _state = CompositionTimelineState.Empty;
         _layout = null;
@@ -158,6 +181,11 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
 
     public void CancelInteractions()
     {
+        if (_mutationPending)
+        {
+            return;
+        }
+
         var wasScrubbing = _scrubbing;
         _scrubbing = false;
         _resumePlayback = false;
@@ -239,7 +267,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
 
     private void Render()
     {
-        if (_rendering || _disposed)
+        if (_rendering || _mutationPending || _disposed)
         {
             return;
         }
@@ -263,7 +291,9 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             var lanes = CompositionTimelineLayout.CalculateAudioLanes(
                 _state.AudioClips.Select(item => new CompositionTimelineAudioInput(
                     item.AudioClipId,
-                    item.TimelineStart.TotalSeconds,
+                    item.AudioClipId == _activeAudioDragId
+                        ? _audioDraftStartSeconds
+                        : item.TimelineStart.TotalSeconds,
                     Math.Max(0.25, item.DurationSeconds ?? 1))).ToArray());
             TimelineCanvas.Height = Math.Max(
                 124,
@@ -316,7 +346,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
                 item.SegmentId,
                 item.DurationSeconds)).ToArray(),
             GetViewportWidth(),
-            _zoom);
+            zoomFactor: _zoom);
     }
 
     private void DrawRuler()
@@ -565,6 +595,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             Width = 27,
             Height = 25,
             Padding = new Thickness(4),
+            Margin = new Thickness(0),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
             Visibility = Visibility.Collapsed,
@@ -616,11 +647,11 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             return;
         }
 
-        var item = new MenuItem
+        var item = new MenuItem { Header = header };
+        if (danger)
         {
-            Header = header,
-            Foreground = danger ? new SolidColorBrush(Color.FromRgb(145, 24, 47)) : null
-        };
+            item.Foreground = new SolidColorBrush(Color.FromRgb(145, 24, 47));
+        }
         item.Click += (_, _) => request(this, new CompositionTimelineItemEventArgs(itemId));
         menu.Items.Add(item);
     }
@@ -807,29 +838,42 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             return;
         }
 
+        if (_pendingSegmentDragId is null && _pendingAudioDragId is null)
+        {
+            return;
+        }
+
         if (_activeSegmentDragId is Guid segmentId &&
             _segmentDragTargetIndex >= 0 &&
             _segmentDragTargetIndex != _segmentDragOriginalIndex &&
             point.Y >= 0 &&
-            point.Y <= TimelineCanvas.ActualHeight)
+            point.Y <= TimelineCanvas.ActualHeight &&
+            SegmentReorderRequested is { } reorderRequested)
         {
-            SegmentReorderRequested?.Invoke(
+            BeginPendingMutation();
+            reorderRequested.Invoke(
                 this,
                 new CompositionTimelineReorderEventArgs(segmentId, _segmentDragTargetIndex));
+            e.Handled = true;
+            return;
         }
 
         if (_activeAudioDragId is Guid audioId &&
             point.Y >= 0 &&
-            point.Y <= TimelineCanvas.ActualHeight)
+            point.Y <= TimelineCanvas.ActualHeight &&
+            AudioMoveRequested is { } moveRequested)
         {
             var start = TimeSpan.FromMilliseconds(Math.Round(
                 Math.Max(0, _audioDraftStartSeconds) * 1000,
                 MidpointRounding.AwayFromZero));
             if (start.Ticks != _audioOriginalStartTicks)
             {
-                AudioMoveRequested?.Invoke(
+                BeginPendingMutation();
+                moveRequested.Invoke(
                     this,
                     new CompositionTimelineAudioMoveEventArgs(audioId, start));
+                e.Handled = true;
+                return;
             }
         }
 
@@ -837,6 +881,15 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         ReleaseMouse();
         Render();
         e.Handled = true;
+    }
+
+    private void BeginPendingMutation()
+    {
+        _mutationPending = true;
+        _itemDragAutoScrollTimer.Stop();
+        _itemDragAutoScrollDelta = 0;
+        IsHitTestVisible = false;
+        ReleaseMouse();
     }
 
     private void TimelineCanvas_LostMouseCapture(object sender, MouseEventArgs e)
@@ -855,7 +908,6 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         SeekRequested?.Invoke(
             this,
             new CompositionTimelineSeekEventArgs(seconds, _resumePlayback, phase));
-        UpdatePlayhead(seconds);
     }
 
     private void ResetItemDrag()
@@ -864,10 +916,16 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         _activeSegmentDragId = null;
         _pendingAudioDragId = null;
         _activeAudioDragId = null;
+        _segmentDragStart = default;
+        _segmentDragPointerOffset = 0;
+        _segmentDragPointerX = 0;
         _segmentDragOriginalIndex = -1;
         _segmentDragTargetIndex = -1;
+        _audioDragStart = default;
         _audioDragPointerOffset = 0;
+        _audioDraftStartSeconds = 0;
         _audioOriginalStartTicks = 0;
+        _itemDragViewportX = 0;
         _itemDragAutoScrollTimer.Stop();
         _itemDragAutoScrollDelta = 0;
     }
@@ -890,7 +948,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             segmentId,
             contentX,
             GetViewportWidth(),
-            _zoom).InsertionIndex;
+            zoomFactor: _zoom).InsertionIndex;
     }
 
     private double GetViewportWidth()
@@ -1158,10 +1216,14 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             AutoScrollCheckBox.IsChecked == true &&
             TimelineScrollViewer.ViewportWidth > 0)
         {
-            TimelineScrollViewer.ScrollToHorizontalOffset(_layout.GetAutoScrollOffset(
+            var offset = _layout.GetAutoScrollOffset(
                 seconds,
                 TimelineScrollViewer.HorizontalOffset,
-                TimelineScrollViewer.ViewportWidth));
+                TimelineScrollViewer.ViewportWidth);
+            if (Math.Abs(offset - TimelineScrollViewer.HorizontalOffset) > 0.5)
+            {
+                TimelineScrollViewer.ScrollToHorizontalOffset(offset);
+            }
         }
     }
 
@@ -1207,6 +1269,8 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         }
 
         _disposed = true;
+        _mutationPending = false;
+        IsHitTestVisible = true;
         CancelInteractions();
         HideDropFeedback();
         _externalDragAutoScrollTimer.Tick -= ExternalDragAutoScrollTimer_Tick;

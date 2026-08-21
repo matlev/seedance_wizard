@@ -1459,28 +1459,44 @@ public partial class MainWindow : Window, IDisposable
         object? sender,
         CompositionTimelineReorderEventArgs e)
     {
-        await RunUiActionAsync("Reordering composition segment…", async () =>
+        try
         {
-            await new WorkingCompositionService(_workspace).MoveSegmentToIndexAsync(e.SegmentId, e.TargetIndex);
-            _selectedCompositionSegmentId = e.SegmentId;
-            _selectedCompositionAudioClipId = null;
-            RefreshEditWorkspaceState();
-            StatusText.Text = "Reordered the Working Composition. Preview it to rebuild the video.";
-        });
+            await RunUiActionAsync("Reordering composition segment…", async () =>
+            {
+                await new WorkingCompositionService(_workspace).MoveSegmentToIndexAsync(e.SegmentId, e.TargetIndex);
+                _selectedCompositionSegmentId = e.SegmentId;
+                _selectedCompositionAudioClipId = null;
+                RefreshEditWorkspaceState();
+                StatusText.Text = "Reordered the Working Composition. Preview it to rebuild the video.";
+            });
+        }
+        finally
+        {
+            UpdateCompositionTimelineControl();
+            CompositionTimelineControl.CompletePendingMutation();
+        }
     }
 
     private async void CompositionTimeline_AudioMoveRequested(
         object? sender,
         CompositionTimelineAudioMoveEventArgs e)
     {
-        await RunUiActionAsync("Moving composition audio clip…", async () =>
+        try
         {
-            await new WorkingCompositionService(_workspace).SetAudioClipTimelineStartAsync(e.AudioClipId, e.TimelineStart);
-            _selectedCompositionSegmentId = null;
-            _selectedCompositionAudioClipId = e.AudioClipId;
-            RefreshEditWorkspaceState();
-            StatusText.Text = $"Moved the audio clip to {FormatTimelineTimePrecise(e.TimelineStart.TotalSeconds)}. Preview the composition to rebuild it.";
-        });
+            await RunUiActionAsync("Moving composition audio clip…", async () =>
+            {
+                await new WorkingCompositionService(_workspace).SetAudioClipTimelineStartAsync(e.AudioClipId, e.TimelineStart);
+                _selectedCompositionSegmentId = null;
+                _selectedCompositionAudioClipId = e.AudioClipId;
+                RefreshEditWorkspaceState();
+                StatusText.Text = $"Moved the audio clip to {FormatTimelineTimePrecise(e.TimelineStart.TotalSeconds)}. Preview the composition to rebuild it.";
+            });
+        }
+        finally
+        {
+            UpdateCompositionTimelineControl();
+            CompositionTimelineControl.CompletePendingMutation();
+        }
     }
 
     private async void CompositionTimeline_MediaDropRequested(
