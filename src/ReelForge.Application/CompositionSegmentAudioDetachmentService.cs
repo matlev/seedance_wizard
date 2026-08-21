@@ -54,7 +54,7 @@ public sealed class CompositionSegmentAudioDetachmentService
         var audioDirectory = Path.GetFullPath(Path.Combine(location.RootDirectory, "assets", "audio"));
         Directory.CreateDirectory(audioDirectory);
         var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(audioDirectory, fileName);
-        var temporaryPath = Path.Combine(audioDirectory, $".detach-audio-{Guid.NewGuid():N}.partial.m4a");
+        using var fileCommit = AtomicFileCommit.Create(finalPath, "detach-audio", ".m4a");
         ProjectAsset? detachedAsset = null;
         try
         {
@@ -72,16 +72,16 @@ public sealed class CompositionSegmentAudioDetachmentService
                                          .ConfigureAwait(false);
                 if (sourceEncoding.Audio is null)
                     throw new InvalidOperationException("The selected composition segment has no audio stream to detach.");
-                await _extractionEngine.ExtractToM4aAsync(media.Path, temporaryPath, cancellationToken)
+                await _extractionEngine.ExtractToM4aAsync(media.Path, fileCommit.TemporaryPath, cancellationToken)
                     .ConfigureAwait(false);
             }
 
-            var encoding = await _mediaInspector.InspectAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
+            var encoding = await _mediaInspector.InspectAsync(fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
             if (encoding.Audio is null || encoding.Video is not null)
                 throw new InvalidDataException("The detached file is not an inspectable audio-only file.");
-            var identity = await _contentHashService.ComputeAsync(temporaryPath, cancellationToken)
+            var identity = await _contentHashService.ComputeAsync(fileCommit.TemporaryPath, cancellationToken)
                 .ConfigureAwait(false);
-            File.Move(temporaryPath, finalPath);
+            fileCommit.Commit();
 
             detachedAsset = new ProjectAsset
             {
@@ -134,10 +134,6 @@ public sealed class CompositionSegmentAudioDetachmentService
             if (detachedAsset is not null) project.Assets.Remove(detachedAsset);
             if (File.Exists(finalPath)) File.Delete(finalPath);
             throw;
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
     }
 

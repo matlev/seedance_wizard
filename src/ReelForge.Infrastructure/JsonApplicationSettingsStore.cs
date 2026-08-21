@@ -58,7 +58,6 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
         var normalizedPath = Path.GetFullPath(LocalSettingsPath);
         var saveLock = GetSettingsFileLock();
         await saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        string? temporaryPath = null;
         try
         {
             Normalize(settings);
@@ -66,11 +65,9 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
             var directory = Path.GetDirectoryName(normalizedPath)
                 ?? throw new InvalidOperationException("The application settings path has no parent directory.");
             Directory.CreateDirectory(directory);
-            temporaryPath = Path.Combine(
-                directory,
-                $".{Path.GetFileName(normalizedPath)}.{Guid.NewGuid():N}.tmp");
+            using var fileCommit = AtomicFileCommit.Create(normalizedPath, "settings-save");
             await using (var stream = new FileStream(
-                             temporaryPath,
+                             fileCommit.TemporaryPath,
                              FileMode.CreateNew,
                              FileAccess.Write,
                              FileShare.None,
@@ -81,11 +78,10 @@ public sealed class JsonApplicationSettingsStore : IApplicationSettingsStore
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            File.Move(temporaryPath, normalizedPath, overwrite: true);
+            fileCommit.Commit(overwrite: true);
         }
         finally
         {
-            if (temporaryPath is not null && File.Exists(temporaryPath)) File.Delete(temporaryPath);
             saveLock.Release();
         }
     }

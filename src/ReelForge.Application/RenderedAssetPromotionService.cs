@@ -38,7 +38,7 @@ public sealed class RenderedAssetPromotionService
         var videosDirectory = Path.GetFullPath(Path.Combine(location.RootDirectory, "assets", "videos"));
         Directory.CreateDirectory(videosDirectory);
         var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(videosDirectory, fileName);
-        var temporaryPath = Path.Combine(videosDirectory, $".promote-{Guid.NewGuid():N}.partial");
+        using var fileCommit = AtomicFileCommit.Create(finalPath, "promote-video", ".mp4");
         var assetAdded = false;
         ProjectAsset? promoted = null;
         try
@@ -52,14 +52,14 @@ public sealed class RenderedAssetPromotionService
                                  MaterializationRetentionPreference.PreferRetained),
                              cancellationToken).ConfigureAwait(false))
             {
-                await CopyAsync(rendered.Path, temporaryPath, cancellationToken).ConfigureAwait(false);
+                await CopyAsync(rendered.Path, fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
             }
 
-            var identity = await _contentHashService.ComputeAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
-            var encoding = await _mediaInspector.InspectAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
+            var identity = await _contentHashService.ComputeAsync(fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
+            var encoding = await _mediaInspector.InspectAsync(fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
             if (encoding.Video is null)
                 throw new InvalidDataException("The rendered copy is not an inspectable video.");
-            File.Move(temporaryPath, finalPath);
+            fileCommit.Commit();
             promoted = new ProjectAsset
             {
                 DisplayName = Path.GetFileName(finalPath),
@@ -96,10 +96,6 @@ public sealed class RenderedAssetPromotionService
             if (assetAdded && promoted is not null) project.Assets.Remove(promoted);
             if (File.Exists(finalPath)) File.Delete(finalPath);
             throw;
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
     }
 
@@ -155,29 +151,23 @@ public sealed class RenderedAssetPromotionService
         var destinationDirectory = Path.GetDirectoryName(fullDestinationPath)
             ?? throw new ArgumentException("Choose a valid export destination.", nameof(destinationPath));
         Directory.CreateDirectory(destinationDirectory);
-        var temporaryPath = Path.Combine(
-            destinationDirectory,
-            $".{Path.GetFileName(fullDestinationPath)}.{Guid.NewGuid():N}.partial");
-        try
+        using var fileCommit = AtomicFileCommit.Create(
+            fullDestinationPath,
+            "export",
+            requiredExtension);
+        await using (var rendered = await _materializer.MaterializeAsync(
+                         project,
+                         location,
+                         new MaterializationRequest(
+                             target,
+                             MaterializationPurpose.FinalExport,
+                             MaterializationRetentionPreference.NormalCache),
+                         cancellationToken).ConfigureAwait(false))
         {
-            await using (var rendered = await _materializer.MaterializeAsync(
-                             project,
-                             location,
-                             new MaterializationRequest(
-                                 target,
-                                 MaterializationPurpose.FinalExport,
-                                 MaterializationRetentionPreference.NormalCache),
-                             cancellationToken).ConfigureAwait(false))
-            {
-                await CopyAsync(rendered.Path, temporaryPath, cancellationToken).ConfigureAwait(false);
-            }
-            File.Move(temporaryPath, fullDestinationPath, overwrite: true);
-            return fullDestinationPath;
+            await CopyAsync(rendered.Path, fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
         }
-        finally
-        {
-            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-        }
+        fileCommit.Commit(overwrite: true);
+        return fullDestinationPath;
     }
 
     public async Task<ProjectAsset> SaveFrameAsAssetAsync(
@@ -201,7 +191,7 @@ public sealed class RenderedAssetPromotionService
         var imagesDirectory = Path.GetFullPath(Path.Combine(location.RootDirectory, "assets", "images"));
         Directory.CreateDirectory(imagesDirectory);
         var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(imagesDirectory, fileName);
-        var temporaryPath = Path.Combine(imagesDirectory, $".promote-{Guid.NewGuid():N}.partial");
+        using var fileCommit = AtomicFileCommit.Create(finalPath, "promote-frame", ".png");
         var assetAdded = false;
         ProjectAsset? promoted = null;
         try
@@ -216,14 +206,14 @@ public sealed class RenderedAssetPromotionService
                                  "png"),
                              cancellationToken).ConfigureAwait(false))
             {
-                await CopyAsync(rendered.Path, temporaryPath, cancellationToken).ConfigureAwait(false);
+                await CopyAsync(rendered.Path, fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
             }
 
-            var identity = await _contentHashService.ComputeAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
-            var encoding = await _mediaInspector.InspectAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
+            var identity = await _contentHashService.ComputeAsync(fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
+            var encoding = await _mediaInspector.InspectAsync(fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
             if (encoding.Video is null)
                 throw new InvalidDataException("The rendered Saved Frame is not an inspectable image.");
-            File.Move(temporaryPath, finalPath);
+            fileCommit.Commit();
             promoted = new ProjectAsset
             {
                 DisplayName = Path.GetFileName(finalPath),
@@ -263,10 +253,6 @@ public sealed class RenderedAssetPromotionService
             if (assetAdded && promoted is not null) project.Assets.Remove(promoted);
             if (File.Exists(finalPath)) File.Delete(finalPath);
             throw;
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
     }
 

@@ -62,20 +62,15 @@ public sealed class AssetImportService : IAssetImportService
                 targetDirectory,
                 Path.GetFileName(fullSourcePath));
 
-            await CopyFileAsync(fullSourcePath, destinationPath, cancellationToken).ConfigureAwait(false);
+            using var fileCommit = AtomicFileCommit.Create(
+                destinationPath,
+                "import",
+                Path.GetExtension(destinationPath));
+            await CopyFileAsync(fullSourcePath, fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
 
-            ContentIdentity contentIdentity;
-            try
-            {
-                contentIdentity = await _contentHashService
-                    .ComputeAsync(destinationPath, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch
-            {
-                File.Delete(destinationPath);
-                throw;
-            }
+            var contentIdentity = await _contentHashService
+                .ComputeAsync(fileCommit.TemporaryPath, cancellationToken)
+                .ConfigureAwait(false);
 
             var asset = new ProjectAsset
             {
@@ -100,7 +95,7 @@ public sealed class AssetImportService : IAssetImportService
                 try
                 {
                     asset.Encoding = await _mediaInspector
-                        .InspectAsync(destinationPath, cancellationToken)
+                        .InspectAsync(fileCommit.TemporaryPath, cancellationToken)
                         .ConfigureAwait(false);
                     asset.DurationSeconds = asset.Encoding.DurationSeconds;
                     asset.Width = asset.Encoding.Video?.Width;
@@ -110,13 +105,9 @@ public sealed class AssetImportService : IAssetImportService
                 {
                     // Import is still useful when FFmpeg is not installed. The UI reports this state.
                 }
-                catch
-                {
-                    File.Delete(destinationPath);
-                    throw;
-                }
             }
 
+            fileCommit.Commit();
             imported.Add(asset);
         }
 

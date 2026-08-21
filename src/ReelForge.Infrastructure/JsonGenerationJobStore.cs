@@ -51,15 +51,14 @@ public sealed class JsonGenerationJobStore : IGenerationJobStore
     {
         var fileLock = GetFileLock();
         await fileLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        string? temporaryPath = null;
         try
         {
             var directory = Path.GetDirectoryName(FilePath)
                 ?? throw new InvalidOperationException("The active-job registry must have a parent directory.");
             Directory.CreateDirectory(directory);
-            temporaryPath = $"{FilePath}.tmp-{Guid.NewGuid():N}";
+            using var fileCommit = AtomicFileCommit.Create(FilePath, "jobs-save");
             await using (var stream = new FileStream(
-                             temporaryPath,
+                             fileCommit.TemporaryPath,
                              FileMode.CreateNew,
                              FileAccess.Write,
                              FileShare.None,
@@ -69,11 +68,10 @@ public sealed class JsonGenerationJobStore : IGenerationJobStore
                 await JsonSerializer.SerializeAsync(stream, jobs, SerializerOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
-            File.Move(temporaryPath, FilePath, overwrite: true);
+            fileCommit.Commit(overwrite: true);
         }
         finally
         {
-            if (temporaryPath is not null && File.Exists(temporaryPath)) File.Delete(temporaryPath);
             fileLock.Release();
         }
     }

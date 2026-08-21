@@ -41,7 +41,7 @@ public sealed class AudioExtractionService
         var audioDirectory = Path.GetFullPath(Path.Combine(location.RootDirectory, "assets", "audio"));
         Directory.CreateDirectory(audioDirectory);
         var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(audioDirectory, fileName);
-        var temporaryPath = Path.Combine(audioDirectory, $".extract-audio-{Guid.NewGuid():N}.partial.m4a");
+        using var fileCommit = AtomicFileCommit.Create(finalPath, "extract-audio", ".m4a");
         ProjectAsset? extracted = null;
         try
         {
@@ -59,15 +59,15 @@ public sealed class AudioExtractionService
                                          .ConfigureAwait(false);
                 if (sourceEncoding.Audio is null)
                     throw new InvalidOperationException($"'{source.EffectiveDisplayName}' has no audio stream to extract.");
-                await _extractionEngine.ExtractToM4aAsync(media.Path, temporaryPath, cancellationToken)
+                await _extractionEngine.ExtractToM4aAsync(media.Path, fileCommit.TemporaryPath, cancellationToken)
                     .ConfigureAwait(false);
             }
 
-            var encoding = await _mediaInspector.InspectAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
+            var encoding = await _mediaInspector.InspectAsync(fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
             if (encoding.Audio is null || encoding.Video is not null)
                 throw new InvalidDataException("The extracted file is not an inspectable audio-only file.");
-            var identity = await _contentHashService.ComputeAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
-            File.Move(temporaryPath, finalPath);
+            var identity = await _contentHashService.ComputeAsync(fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
+            fileCommit.Commit();
 
             extracted = new ProjectAsset
             {
@@ -107,10 +107,6 @@ public sealed class AudioExtractionService
             if (extracted is not null) project.Assets.Remove(extracted);
             if (File.Exists(finalPath)) File.Delete(finalPath);
             throw;
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
     }
 

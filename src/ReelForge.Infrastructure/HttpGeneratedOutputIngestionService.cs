@@ -41,47 +41,40 @@ public sealed class HttpGeneratedOutputIngestionService : IGeneratedOutputIngest
                 cancellationToken.ThrowIfCancellationRequested();
                 var sourceUri = ValidateOutputUri(outputs[index].DownloadUrl);
                 var extension = GetExtension(sourceUri);
-                var temporaryPath = Path.Combine(generatedDirectory, $".download-{Guid.NewGuid():N}.partial");
-                try
+                var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(
+                    generatedDirectory,
+                    $"generation-{generationId:N}-{index + 1}{extension}",
+                    FileNameCollisionStyle.Hyphenated);
+                using var fileCommit = AtomicFileCommit.Create(finalPath, "download", extension);
+                using var response = await _httpClient
+                    .GetAsync(sourceUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                    .ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                if (response.RequestMessage?.RequestUri?.Scheme != Uri.UriSchemeHttps)
+                    throw new InvalidDataException("The generated output redirected to a non-HTTPS address.");
+                if (response.Content.Headers.ContentLength is > MaximumOutputBytes)
+                    throw new InvalidDataException("The generated output exceeds the 20 GB safety limit.");
+
+                await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+                await using (var destination = new FileStream(
+                                 fileCommit.TemporaryPath,
+                                 FileMode.CreateNew,
+                                 FileAccess.Write,
+                                 FileShare.None,
+                                 81920,
+                                 FileOptions.Asynchronous | FileOptions.SequentialScan))
                 {
-                    using var response = await _httpClient
-                        .GetAsync(sourceUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                        .ConfigureAwait(false);
-                    response.EnsureSuccessStatusCode();
-                    if (response.RequestMessage?.RequestUri?.Scheme != Uri.UriSchemeHttps)
-                        throw new InvalidDataException("The generated output redirected to a non-HTTPS address.");
-                    if (response.Content.Headers.ContentLength is > MaximumOutputBytes)
-                        throw new InvalidDataException("The generated output exceeds the 20 GB safety limit.");
-
-                    await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
-                    await using (var destination = new FileStream(
-                                     temporaryPath,
-                                     FileMode.CreateNew,
-                                     FileAccess.Write,
-                                     FileShare.None,
-                                     81920,
-                                     FileOptions.Asynchronous | FileOptions.SequentialScan))
-                    {
-                        await CopyWithLimitAsync(source, destination, MaximumOutputBytes, cancellationToken).ConfigureAwait(false);
-                    }
-
-                    var identity = await _contentHashService.ComputeAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
-                    var encoding = await _mediaInspector.InspectAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
-                    if (encoding.Video is null)
-                        throw new InvalidDataException("The downloaded generation output is not an inspectable video.");
-
-                    var finalPath = CollisionFreeDestinationPolicy.GetAvailablePath(
-                        generatedDirectory,
-                        $"generation-{generationId:N}-{index + 1}{extension}",
-                        FileNameCollisionStyle.Hyphenated);
-                    File.Move(temporaryPath, finalPath);
-                    createdPaths.Add(finalPath);
-                    assets.Add(CreateAsset(location, finalPath, generationId, identity, encoding));
+                    await CopyWithLimitAsync(source, destination, MaximumOutputBytes, cancellationToken).ConfigureAwait(false);
                 }
-                finally
-                {
-                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-                }
+
+                var identity = await _contentHashService.ComputeAsync(fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
+                var encoding = await _mediaInspector.InspectAsync(fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
+                if (encoding.Video is null)
+                    throw new InvalidDataException("The downloaded generation output is not an inspectable video.");
+
+                fileCommit.Commit();
+                createdPaths.Add(finalPath);
+                assets.Add(CreateAsset(location, finalPath, generationId, identity, encoding));
             }
 
             return assets;

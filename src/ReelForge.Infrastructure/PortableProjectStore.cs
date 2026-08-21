@@ -101,31 +101,20 @@ public sealed class PortableProjectStore : IProjectStore
         ProjectInvariantValidator.ThrowIfInvalid(project);
 
         Directory.CreateDirectory(location.RootDirectory);
-        var temporaryPath = $"{location.ProjectFilePath}.tmp-{Guid.NewGuid():N}";
-        try
+        using var fileCommit = AtomicFileCommit.Create(location.ProjectFilePath, "project-save");
+        await using (var stream = new FileStream(
+            fileCommit.TemporaryPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            4096,
+            FileOptions.Asynchronous | FileOptions.WriteThrough))
         {
-            await using (var stream = new FileStream(
-                temporaryPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None,
-                4096,
-                FileOptions.Asynchronous | FileOptions.WriteThrough))
-            {
-                await JsonSerializer
-                    .SerializeAsync(stream, ProjectPersistenceMapper.ToDto(project), SerializerOptions, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            File.Move(temporaryPath, location.ProjectFilePath, overwrite: true);
+            await JsonSerializer
+                .SerializeAsync(stream, ProjectPersistenceMapper.ToDto(project), SerializerOptions, cancellationToken)
+                .ConfigureAwait(false);
         }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-        }
+        fileCommit.Commit(overwrite: true);
     }
 
     private static void RefreshPhysicalAvailability(VideoProject project, ProjectLocation location)
