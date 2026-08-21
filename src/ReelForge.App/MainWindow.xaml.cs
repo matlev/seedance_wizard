@@ -15,6 +15,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using ReelForge.App.Bootstrap;
+using ReelForge.App.Views.Jobs;
 using ReelForge.Application;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
@@ -44,15 +45,12 @@ public partial class MainWindow : Window, IDisposable
     private readonly ObservableCollection<ProjectMediaListItem> _assets = [];
     private readonly ObservableCollection<GenerationRecord> _generations = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
-    private readonly ObservableCollection<GenerationJobListItem> _jobs = [];
     private readonly ObservableCollection<FrameContactListItem> _contactFrames = [];
     private readonly ObservableCollection<SavedFrameListItem> _savedFrames = [];
     private readonly ObservableCollection<CompositionSegmentListItem> _compositionSegments = [];
     private readonly ObservableCollection<CompositionAudioClipListItem> _compositionAudioClips = [];
     private readonly ApplicationRuntime _runtime;
     private readonly List<TimelineStickyContent> _compositionTimelineStickyContent = [];
-    private readonly IReadOnlyList<BitmapSource> _activeJobSpriteFrames;
-    private readonly HashSet<Guid> _viewedTerminalJobIds = [];
     private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
     private readonly SemaphoreSlim _submissionGate = new(1, 1);
     private readonly SemaphoreSlim _frameNavigationGate = new(1, 1);
@@ -77,7 +75,6 @@ public partial class MainWindow : Window, IDisposable
     private MediaToolAvailability _mediaTools;
     private readonly DispatcherTimer _positionTimer;
     private readonly DispatcherTimer _draftAutosaveTimer;
-    private readonly DispatcherTimer _jobElapsedTimer;
     private readonly DispatcherTimer _frameBrowserDebounceTimer;
     private readonly DispatcherTimer _compositionTimelineDragAutoScrollTimer;
     private readonly DispatcherTimer _compositionTimelineItemDragAutoScrollTimer;
@@ -98,13 +95,11 @@ public partial class MainWindow : Window, IDisposable
     private bool _isKeyboardFrameNavigationRunning;
     private bool _previewWasMutedBeforeMediaPreparation;
     private double _volumeBeforeMute = 1;
-    private bool _isJobsPanelOpen;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
     private MediaPreparationMode _mediaPreparationMode;
     private ClipBoundarySelection _clipStart = ClipBoundarySelection.SourceStart;
     private ClipBoundarySelection _clipEnd = ClipBoundarySelection.SourceEnd;
     private bool _restoringProjectUiState;
-    private bool _dismissingViewedJobs;
     private CancellationTokenSource? _frameBrowserCancellation;
     private IReadOnlyList<VideoPresentationFrame> _indexedFrames = [];
     private double? _pendingContactFrameTimestamp;
@@ -162,12 +157,10 @@ public partial class MainWindow : Window, IDisposable
     private bool _renderingCompositionTimeline;
     private bool _disposed;
     private bool _isMediaImportInProgress;
-    private int _activeJobSpriteFrameIndex;
 
     public MainWindow()
     {
         InitializeComponent();
-        _activeJobSpriteFrames = LoadActiveJobSpriteFrames();
 
         _runtime = ApplicationRuntime.Create();
         _mediaToolDiscovery = _runtime.MediaToolDiscovery;
@@ -189,15 +182,14 @@ public partial class MainWindow : Window, IDisposable
         RefreshProviderRuntime(preferredProviderId: null);
         _jobCoordinator = _runtime.JobCoordinator;
         _runtime.JobFinalizer.Finalized += JobFinalizer_Finalized;
-        _jobCoordinator.JobsChanged += JobCoordinator_JobsChanged;
-        _jobCoordinator.JobStatusChanged += JobCoordinator_JobStatusChanged;
+        JobsPanelControl.Initialize(_jobCoordinator);
+        JobsChromeControl.Initialize(_jobCoordinator);
 
         var projectMediaView = new ListCollectionView(_assets);
         projectMediaView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ProjectMediaListItem.GroupName)));
         AssetsList.ItemsSource = projectMediaView;
         GenerationsList.ItemsSource = _generations;
         ReferenceAssetsGrid.ItemsSource = _referenceChoices;
-        JobsList.ItemsSource = _jobs;
         ContactFramesList.ItemsSource = _contactFrames;
         SavedFramesList.ItemsSource = _savedFrames;
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -206,14 +198,6 @@ public partial class MainWindow : Window, IDisposable
 
         _draftAutosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
         _draftAutosaveTimer.Tick += DraftAutosaveTimer_Tick;
-
-        _jobElapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _jobElapsedTimer.Tick += (_, _) =>
-        {
-            RefreshJobElapsedTimes();
-            UpdateActiveJobSprite(advanceFrame: true);
-        };
-        _jobElapsedTimer.Start();
 
         _frameBrowserDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _frameBrowserDebounceTimer.Tick += FrameBrowserDebounceTimer_Tick;
@@ -245,10 +229,9 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _jobCoordinator.JobsChanged -= JobCoordinator_JobsChanged;
-        _jobCoordinator.JobStatusChanged -= JobCoordinator_JobStatusChanged;
         _runtime.JobFinalizer.Finalized -= JobFinalizer_Finalized;
-        _jobElapsedTimer.Stop();
+        JobsPanelControl.Dispose();
+        JobsChromeControl.Dispose();
         _frameBrowserDebounceTimer.Stop();
         _compositionTimelineDragAutoScrollTimer.Stop();
         _compositionTimelineItemDragAutoScrollTimer.Stop();
@@ -272,7 +255,7 @@ public partial class MainWindow : Window, IDisposable
         try
         {
             await _jobCoordinator.RestoreAsync();
-            RefreshJobsUi();
+            JobsPanelControl.Refresh();
         }
         catch (Exception exception)
         {
@@ -325,35 +308,6 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private void JobCoordinator_JobsChanged(object? sender, EventArgs e)
-    {
-        if (_disposed || Dispatcher.HasShutdownStarted) return;
-        _ = Dispatcher.BeginInvoke(() =>
-        {
-            RefreshJobsUi();
-            if (!_isJobsPanelOpen && _viewedTerminalJobIds.Count > 0)
-                _ = DismissViewedTerminalJobsAsync();
-        }, DispatcherPriority.Background);
-    }
-
-    private void JobCoordinator_JobStatusChanged(object? sender, GenerationJobStatusChangedEventArgs e)
-    {
-        if (_disposed || Dispatcher.HasShutdownStarted) return;
-        _ = Dispatcher.BeginInvoke(() =>
-        {
-            if (_isJobsPanelOpen)
-            {
-                if (IsTerminalStatus(e.CurrentStatus)) _viewedTerminalJobIds.Add(e.GenerationId);
-            }
-            else if (JobsActivityIndicator is not null)
-            {
-                JobsActivityIndicator.Visibility = Visibility.Visible;
-                JobsActivityIndicator.ToolTip =
-                    $"{e.ProjectName}: job status changed from {e.PreviousStatus} to {e.CurrentStatus}.";
-            }
-        }, DispatcherPriority.Background);
-    }
-
     private void JobFinalizer_Finalized(object? sender, GenerationJobFinalizedEventArgs e)
     {
         if (_disposed || Dispatcher.HasShutdownStarted || !e.ActiveProjectUpdated) return;
@@ -373,7 +327,11 @@ public partial class MainWindow : Window, IDisposable
     private async void WorkspaceMode_Checked(object sender, RoutedEventArgs e)
     {
         if (RightPanelTabs is null) return;
-        if (_isJobsPanelOpen) await SetJobsPanelOpenAsync(false);
+        if (JobsPanelControl.IsOpen)
+        {
+            await JobsPanelControl.HideJobsAsync();
+            JobsChromeControl.SetJobsOpen(false);
+        }
         _activeWorkspace = EditWorkspaceButton.IsChecked == true
             ? ProjectWorkspaceKind.Edit
             : ProjectWorkspaceKind.Generate;
@@ -406,27 +364,24 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void JobsChrome_Click(object sender, RoutedEventArgs e) =>
-        await SetJobsPanelOpenAsync(!_isJobsPanelOpen);
-
-    private async void CloseJobs_Click(object sender, RoutedEventArgs e) =>
-        await SetJobsPanelOpenAsync(false);
-
-    private async Task SetJobsPanelOpenAsync(bool isOpen)
+    private async void JobsChromeControl_OpenRequested(object? sender, EventArgs e)
     {
-        if (_isJobsPanelOpen == isOpen) return;
-        _isJobsPanelOpen = isOpen;
-        JobsPanel.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
-        if (isOpen)
+        if (JobsPanelControl.IsOpen)
         {
-            JobsActivityIndicator.Visibility = Visibility.Collapsed;
-            MarkVisibleTerminalJobsViewed();
+            await JobsPanelControl.HideJobsAsync();
+            JobsChromeControl.SetJobsOpen(false);
+            return;
         }
-        else
-        {
-            await DismissViewedTerminalJobsAsync();
-        }
+
+        JobsPanelControl.ShowJobs();
+        JobsChromeControl.SetJobsOpen(true);
     }
+
+    private void JobsPanelControl_Closed(object? sender, EventArgs e) =>
+        JobsChromeControl.SetJobsOpen(false);
+
+    private void JobsPanelControl_ErrorOccurred(object? sender, GenerationJobsPanelErrorEventArgs e) =>
+        StatusText.Text = e.Message;
 
     private async Task SaveProjectUiStateAsync(string? mediaKind = null, Guid? mediaId = null)
     {
@@ -466,115 +421,6 @@ public partial class MainWindow : Window, IDisposable
         {
             _restoringProjectUiState = false;
         }
-    }
-
-    private void RefreshJobsUi()
-    {
-        var snapshot = _jobCoordinator.GetSnapshot();
-        var activeIds = snapshot.Select(job => job.GenerationId).ToHashSet();
-        for (var index = _jobs.Count - 1; index >= 0; index--)
-        {
-            if (!activeIds.Contains(_jobs[index].GenerationId)) _jobs.RemoveAt(index);
-        }
-
-        foreach (var job in snapshot)
-        {
-            var existing = _jobs.FirstOrDefault(item => item.GenerationId == job.GenerationId);
-            if (existing is null) _jobs.Add(new GenerationJobListItem(job));
-            else existing.Update(job);
-        }
-
-        JobsEmptyText.Visibility = _jobs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        JobsList.Visibility = _jobs.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-        UpdateActiveJobSprite(advanceFrame: false);
-        if (_isJobsPanelOpen) MarkVisibleTerminalJobsViewed();
-        RefreshJobElapsedTimes();
-    }
-
-    private void MarkVisibleTerminalJobsViewed()
-    {
-        foreach (var job in _jobCoordinator.GetSnapshot().Where(job => IsTerminalStatus(job.Status)))
-            _viewedTerminalJobIds.Add(job.GenerationId);
-    }
-
-    private async Task DismissViewedTerminalJobsAsync()
-    {
-        if (_dismissingViewedJobs || _viewedTerminalJobIds.Count == 0) return;
-        _dismissingViewedJobs = true;
-        try
-        {
-            var dismissed = await _jobCoordinator.DismissAsync(_viewedTerminalJobIds.ToArray());
-            foreach (var id in dismissed) _viewedTerminalJobIds.Remove(id);
-        }
-        catch (Exception exception)
-        {
-            StatusText.Text = $"Completed jobs could not be cleared: {exception.Message}";
-        }
-        finally
-        {
-            _dismissingViewedJobs = false;
-        }
-    }
-
-    private static bool IsTerminalStatus(GenerationStatus status) =>
-        status is GenerationStatus.Succeeded or GenerationStatus.Failed or GenerationStatus.Cancelled;
-
-    private void RefreshJobElapsedTimes()
-    {
-        var now = DateTimeOffset.UtcNow;
-        foreach (var job in _jobs) job.RefreshElapsed(now);
-    }
-
-    private void UpdateActiveJobSprite(bool advanceFrame)
-    {
-        var hasActiveJob = _jobCoordinator.GetSnapshot().Any(job =>
-            job.Status is GenerationStatus.Queued or GenerationStatus.Running);
-        if (!hasActiveJob)
-        {
-            ActiveJobSprite.Visibility = Visibility.Collapsed;
-            _activeJobSpriteFrameIndex = 0;
-            ActiveJobSprite.Source = _activeJobSpriteFrames[0];
-            return;
-        }
-
-        if (ActiveJobSprite.Visibility != Visibility.Visible)
-        {
-            _activeJobSpriteFrameIndex = 0;
-            ActiveJobSprite.Source = _activeJobSpriteFrames[0];
-            ActiveJobSprite.Visibility = Visibility.Visible;
-            return;
-        }
-
-        if (!advanceFrame) return;
-        _activeJobSpriteFrameIndex = (_activeJobSpriteFrameIndex + 1) % _activeJobSpriteFrames.Count;
-        ActiveJobSprite.Source = _activeJobSpriteFrames[_activeJobSpriteFrameIndex];
-    }
-
-    private static IReadOnlyList<BitmapSource> LoadActiveJobSpriteFrames()
-    {
-        var uri = new Uri(
-            "pack://application:,,,/ReelForge.App;component/Assets/Sprites/forging_reel_animation.png",
-            UriKind.Absolute);
-        var resource = System.Windows.Application.GetResourceStream(uri)
-            ?? throw new InvalidDataException("The forging-reel sprite resource is missing.");
-        using var stream = resource.Stream;
-        var decoder = new PngBitmapDecoder(
-            stream,
-            BitmapCreateOptions.PreservePixelFormat,
-            BitmapCacheOption.OnLoad);
-        var sheet = decoder.Frames[0];
-        if (sheet.PixelWidth % 2 != 0 || sheet.PixelWidth / 2 != sheet.PixelHeight)
-            throw new InvalidDataException("The forging-reel sprite must contain two equal square frames side by side.");
-
-        var frameWidth = sheet.PixelWidth / 2;
-        return Enumerable.Range(0, 2).Select(index =>
-        {
-            var frame = new CroppedBitmap(
-                sheet,
-                new Int32Rect(index * frameWidth, 0, frameWidth, sheet.PixelHeight));
-            frame.Freeze();
-            return (BitmapSource)frame;
-        }).ToArray();
     }
 
     private async void Settings_Click(object sender, RoutedEventArgs e)
@@ -3622,14 +3468,15 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void CancelPendingJob_Click(object sender, RoutedEventArgs e)
+    private async void JobsPanelControl_CancelRequested(
+        object? sender,
+        GenerationJobCancelRequestedEventArgs e)
     {
-        if (sender is not Button { Tag: Guid generationId }) return;
         try
         {
-            if (!await _jobCoordinator.CancelPendingAsync(generationId)) return;
-            if (_pendingSubmissionDelays.TryGetValue(generationId, out var delay)) delay.Cancel();
-            RemovePendingSubmissionDelay(generationId, delay);
+            if (!await _jobCoordinator.CancelPendingAsync(e.GenerationId)) return;
+            if (_pendingSubmissionDelays.TryGetValue(e.GenerationId, out var delay)) delay.Cancel();
+            RemovePendingSubmissionDelay(e.GenerationId, delay);
             GenerationStatusText.Text = "Queued generation cancelled.";
             StatusText.Text = "Provider status: Cancelled";
         }
@@ -5997,7 +5844,6 @@ public partial class MainWindow : Window, IDisposable
         return $"{value:0.##} {units[unit]}";
     }
 }
-
 public sealed class FrameContactListItem
 {
     public FrameContactListItem(VideoPresentationFrame frame, BitmapSource thumbnail)
@@ -6260,67 +6106,4 @@ public sealed class GenerationReferenceChoice
         duplicate.IsSelected = true;
         return duplicate;
     }
-}
-
-public sealed class GenerationJobListItem : INotifyPropertyChanged
-{
-    private TrackedGenerationJob _job;
-    private string _elapsedText = "0:00";
-    private string _undoSendRemainingText = "0s";
-
-    public GenerationJobListItem(TrackedGenerationJob job)
-    {
-        _job = job;
-        RefreshElapsed(DateTimeOffset.UtcNow);
-    }
-
-    public Guid GenerationId => _job.GenerationId;
-    public string ProjectName => _job.ProjectName;
-    public string ProviderAndModel => $"{_job.ProviderDisplayName} • {_job.ModelVersion}";
-    public string StatusText => _job.Status.ToString();
-    public string Message => _job.Message;
-    public string ElapsedText => _elapsedText;
-    public string UndoSendRemainingText => _undoSendRemainingText;
-    public bool IsUndoSendPending => _job.IsAwaitingSubmission && _job.UndoSendExpiresAt.HasValue;
-    public bool WasCancelledBeforeSubmission => _job.WasCancelledBeforeSubmission;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public void Update(TrackedGenerationJob job)
-    {
-        _job = job;
-        OnPropertyChanged(nameof(ProjectName));
-        OnPropertyChanged(nameof(ProviderAndModel));
-        OnPropertyChanged(nameof(StatusText));
-        OnPropertyChanged(nameof(Message));
-        OnPropertyChanged(nameof(IsUndoSendPending));
-        OnPropertyChanged(nameof(WasCancelledBeforeSubmission));
-        RefreshElapsed(DateTimeOffset.UtcNow);
-    }
-
-    public void RefreshElapsed(DateTimeOffset now)
-    {
-        if (IsUndoSendPending && _job.UndoSendExpiresAt is { } expiresAt)
-        {
-            var remainingSeconds = Math.Max(0, (int)Math.Ceiling((expiresAt - now).TotalSeconds));
-            var remainingText = $"{remainingSeconds}s";
-            if (remainingText != _undoSendRemainingText)
-            {
-                _undoSendRemainingText = remainingText;
-                OnPropertyChanged(nameof(UndoSendRemainingText));
-            }
-            return;
-        }
-
-        var elapsedUntil = _job.CompletedAt ?? now;
-        var elapsedFrom = _job.ProviderSubmittedAt ?? _job.RequestedAt;
-        var elapsed = elapsedUntil > elapsedFrom ? elapsedUntil - elapsedFrom : TimeSpan.Zero;
-        var text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
-        if (text == _elapsedText) return;
-        _elapsedText = text;
-        OnPropertyChanged(nameof(ElapsedText));
-    }
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
