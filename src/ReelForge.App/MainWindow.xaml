@@ -4,6 +4,7 @@
         xmlns:local="clr-namespace:ReelForge.App"
         xmlns:jobs="clr-namespace:ReelForge.App.Views.Jobs"
         xmlns:generation="clr-namespace:ReelForge.App.Views.Generation"
+        xmlns:editing="clr-namespace:ReelForge.App.Views.Editing"
         xmlns:inspector="clr-namespace:ReelForge.App.Views.Inspector"
         xmlns:projectMedia="clr-namespace:ReelForge.App.Views.ProjectMedia"
         Title="ReelForge" Height="900" Width="1440"
@@ -97,36 +98,6 @@
                                 <Setter TargetName="ModeBorder" Property="Background" Value="{StaticResource AccentBrush}" />
                                 <Setter TargetName="ModeBorder" Property="BorderBrush" Value="#A89BFF" />
                                 <Setter Property="Foreground" Value="White" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="CompositionAudioChoiceStyle" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="ChoiceBorder" Background="#1C202B"
-                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                CornerRadius="3" Padding="9,5" Margin="2,0">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ChoiceBorder" Property="Background" Value="#292D3A" />
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="ChoiceBorder" Property="Background" Value="{StaticResource AccentBrush}" />
-                                <Setter TargetName="ChoiceBorder" Property="BorderBrush" Value="#A89BFF" />
-                                <Setter Property="Foreground" Value="White" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.5" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -595,179 +566,12 @@
                                                     SubmitRequested="GenerationPanel_SubmitRequested" />
                     </TabItem>
                     <TabItem x:Name="EditToolsTab" Header="Edit Tools" Visibility="Collapsed">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Margin="12">
-                                <TextBlock Text="EDIT TOOLS" FontWeight="SemiBold"
-                                           Foreground="{StaticResource MutedTextBrush}" />
-
-                                <StackPanel x:Name="EditToolsEmptyState" Margin="0,18,0,0">
-                                    <TextBlock Text="Select something in the timeline"
-                                               Style="{StaticResource ApplicationTextBlockStyle}"
-                                               FontSize="17" FontWeight="SemiBold" />
-                                    <TextBlock Text="Select a video segment or audio clip to edit its composition properties. Arrangement actions such as insert, remove, and reorder stay on the timeline."
-                                               TextWrapping="Wrap" Margin="0,6,0,0"
-                                               Foreground="{StaticResource MutedTextBrush}" />
-                                </StackPanel>
-
-                                <StackPanel x:Name="VideoSegmentEditTools" Visibility="Collapsed" Margin="0,14,0,0">
-                                    <TextBlock Text="VIDEO SEGMENT" Foreground="{StaticResource MutedTextBrush}"
-                                               FontSize="11" FontWeight="SemiBold" />
-                                    <TextBlock x:Name="EditVideoSegmentNameText"
-                                               Style="{StaticResource ApplicationTextBlockStyle}"
-                                               FontSize="17" FontWeight="SemiBold" Margin="0,4,0,10"
-                                               TextWrapping="Wrap" />
-
-                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
-                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
-                                        <StackPanel>
-                                            <TextBlock Text="CLIP / SOURCE" Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="11" FontWeight="SemiBold" />
-                                            <TextBlock x:Name="EditVideoSegmentSourceText" TextWrapping="Wrap"
-                                                       Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
-                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
-                                        <StackPanel>
-                                            <TextBlock Text="AUDIO" Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="11" FontWeight="SemiBold" />
-                                            <TextBlock Text="Use this segment's source audio in the composition."
-                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,8"
-                                                       Foreground="{StaticResource MutedTextBrush}" />
-                                            <StackPanel x:Name="EditSegmentAudioControls" Orientation="Horizontal">
-                                                <RadioButton x:Name="CompositionSegmentAudioOnButton" Content="On"
-                                                             GroupName="CompositionSegmentAudio"
-                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
-                                                             Checked="CompositionSegmentAudio_Checked" />
-                                                <RadioButton x:Name="CompositionSegmentAudioMutedButton" Content="Muted"
-                                                             GroupName="CompositionSegmentAudio"
-                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
-                                                             Checked="CompositionSegmentAudio_Checked" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
-                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
-                                        <StackPanel>
-                                            <TextBlock Text="TRANSFORM" Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="11" FontWeight="SemiBold" />
-                                            <TextBlock Text="No transform is applied. Transform controls arrive in a later editing slice."
-                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
-                                                       Foreground="{StaticResource MutedTextBrush}" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
-                                            BorderThickness="1" CornerRadius="4" Padding="10">
-                                        <StackPanel>
-                                            <TextBlock Text="TIMING" Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="11" FontWeight="SemiBold" />
-                                            <TextBlock x:Name="EditVideoSegmentTimingText" TextWrapping="Wrap"
-                                                       Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-
-                                <StackPanel x:Name="AudioClipEditTools" Visibility="Collapsed" Margin="0,14,0,0">
-                                    <TextBlock Text="AUDIO CLIP" Foreground="{StaticResource MutedTextBrush}"
-                                               FontSize="11" FontWeight="SemiBold" />
-                                    <TextBlock x:Name="EditAudioClipNameText"
-                                               Style="{StaticResource ApplicationTextBlockStyle}"
-                                               FontSize="17" FontWeight="SemiBold" Margin="0,4,0,10"
-                                               TextWrapping="Wrap" />
-
-                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
-                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
-                                        <StackPanel>
-                                            <TextBlock Text="TIMING" Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="11" FontWeight="SemiBold" />
-                                            <TextBlock x:Name="EditAudioClipTimingText" TextWrapping="Wrap"
-                                                       Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
-                                            BorderThickness="1" CornerRadius="4" Padding="10">
-                                        <StackPanel>
-                                            <TextBlock Text="AUDIO" Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="11" FontWeight="SemiBold" />
-                                            <TextBlock Text="Include this audio clip in the composition mix."
-                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,7"
-                                                       Foreground="{StaticResource MutedTextBrush}" />
-                                            <StackPanel Orientation="Horizontal">
-                                                <RadioButton x:Name="CompositionAudioClipEnabledButton" Content="On"
-                                                             GroupName="CompositionAudioClipEnabled"
-                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
-                                                             Checked="CompositionAudioClipEnabled_Checked" />
-                                                <RadioButton x:Name="CompositionAudioClipMutedButton" Content="Muted"
-                                                             GroupName="CompositionAudioClipEnabled"
-                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
-                                                             Checked="CompositionAudioClipEnabled_Checked" />
-                                            </StackPanel>
-                                            <TextBlock Text="Gain" Style="{StaticResource ApplicationTextBlockStyle}"
-                                                       Margin="0,12,0,4" />
-                                            <DockPanel>
-                                                <TextBlock x:Name="CompositionAudioClipGainText" DockPanel.Dock="Right"
-                                                           Width="52" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
-                                                <Slider x:Name="CompositionAudioClipGainSlider"
-                                                        Minimum="-60" Maximum="12" Value="0"
-                                                        TickFrequency="1" IsSnapToTickEnabled="True"
-                                                        SmallChange="1" LargeChange="6"
-                                                        ValueChanged="CompositionAudioClipGainSlider_ValueChanged"
-                                                        PreviewMouseLeftButtonUp="CompositionAudioClipGainSlider_PreviewMouseLeftButtonUp"
-                                                        KeyUp="CompositionAudioClipGainSlider_KeyUp" />
-                                            </DockPanel>
-                                            <TextBlock Text="Pan" Style="{StaticResource ApplicationTextBlockStyle}"
-                                                       Margin="0,12,0,4" />
-                                            <DockPanel>
-                                                <TextBlock x:Name="CompositionAudioClipPanText" DockPanel.Dock="Right"
-                                                           Width="72" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
-                                                <Slider x:Name="CompositionAudioClipPanSlider"
-                                                        Minimum="-1" Maximum="1" Value="0"
-                                                        TickFrequency="0.05" IsSnapToTickEnabled="True"
-                                                        SmallChange="0.05" LargeChange="0.25"
-                                                        ValueChanged="CompositionAudioClipPanSlider_ValueChanged"
-                                                        PreviewMouseLeftButtonUp="CompositionAudioClipPanSlider_PreviewMouseLeftButtonUp"
-                                                        KeyUp="CompositionAudioClipPanSlider_KeyUp" />
-                                            </DockPanel>
-                                            <TextBlock Text="Fade in" Style="{StaticResource ApplicationTextBlockStyle}"
-                                                       Margin="0,12,0,4" />
-                                            <DockPanel>
-                                                <TextBlock x:Name="CompositionAudioClipFadeInText" DockPanel.Dock="Right"
-                                                           Width="58" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
-                                                <Slider x:Name="CompositionAudioClipFadeInSlider"
-                                                        Minimum="0" Maximum="30" Value="0"
-                                                        TickFrequency="0.1" SmallChange="0.1" LargeChange="1"
-                                                        ValueChanged="CompositionAudioClipFadeSlider_ValueChanged"
-                                                        PreviewMouseLeftButtonUp="CompositionAudioClipFadeSlider_PreviewMouseLeftButtonUp"
-                                                        KeyUp="CompositionAudioClipFadeSlider_KeyUp" />
-                                            </DockPanel>
-                                            <TextBlock Text="Fade out" Style="{StaticResource ApplicationTextBlockStyle}"
-                                                       Margin="0,12,0,4" />
-                                            <DockPanel>
-                                                <TextBlock x:Name="CompositionAudioClipFadeOutText" DockPanel.Dock="Right"
-                                                           Width="58" TextAlignment="Right" VerticalAlignment="Center"
-                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
-                                                <Slider x:Name="CompositionAudioClipFadeOutSlider"
-                                                        Minimum="0" Maximum="30" Value="0"
-                                                        TickFrequency="0.1" SmallChange="0.1" LargeChange="1"
-                                                        ValueChanged="CompositionAudioClipFadeSlider_ValueChanged"
-                                                        PreviewMouseLeftButtonUp="CompositionAudioClipFadeSlider_PreviewMouseLeftButtonUp"
-                                                        KeyUp="CompositionAudioClipFadeSlider_KeyUp" />
-                                            </DockPanel>
-                                            <TextBlock Text="Gain, pan, and fade changes are committed when you release a slider or complete a keyboard adjustment. Audio is normalized to a 48 kHz stereo mix. Fade out follows the audible end when the composition cuts a longer audio file short."
-                                                       TextWrapping="Wrap" FontSize="10" Margin="0,5,0,0"
-                                                       Foreground="{StaticResource MutedTextBrush}" />
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </StackPanel>
-                        </ScrollViewer>
+                        <editing:EditToolsPanel x:Name="EditToolsPanelControl"
+                                                SegmentAudioChanged="EditToolsPanel_SegmentAudioChanged"
+                                                AudioClipMutedChanged="EditToolsPanel_AudioClipMutedChanged"
+                                                AudioClipGainCommitted="EditToolsPanel_AudioClipGainCommitted"
+                                                AudioClipPanCommitted="EditToolsPanel_AudioClipPanCommitted"
+                                                AudioClipFadesCommitted="EditToolsPanel_AudioClipFadesCommitted" />
                     </TabItem>
                 </TabControl>
                     <jobs:GenerationJobsPanel x:Name="JobsPanelControl" Visibility="Collapsed" Margin="8"

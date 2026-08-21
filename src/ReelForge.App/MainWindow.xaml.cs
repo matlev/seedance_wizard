@@ -16,6 +16,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using ReelForge.App.Bootstrap;
 using ReelForge.App.Views.Dialogs;
+using ReelForge.App.Views.Editing;
 using ReelForge.App.Views.Generation;
 using ReelForge.App.Views.Inspector;
 using ReelForge.App.Views.Jobs;
@@ -133,8 +134,6 @@ public partial class MainWindow : Window, IDisposable
     private double _pendingCompositionAuditionAudioPosition;
     private Guid? _selectedCompositionSegmentId;
     private Guid? _selectedCompositionAudioClipId;
-    private bool _suppressCompositionAudioControl;
-    private bool _suppressCompositionAudioClipControl;
     private Guid? _pendingCompositionSegmentDragId;
     private Guid? _activeCompositionSegmentDragId;
     private Point _compositionSegmentDragStart;
@@ -969,10 +968,10 @@ public partial class MainWindow : Window, IDisposable
         });
     }
 
-    private async void CompositionSegmentAudio_Checked(object sender, RoutedEventArgs e)
+    private async void EditToolsPanel_SegmentAudioChanged(object? sender, BooleanValueEventArgs e)
     {
-        if (_suppressCompositionAudioControl || GetSelectedCompositionSegment() is not { } selected) return;
-        var audioEnabled = CompositionSegmentAudioOnButton.IsChecked == true;
+        if (GetSelectedCompositionSegment() is not { } selected) return;
+        var audioEnabled = e.Value;
         if (selected.AudioEnabled == audioEnabled) return;
 
         await RunUiActionAsync("Updating composition source audio…", async () =>
@@ -988,10 +987,10 @@ public partial class MainWindow : Window, IDisposable
         });
     }
 
-    private async void CompositionAudioClipEnabled_Checked(object sender, RoutedEventArgs e)
+    private async void EditToolsPanel_AudioClipMutedChanged(object? sender, BooleanValueEventArgs e)
     {
-        if (_suppressCompositionAudioClipControl || GetSelectedCompositionAudioClip() is not { } selected) return;
-        var isMuted = CompositionAudioClipMutedButton.IsChecked == true;
+        if (GetSelectedCompositionAudioClip() is not { } selected) return;
+        var isMuted = e.Value;
         if (selected.IsMuted == isMuted) return;
 
         await RunUiActionAsync("Updating composition audio clip…", async () =>
@@ -1007,27 +1006,10 @@ public partial class MainWindow : Window, IDisposable
         });
     }
 
-    private void CompositionAudioClipGainSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private async void EditToolsPanel_AudioClipGainCommitted(object? sender, DoubleValueEventArgs e)
     {
-        if (CompositionAudioClipGainText is null) return;
-        CompositionAudioClipGainText.Text = FormatGainDecibels(e.NewValue);
-    }
-
-    private async void CompositionAudioClipGainSlider_PreviewMouseLeftButtonUp(
-        object sender,
-        MouseButtonEventArgs e) =>
-        await CommitSelectedCompositionAudioClipGainAsync();
-
-    private async void CompositionAudioClipGainSlider_KeyUp(object sender, KeyEventArgs e)
-    {
-        if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
-            await CommitSelectedCompositionAudioClipGainAsync();
-    }
-
-    private async Task CommitSelectedCompositionAudioClipGainAsync()
-    {
-        if (_suppressCompositionAudioClipControl || GetSelectedCompositionAudioClip() is not { } selected) return;
-        var gainDecibels = CompositionAudioClipGainSlider.Value;
+        if (GetSelectedCompositionAudioClip() is not { } selected) return;
+        var gainDecibels = e.Value;
         if (Math.Abs(selected.GainDecibels - gainDecibels) < 0.000_001) return;
 
         await RunUiActionAsync("Updating composition audio gain…", async () =>
@@ -1038,33 +1020,14 @@ public partial class MainWindow : Window, IDisposable
             _selectedCompositionAudioClipId = selected.AudioClipId;
             RefreshEditWorkspaceState();
             StatusText.Text =
-                $"Set {selected.DisplayName} gain to {FormatGainDecibels(gainDecibels)}. Preview the composition to rebuild it.";
+                $"Set {selected.DisplayName} gain to {EditToolsPanel.FormatGainDecibels(gainDecibels)}. Preview the composition to rebuild it.";
         });
     }
 
-    private void CompositionAudioClipPanSlider_ValueChanged(
-        object sender,
-        RoutedPropertyChangedEventArgs<double> e)
+    private async void EditToolsPanel_AudioClipPanCommitted(object? sender, DoubleValueEventArgs e)
     {
-        if (CompositionAudioClipPanText is null) return;
-        CompositionAudioClipPanText.Text = FormatAudioPan(e.NewValue);
-    }
-
-    private async void CompositionAudioClipPanSlider_PreviewMouseLeftButtonUp(
-        object sender,
-        MouseButtonEventArgs e) =>
-        await CommitSelectedCompositionAudioClipPanAsync();
-
-    private async void CompositionAudioClipPanSlider_KeyUp(object sender, KeyEventArgs e)
-    {
-        if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
-            await CommitSelectedCompositionAudioClipPanAsync();
-    }
-
-    private async Task CommitSelectedCompositionAudioClipPanAsync()
-    {
-        if (_suppressCompositionAudioClipControl || GetSelectedCompositionAudioClip() is not { } selected) return;
-        var pan = Math.Round(CompositionAudioClipPanSlider.Value, 2, MidpointRounding.AwayFromZero);
+        if (GetSelectedCompositionAudioClip() is not { } selected) return;
+        var pan = e.Value;
         if (Math.Abs(selected.Pan - pan) < 0.000_001) return;
 
         await RunUiActionAsync("Updating composition audio pan…", async () =>
@@ -1074,39 +1037,15 @@ public partial class MainWindow : Window, IDisposable
             _selectedCompositionAudioClipId = selected.AudioClipId;
             RefreshEditWorkspaceState();
             StatusText.Text =
-                $"Set {selected.DisplayName} pan to {FormatAudioPan(pan)}. Preview the composition to rebuild it.";
+                $"Set {selected.DisplayName} pan to {EditToolsPanel.FormatAudioPan(pan)}. Preview the composition to rebuild it.";
         });
     }
 
-    private void CompositionAudioClipFadeSlider_ValueChanged(
-        object sender,
-        RoutedPropertyChangedEventArgs<double> e)
+    private async void EditToolsPanel_AudioClipFadesCommitted(object? sender, AudioFadesEventArgs e)
     {
-        if (CompositionAudioClipFadeInText is null || CompositionAudioClipFadeOutText is null) return;
-        CompositionAudioClipFadeInText.Text = FormatFadeDuration(CompositionAudioClipFadeInSlider.Value);
-        CompositionAudioClipFadeOutText.Text = FormatFadeDuration(CompositionAudioClipFadeOutSlider.Value);
-    }
-
-    private async void CompositionAudioClipFadeSlider_PreviewMouseLeftButtonUp(
-        object sender,
-        MouseButtonEventArgs e) =>
-        await CommitSelectedCompositionAudioClipFadesAsync();
-
-    private async void CompositionAudioClipFadeSlider_KeyUp(object sender, KeyEventArgs e)
-    {
-        if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
-            await CommitSelectedCompositionAudioClipFadesAsync();
-    }
-
-    private async Task CommitSelectedCompositionAudioClipFadesAsync()
-    {
-        if (_suppressCompositionAudioClipControl || GetSelectedCompositionAudioClip() is not { } selected) return;
-        var fadeIn = TimeSpan.FromMilliseconds(Math.Round(
-            CompositionAudioClipFadeInSlider.Value * 1000,
-            MidpointRounding.AwayFromZero));
-        var fadeOut = TimeSpan.FromMilliseconds(Math.Round(
-            CompositionAudioClipFadeOutSlider.Value * 1000,
-            MidpointRounding.AwayFromZero));
+        if (GetSelectedCompositionAudioClip() is not { } selected) return;
+        var fadeIn = e.FadeIn;
+        var fadeOut = e.FadeOut;
         if (selected.FadeIn == fadeIn && selected.FadeOut == fadeOut) return;
 
         await RunUiActionAsync("Updating composition audio fades…", async () =>
@@ -1117,8 +1056,8 @@ public partial class MainWindow : Window, IDisposable
             _selectedCompositionAudioClipId = selected.AudioClipId;
             RefreshEditWorkspaceState();
             StatusText.Text =
-                $"Set {selected.DisplayName} fades to {FormatFadeDuration(fadeIn.TotalSeconds)} in / " +
-                $"{FormatFadeDuration(fadeOut.TotalSeconds)} out. Preview the composition to rebuild it.";
+                $"Set {selected.DisplayName} fades to {EditToolsPanel.FormatFadeDuration(fadeIn.TotalSeconds)} in / " +
+                $"{EditToolsPanel.FormatFadeDuration(fadeOut.TotalSeconds)} out. Preview the composition to rebuild it.";
         });
     }
 
@@ -2247,18 +2186,6 @@ public partial class MainWindow : Window, IDisposable
             : time.ToString(@"mm\:ss\.fff", CultureInfo.InvariantCulture);
     }
 
-    private static string FormatGainDecibels(double gainDecibels) =>
-        $"{(gainDecibels > 0 ? "+" : string.Empty)}{gainDecibels:0} dB";
-
-    private static string FormatAudioPan(double pan)
-    {
-        if (Math.Abs(pan) < 0.000_001) return "Center";
-        return $"{Math.Round(Math.Abs(pan) * 100):0}% {(pan < 0 ? "left" : "right")}";
-    }
-
-    private static string FormatFadeDuration(double seconds) =>
-        $"{Math.Max(0, seconds):0.###}s";
-
     private void UpdateCompositionActionState()
     {
         var index = _selectedCompositionSegmentId is { } selectedId
@@ -2267,74 +2194,26 @@ public partial class MainWindow : Window, IDisposable
         var selectedSegment = index >= 0 ? _compositionSegments[index] : null;
         PreviewCompositionButton.IsEnabled = _compositionSegments.Count > 0 && _compositionRenderCancellation is null;
         ExportCompositionButton.IsEnabled = _compositionSegments.Count > 0 && _compositionRenderCancellation is null;
-        if (EditToolsEmptyState is null) return;
-        _suppressCompositionAudioControl = true;
-        try
-        {
-            var selectedAudio = GetSelectedCompositionAudioClip();
-            EditToolsEmptyState.Visibility = selectedSegment is null && selectedAudio is null
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            VideoSegmentEditTools.Visibility = selectedSegment is null
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            AudioClipEditTools.Visibility = selectedAudio is null
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-
-            if (selectedSegment is not null)
-            {
-                EditVideoSegmentNameText.Text = selectedSegment.DisplayName;
-                EditVideoSegmentSourceText.Text = selectedSegment.DetailText;
-                EditVideoSegmentTimingText.Text =
-                    $"{selectedSegment.DurationText} • position {selectedSegment.Index + 1} of {_compositionSegments.Count} on the sequential video track";
-            }
-
-            if (selectedAudio is not null)
-            {
-                EditAudioClipNameText.Text = selectedAudio.DisplayName;
-                EditAudioClipTimingText.Text =
-                    $"Starts at {FormatTimelineTimePrecise(selectedAudio.TimelineStart.TotalSeconds)} • {selectedAudio.DurationText}";
-            }
-
-            CompositionSegmentAudioOnButton.IsChecked = selectedSegment?.AudioEnabled == true;
-            CompositionSegmentAudioMutedButton.IsChecked = selectedSegment is { AudioEnabled: false };
-        }
-        finally
-        {
-            _suppressCompositionAudioControl = false;
-        }
-
-        _suppressCompositionAudioClipControl = true;
-        try
-        {
-            var selectedAudio = GetSelectedCompositionAudioClip();
-            CompositionAudioClipEnabledButton.IsChecked = selectedAudio is { IsMuted: false };
-            CompositionAudioClipMutedButton.IsChecked = selectedAudio?.IsMuted == true;
-            CompositionAudioClipGainSlider.Value = selectedAudio?.GainDecibels ?? 0;
-            CompositionAudioClipGainSlider.IsEnabled = selectedAudio is not null;
-            CompositionAudioClipGainText.Text = FormatGainDecibels(selectedAudio?.GainDecibels ?? 0);
-            CompositionAudioClipPanSlider.Value = selectedAudio?.Pan ?? 0;
-            CompositionAudioClipPanSlider.IsEnabled = selectedAudio is not null;
-            CompositionAudioClipPanText.Text = FormatAudioPan(selectedAudio?.Pan ?? 0);
-            var maxFadeSeconds = GetMaximumAudioFadeSeconds(selectedAudio);
-            CompositionAudioClipFadeInSlider.Maximum = Math.Max(
-                maxFadeSeconds,
-                selectedAudio?.FadeIn.TotalSeconds ?? 0);
-            CompositionAudioClipFadeOutSlider.Maximum = Math.Max(
-                maxFadeSeconds,
-                selectedAudio?.FadeOut.TotalSeconds ?? 0);
-            CompositionAudioClipFadeInSlider.Value = selectedAudio?.FadeIn.TotalSeconds ?? 0;
-            CompositionAudioClipFadeOutSlider.Value = selectedAudio?.FadeOut.TotalSeconds ?? 0;
-            CompositionAudioClipFadeInSlider.IsEnabled = selectedAudio is not null && maxFadeSeconds > 0;
-            CompositionAudioClipFadeOutSlider.IsEnabled = selectedAudio is not null && maxFadeSeconds > 0;
-            CompositionAudioClipFadeInText.Text = FormatFadeDuration(selectedAudio?.FadeIn.TotalSeconds ?? 0);
-            CompositionAudioClipFadeOutText.Text = FormatFadeDuration(selectedAudio?.FadeOut.TotalSeconds ?? 0);
-        }
-        finally
-        {
-            _suppressCompositionAudioClipControl = false;
-        }
+        var selectedAudio = GetSelectedCompositionAudioClip();
+        var videoState = selectedSegment is null
+            ? null
+            : new VideoSegmentEditState(
+                selectedSegment.DisplayName,
+                selectedSegment.DetailText,
+                $"{selectedSegment.DurationText} • position {selectedSegment.Index + 1} of {_compositionSegments.Count} on the sequential video track",
+                selectedSegment.AudioEnabled);
+        var audioState = selectedAudio is null
+            ? null
+            : new AudioClipEditState(
+                selectedAudio.DisplayName,
+                $"Starts at {FormatTimelineTimePrecise(selectedAudio.TimelineStart.TotalSeconds)} • {selectedAudio.DurationText}",
+                selectedAudio.IsMuted,
+                selectedAudio.GainDecibels,
+                selectedAudio.Pan,
+                selectedAudio.FadeIn,
+                selectedAudio.FadeOut,
+                GetMaximumAudioFadeSeconds(selectedAudio));
+        EditToolsPanelControl.ShowSelection(videoState, audioState);
     }
 
     private double GetMaximumAudioFadeSeconds(CompositionAudioClipListItem? selectedAudio)
