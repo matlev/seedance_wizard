@@ -59,7 +59,8 @@
                         ValueChanged="PositionSlider_ValueChanged"
                         PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
                         PreviewMouseMove="PositionSlider_PreviewMouseMove"
-                        PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp" />
+                        PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp"
+                        LostMouseCapture="PositionSlider_LostMouseCapture" />
                 <TextBlock x:Name="TimeText" Grid.Column="4"
                            Style="{StaticResource ApplicationTextBlockStyle}"
                            Text="00:00 / 00:00" VerticalAlignment="Center" Margin="6,0,10,0" />

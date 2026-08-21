@@ -82,6 +82,10 @@ public partial class MainWindow : Window, IDisposable
     private readonly CompositionAuditionController _compositionAuditionController;
     private Guid? _activeCompositionPreviewRevisionId;
     private double? _pendingCompositionTimelineSeekSeconds;
+    private long _compositionTimelineSeekGeneration;
+    private long? _activeCompositionTimelineSeekGeneration;
+    private long? _activeMediaPreviewScrubGeneration;
+    private double _activeCompositionTimelineSeekSeconds;
     private Guid? _selectedCompositionSegmentId;
     private Guid? _selectedCompositionAudioClipId;
     private bool _disposed;
@@ -1039,8 +1043,14 @@ public partial class MainWindow : Window, IDisposable
         PreviewCompositionButton.IsEnabled = false;
         ExportCompositionButton.IsEnabled = false;
         StatusText.Text = activeStatus;
+        var previewWasHitTestVisible = MediaPreviewPanelControl.IsHitTestVisible;
+        var timelineWasHitTestVisible = CompositionTimelineControl.IsHitTestVisible;
+        IDisposable? auditionQuiescence = null;
         try
         {
+            MediaPreviewPanelControl.IsHitTestVisible = false;
+            CompositionTimelineControl.IsHitTestVisible = false;
+            auditionQuiescence = await _compositionAuditionController.PauseAndQuiesceAsync(cancellation.Token);
             await action(cancellation.Token);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -1053,6 +1063,9 @@ public partial class MainWindow : Window, IDisposable
         }
         finally
         {
+            auditionQuiescence?.Dispose();
+            MediaPreviewPanelControl.IsHitTestVisible = previewWasHitTestVisible;
+            CompositionTimelineControl.IsHitTestVisible = timelineWasHitTestVisible;
             if (ReferenceEquals(_compositionRenderCancellation, cancellation))
                 _compositionRenderCancellation = null;
             CompositionRenderIndicator.Visibility = Visibility.Collapsed;
@@ -1439,20 +1452,61 @@ public partial class MainWindow : Window, IDisposable
         switch (e.Phase)
         {
             case CompositionTimelineSeekPhase.Started:
+                _activeMediaPreviewScrubGeneration = null;
+                BeginCompositionTimelineSeek(e.Seconds);
                 MediaPreviewPanelControl.Pause();
                 SeekCompositionTimeline(e.Seconds);
                 break;
             case CompositionTimelineSeekPhase.Changed:
+                EnsureCompositionTimelineSeek(e.Seconds);
                 SeekCompositionTimeline(e.Seconds);
                 break;
             case CompositionTimelineSeekPhase.Completed:
+                var generation = EnsureCompositionTimelineSeek(e.Seconds);
                 SeekCompositionTimeline(e.Seconds);
-                await CompleteCompositionTimelineScrubAsync(e.ResumePlayback);
+                try
+                {
+                    await CompleteCompositionTimelineScrubAsync(e.ResumePlayback);
+                }
+                finally
+                {
+                    CompleteCompositionTimelineSeek(generation);
+                }
                 break;
             case CompositionTimelineSeekPhase.Cancelled:
                 CancelCompositionTimelineScrub();
+                CompleteCompositionTimelineSeek(_activeCompositionTimelineSeekGeneration);
                 break;
         }
+    }
+
+    private long BeginCompositionTimelineSeek(double seconds)
+    {
+        var generation = ++_compositionTimelineSeekGeneration;
+        _activeCompositionTimelineSeekGeneration = generation;
+        _activeCompositionTimelineSeekSeconds = seconds;
+        return generation;
+    }
+
+    private long EnsureCompositionTimelineSeek(double seconds)
+    {
+        _activeCompositionTimelineSeekSeconds = seconds;
+        return _activeCompositionTimelineSeekGeneration ?? BeginCompositionTimelineSeek(seconds);
+    }
+
+    private void CompleteCompositionTimelineSeek(long? generation)
+    {
+        if (generation is not null && _activeCompositionTimelineSeekGeneration == generation)
+            _activeCompositionTimelineSeekGeneration = null;
+        if (generation is not null && _activeMediaPreviewScrubGeneration == generation)
+            _activeMediaPreviewScrubGeneration = null;
+    }
+
+    private void ResetCompositionTimelineSeek()
+    {
+        _compositionTimelineSeekGeneration++;
+        _activeCompositionTimelineSeekGeneration = null;
+        _activeMediaPreviewScrubGeneration = null;
     }
 
     private async void CompositionTimeline_SegmentReorderRequested(
@@ -2651,8 +2705,12 @@ public partial class MainWindow : Window, IDisposable
 
     private void CompositionAudition_PositionChanged(
         object? sender,
-        CompositionAuditionPositionChangedEventArgs e) =>
-        UpdateCompositionTimelinePlayback(e.PositionSeconds);
+        CompositionAuditionPositionChangedEventArgs e)
+    {
+        if (_activeCompositionTimelineSeekGeneration is null &&
+            !_compositionAuditionController.IsQuiesced)
+            UpdateCompositionTimelinePlayback(e.PositionSeconds);
+    }
 
     private void ClearMediaPreview()
     {
@@ -2660,6 +2718,7 @@ public partial class MainWindow : Window, IDisposable
         _compositionAuditionController.Reset();
         MediaPreviewPanelControl.Reset();
         CompositionTimelineControl.CancelInteractions();
+        ResetCompositionTimelineSeek();
         UpdateCompositionTimelinePlayback(0);
     }
 
@@ -2682,6 +2741,9 @@ public partial class MainWindow : Window, IDisposable
 
     private async void MediaPreview_PlaybackEnded(object? sender, EventArgs e)
     {
+        if (_activeCompositionTimelineSeekGeneration is not null ||
+            _compositionAuditionController.IsQuiesced)
+            return;
         if (_compositionAuditionController.IsActive &&
             await _compositionAuditionController.AdvanceAsync())
             return;
@@ -2775,10 +2837,22 @@ public partial class MainWindow : Window, IDisposable
     private bool IsAtVideoEnd() =>
         MediaPreviewPanelControl.IsAtVideoEnd(TimeSpan.FromMilliseconds(10));
 
+    private void MediaPreview_ScrubStarted(object? sender, MediaPreviewPositionEventArgs e)
+    {
+        if (!_compositionAuditionController.IsActive) return;
+        var generation = BeginCompositionTimelineSeek(e.PositionSeconds);
+        _activeMediaPreviewScrubGeneration = generation;
+        _compositionAuditionController.CancelQueuedSeek();
+    }
+
     private void MediaPreview_ScrubPositionChanged(object? sender, MediaPreviewPositionEventArgs e)
     {
         if (_compositionAuditionController.IsActive)
         {
+            if (_activeMediaPreviewScrubGeneration is not { } generation ||
+                _activeCompositionTimelineSeekGeneration != generation)
+                return;
+            _activeCompositionTimelineSeekSeconds = e.PositionSeconds;
             _compositionAuditionController.QueueSeek(e.PositionSeconds);
             UpdateCompositionTimelinePlayback(e.PositionSeconds);
             return;
@@ -2789,7 +2863,23 @@ public partial class MainWindow : Window, IDisposable
     private async void MediaPreview_ScrubCompleted(object? sender, MediaPreviewScrubCompletedEventArgs e)
     {
         if (_compositionAuditionController.IsActive)
-            await _compositionAuditionController.CommitSeekAsync(e.PositionSeconds, e.ResumePlayback);
+        {
+            if (_activeMediaPreviewScrubGeneration is not { } generation ||
+                _activeCompositionTimelineSeekGeneration != generation)
+            {
+                _compositionAuditionController.CancelQueuedSeek();
+                return;
+            }
+            _activeCompositionTimelineSeekSeconds = e.PositionSeconds;
+            try
+            {
+                await _compositionAuditionController.CommitSeekAsync(e.PositionSeconds, e.ResumePlayback);
+            }
+            finally
+            {
+                CompleteCompositionTimelineSeek(generation);
+            }
+        }
         else
             SeekPreview(e.PositionSeconds);
         if (e.ResumePlayback && !_compositionAuditionController.IsActive)
@@ -2801,6 +2891,13 @@ public partial class MainWindow : Window, IDisposable
             MediaPreviewPanelControl.Pause();
         }
         ScheduleContactFrameRefresh(e.PositionSeconds);
+    }
+
+    private void MediaPreview_ScrubCancelled(object? sender, EventArgs e)
+    {
+        if (_activeMediaPreviewScrubGeneration is not { } generation) return;
+        _compositionAuditionController.CancelQueuedSeek();
+        CompleteCompositionTimelineSeek(generation);
     }
 
     private void SeekPreview(double seconds)
@@ -2832,6 +2929,19 @@ public partial class MainWindow : Window, IDisposable
 
         var mediaPosition = MediaPreviewPanelControl.MediaPosition;
         var mediaDuration = MediaPreviewPanelControl.MediaDuration;
+
+        if (_compositionAuditionController.IsQuiesced)
+        {
+            MediaPreviewPanelControl.ShowTimelinePosition(_compositionAuditionController.PositionSeconds);
+            return;
+        }
+
+        if (_compositionAuditionController.IsActive &&
+            _activeCompositionTimelineSeekGeneration is not null)
+        {
+            MediaPreviewPanelControl.ShowTimelinePosition(_activeCompositionTimelineSeekSeconds);
+            return;
+        }
 
         if (MediaPreviewPanelControl.IsPlaying && _compositionAuditionController.IsActive)
         {

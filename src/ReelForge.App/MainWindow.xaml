@@ -183,8 +183,10 @@
                                                 PlaybackRequested="Playback_Click"
                                                 PreviousFrameRequested="PreviousFrame_Click"
                                                 NextFrameRequested="NextFrame_Click"
+                                                ScrubStarted="MediaPreview_ScrubStarted"
                                                 ScrubPositionChanged="MediaPreview_ScrubPositionChanged"
                                                 ScrubCompleted="MediaPreview_ScrubCompleted"
+                                                ScrubCancelled="MediaPreview_ScrubCancelled"
                                                 PositionTick="MediaPreview_PositionTick" />
 
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" />

@@ -63,8 +63,10 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
     public event EventHandler? PlaybackRequested;
     public event EventHandler? PreviousFrameRequested;
     public event EventHandler? NextFrameRequested;
+    public event EventHandler<MediaPreviewPositionEventArgs>? ScrubStarted;
     public event EventHandler<MediaPreviewPositionEventArgs>? ScrubPositionChanged;
     public event EventHandler<MediaPreviewScrubCompletedEventArgs>? ScrubCompleted;
+    public event EventHandler? ScrubCancelled;
     public event EventHandler? PositionTick;
 
     public void OpenVideo(
@@ -121,6 +123,12 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
         VideoPreview.Pause();
         if (includeAuditionAudio) _auditionAudio.Pause();
         SetPlaying(false);
+    }
+
+    public void PauseAndCancelDeferredPlayback()
+    {
+        _playAfterPriming = false;
+        Pause();
     }
 
     public void SeekVideo(double seconds)
@@ -380,8 +388,17 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
         _isScrubbing = true;
         Pause();
         PositionSlider.CaptureMouse();
+        ScrubStarted?.Invoke(this, new MediaPreviewPositionEventArgs(PositionSlider.Value));
         UpdateScrubPosition(e);
         e.Handled = true;
+    }
+
+    private void PositionSlider_LostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (!_isScrubbing) return;
+        _isScrubbing = false;
+        _resumeAfterScrub = false;
+        ScrubCancelled?.Invoke(this, EventArgs.Empty);
     }
 
     private void PositionSlider_PreviewMouseMove(object sender, MouseEventArgs e)
