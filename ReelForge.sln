@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{667F9217-6D5A-483C-A831-8BFF3898D60C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.Core", "src\ReelForge.Core\ReelForge.Core.csproj", "{6E4741D6-61C6-4157-A512-096E57B74133}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.Application", "src\ReelForge.Application\ReelForge.Application.csproj", "{1EDD3A18-BD11-4122-B7AF-DE27A5D5EA70}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.Infrastructure", "src\ReelForge.Infrastructure\ReelForge.Infrastructure.csproj", "{56839661-CC14-408B-B40C-36044629A83B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.App", "src\ReelForge.App\ReelForge.App.csproj", "{58381A67-8B70-4C4F-AB41-4F797085DD8D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{339921A3-BCD5-4C31-A9A2-08AA1FA20A6A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.Tests", "tests\ReelForge.Tests\ReelForge.Tests.csproj", "{15C2DC8C-2AE4-41FD-9A60-990E804715E3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6E4741D6-61C6-4157-A512-096E57B74133}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E4741D6-61C6-4157-A512-096E57B74133}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E4741D6-61C6-4157-A512-096E57B74133}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E4741D6-61C6-4157-A512-096E57B74133}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1EDD3A18-BD11-4122-B7AF-DE27A5D5EA70}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1EDD3A18-BD11-4122-B7AF-DE27A5D5EA70}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1EDD3A18-BD11-4122-B7AF-DE27A5D5EA70}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1EDD3A18-BD11-4122-B7AF-DE27A5D5EA70}.Release|Any CPU.Build.0 = Release|Any CPU
+		{56839661-CC14-408B-B40C-36044629A83B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{56839661-CC14-408B-B40C-36044629A83B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{56839661-CC14-408B-B40C-36044629A83B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{56839661-CC14-408B-B40C-36044629A83B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{58381A67-8B70-4C4F-AB41-4F797085DD8D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{58381A67-8B70-4C4F-AB41-4F797085DD8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{58381A67-8B70-4C4F-AB41-4F797085DD8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{58381A67-8B70-4C4F-AB41-4F797085DD8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15C2DC8C-2AE4-41FD-9A60-990E804715E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15C2DC8C-2AE4-41FD-9A60-990E804715E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15C2DC8C-2AE4-41FD-9A60-990E804715E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15C2DC8C-2AE4-41FD-9A60-990E804715E3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{6E4741D6-61C6-4157-A512-096E57B74133} = {667F9217-6D5A-483C-A831-8BFF3898D60C}
+		{1EDD3A18-BD11-4122-B7AF-DE27A5D5EA70} = {667F9217-6D5A-483C-A831-8BFF3898D60C}
+		{56839661-CC14-408B-B40C-36044629A83B} = {667F9217-6D5A-483C-A831-8BFF3898D60C}
+		{58381A67-8B70-4C4F-AB41-4F797085DD8D} = {667F9217-6D5A-483C-A831-8BFF3898D60C}
+		{15C2DC8C-2AE4-41FD-9A60-990E804715E3} = {339921A3-BCD5-4C31-A9A2-08AA1FA20A6A}
+	EndGlobalSection
+EndGlobal

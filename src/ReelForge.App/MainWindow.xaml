@@ -1,0 +1,1144 @@
+﻿<Window x:Class="ReelForge.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:ReelForge.App"
+        Title="ReelForge" Height="900" Width="1440"
+        MinHeight="680" MinWidth="1080"
+        AllowDrop="True"
+        PreviewDragEnter="MainWindow_PreviewDragEnter"
+        PreviewDragOver="MainWindow_PreviewDragOver"
+        PreviewDragLeave="MainWindow_PreviewDragLeave"
+        PreviewDrop="MainWindow_PreviewDrop"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <local:PromptPreviewConverter x:Key="PromptPreviewConverter" />
+        <Style x:Key="RightPanelTabItemStyle" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="0,0,0,2"
+                                CornerRadius="4,4,0,0"
+                                Margin="0,0,3,0"
+                                Padding="13,9,13,7">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#222633" />
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#292D3A" />
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="RightPanelTabControlStyle" TargetType="TabControl">
+            <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource RightPanelTabItemStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid KeyboardNavigation.TabNavigation="Local">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TabPanel Grid.Row="0" IsItemsHost="True" Margin="0,0,0,-1"
+                                      KeyboardNavigation.TabIndex="1" Panel.ZIndex="1" />
+                            <Border Grid.Row="1" Background="{TemplateBinding Background}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                                <ContentPresenter x:Name="PART_SelectedContentHost"
+                                                  ContentSource="SelectedContent" />
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="WorkspaceModeButtonStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="ModeBorder" Background="#1C202B" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="3" Padding="18,8" Margin="2,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ModeBorder" Property="Background" Value="#292D3A" />
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ModeBorder" Property="Background" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="ModeBorder" Property="BorderBrush" Value="#A89BFF" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CompositionAudioChoiceStyle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="ChoiceBorder" Background="#1C202B"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="3" Padding="9,5" Margin="2,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ChoiceBorder" Property="Background" Value="#292D3A" />
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ChoiceBorder" Property="Background" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="ChoiceBorder" Property="BorderBrush" Value="#A89BFF" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid x:Name="ApplicationContent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="54" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="28" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <DockPanel Margin="10,5">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Image x:Name="ActiveJobSprite" Width="44" Height="44" Margin="0,0,2,0"
+                           Stretch="Uniform" Visibility="Collapsed"
+                           ToolTip="ReelForge is forging a generation" />
+                    <Button x:Name="JobsChromeButton" Click="JobsChrome_Click" Margin="8,0,4,0"
+                            ToolTip="View generation jobs from any workspace">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Jobs" />
+                            <Ellipse x:Name="JobsActivityIndicator" Width="8" Height="8" Margin="6,0,0,0"
+                                     VerticalAlignment="Center" Fill="#FFD166" Visibility="Collapsed"
+                                     ToolTip="A generation job changed status" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock x:Name="ProjectTitleText" Text="No project open" Foreground="{StaticResource MutedTextBrush}"
+                               VerticalAlignment="Center" Margin="12,0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <TextBlock Text="REELFORGE" Style="{StaticResource ApplicationTextBlockStyle}" FontSize="16" VerticalAlignment="Center" Margin="4,0,18,0" />
+                    <Button x:Name="NewProjectButton" Content="New project" Click="NewProject_Click" />
+                    <Button x:Name="OpenProjectButton" Content="Open" Click="OpenProject_Click" />
+                    <Button x:Name="ImportAssetsButton" Content="Import assets" Click="ImportAssets_Click" />
+                    <Button x:Name="SettingsButton" Content="Settings" Click="Settings_Click" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <RadioButton x:Name="GenerateWorkspaceButton" Content="Generate" GroupName="Workspace"
+                                 Style="{StaticResource WorkspaceModeButtonStyle}" IsChecked="True"
+                                 Checked="WorkspaceMode_Checked" />
+                    <RadioButton x:Name="EditWorkspaceButton" Content="Edit" GroupName="Workspace"
+                                 Style="{StaticResource WorkspaceModeButtonStyle}"
+                                 Checked="WorkspaceMode_Checked" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="270" MinWidth="210" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="370" MinWidth="300" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition x:Name="ProjectMediaRow" Height="2*" MinHeight="80" />
+                        <RowDefinition x:Name="GenerationSplitterRow" Height="5" />
+                        <RowDefinition x:Name="GenerationHistoryRow" Height="*" MinHeight="80" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="PROJECT MEDIA" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,2,4,8" />
+                        <ListBox x:Name="AssetsList" Grid.Row="1" SelectionChanged="AssetsList_SelectionChanged"
+                                 PreviewMouseRightButtonDown="AssetsList_PreviewMouseRightButtonDown"
+                                 PreviewMouseLeftButtonDown="AssetsList_PreviewMouseLeftButtonDown"
+                                 PreviewMouseMove="AssetsList_PreviewMouseMove">
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource MutedTextBrush}" Margin="5,10,4,4" />
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                        <ListBox.ContextMenu>
+                            <ContextMenu Opened="AssetsContextMenu_Opened">
+                                <MenuItem Header="Change filename…" Click="RenameAsset_Click" />
+                                <MenuItem Header="Export…" Click="ExportSelectedMedia_Click" />
+                                <MenuItem Header="Extract audio…" Tag="ExtractAudio" Click="ExtractAudio_Click" />
+                                <Separator />
+                                <MenuItem Header="Copy to Project…" Click="CopyAssetToProject_Click" />
+                                <MenuItem Header="Move to Project…" Click="MoveAssetToProject_Click" />
+                                <Separator />
+                                <MenuItem Header="Delete from Project…" Foreground="#FF9B9B" Click="DeleteAsset_Click" />
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="8" Margin="1" CornerRadius="3">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="48" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="42" Height="30" Background="#0B0D12" BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1" CornerRadius="2" VerticalAlignment="Center">
+                                            <Grid>
+                                                <TextBlock Text="{Binding Glyph}" Foreground="{StaticResource MutedTextBrush}"
+                                                           FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                            </Grid>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="7,0,0,0">
+                                            <TextBlock Text="{Binding DisplayName}" Style="{StaticResource ApplicationTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding KindText}" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                    <GridSplitter x:Name="GenerationPanelSplitter" Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
+                                  ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
+                    <Grid x:Name="GenerationHistoryPanel" Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="GENERATIONS" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="4,8,4,6" />
+                        <ListBox x:Name="GenerationsList" Grid.Row="1" SelectionChanged="GenerationsList_SelectionChanged"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="False" VerticalContentAlignment="Top">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="7,4">
+                                    <TextBlock Text="{Binding RequestSnapshot.Prompt, Converter={StaticResource PromptPreviewConverter}}"
+                                               ToolTip="{Binding RequestSnapshot.Prompt}"
+                                               Style="{StaticResource ApplicationTextBlockStyle}"
+                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
+                                        <TextBlock Text=" / " FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
+                                        <TextBlock Text="{Binding IngestionStatus}" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" />
+
+            <Grid Grid.Column="2" Background="#0B0D12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="280" />
+                    <RowDefinition Height="5" />
+                    <RowDefinition Height="330" MinHeight="220" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Border Margin="16" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Background="#050609">
+                        <Grid>
+                            <TextBlock x:Name="PreviewPlaceholder" Text="Select a video or image asset to preview"
+                                       Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <MediaElement x:Name="VideoPreview" Visibility="Collapsed" LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                          ScrubbingEnabled="True" Volume="1"
+                                          Stretch="Uniform" MediaOpened="VideoPreview_MediaOpened" MediaEnded="VideoPreview_MediaEnded" />
+                            <MediaElement x:Name="CompositionAuditionAudio" Width="1" Height="1" Opacity="0"
+                                          IsHitTestVisible="False" LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                          Volume="1" MediaOpened="CompositionAuditionAudio_MediaOpened"
+                                          MediaFailed="CompositionAuditionAudio_MediaFailed" />
+                            <Image x:Name="ImagePreview" Visibility="Collapsed" Stretch="Uniform" />
+                        </Grid>
+                    </Border>
+                    <Border x:Name="PlaybackControlsBorder" VerticalAlignment="Bottom" Margin="22" Padding="8"
+                            CornerRadius="4" Background="#CC191C25" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="90" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="PlaybackButton" Grid.Column="0" Width="38" Height="32" Padding="5" Margin="0"
+                                    Click="Playback_Click" ToolTip="Play preview" IsEnabled="False"
+                                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                                <Grid Width="19" Height="19">
+                                    <Path x:Name="PlayGlyph" Fill="{StaticResource TextBrush}"
+                                          Stretch="Uniform" Margin="2,1,1,1"
+                                          Data="M 1,0 L 16,8.5 L 1,17 Z" />
+                                    <Path x:Name="PauseGlyph" Fill="{StaticResource TextBrush}" Visibility="Collapsed"
+                                          Stretch="Uniform" Margin="2"
+                                          Data="M 1,0 H 6 V 17 H 1 Z M 11,0 H 16 V 17 H 11 Z" />
+                                </Grid>
+                            </Button>
+                            <Button x:Name="PreviousFrameButton" Grid.Column="1" Width="32" Height="32"
+                                    Padding="4" Margin="5,0,0,0" Click="PreviousFrame_Click"
+                                    ToolTip="Rewind one decoded video frame" IsEnabled="False">
+                                <TextBlock Text="&#xE892;" FontFamily="Segoe Fluent Icons" FontSize="14" />
+                            </Button>
+                            <Button x:Name="NextFrameButton" Grid.Column="2" Width="32" Height="32"
+                                    Padding="4" Margin="3,0,0,0" Click="NextFrame_Click"
+                                    ToolTip="Advance one decoded video frame" IsEnabled="False">
+                                <TextBlock Text="&#xE893;" FontFamily="Segoe Fluent Icons" FontSize="14" />
+                            </Button>
+                            <Slider x:Name="PositionSlider" Grid.Column="3" Minimum="0" Maximum="1" Margin="10,0"
+                                    VerticalAlignment="Center" IsMoveToPointEnabled="False"
+                                    ValueChanged="PositionSlider_ValueChanged"
+                                    PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
+                                    PreviewMouseMove="PositionSlider_PreviewMouseMove"
+                                    PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp" />
+                            <TextBlock x:Name="TimeText" Grid.Column="4" Style="{StaticResource ApplicationTextBlockStyle}"
+                                       Text="00:00 / 00:00" VerticalAlignment="Center" Margin="6,0,10,0" />
+                            <Button x:Name="MuteButton" Grid.Column="5" Content="Mute" Click="Mute_Click"
+                                    Padding="8,4" ToolTip="Mute or unmute preview audio" />
+                            <Slider x:Name="VolumeSlider" Grid.Column="6" Minimum="0" Maximum="1" Value="1"
+                                    SmallChange="0.05" LargeChange="0.1" Margin="6,0,2,0" VerticalAlignment="Center"
+                                    ValueChanged="VolumeSlider_ValueChanged" ToolTip="Preview volume" />
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" />
+
+                <Border x:Name="GenerateLowerWorkspace" Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <Grid>
+                    <StackPanel x:Name="MediaPreparationHome" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
+                        <TextBlock Text="MEDIA PREPARATION" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="MediaPreparationSelectionText" Text="Select a video in Project Media"
+                                   Style="{StaticResource ApplicationTextBlockStyle}" FontSize="18" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" Margin="0,13,0,6" />
+                        <TextBlock Text="Choose an operation when you want ReelForge to perform precise media work. Ordinary preview does not index or extract frames."
+                                   TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0">
+                            <Button x:Name="SelectFrameButton" Content="Select Frame" Click="SelectFrame_Click" IsEnabled="False"
+                                    ToolTip="Inspect exact decoded frames around the current playhead" />
+                            <Button x:Name="MakeClipButton" Content="Make Clip" Click="MakeClip_Click" IsEnabled="False"
+                                    ToolTip="Create a non-destructive Saved Clip using exact boundaries" />
+                        </StackPanel>
+                    </StackPanel>
+                    <ScrollViewer x:Name="PrecisionFramePanel" Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  CanContentScroll="False">
+                    <Grid Margin="14,14,6,14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="100" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Left" Content="← Media preparation" Click="ExitFrameSelection_Click" Margin="0,0,10,0" />
+                            <TextBlock x:Name="PrecisionOperationTitle" Text="SELECT FRAME" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="FrameWorkspaceStatusText" Text="Select a physical video" HorizontalAlignment="Right"
+                                       Foreground="{StaticResource MutedTextBrush}" />
+                        </DockPanel>
+                        <DockPanel Grid.Row="1" Margin="0,8,0,6">
+                            <WrapPanel x:Name="FrameSelectionActions">
+                                <Button Content="First frame" Click="SelectFirstFrame_Click" Margin="0,0,6,0" />
+                                <Button Content="Last frame" Click="SelectLastFrame_Click" Margin="0,0,6,0" />
+                                <Button Content="Save selected frame" Click="SaveSelectedFrame_Click"
+                                        Background="{StaticResource AccentBrush}" Foreground="White" />
+                            </WrapPanel>
+                            <WrapPanel x:Name="ClipSelectionActions" Visibility="Collapsed">
+                                <Button Content="Start at beginning" Click="UseSourceStart_Click" Margin="0,0,6,0" />
+                                <Button Content="Set start here" Click="SetClipStart_Click" Margin="0,0,6,0" />
+                                <Button Content="Set end here" Click="SetClipEnd_Click" Margin="0,0,6,0" />
+                                <Button Content="End at video end" Click="UseSourceEnd_Click" />
+                            </WrapPanel>
+                        </DockPanel>
+                        <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Background="#11141B">
+                            <Grid>
+                                <TextBlock x:Name="ContactFramesEmptyText" Text="Select a video to browse exact decoded frames."
+                                           Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <ListBox x:Name="ContactFramesList" SelectionChanged="ContactFramesList_SelectionChanged"
+                                         PreviewKeyDown="ContactFramesList_PreviewKeyDown"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                         Background="Transparent" BorderThickness="0" Padding="4">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Width="112" Margin="2">
+                                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="#050609" Height="62">
+                                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                                </Border>
+                                                <TextBlock Text="{Binding TimestampText}" FontSize="10" TextAlignment="Center"
+                                                           Foreground="{StaticResource MutedTextBrush}" Margin="0,3,0,0" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+                        <TextBlock x:Name="SavedFramesHeading" Grid.Row="3" Text="SAVED FRAMES" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,5" />
+                        <Grid x:Name="SavedFramesWorkspace" Grid.Row="4" MinHeight="140">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="300" />
+                            </Grid.ColumnDefinitions>
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Background="#11141B">
+                                <Grid>
+                                    <TextBlock x:Name="SavedFramesEmptyText" Text="No Saved Frames yet."
+                                               Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <ListBox x:Name="SavedFramesList" SelectionChanged="SavedFramesList_SelectionChanged"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                             Background="Transparent" BorderThickness="0" Padding="4">
+                                        <ListBox.ItemsPanel>
+                                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                        </ListBox.ItemsPanel>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Width="126" Margin="2">
+                                                    <Border BorderBrush="#8775FF" BorderThickness="2" Background="#050609" Height="66">
+                                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                                    </Border>
+                                                    <TextBlock Text="{Binding DisplayLabel}" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                               TextTrimming="CharacterEllipsis" Margin="1,3,1,0" />
+                                                    <TextBlock Text="{Binding TimestampText}" FontSize="10" Foreground="{StaticResource MutedTextBrush}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                <TextBlock Text="Label" Style="{StaticResource ApplicationTextBlockStyle}" />
+                                <TextBox x:Name="SavedFrameLabelTextBox" Margin="0,3,0,6" IsEnabled="False" />
+                                <TextBlock Text="Notes" Style="{StaticResource ApplicationTextBlockStyle}" />
+                                <TextBox x:Name="SavedFrameNotesTextBox" Margin="0,3,0,6" Height="34" TextWrapping="Wrap"
+                                         AcceptsReturn="True" VerticalScrollBarVisibility="Auto" IsEnabled="False" />
+                                <WrapPanel>
+                                    <Button x:Name="UpdateSavedFrameButton" Content="Update" Click="UpdateSavedFrame_Click" IsEnabled="False" Margin="0,0,5,0" />
+                                    <Button x:Name="JumpToSavedFrameButton" Content="Jump to frame" Click="JumpToSavedFrame_Click" IsEnabled="False" Margin="0,0,5,0" />
+                                    <Button x:Name="RemoveSavedFrameButton" Content="Remove" Click="RemoveSavedFrame_Click"
+                                            Style="{StaticResource DangerButtonStyle}" IsEnabled="False" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Grid>
+                        <Border x:Name="ClipEditorWorkspace" Grid.Row="3" Grid.RowSpan="2" Visibility="Collapsed"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="#11141B" Margin="0,8,0,0" Padding="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Clip name" Style="{StaticResource ApplicationTextBlockStyle}" />
+                                    <TextBox x:Name="ClipNameTextBox" Margin="0,4,12,8" />
+                                    <TextBlock x:Name="ClipBoundarySummaryText" Text="Start: video beginning&#x0a;End: video end"
+                                               TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" />
+                                    <TextBlock Text="Choose an exact frame above, then set it as the start or end. These boundaries stay out of Saved Frames."
+                                               TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,7,12,0" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Save Clip" Click="SaveClip_Click"
+                                        Background="{StaticResource AccentBrush}" Foreground="White"
+                                        VerticalAlignment="Bottom" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    </ScrollViewer>
+                    </Grid>
+                </Border>
+                <Border x:Name="EditLowerWorkspace" Grid.Row="2" Visibility="Collapsed"
+                        Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <Grid Margin="18">
+                        <StackPanel x:Name="EditEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480">
+                            <TextBlock Text="WORKING COMPOSITION" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Text="No composition yet." Style="{StaticResource ApplicationTextBlockStyle}"
+                                       FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,7" />
+                            <TextBlock Text="Choose a starting video or Saved Clip from Project Media. The editor will build a logical composition without copying or destructively changing the source."
+                                       TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+                            <Button x:Name="StartEditButton" Content="Start Edit" Click="StartEdit_Click" IsEnabled="False"
+                                    HorizontalAlignment="Center" Margin="0,16,0,0"
+                                    ToolTip="Select a video or Saved Clip in Project Media first" />
+                        </StackPanel>
+                        <Grid x:Name="WorkingCompositionState" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <DockPanel Margin="2,0,2,10">
+                                <Button x:Name="PreviewCompositionButton" DockPanel.Dock="Right"
+                                        Content="Preview composition" Click="PreviewComposition_Click"
+                                        Background="{StaticResource AccentBrush}" Foreground="White"
+                                        ToolTip="Render or reuse a cached preview of the committed composition" />
+                                <Button x:Name="ExportCompositionButton" DockPanel.Dock="Right"
+                                        Content="Export…" Click="ExportComposition_Click"
+                                        ToolTip="Write this committed composition to a durable MP4 outside Project Media" />
+                                <Button x:Name="CancelCompositionRenderButton" DockPanel.Dock="Right"
+                                        Content="Cancel render" Click="CancelCompositionRender_Click"
+                                        Style="{StaticResource DangerButtonStyle}" Visibility="Collapsed"
+                                        ToolTip="Stop the current composition preview or export render" />
+                                <StackPanel x:Name="CompositionRenderIndicator" DockPanel.Dock="Right"
+                                            Orientation="Horizontal" VerticalAlignment="Center"
+                                            Margin="0,0,10,0" Visibility="Collapsed">
+                                    <ProgressBar Width="72" Height="6" IsIndeterminate="True"
+                                                 VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock x:Name="CompositionRenderStatusText"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="WORKING COMPOSITION" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource MutedTextBrush}" />
+                                    <TextBlock x:Name="WorkingCompositionNameText" Text="Working Composition"
+                                               Style="{StaticResource ApplicationTextBlockStyle}" FontSize="18" FontWeight="SemiBold"
+                                               Margin="0,5,0,2" />
+                                    <TextBlock x:Name="WorkingCompositionSummaryText" TextWrapping="Wrap"
+                                               Foreground="{StaticResource MutedTextBrush}" />
+                                </StackPanel>
+                            </DockPanel>
+                            <Border x:Name="CompositionTimelineBorder" Grid.Row="1" MinHeight="168" Margin="0,0,0,8" Padding="8,6,8,4"
+                                    Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="4" AllowDrop="True"
+                                    PreviewDragEnter="CompositionTimeline_PreviewDragEnter"
+                                    PreviewDragOver="CompositionTimeline_PreviewDragOver"
+                                    PreviewDragLeave="CompositionTimeline_PreviewDragLeave"
+                                    PreviewDrop="CompositionTimeline_PreviewDrop">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <DockPanel Margin="2,0,2,5">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                            <TextBlock Text="Zoom" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="10" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                            <Slider x:Name="CompositionTimelineZoomSlider" Width="92"
+                                                    Minimum="1" Maximum="8" Value="1"
+                                                    TickFrequency="0.25" IsSnapToTickEnabled="True"
+                                                    SmallChange="0.25" LargeChange="1"
+                                                    VerticalAlignment="Center"
+                                                    ValueChanged="CompositionTimelineZoomSlider_ValueChanged"
+                                                    ToolTip="Zoom the timeline horizontally without changing the composition" />
+                                            <TextBlock x:Name="CompositionTimelineZoomText" Text="100%" Width="40"
+                                                       Foreground="{StaticResource TextBrush}" FontSize="10"
+                                                       TextAlignment="Right" VerticalAlignment="Center" />
+                                            <Button Content="Reset" Padding="6,1" Margin="6,0,12,0"
+                                                    Click="CompositionTimelineReset_Click"
+                                                    ToolTip="Reset the timeline to its default scale" />
+                                            <TextBlock x:Name="CompositionTimelineDurationText"
+                                                       Foreground="{StaticResource MutedTextBrush}" FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="TIMELINE" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <CheckBox x:Name="CompositionTimelineAutoScrollCheckBox"
+                                                      Content="Auto-scroll during playback" IsChecked="True"
+                                                      VerticalAlignment="Center" Margin="12,0,0,0"
+                                                      Foreground="{StaticResource TextBrush}"
+                                                      ToolTip="Keep the composition playhead visible while playback advances. This choice is not saved." />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <ScrollViewer x:Name="CompositionTimelineScrollViewer" Grid.Row="1"
+                                                  HorizontalScrollBarVisibility="Auto"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  ScrollChanged="CompositionTimelineScrollViewer_ScrollChanged"
+                                                  SizeChanged="CompositionTimelineScrollViewer_SizeChanged">
+                                        <Canvas x:Name="CompositionTimelineCanvas" Height="124"
+                                                Background="#0B0D12" ClipToBounds="True"
+                                                PreviewMouseLeftButtonDown="CompositionTimelineCanvas_PreviewMouseLeftButtonDown"
+                                                PreviewMouseMove="CompositionTimelineCanvas_PreviewMouseMove"
+                                                PreviewMouseLeftButtonUp="CompositionTimelineCanvas_PreviewMouseLeftButtonUp"
+                                                LostMouseCapture="CompositionTimelineCanvas_LostMouseCapture" />
+                                    </ScrollViewer>
+                                    <Canvas x:Name="CompositionTimelineDropHint" Grid.Row="1" Visibility="Hidden"
+                                            IsHitTestVisible="False" ClipToBounds="True">
+                                        <Border x:Name="CompositionTimelineDropMarker" Width="3" Height="67"
+                                                Panel.ZIndex="10" Background="#FF4D5D" CornerRadius="2">
+                                            <Border.Effect>
+                                                <DropShadowEffect Color="#FF2738" BlurRadius="7"
+                                                                  ShadowDepth="0" Opacity="0.9" />
+                                            </Border.Effect>
+                                        </Border>
+                                        <Border x:Name="CompositionTimelineDropToken" Width="96" Height="36"
+                                                Panel.ZIndex="5"
+                                                Background="#E83E3669" BorderBrush="{StaticResource AccentBrush}"
+                                                BorderThickness="2" CornerRadius="4" Padding="6,3">
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock Text="+" DockPanel.Dock="Left" Margin="0,0,5,0"
+                                                           Foreground="White" FontSize="17" FontWeight="SemiBold"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock x:Name="CompositionTimelineDropHintText" Foreground="White"
+                                                           FontWeight="SemiBold" FontSize="10"
+                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            </DockPanel>
+                                        </Border>
+                                    </Canvas>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" />
+
+            <Border Grid.Column="4" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
+                <Grid>
+                <TabControl x:Name="RightPanelTabs" Margin="8" Style="{StaticResource RightPanelTabControlStyle}">
+                    <TabItem x:Name="InspectorTab" Header="Inspector">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="MEDIA / SOURCE &amp; HISTORY" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="2,4,2,8" />
+                            <TextBox x:Name="InspectorText" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     Text="Select an asset or generation to inspect its details and history." />
+                        </Grid>
+                    </TabItem>
+                    <TabItem x:Name="GenerateTab" Header="Generate">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="12">
+                                <TextBlock Text="GENERATION PROVIDER" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                                <ComboBox x:Name="ProviderComboBox" DisplayMemberPath="DisplayName" Margin="0,5,0,0"
+                                          SelectionChanged="ProviderComboBox_SelectionChanged" />
+                                <TextBlock x:Name="ProviderText" Style="{StaticResource ApplicationTextBlockStyle}" TextWrapping="Wrap" Margin="0,5,0,12" />
+
+                                <DockPanel Margin="0,0,0,4">
+                                    <Button DockPanel.Dock="Right" Width="27" Height="25" Padding="5" Margin="0"
+                                            ToolTip="Expand the prompt text area" Click="ExpandPrompt_Click"
+                                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                                        <Path Stroke="{StaticResource TextBrush}" StrokeThickness="1.5"
+                                              StrokeStartLineCap="Square" StrokeEndLineCap="Square"
+                                              Data="M 1,6 L1,1 L6,1 M10,1 L15,1 L15,6 M15,10 L15,15 L10,15 M6,15 L1,15 L1,10" />
+                                    </Button>
+                                    <TextBlock Text="Prompt" Style="{StaticResource ApplicationTextBlockStyle}" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBox x:Name="PromptTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="110"
+                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                         TextChanged="PromptTextBox_TextChanged" />
+
+                                <TextBlock Text="Mode" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
+                                <ComboBox x:Name="ModeComboBox" SelectionChanged="GenerationMode_SelectionChanged" />
+
+                                <TextBlock Text="Duration" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
+                                <DockPanel>
+                                    <TextBlock x:Name="DurationText" Style="{StaticResource ApplicationTextBlockStyle}" DockPanel.Dock="Right" Width="40" TextAlignment="Right" VerticalAlignment="Center" />
+                                    <Slider x:Name="DurationSlider" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="DurationSlider_ValueChanged" />
+                                </DockPanel>
+
+                                <TextBlock Text="Aspect ratio" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
+                                <ComboBox x:Name="AspectRatioComboBox" SelectionChanged="GenerationDraftChanged" />
+
+                                <TextBlock Text="Resolution" Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
+                                <ComboBox x:Name="ResolutionComboBox" SelectionChanged="GenerationDraftChanged" />
+
+                                <TextBlock x:Name="OutputSettingsHeading" Text="Output settings"
+                                           Style="{StaticResource ApplicationTextBlockStyle}" Margin="0,12,0,4" />
+                                <WrapPanel x:Name="AudioAndWatermarkPanel">
+                                    <CheckBox x:Name="GenerateAudioCheckBox" Content="Generate audio" IsChecked="True"
+                                              Checked="GenerationDraftChanged" Unchecked="GenerationDraftChanged" Margin="0,0,12,0" />
+                                    <CheckBox x:Name="WatermarkCheckBox" Content="Add provider watermark"
+                                              ToolTip="The provider controls the watermark design. These APIs do not accept custom watermark text."
+                                              Checked="GenerationDraftChanged" Unchecked="GenerationDraftChanged" />
+                                </WrapPanel>
+                                <TextBlock x:Name="WatermarkHelpText"
+                                           Text="The provider controls the watermark design; custom watermark text is not supported."
+                                           TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                                           Foreground="{StaticResource MutedTextBrush}" />
+                                <WrapPanel x:Name="OutputFormatPanel" Margin="0,5,0,0">
+                                    <TextBlock Text="Format" Style="{StaticResource ApplicationTextBlockStyle}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <ComboBox x:Name="OutputFormatComboBox" Width="90" SelectionChanged="GenerationDraftChanged">
+                                        <ComboBoxItem Content="mp4" IsSelected="True" />
+                                        <ComboBoxItem Content="mov" />
+                                    </ComboBox>
+                                </WrapPanel>
+
+                                <DockPanel Margin="0,12,0,4">
+                                    <Button DockPanel.Dock="Right" Content="Add another occurrence" Click="DuplicateReferenceOccurrence_Click"
+                                            Padding="7,3" ToolTip="Use the selected reference more than once with a different role or order" />
+                                    <TextBlock Text="References" Style="{StaticResource ApplicationTextBlockStyle}" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock x:Name="ReferenceAssetsHelpText"
+                                           Text="Select physical assets or Saved Frames. Role, order, label, notes, and the exact Saved Frame revision are frozen into history."
+                                           TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" />
+                                <DataGrid x:Name="ReferenceAssetsGrid" Height="175" Margin="0,4,0,0" AutoGenerateColumns="False"
+                                          CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column"
+                                          CellEditEnding="ReferenceAssetsGrid_CellEditEnding" SelectionUnit="FullRow"
+                                          SelectionChanged="ReferenceAssetsGrid_SelectionChanged"
+                                          RowHeight="34" CanUserSortColumns="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="Use" Width="46">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                              Click="ReferenceChoiceChanged" ToolTip="Include this asset as a reference" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Reference" Width="210" IsReadOnly="True">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="3,1">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="32" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Width="28" Height="25" Background="#0B0D12"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                            <Grid>
+                                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                                                <TextBlock x:Name="ReferenceGlyph" Text="{Binding Glyph}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource MutedTextBrush}" FontSize="14" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
+                                                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"
+                                                                       Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                            <TextBlock Text="{Binding MediaTypeText}" FontSize="10"
+                                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                                        </StackPanel>
+                                                        <Grid.ToolTip>
+                                                            <ToolTip Placement="Mouse" MaxWidth="290"
+                                                                     Background="{StaticResource PanelRaisedBrush}"
+                                                                     Foreground="{StaticResource TextBrush}"
+                                                                     BorderBrush="{StaticResource BorderBrush}">
+                                                                <StackPanel>
+                                                                    <Border Width="250" Height="140" Background="#050609"
+                                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                                        <Grid>
+                                                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                                                            <TextBlock x:Name="ReferencePreviewGlyph" Text="{Binding Glyph}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                       FontSize="36" Foreground="{StaticResource MutedTextBrush}" />
+                                                                        </Grid>
+                                                                    </Border>
+                                                                    <TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,7,0,0" />
+                                                                    <TextBlock Text="{Binding MediaTypeText}" Foreground="{StaticResource MutedTextBrush}" />
+                                                                    <TextBlock Text="Click the row to show this reference in the viewer."
+                                                                               FontSize="10" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                                                </StackPanel>
+                                                            </ToolTip>
+                                                        </Grid.ToolTip>
+                                                    </Grid>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                            <Setter TargetName="ReferenceGlyph" Property="Visibility" Value="Collapsed" />
+                                                            <Setter TargetName="ReferencePreviewGlyph" Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Role" Width="125">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding AvailableRoles}"
+                                                              SelectedItem="{Binding Role, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              SelectionChanged="ReferenceChoiceChanged" Margin="2" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Order" Width="58">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Order, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                             LostKeyboardFocus="ReferenceChoiceChanged" Margin="2" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Label" Width="120">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                             LostKeyboardFocus="ReferenceChoiceChanged" Margin="2" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Notes" Width="180">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Notes, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                             LostKeyboardFocus="ReferenceChoiceChanged" Margin="2" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <TextBlock x:Name="LineageText" Text="New root generation" TextWrapping="Wrap" Margin="0,9,0,0"
+                                           Foreground="{StaticResource MutedTextBrush}" />
+                                <WrapPanel Margin="0,6,0,0">
+                                    <Button Content="New root draft" Click="ClearLineage_Click" Margin="0,0,5,5" />
+                                    <Button Content="Draft retry" Tag="RetryOf" Click="PrepareDerivedDraft_Click" Margin="0,0,5,5" />
+                                    <Button Content="Duplicate / variant" Tag="VariantOf" Click="PrepareDerivedDraft_Click" Margin="0,0,5,5" />
+                                    <Button Content="Branch / based on" Tag="BasedOn" Click="PrepareDerivedDraft_Click" Margin="0,0,5,5" />
+                                    <Button Content="Continue after" Tag="ContinueAfter" Click="PrepareDerivedDraft_Click" Margin="0,0,5,5" />
+                                    <Button Content="Continue before" Tag="ContinueBefore" Click="PrepareDerivedDraft_Click" Margin="0,0,5,5" />
+                                </WrapPanel>
+
+                                <Button x:Name="GenerateButton" Content="Run fake generation" Click="Generate_Click"
+                                        Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,14,0,0" />
+                                <TextBlock x:Name="GenerationStatusText" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="3,8" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                    <TabItem x:Name="EditToolsTab" Header="Edit Tools" Visibility="Collapsed">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="12">
+                                <TextBlock Text="EDIT TOOLS" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MutedTextBrush}" />
+
+                                <StackPanel x:Name="EditToolsEmptyState" Margin="0,18,0,0">
+                                    <TextBlock Text="Select something in the timeline"
+                                               Style="{StaticResource ApplicationTextBlockStyle}"
+                                               FontSize="17" FontWeight="SemiBold" />
+                                    <TextBlock Text="Select a video segment or audio clip to edit its composition properties. Arrangement actions such as insert, remove, and reorder stay on the timeline."
+                                               TextWrapping="Wrap" Margin="0,6,0,0"
+                                               Foreground="{StaticResource MutedTextBrush}" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="VideoSegmentEditTools" Visibility="Collapsed" Margin="0,14,0,0">
+                                    <TextBlock Text="VIDEO SEGMENT" Foreground="{StaticResource MutedTextBrush}"
+                                               FontSize="11" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="EditVideoSegmentNameText"
+                                               Style="{StaticResource ApplicationTextBlockStyle}"
+                                               FontSize="17" FontWeight="SemiBold" Margin="0,4,0,10"
+                                               TextWrapping="Wrap" />
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                                        <StackPanel>
+                                            <TextBlock Text="CLIP / SOURCE" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="EditVideoSegmentSourceText" TextWrapping="Wrap"
+                                                       Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                                        <StackPanel>
+                                            <TextBlock Text="AUDIO" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock Text="Use this segment's source audio in the composition."
+                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,8"
+                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                            <StackPanel x:Name="EditSegmentAudioControls" Orientation="Horizontal">
+                                                <RadioButton x:Name="CompositionSegmentAudioOnButton" Content="On"
+                                                             GroupName="CompositionSegmentAudio"
+                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
+                                                             Checked="CompositionSegmentAudio_Checked" />
+                                                <RadioButton x:Name="CompositionSegmentAudioMutedButton" Content="Muted"
+                                                             GroupName="CompositionSegmentAudio"
+                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
+                                                             Checked="CompositionSegmentAudio_Checked" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                                        <StackPanel>
+                                            <TextBlock Text="TRANSFORM" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock Text="No transform is applied. Transform controls arrive in a later editing slice."
+                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
+                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10">
+                                        <StackPanel>
+                                            <TextBlock Text="TIMING" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="EditVideoSegmentTimingText" TextWrapping="Wrap"
+                                                       Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel x:Name="AudioClipEditTools" Visibility="Collapsed" Margin="0,14,0,0">
+                                    <TextBlock Text="AUDIO CLIP" Foreground="{StaticResource MutedTextBrush}"
+                                               FontSize="11" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="EditAudioClipNameText"
+                                               Style="{StaticResource ApplicationTextBlockStyle}"
+                                               FontSize="17" FontWeight="SemiBold" Margin="0,4,0,10"
+                                               TextWrapping="Wrap" />
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                                        <StackPanel>
+                                            <TextBlock Text="TIMING" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="EditAudioClipTimingText" TextWrapping="Wrap"
+                                                       Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10">
+                                        <StackPanel>
+                                            <TextBlock Text="AUDIO" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="11" FontWeight="SemiBold" />
+                                            <TextBlock Text="Include this audio clip in the composition mix."
+                                                       TextWrapping="Wrap" FontSize="11" Margin="0,5,0,7"
+                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton x:Name="CompositionAudioClipEnabledButton" Content="On"
+                                                             GroupName="CompositionAudioClipEnabled"
+                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
+                                                             Checked="CompositionAudioClipEnabled_Checked" />
+                                                <RadioButton x:Name="CompositionAudioClipMutedButton" Content="Muted"
+                                                             GroupName="CompositionAudioClipEnabled"
+                                                             Style="{StaticResource CompositionAudioChoiceStyle}"
+                                                             Checked="CompositionAudioClipEnabled_Checked" />
+                                            </StackPanel>
+                                            <TextBlock Text="Gain" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                       Margin="0,12,0,4" />
+                                            <DockPanel>
+                                                <TextBlock x:Name="CompositionAudioClipGainText" DockPanel.Dock="Right"
+                                                           Width="52" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                <Slider x:Name="CompositionAudioClipGainSlider"
+                                                        Minimum="-60" Maximum="12" Value="0"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                                        SmallChange="1" LargeChange="6"
+                                                        ValueChanged="CompositionAudioClipGainSlider_ValueChanged"
+                                                        PreviewMouseLeftButtonUp="CompositionAudioClipGainSlider_PreviewMouseLeftButtonUp"
+                                                        KeyUp="CompositionAudioClipGainSlider_KeyUp" />
+                                            </DockPanel>
+                                            <TextBlock Text="Pan" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                       Margin="0,12,0,4" />
+                                            <DockPanel>
+                                                <TextBlock x:Name="CompositionAudioClipPanText" DockPanel.Dock="Right"
+                                                           Width="72" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                <Slider x:Name="CompositionAudioClipPanSlider"
+                                                        Minimum="-1" Maximum="1" Value="0"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                                        SmallChange="0.05" LargeChange="0.25"
+                                                        ValueChanged="CompositionAudioClipPanSlider_ValueChanged"
+                                                        PreviewMouseLeftButtonUp="CompositionAudioClipPanSlider_PreviewMouseLeftButtonUp"
+                                                        KeyUp="CompositionAudioClipPanSlider_KeyUp" />
+                                            </DockPanel>
+                                            <TextBlock Text="Fade in" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                       Margin="0,12,0,4" />
+                                            <DockPanel>
+                                                <TextBlock x:Name="CompositionAudioClipFadeInText" DockPanel.Dock="Right"
+                                                           Width="58" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                <Slider x:Name="CompositionAudioClipFadeInSlider"
+                                                        Minimum="0" Maximum="30" Value="0"
+                                                        TickFrequency="0.1" SmallChange="0.1" LargeChange="1"
+                                                        ValueChanged="CompositionAudioClipFadeSlider_ValueChanged"
+                                                        PreviewMouseLeftButtonUp="CompositionAudioClipFadeSlider_PreviewMouseLeftButtonUp"
+                                                        KeyUp="CompositionAudioClipFadeSlider_KeyUp" />
+                                            </DockPanel>
+                                            <TextBlock Text="Fade out" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                       Margin="0,12,0,4" />
+                                            <DockPanel>
+                                                <TextBlock x:Name="CompositionAudioClipFadeOutText" DockPanel.Dock="Right"
+                                                           Width="58" TextAlignment="Right" VerticalAlignment="Center"
+                                                           Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                <Slider x:Name="CompositionAudioClipFadeOutSlider"
+                                                        Minimum="0" Maximum="30" Value="0"
+                                                        TickFrequency="0.1" SmallChange="0.1" LargeChange="1"
+                                                        ValueChanged="CompositionAudioClipFadeSlider_ValueChanged"
+                                                        PreviewMouseLeftButtonUp="CompositionAudioClipFadeSlider_PreviewMouseLeftButtonUp"
+                                                        KeyUp="CompositionAudioClipFadeSlider_KeyUp" />
+                                            </DockPanel>
+                                            <TextBlock Text="Gain, pan, and fade changes are committed when you release a slider or complete a keyboard adjustment. Audio is normalized to a 48 kHz stereo mix. Fade out follows the audible end when the composition cuts a longer audio file short."
+                                                       TextWrapping="Wrap" FontSize="10" Margin="0,5,0,0"
+                                                       Foreground="{StaticResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+                    <Grid x:Name="JobsPanel" Visibility="Collapsed" Background="{StaticResource PanelBrush}" Margin="8">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <DockPanel Margin="2,4,2,10">
+                                <Button DockPanel.Dock="Right" Content="Close" Click="CloseJobs_Click" Padding="8,3" />
+                                <StackPanel>
+                                <TextBlock Text="GENERATION JOBS" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" />
+                                <TextBlock Text="Completed jobs clear from this pane after you view them and leave Jobs."
+                                           TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+                            <Grid Grid.Row="1">
+                                <TextBlock x:Name="JobsEmptyText" Text="No generation jobs to review."
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <ListBox x:Name="JobsList" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                    Background="#10131A" CornerRadius="4" Padding="10" Margin="1,2">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding ProjectName}" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding ProviderAndModel}" Foreground="{StaticResource MutedTextBrush}"
+                                                               TextWrapping="Wrap" Margin="0,3,0,0" />
+                                                    <DockPanel x:Name="StandardStatusRow" Margin="0,7,0,0">
+                                                        <TextBlock Text="{Binding ElapsedText}" DockPanel.Dock="Right"
+                                                                   Style="{StaticResource ApplicationTextBlockStyle}" Margin="8,0,0,0" />
+                                                        <TextBlock Text="{Binding StatusText}" Style="{StaticResource ApplicationTextBlockStyle}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </DockPanel>
+                                                    <TextBlock x:Name="JobMessage" Text="{Binding Message}" Foreground="{StaticResource MutedTextBrush}"
+                                                               TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                    <StackPanel x:Name="UndoSendPanel" Visibility="Collapsed" Margin="0,7,0,0">
+                                                        <DockPanel>
+                                                            <TextBlock Text="{Binding UndoSendRemainingText}" DockPanel.Dock="Right"
+                                                                       Style="{StaticResource ApplicationTextBlockStyle}" Margin="8,0,0,0" />
+                                                            <TextBlock Text="Queued" Style="{StaticResource ApplicationTextBlockStyle}" />
+                                                        </DockPanel>
+                                                        <Button Content="Cancel Job" Tag="{Binding GenerationId}"
+                                                                Style="{StaticResource DangerButtonStyle}"
+                                                                HorizontalAlignment="Left" Margin="0,8,0,0"
+                                                                Click="CancelPendingJob_Click" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding IsUndoSendPending}" Value="True">
+                                                    <Setter TargetName="StandardStatusRow" Property="Visibility" Value="Collapsed" />
+                                                    <Setter TargetName="JobMessage" Property="Visibility" Value="Collapsed" />
+                                                    <Setter TargetName="UndoSendPanel" Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding WasCancelledBeforeSubmission}" Value="True">
+                                                    <Setter TargetName="StandardStatusRow" Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border x:Name="ExpandedPromptPanel" Grid.Column="2" Grid.ColumnSpan="3" Panel.ZIndex="10"
+                    Visibility="Collapsed" Background="{StaticResource PanelBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
+                <Grid Margin="18">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <DockPanel Margin="0,0,0,10">
+                        <Button DockPanel.Dock="Right" Width="31" Height="29" Padding="6" Margin="0"
+                                ToolTip="Return to normal view" Click="CollapsePrompt_Click"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <Path Stroke="{StaticResource TextBrush}" StrokeThickness="1.5"
+                                  StrokeStartLineCap="Square" StrokeEndLineCap="Square"
+                                  Data="M 1,6 L6,6 L6,1 M10,1 L10,6 L15,6 M15,10 L10,10 L10,15 M6,15 L6,10 L1,10" />
+                        </Button>
+                        <TextBlock Text="Prompt" Style="{StaticResource ApplicationTextBlockStyle}"
+                                   FontSize="18" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBox x:Name="ExpandedPromptTextBox" Grid.Row="1" AcceptsReturn="True" AcceptsTab="True"
+                             TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Disabled" FontSize="14" Padding="12"
+                             TextChanged="ExpandedPromptTextBox_TextChanged"
+                             PreviewKeyDown="ExpandedPromptTextBox_PreviewKeyDown" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Background="#0B0D12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <DockPanel Margin="9,0">
+                <TextBlock x:Name="MediaToolsText" DockPanel.Dock="Right" Margin="24,0,0,0"
+                           Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
+                <TextBlock x:Name="StatusText" Style="{StaticResource ApplicationTextBlockStyle}" Text="Ready"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+        </Grid>
+
+        <Border x:Name="MediaDropOverlay" Panel.ZIndex="1000" Visibility="Collapsed"
+                IsHitTestVisible="False" Background="#C90B0D12">
+            <Border Width="430" Padding="42,34" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="#F21A1E29" BorderBrush="{StaticResource AccentBrush}"
+                    BorderThickness="2" CornerRadius="10">
+                <StackPanel HorizontalAlignment="Center">
+                    <Border Width="70" Height="70" CornerRadius="35" Margin="0,0,0,18"
+                            Background="#332FA8FF" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1">
+                        <TextBlock Text="+" Foreground="White" FontSize="48" FontWeight="Light"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-7,0,0" />
+                    </Border>
+                    <TextBlock Text="Import media" Foreground="White" FontSize="24" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" />
+                    <TextBlock x:Name="MediaDropHintText" Foreground="{StaticResource MutedTextBrush}"
+                               FontSize="13" TextAlignment="Center" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" Margin="0,9,0,0" />
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</Window>
