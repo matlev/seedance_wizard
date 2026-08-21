@@ -145,6 +145,49 @@ public sealed class CompositionAuditionPlanTests
         Assert.Equal(1, nextIndex);
     }
 
+    [Fact]
+    public void SessionOwnsCutSelectionSeekingAndForwardProgression()
+    {
+        var first = Video("first.mp4", 4);
+        var second = Video("second.mp4", 6);
+        var plan = CompositionAuditionPlan.Create(Project(first, second), new CompositionRecipe
+        {
+            Segments = [Segment(first), Segment(second, startSeconds: 1, endSeconds: 5)]
+        });
+        var revisionId = Guid.NewGuid();
+
+        var session = new CompositionAuditionSession(revisionId, plan, 3.5);
+
+        Assert.Equal(revisionId, session.RecipeRevisionId);
+        Assert.Equal(0, session.ActiveSegmentIndex);
+        Assert.Equal(3.5, session.PositionSeconds);
+        var cut = session.Seek(4);
+        Assert.Equal(1, cut.SegmentIndex);
+        Assert.Equal(1, cut.SourceSeconds);
+        var progressed = session.UpdateFromSourcePosition(2.25);
+        Assert.Equal(5.25, progressed.GlobalSeconds);
+        Assert.False(session.TryAdvance(out var finalPosition));
+        Assert.Equal(progressed, finalPosition);
+        Assert.Equal(8, session.Complete().GlobalSeconds);
+    }
+
+    [Fact]
+    public void SessionAdvanceActivatesTheNextSegmentAtItsFirstSourcePosition()
+    {
+        var first = Video("first.mp4", 2);
+        var second = Video("second.mp4", 5);
+        var plan = CompositionAuditionPlan.Create(Project(first, second), new CompositionRecipe
+        {
+            Segments = [Segment(first), Segment(second, startSeconds: 2, endSeconds: 4)]
+        });
+        var session = new CompositionAuditionSession(Guid.NewGuid(), plan);
+
+        Assert.True(session.TryAdvance(out var position));
+        Assert.Equal(1, position.SegmentIndex);
+        Assert.Equal(2, position.GlobalSeconds);
+        Assert.Equal(2, position.SourceSeconds);
+    }
+
     private static VideoProject Project(params ProjectAsset[] assets)
     {
         var project = new VideoProject();

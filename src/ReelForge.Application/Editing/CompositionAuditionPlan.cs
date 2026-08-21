@@ -127,3 +127,78 @@ public sealed class CompositionAuditionPlan
         };
     }
 }
+
+public sealed record CompositionAuditionPosition(
+    int SegmentIndex,
+    double GlobalSeconds,
+    double SourceSeconds);
+
+public sealed class CompositionAuditionSession
+{
+    public CompositionAuditionSession(
+        Guid recipeRevisionId,
+        CompositionAuditionPlan plan,
+        double initialGlobalSeconds = 0)
+    {
+        if (recipeRevisionId == Guid.Empty)
+            throw new ArgumentException("A composition audition must pin a recipe revision.", nameof(recipeRevisionId));
+        RecipeRevisionId = recipeRevisionId;
+        Plan = plan ?? throw new ArgumentNullException(nameof(plan));
+        Seek(initialGlobalSeconds);
+    }
+
+    public Guid RecipeRevisionId { get; }
+    public CompositionAuditionPlan Plan { get; }
+    public int ActiveSegmentIndex { get; private set; }
+    public double PositionSeconds { get; private set; }
+    public CompositionAuditionSegment ActiveSegment => Plan.Segments[ActiveSegmentIndex];
+
+    public CompositionAuditionPosition Seek(double globalSeconds)
+    {
+        PositionSeconds = Plan.ClampGlobalPosition(globalSeconds);
+        ActiveSegmentIndex = Plan.FindSegmentIndex(PositionSeconds);
+        return CurrentPosition;
+    }
+
+    public CompositionAuditionPosition ActivateSegment(int segmentIndex, double globalSeconds)
+    {
+        if (segmentIndex < 0 || segmentIndex >= Plan.Segments.Count)
+            throw new ArgumentOutOfRangeException(nameof(segmentIndex));
+        ActiveSegmentIndex = segmentIndex;
+        var segment = ActiveSegment;
+        PositionSeconds = Math.Clamp(
+            Plan.ClampGlobalPosition(globalSeconds),
+            segment.TimelineStartSeconds,
+            segment.TimelineEndSeconds);
+        return CurrentPosition;
+    }
+
+    public CompositionAuditionPosition UpdateFromSourcePosition(double sourceSeconds)
+    {
+        PositionSeconds = Plan.GetGlobalPosition(ActiveSegmentIndex, sourceSeconds);
+        return CurrentPosition;
+    }
+
+    public bool TryAdvance(out CompositionAuditionPosition position)
+    {
+        if (!Plan.TryGetNextSegmentIndex(ActiveSegmentIndex, out var nextIndex))
+        {
+            position = CurrentPosition;
+            return false;
+        }
+        position = ActivateSegment(nextIndex, Plan.Segments[nextIndex].TimelineStartSeconds);
+        return true;
+    }
+
+    public CompositionAuditionPosition Complete()
+    {
+        PositionSeconds = Plan.DurationSeconds;
+        ActiveSegmentIndex = Plan.Segments.Count - 1;
+        return CurrentPosition;
+    }
+
+    public CompositionAuditionPosition CurrentPosition => new(
+        ActiveSegmentIndex,
+        PositionSeconds,
+        Plan.GetSourcePosition(ActiveSegmentIndex, PositionSeconds));
+}

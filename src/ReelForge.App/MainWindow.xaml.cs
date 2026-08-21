@@ -92,10 +92,7 @@ public partial class MainWindow : Window, IDisposable
     private CompositionTimelineLayoutResult? _compositionTimelineLayout;
     private Line? _compositionTimelinePlayhead;
     private Guid? _activeCompositionPreviewRevisionId;
-    private Guid? _activeCompositionDraftRevisionId;
-    private CompositionAuditionPlan? _compositionAuditionPlan;
-    private int _activeCompositionDraftSegmentIndex = -1;
-    private double _compositionDraftPositionSeconds;
+    private CompositionAuditionSession? _compositionAuditionSession;
     private int _compositionDraftOpenVersion;
     private bool _advancingCompositionDraft;
     private double? _pendingCompositionTimelineSeekSeconds;
@@ -785,7 +782,7 @@ public partial class MainWindow : Window, IDisposable
         RenderCompositionTimeline();
         ScheduleCompositionTimelineRender();
         UpdateCompositionActionState();
-        if (_activeCompositionDraftRevisionId is { } draftRevisionId && draftRevisionId != revision.Id &&
+        if (_compositionAuditionSession?.RecipeRevisionId is { } draftRevisionId && draftRevisionId != revision.Id &&
             ProjectMediaPanelControl.SelectedItem is ProjectMediaListItem selectedItem &&
             selectedItem.Asset?.Id == composition.Id)
         {
@@ -1217,7 +1214,7 @@ public partial class MainWindow : Window, IDisposable
             if (_pendingCompositionTimelineSeekSeconds is not null) e.Handled = true;
             return;
         }
-        if ((_activeCompositionPreviewRevisionId is null && _activeCompositionDraftRevisionId is null) ||
+        if ((_activeCompositionPreviewRevisionId is null && _compositionAuditionSession is null) ||
             _compositionTimelineLayout is null ||
             !MediaPreviewPanelControl.HasVideoSource ||
             MediaPreviewPanelControl.IsPriming ||
@@ -1937,12 +1934,10 @@ public partial class MainWindow : Window, IDisposable
 
     private double GetCurrentTimelinePlaybackSeconds()
     {
-        if (_activeCompositionDraftRevisionId is null || _compositionAuditionPlan is null ||
-            _activeCompositionDraftSegmentIndex < 0 ||
-            _activeCompositionDraftSegmentIndex >= _compositionAuditionPlan.Segments.Count)
+        if (_compositionAuditionSession is null)
             return MediaPreviewPanelControl.PositionSeconds;
-        return _compositionAuditionPlan.GetGlobalPosition(
-            _activeCompositionDraftSegmentIndex,
+        return _compositionAuditionSession.Plan.GetGlobalPosition(
+            _compositionAuditionSession.ActiveSegmentIndex,
             MediaPreviewPanelControl.PositionSeconds);
     }
 
@@ -2015,7 +2010,7 @@ public partial class MainWindow : Window, IDisposable
     private void UpdateCompositionTimelinePlayhead(double playbackSeconds)
     {
         if (_compositionTimelinePlayhead is null || _compositionTimelineLayout is null ||
-            (_activeCompositionPreviewRevisionId is null && _activeCompositionDraftRevisionId is null))
+            (_activeCompositionPreviewRevisionId is null && _compositionAuditionSession is null))
         {
             if (_compositionTimelinePlayhead is not null)
                 _compositionTimelinePlayhead.Visibility = Visibility.Collapsed;
@@ -3486,12 +3481,13 @@ public partial class MainWindow : Window, IDisposable
 
                 ClearMediaPreview();
                 if (_workspace.Project?.Id != selectedProjectId || ProjectMediaPanelControl.SelectedItem != selectedItem) return;
-                _activeCompositionDraftRevisionId = revisionId;
-                _compositionAuditionPlan = auditionPlan;
                 var requestedPosition = auditionPlan.ClampGlobalPosition(
                     _pendingCompositionTimelineSeekSeconds ?? 0);
                 _pendingCompositionTimelineSeekSeconds = null;
-                _compositionDraftPositionSeconds = requestedPosition;
+                _compositionAuditionSession = new CompositionAuditionSession(
+                    revisionId,
+                    auditionPlan,
+                    requestedPosition);
                 MediaPreviewPanelControl.SetTimelineRange(0, auditionPlan.DurationSeconds);
                 if (auditionAudio is not null)
                 {
@@ -3523,12 +3519,11 @@ public partial class MainWindow : Window, IDisposable
         double globalSeconds,
         bool playAfterOpen)
     {
-        if (_workspace.Project is null || _workspace.Location is null || _compositionAuditionPlan is null ||
-            _activeCompositionDraftRevisionId is null ||
-            segmentIndex < 0 || segmentIndex >= _compositionAuditionPlan.Segments.Count)
+        if (_workspace.Project is null || _workspace.Location is null || _compositionAuditionSession is null ||
+            segmentIndex < 0 || segmentIndex >= _compositionAuditionSession.Plan.Segments.Count)
             return;
         var openVersion = ++_compositionDraftOpenVersion;
-        var segment = _compositionAuditionPlan.Segments[segmentIndex];
+        var segment = _compositionAuditionSession.Plan.Segments[segmentIndex];
         PauseCompositionAuditionAudio();
         var lease = await _mediaMaterializer.MaterializeAsync(
             _workspace.Project,
@@ -3536,39 +3531,36 @@ public partial class MainWindow : Window, IDisposable
             new MaterializationRequest(
                 new AssetMaterializationTarget(segment.Source.AssetId, segment.Source.RecipeRevisionId),
                 MaterializationPurpose.Preview));
-        if (openVersion != _compositionDraftOpenVersion || _activeCompositionDraftRevisionId is null)
+        if (openVersion != _compositionDraftOpenVersion || _compositionAuditionSession is null)
         {
             await lease.DisposeAsync();
             return;
         }
 
-        _activeCompositionDraftSegmentIndex = segmentIndex;
-        _compositionDraftPositionSeconds = _compositionAuditionPlan.ClampGlobalPosition(globalSeconds);
+        var position = _compositionAuditionSession.ActivateSegment(segmentIndex, globalSeconds);
         MediaPreviewPanelControl.HidePlaceholder();
         MediaPreviewPanelControl.OpenLeasedVideo(
             lease,
             requiresWarmup: true,
             playAfterPriming: playAfterOpen,
-            startSeconds: _compositionAuditionPlan.GetSourcePosition(segmentIndex, _compositionDraftPositionSeconds),
+            startSeconds: position.SourceSeconds,
             forceMuted: !segment.AudioEnabled,
             useExternalTimeline: true);
-        MediaPreviewPanelControl.SetPosition(_compositionDraftPositionSeconds);
-        UpdateCompositionTimelinePlayhead(_compositionDraftPositionSeconds);
+        MediaPreviewPanelControl.SetPosition(position.GlobalSeconds);
+        UpdateCompositionTimelinePlayhead(position.GlobalSeconds);
     }
 
     private async Task<bool> AdvanceCompositionDraftSegmentAsync()
     {
-        if (_advancingCompositionDraft || _activeCompositionDraftRevisionId is null ||
-            _compositionAuditionPlan is null ||
-            _activeCompositionDraftSegmentIndex < 0)
+        if (_advancingCompositionDraft || _compositionAuditionSession is null)
             return false;
-        if (!_compositionAuditionPlan.TryGetNextSegmentIndex(
-                _activeCompositionDraftSegmentIndex,
+        if (!_compositionAuditionSession.Plan.TryGetNextSegmentIndex(
+                _compositionAuditionSession.ActiveSegmentIndex,
                 out var nextIndex)) return false;
         _advancingCompositionDraft = true;
         try
         {
-            var next = _compositionAuditionPlan.Segments[nextIndex];
+            var next = _compositionAuditionSession.Plan.Segments[nextIndex];
             await OpenCompositionDraftSegmentAsync(nextIndex, next.TimelineStartSeconds, playAfterOpen: true);
             return true;
         }
@@ -3648,7 +3640,7 @@ public partial class MainWindow : Window, IDisposable
             playAfterPriming,
             startSeconds,
             forceMuted,
-            useExternalTimeline: _activeCompositionDraftRevisionId is not null);
+            useExternalTimeline: _compositionAuditionSession is not null);
     }
 
     private void CompositionAuditionAudio_MediaFailed(object sender, ExceptionRoutedEventArgs e)
@@ -3675,10 +3667,7 @@ public partial class MainWindow : Window, IDisposable
     private void ClearMediaPreview()
     {
         _activeCompositionPreviewRevisionId = null;
-        _activeCompositionDraftRevisionId = null;
-        _compositionAuditionPlan = null;
-        _activeCompositionDraftSegmentIndex = -1;
-        _compositionDraftPositionSeconds = 0;
+        _compositionAuditionSession = null;
         _compositionDraftOpenVersion++;
         StopCompositionAuditionAudio();
         _isCompositionTimelineScrubbing = false;
@@ -3701,14 +3690,14 @@ public partial class MainWindow : Window, IDisposable
 
     private void MediaPreview_VideoReady(object? sender, MediaPreviewReadyEventArgs e)
     {
-        if (_activeCompositionDraftRevisionId is not null)
-            SyncCompositionAuditionAudio(_compositionDraftPositionSeconds, e.ShouldPlay);
+        if (_compositionAuditionSession is { } session)
+            SyncCompositionAuditionAudio(session.PositionSeconds, e.ShouldPlay);
         UpdatePlaybackPosition();
     }
 
     private async void MediaPreview_PlaybackEnded(object? sender, EventArgs e)
     {
-        if (_activeCompositionDraftRevisionId is not null &&
+        if (_compositionAuditionSession is not null &&
             await AdvanceCompositionDraftSegmentAsync())
             return;
         CompleteVideoPlayback();
@@ -3719,7 +3708,7 @@ public partial class MainWindow : Window, IDisposable
         if (!MediaPreviewPanelControl.HasVideoSource) return;
         if (MediaPreviewPanelControl.HasEnded || IsAtVideoEnd())
         {
-            if (_activeCompositionDraftRevisionId is not null)
+            if (_compositionAuditionSession is not null)
             {
                 MediaPreviewPanelControl.ClearEndedState();
                 _ = OpenCompositionDraftSegmentAsync(0, 0, playAfterOpen: true);
@@ -3734,7 +3723,7 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
 
-        if (_activeCompositionDraftRevisionId is not null)
+        if (_compositionAuditionSession is not null)
             SyncCompositionAuditionAudio(GetCurrentTimelinePlaybackSeconds(), play: true);
         MediaPreviewPanelControl.Play();
     }
@@ -3765,12 +3754,10 @@ public partial class MainWindow : Window, IDisposable
                     .FirstOrDefault();
             if (target is null) return;
 
-            if (_activeCompositionDraftRevisionId is not null && _compositionAuditionPlan is not null &&
-                _activeCompositionDraftSegmentIndex >= 0 &&
-                _activeCompositionDraftSegmentIndex < _compositionAuditionPlan.Segments.Count)
+            if (_compositionAuditionSession is { } session)
             {
-                var globalSeconds = _compositionAuditionPlan.GetGlobalPosition(
-                    _activeCompositionDraftSegmentIndex,
+                var globalSeconds = session.Plan.GetGlobalPosition(
+                    session.ActiveSegmentIndex,
                     target.TimestampSeconds);
                 await SeekCompositionDraftAsync(globalSeconds, playAfterSeek: false);
             }
@@ -3793,13 +3780,13 @@ public partial class MainWindow : Window, IDisposable
 
     private void CompleteVideoPlayback()
     {
-        if (_activeCompositionDraftRevisionId is not null)
+        if (_compositionAuditionSession is { } session)
         {
-            _compositionDraftPositionSeconds = MediaPreviewPanelControl.MaximumPositionSeconds;
-            MediaPreviewPanelControl.SetPosition(_compositionDraftPositionSeconds);
-            UpdateCompositionTimelinePlayhead(_compositionDraftPositionSeconds);
+            var completed = session.Complete();
+            MediaPreviewPanelControl.SetPosition(completed.GlobalSeconds);
+            UpdateCompositionTimelinePlayhead(completed.GlobalSeconds);
         }
-        MediaPreviewPanelControl.MarkPlaybackEnded(resetVideoPosition: _activeCompositionDraftRevisionId is null);
+        MediaPreviewPanelControl.MarkPlaybackEnded(resetVideoPosition: _compositionAuditionSession is null);
         UpdatePlaybackPosition();
     }
 
@@ -3811,15 +3798,15 @@ public partial class MainWindow : Window, IDisposable
 
     private async void MediaPreview_ScrubCompleted(object? sender, MediaPreviewScrubCompletedEventArgs e)
     {
-        if (_activeCompositionDraftRevisionId is not null)
+        if (_compositionAuditionSession is not null)
             await SeekCompositionDraftAsync(e.PositionSeconds, e.ResumePlayback);
         else
             SeekPreview(e.PositionSeconds);
-        if (e.ResumePlayback && _activeCompositionDraftRevisionId is null)
+        if (e.ResumePlayback && _compositionAuditionSession is null)
         {
             MediaPreviewPanelControl.Play();
         }
-        else if (_activeCompositionDraftRevisionId is null)
+        else if (_compositionAuditionSession is null)
         {
             MediaPreviewPanelControl.Pause();
         }
@@ -3829,7 +3816,7 @@ public partial class MainWindow : Window, IDisposable
     private void SeekPreview(double seconds)
     {
         if (!MediaPreviewPanelControl.HasVideoSource) return;
-        if (_activeCompositionDraftRevisionId is not null)
+        if (_compositionAuditionSession is not null)
         {
             _ = SeekCompositionDraftAsync(seconds, playAfterSeek: false);
             return;
@@ -3842,18 +3829,18 @@ public partial class MainWindow : Window, IDisposable
 
     private async Task SeekCompositionDraftAsync(double seconds, bool playAfterSeek)
     {
-        if (_activeCompositionDraftRevisionId is null || _compositionAuditionPlan is null) return;
-        var target = _compositionAuditionPlan.ClampGlobalPosition(seconds);
+        if (_compositionAuditionSession is not { } session) return;
+        var target = session.Plan.ClampGlobalPosition(seconds);
         SyncCompositionAuditionAudio(target, playAfterSeek);
-        var targetIndex = _compositionAuditionPlan.FindSegmentIndex(target);
-        _compositionDraftPositionSeconds = target;
-        if (targetIndex != _activeCompositionDraftSegmentIndex)
+        var targetIndex = session.Plan.FindSegmentIndex(target);
+        if (targetIndex != session.ActiveSegmentIndex)
         {
             await OpenCompositionDraftSegmentAsync(targetIndex, target, playAfterSeek);
             return;
         }
 
-        var localSeconds = _compositionAuditionPlan.GetSourcePosition(targetIndex, target);
+        var position = session.Seek(target);
+        var localSeconds = position.SourceSeconds;
         MediaPreviewPanelControl.SeekVideo(Math.Max(0, localSeconds));
         MediaPreviewPanelControl.SetPosition(target);
         MediaPreviewPanelControl.ShowTimelinePosition(target);
@@ -3876,12 +3863,9 @@ public partial class MainWindow : Window, IDisposable
         var mediaPosition = MediaPreviewPanelControl.MediaPosition;
         var mediaDuration = MediaPreviewPanelControl.MediaDuration;
 
-        if (MediaPreviewPanelControl.IsPlaying && _activeCompositionDraftRevisionId is not null &&
-            _compositionAuditionPlan is not null &&
-            _activeCompositionDraftSegmentIndex >= 0 &&
-            _activeCompositionDraftSegmentIndex < _compositionAuditionPlan.Segments.Count)
+        if (MediaPreviewPanelControl.IsPlaying && _compositionAuditionSession is { } playingSession)
         {
-            var activeSegment = _compositionAuditionPlan.Segments[_activeCompositionDraftSegmentIndex];
+            var activeSegment = playingSession.ActiveSegment;
             if (mediaPosition.TotalSeconds >=
                 activeSegment.SourceStartSeconds + activeSegment.DurationSeconds - 0.01)
             {
@@ -3892,21 +3876,17 @@ public partial class MainWindow : Window, IDisposable
 
         if (MediaPreviewPanelControl.IsPlaying && IsAtVideoEnd())
         {
-            if (_activeCompositionDraftRevisionId is not null)
+            if (_compositionAuditionSession is not null)
                 _ = AdvanceCompositionDraftSegmentAsync();
             else
                 CompleteVideoPlayback();
             return;
         }
 
-        if (_activeCompositionDraftRevisionId is not null && _compositionAuditionPlan is not null &&
-            _activeCompositionDraftSegmentIndex >= 0 &&
-            _activeCompositionDraftSegmentIndex < _compositionAuditionPlan.Segments.Count)
+        if (_compositionAuditionSession is { } session)
         {
-            var currentSeconds = _compositionAuditionPlan.GetGlobalPosition(
-                _activeCompositionDraftSegmentIndex,
-                mediaPosition.TotalSeconds);
-            _compositionDraftPositionSeconds = currentSeconds;
+            var currentPosition = session.UpdateFromSourcePosition(mediaPosition.TotalSeconds);
+            var currentSeconds = currentPosition.GlobalSeconds;
             if (MediaPreviewPanelControl.IsPlaying && MediaPreviewPanelControl.IsAuditionAudioReady &&
                 Math.Abs(MediaPreviewPanelControl.AuditionAudioPositionSeconds - currentSeconds) > 0.2)
                 SyncCompositionAuditionAudio(currentSeconds, play: true);
