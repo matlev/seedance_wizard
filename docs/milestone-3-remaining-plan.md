@@ -20,12 +20,12 @@ Infrastructure
 Platform.Windows / WPF App
 ```
 
-The Windows platform assembly, explicit runtime composition root, feature-organized Core and Infrastructure projects, decomposed persistence/materialization/provider/generation services, global job finalization, and the first WPF feature controls are established. The portable suite contains 222 tests and the Windows platform suite contains 3 tests.
+The Windows platform assembly, explicit runtime composition root, feature-organized Core and Infrastructure projects, decomposed persistence/materialization/provider/generation services, global job finalization, and the first WPF feature controls are established. The portable suite contains 245 tests and the Windows platform suite contains 3 tests.
 
-The principal remaining production concentration is `MainWindow.xaml.cs`, currently about 4,600 physical lines. Its remaining responsibilities are not one problem:
+The principal remaining production concentration is `MainWindow.xaml.cs`, currently about 3,300 physical lines. Its remaining responsibilities are not one problem:
 
-- composition timeline rendering, zoom, playhead, selection, context menus, drag/drop, reordering, audio placement, autoscroll, and scrubbing;
-- frame indexing/navigation, cancellation, Saved Frame/Clip project mutation, and precision-workflow coordination;
+- composition workspace commands, preview/audition coordination, and cross-feature timeline refresh routing;
+- media-preparation entry/exit policy plus cross-feature projection of Saved Frame/Clip results;
 - Project Media selection consequences plus rename/export/extract/delete/transfer operations;
 - generation draft, continuation preparation, Undo Send, submission, and cross-project result coordination;
 - shell workspace state, project lifecycle, refresh, status, and cross-feature routing.
@@ -111,13 +111,15 @@ Preserve the public facade while extracting the accessor, transaction owner, lif
 
 ### Unit 2 — extract the Composition Timeline control
 
-Status: implementation, automated verification, and deep review complete; human smoke acceptance pending.
+Status: complete. Implementation, automated verification, deep review, and human smoke acceptance passed.
 
 Write set: `ReelForge.App/Views/Editing/CompositionTimeline*`, the inline timeline XAML, timeline-specific shell wiring, and focused timeline presentation tests if deterministic logic is extracted.
 
 Move the complete timeline visual and local gesture state behind semantic events. Preserve current timeline calculations and application commands. Run layout, split, detachment, audition-plan, and WPF build checks. Human smoke: complete Timeline Arrangement and Audition rows, including rapid cross-cut scrubbing.
 
 ### Unit 3 — extract frame-preparation orchestration
+
+Status: implementation, automated verification, and deep review complete; final human smoke acceptance pending.
 
 Write set: a focused App coordinator, frame-preparation shell wiring, and frame/Saved Frame/Clip tests.
 

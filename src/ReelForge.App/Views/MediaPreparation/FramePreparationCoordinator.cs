@@ -219,6 +219,57 @@ public sealed class FramePreparationCoordinator : IDisposable
         ScheduleContactFrameRefresh(item.Revision.TimestampSeconds);
     }
 
+    public async Task<SavedFrameMutation?> SaveSelectedFrameAsync(CancellationToken cancellationToken = default)
+    {
+        if (!TryGetSelectedFrame(out var selection)) return null;
+        var saved = await new SavedFrameService(_workspace)
+            .CreateAsync(selection.ExactPosition, cancellationToken);
+        return saved;
+    }
+
+    public bool SetSelectedClipBoundary(bool isStart)
+    {
+        if (!TryGetSelectedFrame(out var selection)) return false;
+        _panel.SetClipBoundary(selection.ExactPosition, isStart);
+        return true;
+    }
+
+    public Task<ProjectAsset> CreateSavedClipAsync(
+        MediaPreparationClipDraft draft,
+        CancellationToken cancellationToken = default)
+    {
+        if (_sourceAssetId is not { } sourceAssetId)
+            throw new InvalidOperationException("Select a physical video first.");
+        return new SavedClipService(_workspace).CreateAsync(
+            draft.Name,
+            sourceAssetId,
+            draft.Start,
+            draft.End,
+            cancellationToken);
+    }
+
+    public async Task<SavedFrameMutation> UpdateSavedFrameAsync(
+        SavedFrameListItem item,
+        string? label,
+        string? notes,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await new SavedFrameService(_workspace)
+            .UpdateAsync(item.Anchor.Id, label, notes, cancellationToken);
+        _panel.RefreshSavedFrames();
+        return updated;
+    }
+
+    public async Task<AnchorRemovalDisposition> RemoveSavedFrameAsync(
+        Guid anchorId,
+        CancellationToken cancellationToken = default)
+    {
+        return await new SavedFrameService(_workspace).RemoveAsync(anchorId, cancellationToken);
+    }
+
+    public Task DeleteSavedClipAsync(Guid savedClipAssetId, CancellationToken cancellationToken = default) =>
+        new SavedClipService(_workspace).DeleteAsync(savedClipAssetId, cancellationToken);
+
     private CancellationTokenSource ReplaceCancellation()
     {
         _cancellation?.Cancel();

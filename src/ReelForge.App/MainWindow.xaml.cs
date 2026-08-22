@@ -1791,7 +1791,7 @@ public partial class MainWindow : Window, IDisposable
             if (deleteClip != MessageBoxResult.Yes) return;
             await RunUiActionAsync($"Deleting {asset.EffectiveDisplayName}…", async () =>
             {
-                await new SavedClipService(_workspace).DeleteAsync(asset.Id);
+                await _framePreparationCoordinator.DeleteSavedClipAsync(asset.Id);
                 ProjectMediaPanelControl.SelectedItem = null;
                 ClearMediaPreview();
                 RefreshProjectCollections();
@@ -3016,43 +3016,25 @@ public partial class MainWindow : Window, IDisposable
 
         await RunUiActionAsync("Saving exact frame position…", async () =>
         {
-            var anchor = new FrameAnchor
-            {
-                DisplayLabel = $"Saved frame {FormatFrameTimestamp(selection.Frame.TimestampSeconds)}"
-            };
-            _workspace.Project.Anchors.Add(anchor);
-            var revision = _workspace.Project.CommitAnchorRevision(anchor.Id, selection.ExactPosition);
-            await _workspace.SaveAsync();
+            var saved = await _framePreparationCoordinator.SaveSelectedFrameAsync();
+            if (saved is null) return;
             RefreshProjectCollections();
             await _framePreparationCoordinator.RefreshSavedFramesAsync();
-            _framePreparationCoordinator.SelectSavedFrameRevision(revision.Id);
-            StatusText.Text = $"Saved exact frame at {FormatFrameTimestamp(revision.TimestampSeconds)}.";
+            _framePreparationCoordinator.SelectSavedFrameRevision(saved.Revision.Id);
+            StatusText.Text = $"Saved exact frame at {FormatFrameTimestamp(saved.Revision.TimestampSeconds)}.";
         });
     }
 
     private void MediaPreparationPanel_ClipStartRequested(object? sender, EventArgs e)
     {
-        if (!TryGetSelectedClipFrame(out var position)) return;
-        MediaPreparationPanelControl.SetClipBoundary(position, isStart: true);
+        if (!_framePreparationCoordinator.SetSelectedClipBoundary(isStart: true))
+            StatusText.Text = "Select an exact frame before setting this clip boundary.";
     }
 
     private void MediaPreparationPanel_ClipEndRequested(object? sender, EventArgs e)
     {
-        if (!TryGetSelectedClipFrame(out var position)) return;
-        MediaPreparationPanelControl.SetClipBoundary(position, isStart: false);
-    }
-
-    private bool TryGetSelectedClipFrame(out ExactFramePosition position)
-    {
-        if (!_framePreparationCoordinator.TryGetSelectedFrame(out var selection))
-        {
+        if (!_framePreparationCoordinator.SetSelectedClipBoundary(isStart: false))
             StatusText.Text = "Select an exact frame before setting this clip boundary.";
-            position = null!;
-            return false;
-        }
-
-        position = selection.ExactPosition;
-        return true;
     }
 
     private async void MediaPreparationPanel_SaveClipRequested(object? sender, EventArgs e)
@@ -3067,11 +3049,7 @@ public partial class MainWindow : Window, IDisposable
 
         await RunUiActionAsync("Saving non-destructive clip…", async () =>
         {
-            var clip = await new SavedClipService(_workspace).CreateAsync(
-                draft.Name,
-                sourceAssetId,
-                draft.Start,
-                draft.End);
+            var clip = await _framePreparationCoordinator.CreateSavedClipAsync(draft);
             RefreshProjectCollections(clip.Id);
             StatusText.Text = $"Saved Clip '{clip.EffectiveDisplayName}' created without copying source media.";
         });
@@ -3089,18 +3067,13 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_workspace.Project is null) return;
         var item = e.Item;
-        item.Anchor.DisplayLabel = NullIfWhiteSpace(e.Label)
-            ?? $"Saved frame {FormatFrameTimestamp(item.Revision.TimestampSeconds)}";
-        item.Anchor.Notes = NullIfWhiteSpace(e.Notes);
-        _workspace.Project.Touch();
-        await _workspace.SaveAsync();
-        MediaPreparationPanelControl.RefreshSavedFrames();
+        var updated = await _framePreparationCoordinator.UpdateSavedFrameAsync(item, e.Label, e.Notes);
         var sourceName = _workspace.Project.Assets
-            .SingleOrDefault(asset => asset.Id == item.Revision.SourceAssetId)?.EffectiveDisplayName;
+            .SingleOrDefault(asset => asset.Id == updated.Revision.SourceAssetId)?.EffectiveDisplayName;
         foreach (var choice in _referenceChoices.Where(choice =>
                      choice.ObjectKind == GenerationReferenceObjectKind.FrameAnchor &&
-                     choice.LogicalObjectId == item.Anchor.Id))
-            choice.UpdateAnchor(item.Anchor, item.Revision, sourceName);
+                     choice.LogicalObjectId == updated.Anchor.Id))
+            choice.UpdateAnchor(updated.Anchor, updated.Revision, sourceName);
         GenerationPanelControl.RefreshReferences();
         InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(item);
         StatusText.Text = "Saved Frame details updated.";
@@ -3131,8 +3104,7 @@ public partial class MainWindow : Window, IDisposable
             MessageBoxImage.Question,
             MessageBoxResult.No);
         if (result != MessageBoxResult.Yes) return;
-        var disposition = _workspace.Project.RemoveOrArchiveAnchor(anchor.Id);
-        await _workspace.SaveAsync();
+        var disposition = await _framePreparationCoordinator.RemoveSavedFrameAsync(anchor.Id);
         RefreshProjectCollections();
         if (MediaPreparationPanelControl.IsPreparing && _framePreparationCoordinator.CurrentSourceAssetId is not null)
             await _framePreparationCoordinator.RefreshSavedFramesAsync();
@@ -3291,9 +3263,6 @@ public partial class MainWindow : Window, IDisposable
             return parsed;
         return defaultValue;
     }
-
-    private static string? NullIfWhiteSpace(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string FormatGenerationOutcome(GenerationRecord generation)
     {
