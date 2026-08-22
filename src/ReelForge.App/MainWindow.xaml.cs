@@ -35,8 +35,6 @@ public partial class MainWindow : Window, IDisposable
     private readonly ObservableCollection<CompositionSegmentListItem> _compositionSegments = [];
     private readonly ObservableCollection<CompositionAudioClipListItem> _compositionAudioClips = [];
     private readonly ApplicationRuntime _runtime;
-    private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
-    private readonly SemaphoreSlim _submissionGate = new(1, 1);
     private readonly SemaphoreSlim _frameNavigationGate = new(1, 1);
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
@@ -57,6 +55,7 @@ public partial class MainWindow : Window, IDisposable
     private MediaToolAvailability _mediaTools;
     private readonly GenerationWorkspaceCoordinator _generationWorkspace;
     private readonly GenerationContinuationCoordinator _generationContinuation;
+    private readonly GenerationSubmissionCoordinator _generationSubmission;
     private readonly FramePreparationCoordinator _framePreparationCoordinator;
     private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressProjectMediaSelection;
@@ -118,7 +117,6 @@ public partial class MainWindow : Window, IDisposable
         _diagnosticLog = _runtime.DiagnosticLog;
         _temporaryAssetHost = _runtime.TemporaryAssetHost;
         _jobCoordinator = _runtime.JobCoordinator;
-        _runtime.JobFinalizer.Finalized += JobFinalizer_Finalized;
         JobsPanelControl.Initialize(_jobCoordinator);
         JobsChromeControl.Initialize(_jobCoordinator);
 
@@ -136,6 +134,14 @@ public partial class MainWindow : Window, IDisposable
             draft => _generationWorkspace.LoadDraft(draft),
             () => _generationWorkspace.ProviderChoices,
             () => _generationWorkspace.CurrentProvider);
+        _generationSubmission = new GenerationSubmissionCoordinator(
+            _runtime,
+            _workspace,
+            _generationWorkspace,
+            _jobCoordinator,
+            _runtime.JobFinalizer,
+            _secretStore,
+            new GenerationSubmissionPresentation(this));
 
         MediaToolsText.Text = _mediaTools.Summary;
         ApplyWorkspaceMode();
@@ -152,7 +158,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _runtime.JobFinalizer.Finalized -= JobFinalizer_Finalized;
+        _generationSubmission.Dispose();
         _generationWorkspace.ReferenceSelectionRequested -= GenerationWorkspace_ReferenceSelectionRequested;
         _generationWorkspace.Dispose();
         JobsPanelControl.Dispose();
@@ -165,9 +171,6 @@ public partial class MainWindow : Window, IDisposable
         _compositionAuditionController.Dispose();
         CompositionTimelineControl.Dispose();
         MediaPreviewPanelControl.Dispose();
-        foreach (var pending in _pendingSubmissionDelays.Values) pending.Cancel();
-        foreach (var pending in _pendingSubmissionDelays.Values) pending.Dispose();
-        _pendingSubmissionDelays.Clear();
         _runtime.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -210,21 +213,6 @@ public partial class MainWindow : Window, IDisposable
     private void RefreshProviderRuntime(string? preferredProviderId) =>
         _generationWorkspace.RefreshProviders(preferredProviderId);
 
-    private void JobFinalizer_Finalized(object? sender, GenerationJobFinalizedEventArgs e)
-    {
-        if (_disposed || Dispatcher.HasShutdownStarted || !e.ActiveProjectUpdated) return;
-        _ = Dispatcher.BeginInvoke(() =>
-        {
-            var generation = _workspace.Project?.Generations.SingleOrDefault(candidate =>
-                candidate.Id == e.GenerationId);
-            if (generation is null) return;
-            RefreshProjectCollections();
-            TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
-            StatusText.Text = e.Status == GenerationStatus.Succeeded
-                ? "Generated output added as durable project media."
-                : $"Generation finished with status {e.Status}.";
-        }, DispatcherPriority.Background);
-    }
 
     private async void WorkspaceMode_Checked(object sender, RoutedEventArgs e)
     {
@@ -1222,55 +1210,7 @@ public partial class MainWindow : Window, IDisposable
 
     private async void GenerationPanel_SubmitRequested(object? sender, EventArgs e)
     {
-        if (!EnsureProjectOpen())
-        {
-            return;
-        }
-
-        GenerationSubmissionAuthorization? authorization = null;
-        var draft = _generationWorkspace.CaptureDraft();
-        if (_generationWorkspace.CurrentProvider.CostBehavior == GenerationProviderCostBehavior.PotentiallyBillable)
-        {
-            if (_generationWorkspace.CurrentProvider is not IApiKeyVideoGenerationProvider apiKeyProvider)
-                throw new InvalidOperationException("This paid provider has no configured credential contract.");
-            var apiKey = await _secretStore.GetAsync(apiKeyProvider.ApiKeyCredentialKey);
-            if (string.IsNullOrWhiteSpace(apiKey))
-            {
-                GenerationPanelControl.Status = $"Store a {_generationWorkspace.CurrentProvider.Capabilities.DisplayName} API key before live submission.";
-                return;
-            }
-
-            var confirmation = MessageBox.Show(
-                this,
-                $"Review the prompt settings before submitting to {_generationWorkspace.CurrentProvider.Capabilities.DisplayName}.\n\n" +
-                $"Model: {_generationWorkspace.CurrentProvider.Capabilities.ModelVersion}\n" +
-                $"Mode: {draft.Mode}\nDuration: {draft.DurationSeconds}s\n" +
-                $"Resolution: {draft.Resolution}\nReferences: {draft.References.Count}\n\n" +
-                "Proceed with these settings?",
-                "Confirm prompt submission",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning,
-                MessageBoxResult.No);
-            if (confirmation != MessageBoxResult.Yes)
-            {
-                GenerationPanelControl.Status = "Submission cancelled.";
-                return;
-            }
-
-            authorization = GenerationSubmissionAuthorization.FromInteractiveUserConfirmation(
-                _generationWorkspace.CurrentProvider.Capabilities.ProviderId,
-                userConfirmedPotentialCharges: true);
-        }
-
-        var undoSendSeconds = Math.Clamp(_applicationSettings.General.UndoSendSeconds, 0, 30);
-        if (undoSendSeconds > 0 &&
-            _generationWorkspace.CurrentProvider is IAsyncVideoGenerationProvider)
-        {
-            await QueueGenerationWithUndoSendAsync(draft, authorization, undoSendSeconds);
-            return;
-        }
-
-        await RunGenerationWorkflowAsync(draft, authorization);
+        await _generationSubmission.SubmitAsync(_applicationSettings.General.UndoSendSeconds);
     }
 
     private void ProjectMediaPanel_ActionRequested(
@@ -1890,284 +1830,10 @@ public partial class MainWindow : Window, IDisposable
         RefreshProjectCollections();
     }
 
-    private async Task QueueGenerationWithUndoSendAsync(
-        GenerationDraft draft,
-        GenerationSubmissionAuthorization? authorization,
-        int undoSendSeconds)
-    {
-        var provider = _generationWorkspace.CurrentProvider;
-        var workflow = _generationWorkspace.CurrentWorkflow;
-        var providerPreparation = _generationWorkspace.CurrentPreparation;
-        var projectLocation = _workspace.Location;
-        var projectName = _workspace.Project?.Name;
-        if (projectLocation is null || projectName is null) return;
-
-        SetProjectActionsEnabled(false);
-        try
-        {
-            var generation = await workflow.QueueAsync(provider, draft, authorization);
-            var delaySeconds = Math.Clamp(undoSendSeconds, 1, 30);
-            var expiresAt = DateTimeOffset.UtcNow.AddSeconds(delaySeconds);
-            await _jobCoordinator.TrackPendingAsync(
-                generation,
-                projectLocation,
-                projectName,
-                provider.Capabilities.DisplayName,
-                expiresAt);
-
-            var delayCancellation = new CancellationTokenSource();
-            _pendingSubmissionDelays[generation.Id] = delayCancellation;
-            RefreshProjectCollections();
-            GenerationHistoryPanelControl.SelectGeneration(generation.Id);
-            GenerationPanelControl.Status = $"Generation queued locally for {delaySeconds} seconds. Use Cancel Job in Jobs to undo.";
-            StatusText.Text = "Generation has not been sent to the provider yet.";
-            _ = SubmitAfterUndoSendDelayAsync(
-                generation.Id,
-                workflow,
-                providerPreparation,
-                provider,
-                projectLocation,
-                projectName,
-                authorization,
-                expiresAt,
-                delayCancellation);
-        }
-        catch (GenerationValidationException exception)
-        {
-            GenerationPanelControl.Status = exception.Message;
-        }
-        catch (Exception exception)
-        {
-            ShowError("Generation could not be queued", exception);
-        }
-        finally
-        {
-            SetProjectActionsEnabled(true);
-        }
-    }
-
-    private async Task SubmitAfterUndoSendDelayAsync(
-        Guid generationId,
-        GenerationWorkflow activeWorkflow,
-        IProviderAssetPreparationService? providerPreparation,
-        IVideoGenerationProvider provider,
-        ProjectLocation projectLocation,
-        string projectName,
-        GenerationSubmissionAuthorization? authorization,
-        DateTimeOffset expiresAt,
-        CancellationTokenSource delayCancellation)
-    {
-        try
-        {
-            var remaining = expiresAt - DateTimeOffset.UtcNow;
-            if (remaining > TimeSpan.Zero)
-                await Task.Delay(remaining, delayCancellation.Token);
-            if (!await _jobCoordinator.TryBeginSubmissionAsync(generationId)) return;
-
-            RemovePendingSubmissionDelay(generationId, delayCancellation);
-            await _submissionGate.WaitAsync();
-            try
-            {
-                var usesActiveWorkspace = IsProjectOpen(projectLocation.ProjectFilePath);
-                var submissionWorkspace = _workspace;
-                var submissionWorkflow = activeWorkflow;
-                if (!usesActiveWorkspace)
-                {
-                    submissionWorkspace = _runtime.CreateProjectWorkspace();
-                    await submissionWorkspace.OpenAsync(projectLocation.ProjectFilePath);
-                    submissionWorkflow = _runtime.CreateGenerationWorkflow(submissionWorkspace, providerPreparation);
-                }
-                var generation = submissionWorkspace.Project?.Generations.SingleOrDefault(item => item.Id == generationId)
-                    ?? throw new InvalidOperationException("The locally queued generation no longer exists in its owning project.");
-                await RunQueuedGenerationWorkflowAsync(
-                    submissionWorkflow,
-                    provider,
-                    generation,
-                    projectLocation,
-                    projectName,
-                    authorization,
-                    usesActiveWorkspace);
-            }
-            finally
-            {
-                _submissionGate.Release();
-            }
-        }
-        catch (OperationCanceledException) when (delayCancellation.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            ShowError("Queued generation failed", exception);
-        }
-        finally
-        {
-            RemovePendingSubmissionDelay(generationId, delayCancellation);
-        }
-    }
-
-    private async Task RunQueuedGenerationWorkflowAsync(
-        GenerationWorkflow workflow,
-        IVideoGenerationProvider provider,
-        GenerationRecord generation,
-        ProjectLocation projectLocation,
-        string projectName,
-        GenerationSubmissionAuthorization? authorization,
-        bool usesActiveWorkspace)
-    {
-        if (usesActiveWorkspace)
-        {
-            GenerationPanelControl.IsSubmissionEnabled = false;
-            SetProjectActionsEnabled(false);
-        }
-        IProgress<GenerationWorkflowProgress>? progress = usesActiveWorkspace
-            ? new Progress<GenerationWorkflowProgress>(update => GenerationPanelControl.Status = update.Message)
-            : null;
-        try
-        {
-            generation = await workflow.SubmitQueuedAsync(provider, generation, authorization, progress);
-            var sourceIsActiveNow = IsProjectOpen(projectLocation.ProjectFilePath);
-            if (sourceIsActiveNow)
-            {
-                MergeGenerationStateIntoActiveProject(generation);
-                RefreshProjectCollections();
-                GenerationHistoryPanelControl.SelectGeneration(generation.Id);
-                TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
-            }
-
-            if (provider is IAsyncVideoGenerationProvider && !string.IsNullOrWhiteSpace(generation.ProviderJobId))
-            {
-                await _jobCoordinator.TrackAsync(
-                    generation,
-                    projectLocation,
-                    projectName,
-                    provider.Capabilities.DisplayName);
-                if (sourceIsActiveNow)
-                    GenerationPanelControl.Status = "Generation submitted. Follow its progress in the Jobs tab.";
-                StatusText.Text = $"Generation accepted by {provider.Capabilities.DisplayName}.";
-            }
-            else if (generation.Status is GenerationStatus.Failed or GenerationStatus.Cancelled)
-            {
-                await _jobCoordinator.CompleteUnacceptedSubmissionAsync(generation);
-                if (sourceIsActiveNow) GenerationPanelControl.Status = FormatGenerationOutcome(generation);
-                StatusText.Text = $"Generation state: {generation.Status}; no provider job is being monitored.";
-            }
-            else
-            {
-                if (sourceIsActiveNow) GenerationPanelControl.Status = FormatGenerationOutcome(generation);
-                StatusText.Text = $"Generation state: {generation.Status}; ingestion: {generation.IngestionStatus}.";
-            }
-        }
-        finally
-        {
-            if (usesActiveWorkspace)
-            {
-                GenerationPanelControl.IsSubmissionEnabled = true;
-                SetProjectActionsEnabled(true);
-            }
-        }
-    }
-
     private async void JobsPanelControl_CancelRequested(
         object? sender,
-        GenerationJobCancelRequestedEventArgs e)
-    {
-        try
-        {
-            if (!await _jobCoordinator.CancelPendingAsync(e.GenerationId)) return;
-            if (_pendingSubmissionDelays.TryGetValue(e.GenerationId, out var delay)) delay.Cancel();
-            RemovePendingSubmissionDelay(e.GenerationId, delay);
-            GenerationPanelControl.Status = "Queued generation cancelled.";
-            StatusText.Text = "Provider status: Cancelled";
-        }
-        catch (Exception exception)
-        {
-            ShowError("Queued generation could not be cancelled", exception);
-        }
-    }
-
-    private void RemovePendingSubmissionDelay(Guid generationId, CancellationTokenSource? expected)
-    {
-        if (!_pendingSubmissionDelays.TryGetValue(generationId, out var current) ||
-            (expected is not null && !ReferenceEquals(current, expected))) return;
-        _pendingSubmissionDelays.Remove(generationId);
-        current.Dispose();
-    }
-
-    private bool IsProjectOpen(string projectFilePath) =>
-        _workspace.Location is not null &&
-        Path.GetFullPath(_workspace.Location.ProjectFilePath).Equals(
-            Path.GetFullPath(projectFilePath),
-            StringComparison.OrdinalIgnoreCase);
-
-    private void MergeGenerationStateIntoActiveProject(GenerationRecord source)
-    {
-        var target = _workspace.Project?.Generations.SingleOrDefault(candidate => candidate.Id == source.Id);
-        if (target is null || ReferenceEquals(target, source)) return;
-        target.ProviderJobId = source.ProviderJobId;
-        target.Status = source.Status;
-        target.IngestionStatus = source.IngestionStatus;
-        target.CompletedAt = source.CompletedAt;
-        target.OutputAssetIds = source.OutputAssetIds.ToList();
-        target.ResponseMetadata = new Dictionary<string, string>(source.ResponseMetadata, StringComparer.Ordinal);
-        target.Error = source.Error;
-    }
-
-    private async Task RunGenerationWorkflowAsync(
-        GenerationDraft draft,
-        GenerationSubmissionAuthorization? authorization)
-    {
-        GenerationPanelControl.IsSubmissionEnabled = false;
-        SetProjectActionsEnabled(false);
-        var provider = _generationWorkspace.CurrentProvider;
-        var projectLocation = _workspace.Location;
-        var projectName = _workspace.Project?.Name;
-        var progress = new Progress<GenerationWorkflowProgress>(update => GenerationPanelControl.Status = update.Message);
-
-        try
-        {
-            var generation = await _generationWorkspace.CurrentWorkflow.SubmitAsync(
-                provider,
-                draft,
-                authorization,
-                progress);
-            RefreshProjectCollections();
-            GenerationHistoryPanelControl.SelectGeneration(generation.Id);
-            TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
-
-            if (provider is IAsyncVideoGenerationProvider &&
-                !string.IsNullOrWhiteSpace(generation.ProviderJobId) &&
-                projectLocation is not null &&
-                projectName is not null)
-            {
-                await _jobCoordinator.TrackAsync(
-                    generation,
-                    projectLocation,
-                    projectName,
-                    provider.Capabilities.DisplayName);
-                GenerationPanelControl.Status = "Generation submitted. Follow its progress in the Jobs tab.";
-                StatusText.Text = $"Generation accepted by {provider.Capabilities.DisplayName}.";
-            }
-            else
-            {
-                GenerationPanelControl.Status = FormatGenerationOutcome(generation);
-                StatusText.Text = $"Generation state: {generation.Status}; ingestion: {generation.IngestionStatus}.";
-            }
-        }
-        catch (GenerationValidationException exception)
-        {
-            GenerationPanelControl.Status = exception.Message;
-        }
-        catch (Exception exception)
-        {
-            ShowError("Generation workflow failed", exception);
-        }
-        finally
-        {
-            GenerationPanelControl.IsSubmissionEnabled = true;
-            SetProjectActionsEnabled(true);
-        }
-    }
+        GenerationJobCancelRequestedEventArgs e) =>
+        await _generationSubmission.CancelQueuedAsync(e.GenerationId);
 
     private void SetProjectActionsEnabled(bool isEnabled)
     {
@@ -2909,18 +2575,6 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private static string FormatGenerationOutcome(GenerationRecord generation)
-    {
-        var message = $"Remote: {generation.Status} • Ingestion: {generation.IngestionStatus}";
-        if (!string.IsNullOrWhiteSpace(generation.ProviderJobId))
-            message += $"\nJob: {generation.ProviderJobId}";
-        if (generation.Error is not null)
-            message += $"\n{generation.Error.Message}";
-        if (generation.ResponseMetadata.GetValueOrDefault("localMonitoring") is { } monitoring)
-            message += $"\nLocal monitoring: {monitoring}";
-        return message;
-    }
-
     private bool EnsureProjectOpen()
     {
         if (_workspace.Project is not null)
@@ -2950,6 +2604,57 @@ public partial class MainWindow : Window, IDisposable
         StatusText.Text = exception.Message;
         InspectorPanelControl.Text = $"{title}\n\n{exception}";
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private sealed class GenerationSubmissionPresentation(MainWindow window) : IGenerationSubmissionPresentation
+    {
+        public void ShowProjectRequired()
+        {
+            MessageBox.Show(window, "Create or open a project first.", "ReelForge", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        public bool ConfirmPotentiallyBillableSubmission(IVideoGenerationProvider provider, GenerationDraft draft) =>
+            MessageBox.Show(
+                window,
+                $"Review the prompt settings before submitting to {provider.Capabilities.DisplayName}.\n\n" +
+                $"Model: {provider.Capabilities.ModelVersion}\n" +
+                $"Mode: {draft.Mode}\nDuration: {draft.DurationSeconds}s\n" +
+                $"Resolution: {draft.Resolution}\nReferences: {draft.References.Count}\n\n" +
+                "Proceed with these settings?",
+                "Confirm prompt submission",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No) == MessageBoxResult.Yes;
+
+        public void ShowError(string title, Exception exception) => window.ShowError(title, exception);
+        public void SetGenerationStatus(string status) => window.GenerationPanelControl.Status = status;
+        public void SetStatus(string status) => window.StatusText.Text = status;
+        public void SetSubmissionEnabled(bool enabled) => window.GenerationPanelControl.IsSubmissionEnabled = enabled;
+        public void SetProjectActionsEnabled(bool enabled) => window.SetProjectActionsEnabled(enabled);
+        public void RefreshProjectCollections() => window.RefreshProjectCollections();
+        public void SelectGeneration(Guid generationId) => window.GenerationHistoryPanelControl.SelectGeneration(generationId);
+
+        public void MergeGenerationState(GenerationRecord source)
+        {
+            var target = window._workspace.Project?.Generations.SingleOrDefault(candidate => candidate.Id == source.Id);
+            if (target is null || ReferenceEquals(target, source)) return;
+            target.ProviderJobId = source.ProviderJobId;
+            target.Status = source.Status;
+            target.IngestionStatus = source.IngestionStatus;
+            target.CompletedAt = source.CompletedAt;
+            target.OutputAssetIds = source.OutputAssetIds.ToList();
+            target.ResponseMetadata = new Dictionary<string, string>(source.ResponseMetadata, StringComparer.Ordinal);
+            target.Error = source.Error;
+        }
+
+        public void TryAutoPreview(GenerationRecord generation) =>
+            window.TryAutoPreviewGeneratedOutput(generation, owningProjectIsOpen: true);
+
+        public void BeginInvoke(Action action)
+        {
+            if (!window._disposed && !window.Dispatcher.HasShutdownStarted)
+                _ = window.Dispatcher.BeginInvoke(action, DispatcherPriority.Background);
+        }
     }
 
     private sealed class GenerationContinuationPresentation(MainWindow window) : IGenerationContinuationPresentation
