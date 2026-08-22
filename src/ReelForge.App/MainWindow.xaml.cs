@@ -3,8 +3,6 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -2383,7 +2381,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_workspace.Project is null || _workspace.Location is null) return;
         var sourcePath = _workspace.GetAbsoluteAssetPath(sourceAsset);
-        var transientRevision = CreateTransientFrameRevision(sourceAsset.Id, sourceContentHash, frame);
+        var transientRevision = TransientFrameAnchorRevisionFactory.Create(sourceAsset.Id, sourceContentHash, frame);
         await using var preview = await _exactFrameService.ExtractAsync(
             sourcePath,
             sourceContentHash,
@@ -3164,7 +3162,7 @@ public partial class MainWindow : Window, IDisposable
         VideoPresentationFrame frame,
         CancellationToken cancellationToken)
     {
-        var revision = CreateTransientFrameRevision(sourceAssetId, _frameSourceContentHash!, frame);
+        var revision = TransientFrameAnchorRevisionFactory.Create(sourceAssetId, _frameSourceContentHash!, frame);
         await using var lease = await _exactFrameService.ExtractAsync(
             sourcePath,
             _frameSourceContentHash!,
@@ -3173,32 +3171,6 @@ public partial class MainWindow : Window, IDisposable
             "contact-strip",
             cancellationToken);
         return new FrameContactListItem(frame, LoadBitmap(lease.Path));
-    }
-
-    private static FrameAnchorRevision CreateTransientFrameRevision(
-        Guid sourceAssetId,
-        string sourceContentHash,
-        VideoPresentationFrame frame)
-    {
-        var identityBytes = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('|',
-            sourceContentHash,
-            frame.VideoStreamIndex,
-            frame.PresentationTimestamp,
-            frame.TimeBaseNumerator,
-            frame.TimeBaseDenominator)));
-        return new FrameAnchorRevision
-        {
-            Id = new Guid(identityBytes.AsSpan(0, 16)),
-            AnchorId = Guid.Empty,
-            RevisionNumber = 0,
-            SourceAssetId = sourceAssetId,
-            SourceContentHash = sourceContentHash,
-            VideoStreamIndex = frame.VideoStreamIndex,
-            PresentationTimestamp = frame.PresentationTimestamp,
-            TimeBaseNumerator = frame.TimeBaseNumerator,
-            TimeBaseDenominator = frame.TimeBaseDenominator,
-            FrameNumber = frame.FrameNumber
-        };
     }
 
     private async Task RefreshSavedFramesAsync(CancellationToken cancellationToken)
