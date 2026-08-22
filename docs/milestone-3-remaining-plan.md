@@ -99,6 +99,8 @@ Add architecture checks for App and Platform.Windows references, portable non-Wi
 
 Each unit is independently buildable, testable, commit-sized, and reviewed before the next overlapping unit begins.
 
+Behavior preservation is the default migration constraint, not a requirement to preserve a known defect. When a recorded bug's root cause belongs directly to the responsibility being extracted, the unit may intentionally correct it if the old failure is characterized, the new behavior has focused regression coverage where practical, and the acceptance notes identify the change explicitly. Do not expand a refactor into unrelated ownership merely to reach a deferred bug, and do not declare a bug fixed because behavior changed incidentally.
+
 ### Unit 1 — decompose Working Composition editing
 
 Status: complete. Implementation, automated verification, deep review, and human smoke acceptance passed.
@@ -145,7 +147,7 @@ Split tests by layer/capability, centralize only proven shared fakes/builders, a
 
 Remove dead or Seedance-era tracked names, refresh repository/contributor documentation, rerun the file/responsibility inventory, and execute the complete manual acceptance matrix. Every remaining large file must have a documented cohesive reason to exist.
 
-The two known behavior bugs—restoring a valid baked composition after restart and frame stepping across fast-audition cuts—remain explicitly deferred until these behavior-preserving refactor units close. They must not be accidentally declared fixed or silently changed by a structural commit.
+The two known behavior bugs—restoring a valid baked composition after restart and frame stepping across fast-audition cuts—remain deferred unless a refactor unit naturally takes ownership of their root cause and fixes them under the characterization, regression-coverage, review, and acceptance rule above. They must not be accidentally declared fixed or silently changed by a structural commit.
 
 ## Coordination and review policy
 
