@@ -8,7 +8,9 @@ public static class ApplicationSettingsAccessor
         "General.UndoSendSeconds" => settings.General.UndoSendSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
         "General.LogDirectory" => settings.General.LogDirectory,
         "MediaTools.FfmpegPath" => settings.MediaTools.FfmpegPath ?? string.Empty,
+        "MediaTools.LogFfmpegCommands" => settings.MediaTools.LogFfmpegCommands.ToString().ToLowerInvariant(),
         "MediaTools.FfprobePath" => settings.MediaTools.FfprobePath ?? string.Empty,
+        "MediaTools.LogFfprobeCommands" => settings.MediaTools.LogFfprobeCommands.ToString().ToLowerInvariant(),
         "MediaTools.CacheSizeBytes" => settings.MediaTools.CacheSizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
         "MediaTools.PersistModifiedMediaOnDisk" => settings.MediaTools.PersistModifiedMediaOnDisk.ToString().ToLowerInvariant(),
         "MediaTools.SplitBehavior" => settings.MediaTools.SplitBehavior.ToString(),
@@ -39,7 +41,9 @@ public static class ApplicationSettingsAccessor
                 settings.General.LogDirectory = ApplicationPathResolver.ResolveDirectory(value);
                 break;
             case "MediaTools.FfmpegPath": settings.MediaTools.FfmpegPath = EmptyToNull(value); break;
+            case "MediaTools.LogFfmpegCommands": settings.MediaTools.LogFfmpegCommands = ParseBoolean(value, key); break;
             case "MediaTools.FfprobePath": settings.MediaTools.FfprobePath = EmptyToNull(value); break;
+            case "MediaTools.LogFfprobeCommands": settings.MediaTools.LogFfprobeCommands = ParseBoolean(value, key); break;
             case "MediaTools.CacheSizeBytes":
                 const long minimumCacheBytes = 1024L * 1024;
                 const long maximumCacheBytes = 8L * 1024 * 1024 * 1024 * 1024;

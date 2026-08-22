@@ -16,7 +16,8 @@ public sealed class FileApplicationDiagnosticLog : IApplicationDiagnosticLog, ID
 
     public string LogDirectory => Volatile.Read(ref _logDirectory);
 
-    public async Task<DiagnosticLogReference?> WriteErrorAsync(
+    public async Task<DiagnosticLogReference?> WriteAsync(
+        DiagnosticLogLevel level,
         string category,
         string message,
         IReadOnlyDictionary<string, string?> details,
@@ -27,7 +28,7 @@ public sealed class FileApplicationDiagnosticLog : IApplicationDiagnosticLog, ID
         var entry = new DiagnosticLogEntry(
             timestamp,
             eventId,
-            "error",
+            level.ToString().ToLowerInvariant(),
             category,
             message,
             details);
@@ -55,6 +56,13 @@ public sealed class FileApplicationDiagnosticLog : IApplicationDiagnosticLog, ID
             return null;
         }
     }
+
+    public Task<DiagnosticLogReference?> WriteErrorAsync(
+        string category,
+        string message,
+        IReadOnlyDictionary<string, string?> details,
+        CancellationToken cancellationToken = default) =>
+        WriteAsync(DiagnosticLogLevel.Error, category, message, details, cancellationToken);
 
     public static string ResolveLogDirectory(string configuredPath) =>
         ApplicationPathResolver.ResolveDirectory(configuredPath);

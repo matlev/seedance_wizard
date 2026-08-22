@@ -60,6 +60,8 @@ internal sealed class SettingsFieldFactory
         if (requirement.Key.EndsWith(".Enabled", StringComparison.Ordinal) ||
             requirement.Key == "MediaTools.PersistModifiedMediaOnDisk")
             return CreateBooleanEditor(requirement);
+        if (requirement.Key is "MediaTools.LogFfmpegCommands" or "MediaTools.LogFfprobeCommands")
+            return CreateCommandLoggingCheckbox(requirement);
         if (requirement.Key == "General.UndoSendSeconds") return CreateUndoSendEditor(requirement);
         if (requirement.Key == "MediaTools.CacheSizeBytes") return CreateCacheSizeEditor(requirement);
         if (requirement.Key == "MediaTools.SplitBehavior") return CreateMediaSplitBehaviorEditor(requirement);
@@ -285,6 +287,27 @@ internal sealed class SettingsFieldFactory
         group.Children.Add(disabled);
         panel.Children.Add(group);
         return panel;
+    }
+
+    private FrameworkElement CreateCommandLoggingCheckbox(ConfigurationRequirement requirement)
+    {
+        var isChecked = bool.TryParse(CurrentValue(requirement), out var parsed) && parsed;
+        var checkbox = new CheckBox
+        {
+            Content = requirement.DisplayName,
+            ToolTip = requirement.Description,
+            IsChecked = isChecked,
+            Margin = new Thickness(0, 0, 0, 17)
+        };
+        async Task UpdateAsync()
+        {
+            if (_isRendering()) return;
+            _pendingValues[requirement.Key] = (checkbox.IsChecked == true).ToString().ToLowerInvariant();
+            await _commitVisibleAsync().ConfigureAwait(true);
+        }
+        checkbox.Checked += async (_, _) => await UpdateAsync().ConfigureAwait(true);
+        checkbox.Unchecked += async (_, _) => await UpdateAsync().ConfigureAwait(true);
+        return checkbox;
     }
 
     private RadioButton CreateBooleanChoice(

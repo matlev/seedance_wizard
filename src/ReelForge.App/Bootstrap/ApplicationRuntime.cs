@@ -29,22 +29,26 @@ internal sealed class ApplicationRuntime : IDisposable
         Settings = LoadSettings();
         MediaTools = MediaToolDiscovery.Discover(Settings.MediaTools.FfmpegPath, Settings.MediaTools.FfprobePath);
 
-        var processRunner = new ExternalProcessRunner();
-        MediaInspector = new FfprobeMediaInspectionService(MediaTools.FfprobePath, processRunner);
+        DiagnosticLog = new FileApplicationDiagnosticLog(Settings.General.LogDirectory);
+        ProcessRunner = new ExternalProcessRunner(
+            DiagnosticLog,
+            Settings.MediaTools.LogFfmpegCommands,
+            Settings.MediaTools.LogFfprobeCommands);
+        MediaInspector = new FfprobeMediaInspectionService(MediaTools.FfprobePath, ProcessRunner);
         ExactFrameService = new ExactVideoFrameService(
             MediaTools.FfmpegPath,
             MediaTools.FfprobePath,
-            processRunner,
+            ProcessRunner,
             Paths.MediaCacheDirectory,
             maximumCacheBytes: Settings.MediaTools.CacheSizeBytes);
         MediaMaterializer = new RecipeMediaMaterializer(
             MediaTools.FfmpegPath,
-            processRunner,
+            ProcessRunner,
             ExactFrameService,
             Paths.MediaCacheDirectory,
             mediaInspector: MediaInspector,
             persistModifiedMediaOnDisk: Settings.MediaTools.PersistModifiedMediaOnDisk);
-        AudioExtractionEngine = new FfmpegAudioExtractionEngine(MediaTools.FfmpegPath, processRunner);
+        AudioExtractionEngine = new FfmpegAudioExtractionEngine(MediaTools.FfmpegPath, ProcessRunner);
 
         ProjectStore = new PortableProjectStore();
         AssetImporter = new AssetImportService(MediaInspector);
@@ -75,7 +79,6 @@ internal sealed class ApplicationRuntime : IDisposable
             AssetTransferService);
 
         SecretStore = new WindowsCredentialStore();
-        DiagnosticLog = new FileApplicationDiagnosticLog(Settings.General.LogDirectory);
         _r2HttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         _downloadHttpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         OutputIngestion = new HttpGeneratedOutputIngestionService(_downloadHttpClient, MediaInspector);
@@ -118,6 +121,7 @@ internal sealed class ApplicationRuntime : IDisposable
     public GenerationJobFinalizer JobFinalizer { get; }
     public ISecretStore SecretStore { get; }
     public FileApplicationDiagnosticLog DiagnosticLog { get; }
+    public ExternalProcessRunner ProcessRunner { get; }
     public ITemporaryAssetHost TemporaryAssetHost { get; }
     public GenerationJobCoordinator JobCoordinator { get; }
 
@@ -130,6 +134,9 @@ internal sealed class ApplicationRuntime : IDisposable
         ExactFrameService.UpdateExecutablePaths(MediaTools.FfmpegPath, MediaTools.FfprobePath);
         MediaMaterializer.UpdateExecutablePath(MediaTools.FfmpegPath);
         AudioExtractionEngine.UpdateExecutablePath(MediaTools.FfmpegPath);
+        ProcessRunner.UpdateCommandLogging(
+            Settings.MediaTools.LogFfmpegCommands,
+            Settings.MediaTools.LogFfprobeCommands);
         MediaMaterializer.UpdatePersistencePreference(Settings.MediaTools.PersistModifiedMediaOnDisk);
         ExactFrameService.UpdateMaximumCacheBytes(Settings.MediaTools.CacheSizeBytes);
         await ExactFrameService.TrimCacheAsync(cancellationToken).ConfigureAwait(false);

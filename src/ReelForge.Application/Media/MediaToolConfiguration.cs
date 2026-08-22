@@ -11,7 +11,9 @@ public sealed class MediaToolConfiguration
     public const long DefaultCacheSizeBytes = 10L * 1024 * 1024 * 1024;
 
     public string? FfmpegPath { get; set; }
+    public bool LogFfmpegCommands { get; set; }
     public string? FfprobePath { get; set; }
+    public bool LogFfprobeCommands { get; set; }
     public long CacheSizeBytes { get; set; } = DefaultCacheSizeBytes;
     public bool PersistModifiedMediaOnDisk { get; set; }
     public MediaSplitBehavior SplitBehavior { get; set; } = MediaSplitBehavior.BeforeSelectedFrame;
