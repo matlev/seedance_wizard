@@ -42,6 +42,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
     private readonly ProjectAssetTransferService _assetTransferService;
+    private readonly ProjectMediaOperationsCoordinator _projectMediaOperationsCoordinator;
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private readonly ExactVideoFrameService _exactFrameService;
     private readonly RecipeMediaMaterializer _mediaMaterializer;
@@ -95,6 +96,7 @@ public partial class MainWindow : Window, IDisposable
         _audioExtractionEngine = _runtime.AudioExtractionEngine;
         _projectStore = _runtime.ProjectStore;
         _workspace = _runtime.Workspace;
+        _projectMediaOperationsCoordinator = new ProjectMediaOperationsCoordinator(_workspace);
         _framePreparationCoordinator = new FramePreparationCoordinator(
             _workspace,
             _exactFrameService,
@@ -1592,23 +1594,38 @@ public partial class MainWindow : Window, IDisposable
     private async void RenameAsset_Click(object sender, RoutedEventArgs e)
     {
         if (GetSelectedAsset() is not { } asset) return;
-        if (asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
+        var renameKind = ProjectMediaRenamePolicy.GetKind(asset);
+        if (renameKind == ProjectMediaRenameKind.None)
         {
-            MessageBox.Show(this, "Virtual assets do not have a stored media filename.", "Change filename", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var dialog = new AssetNameDialog(asset.FileName) { Owner = this };
-        if (dialog.ShowDialog() != true) return;
+        string requestedName;
+        if (renameKind == ProjectMediaRenameKind.PhysicalFile)
+        {
+            var dialog = new AssetNameDialog(asset.FileName) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            requestedName = dialog.FileName;
+        }
+        else
+        {
+            var dialog = new DisplayNameDialog(asset.EffectiveDisplayName) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            requestedName = dialog.DisplayName;
+        }
 
         await RunUiActionAsync(
-            $"Renaming {asset.FileName}…",
+            renameKind == ProjectMediaRenameKind.PhysicalFile
+                ? $"Renaming {asset.FileName}…"
+                : $"Renaming {asset.EffectiveDisplayName}…",
             async () =>
             {
-                await PhysicalAssetFileRenameService.RenameAsync(_workspace, asset, dialog.FileName);
+                await _projectMediaOperationsCoordinator.RenameAsync(asset, requestedName);
                 RefreshProjectCollections(asset.Id);
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
-                StatusText.Text = $"Renamed stored media file to {asset.FileName}.";
+                StatusText.Text = renameKind == ProjectMediaRenameKind.PhysicalFile
+                    ? $"Renamed stored media file to {asset.FileName}."
+                    : $"Renamed Saved Clip to {asset.EffectiveDisplayName}.";
             });
     }
 

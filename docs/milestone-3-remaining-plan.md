@@ -20,7 +20,7 @@ Infrastructure
 Platform.Windows / WPF App
 ```
 
-The Windows platform assembly, explicit runtime composition root, feature-organized Core and Infrastructure projects, decomposed persistence/materialization/provider/generation services, global job finalization, and the first WPF feature controls are established. The portable suite contains 245 tests and the Windows platform suite contains 3 tests.
+The Windows platform assembly, explicit runtime composition root, feature-organized Core and Infrastructure projects, decomposed persistence/materialization/provider/generation services, global job finalization, and the first WPF feature controls are established. The portable suite contains 250 tests and the Windows platform suite contains 3 tests.
 
 The principal remaining production concentration is `MainWindow.xaml.cs`, currently about 3,300 physical lines. Its remaining responsibilities are not one problem:
 
@@ -127,7 +127,7 @@ Move indexing, cancellation, progressive contact-window refresh, keyboard naviga
 
 ### Unit 4 — extract Project Media operations
 
-Status: in progress. The Project Media grouping/presentation slice is implemented, automatically verified, and independently reviewed; human smoke acceptance is pending before mutation and file-operation extraction continues.
+Status: in progress. The Project Media grouping/presentation slice is complete with human acceptance. The unified rename coordinator and transactional Saved Clip display-name slice are implemented, automatically verified, and independently reviewed; their human smoke acceptance is pending before the remaining file-operation extraction continues.
 
 Write set: a focused App coordinator, Project Media shell wiring, and file-operation tests.
 

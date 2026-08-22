@@ -22,6 +22,42 @@ public sealed class SavedClipService
 
     public SavedClipService(ProjectWorkspace workspace) => _workspace = workspace;
 
+    /// <summary>
+    /// Changes the project-facing name of a Saved Clip without altering its recipe,
+    /// source media, or any materialized/cache representation.
+    /// </summary>
+    public async Task RenameAsync(
+        Guid savedClipAssetId,
+        string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedName = displayName?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+            throw new ArgumentException("Enter a Saved Clip name.", nameof(displayName));
+
+        var project = _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
+        var clip = project.Assets.SingleOrDefault(asset => asset.Id == savedClipAssetId)
+            ?? throw new InvalidOperationException("The Saved Clip no longer exists.");
+        if (clip.Virtual?.Kind != VirtualAssetKind.SavedClip)
+            throw new InvalidOperationException("Only a Saved Clip can be renamed through this operation.");
+
+        if (string.Equals(clip.DisplayName, normalizedName, StringComparison.Ordinal)) return;
+
+        var previousDisplayName = clip.DisplayName;
+        var previousModifiedAt = project.ModifiedAt;
+        try
+        {
+            clip.DisplayName = normalizedName;
+            await _workspace.SaveAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            clip.DisplayName = previousDisplayName;
+            project.ModifiedAt = previousModifiedAt;
+            throw;
+        }
+    }
+
     public async Task<ProjectAsset> CreateAsync(
         string displayName,
         Guid sourceAssetId,

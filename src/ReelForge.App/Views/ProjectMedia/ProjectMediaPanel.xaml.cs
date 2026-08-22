@@ -95,6 +95,14 @@ public partial class ProjectMediaPanel : UserControl
     private void ContextMenu_Opened(object sender, RoutedEventArgs e)
     {
         var asset = SelectedItem?.Asset;
+        var renameKind = ProjectMediaRenamePolicy.GetKind(asset);
+        RenameItem.Visibility = renameKind == ProjectMediaRenameKind.None
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        RenameItem.Header = renameKind == ProjectMediaRenameKind.SavedClip
+            ? "Rename Saved Clip…"
+            : "Change filename…";
+
         var isEligibleVideo = asset is { MediaType: MediaType.Video } &&
                               (asset.StorageKind == AssetStorageKind.Physical ||
                                asset.Virtual?.Kind == VirtualAssetKind.SavedClip);

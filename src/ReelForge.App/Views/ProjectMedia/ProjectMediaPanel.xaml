@@ -92,7 +92,7 @@
             </ListBox.GroupStyle>
             <ListBox.ContextMenu>
                 <ContextMenu Opened="ContextMenu_Opened">
-                    <MenuItem Header="Change filename…" Tag="Rename" Click="Action_Click" />
+                    <MenuItem x:Name="RenameItem" Header="Change filename…" Tag="Rename" Click="Action_Click" />
                     <MenuItem Header="Export…" Tag="Export" Click="Action_Click" />
                     <MenuItem x:Name="ExtractAudioItem" Header="Extract audio…" Tag="ExtractAudio"
                               Click="Action_Click" />
