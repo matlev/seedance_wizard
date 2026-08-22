@@ -43,6 +43,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly PortableProjectStore _projectStore;
     private readonly ProjectMediaOperationsCoordinator _projectMediaOperationsCoordinator;
     private readonly FfprobeMediaInspectionService _mediaInspector;
+    private readonly PhysicalAssetSelectionPreparationService _physicalAssetSelectionPreparationService;
     private readonly ExactVideoFrameService _exactFrameService;
     private readonly RecipeMediaMaterializer _mediaMaterializer;
     private readonly FfmpegAudioExtractionEngine _audioExtractionEngine;
@@ -103,6 +104,7 @@ public partial class MainWindow : Window, IDisposable
             _runtime.PhysicalAssetRemovalService,
             _runtime.ProjectAssetTransferWorkflow,
             _runtime.MaterializedProjectMediaTransferService);
+        _physicalAssetSelectionPreparationService = new PhysicalAssetSelectionPreparationService(_workspace, _mediaInspector);
         _framePreparationCoordinator = new FramePreparationCoordinator(
             _workspace,
             _exactFrameService,
@@ -616,31 +618,20 @@ public partial class MainWindow : Window, IDisposable
             $"Inspecting {asset.FileName}…",
             async () =>
             {
-                if (asset.StorageKind == AssetStorageKind.Physical && asset.Physical is not null &&
-                    !File.Exists(_workspace.GetAbsoluteAssetPath(asset)))
+                var resolution = await _physicalAssetSelectionPreparationService.PrepareAsync(
+                    asset,
+                    selectedProjectId,
+                    _mediaTools.FfprobePath is not null);
+                if (resolution.Kind == PhysicalAssetSelectionPreparationKind.Stale)
+                    return;
+
+                if (resolution.Kind == PhysicalAssetSelectionPreparationKind.Missing)
                 {
-                    asset.Physical.Availability = PhysicalAssetAvailability.Missing;
-                    await _workspace.SaveAsync();
-                    if (_workspace.Project?.Id != selectedProjectId) return;
                     InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
                     ShowAssetPreview(asset);
                     MediaPreparationPanelControl.SetWorkspaceStatus("Source media is missing");
                     StatusText.Text = $"{asset.FileName} is missing from its recorded project location.";
                     return;
-                }
-
-                if (asset.StorageKind == AssetStorageKind.Physical &&
-                    asset.MediaType is MediaType.Video or MediaType.Audio &&
-                    asset.Encoding is null &&
-                    _mediaTools.FfprobePath is not null)
-                {
-                    var encoding = await _mediaInspector.InspectAsync(_workspace.GetAbsoluteAssetPath(asset));
-                    if (_workspace.Project?.Id != selectedProjectId) return;
-                    asset.Encoding = encoding;
-                    asset.DurationSeconds = asset.Encoding.DurationSeconds;
-                    asset.Width = asset.Encoding.Video?.Width;
-                    asset.Height = asset.Encoding.Video?.Height;
-                    await _workspace.SaveAsync();
                 }
 
                 if (_workspace.Project?.Id != selectedProjectId) return;
