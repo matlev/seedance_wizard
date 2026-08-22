@@ -23,7 +23,6 @@ public partial class GenerationJobsChrome : UserControl, IDisposable
         _spriteFrames = LoadSpriteFrames();
         _animationTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _animationTimer.Tick += (_, _) => UpdateSprite(advanceFrame: true);
-        _animationTimer.Start();
     }
 
     public event EventHandler? OpenRequested;
@@ -46,7 +45,11 @@ public partial class GenerationJobsChrome : UserControl, IDisposable
     private void Coordinator_JobsChanged(object? sender, EventArgs e)
     {
         if (_disposed || Dispatcher.HasShutdownStarted) return;
-        _ = Dispatcher.BeginInvoke(() => UpdateSprite(advanceFrame: false), DispatcherPriority.Background);
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (_disposed || Dispatcher.HasShutdownStarted) return;
+            UpdateSprite(advanceFrame: false);
+        }, DispatcherPriority.Background);
     }
 
     private void Coordinator_JobStatusChanged(object? sender, GenerationJobStatusChangedEventArgs e)
@@ -54,6 +57,7 @@ public partial class GenerationJobsChrome : UserControl, IDisposable
         if (_disposed || _jobsOpen || Dispatcher.HasShutdownStarted) return;
         _ = Dispatcher.BeginInvoke(() =>
         {
+            if (_disposed || _jobsOpen || Dispatcher.HasShutdownStarted) return;
             ActivityIndicator.Visibility = Visibility.Visible;
             ActivityIndicator.ToolTip =
                 $"{e.ProjectName}: job status changed from {e.PreviousStatus} to {e.CurrentStatus}.";
@@ -62,10 +66,17 @@ public partial class GenerationJobsChrome : UserControl, IDisposable
 
     private void UpdateSprite(bool advanceFrame)
     {
+        if (_disposed || Dispatcher.HasShutdownStarted)
+        {
+            _animationTimer.Stop();
+            return;
+        }
+
         var hasActiveJob = _coordinator?.GetSnapshot().Any(job =>
             job.Status is GenerationStatus.Queued or GenerationStatus.Running) == true;
         if (!hasActiveJob)
         {
+            _animationTimer.Stop();
             ActiveJobSprite.Visibility = Visibility.Collapsed;
             _spriteFrameIndex = 0;
             ActiveJobSprite.Source = _spriteFrames[0];
@@ -77,9 +88,11 @@ public partial class GenerationJobsChrome : UserControl, IDisposable
             _spriteFrameIndex = 0;
             ActiveJobSprite.Source = _spriteFrames[0];
             ActiveJobSprite.Visibility = Visibility.Visible;
+            if (!_animationTimer.IsEnabled) _animationTimer.Start();
             return;
         }
 
+        if (!_animationTimer.IsEnabled) _animationTimer.Start();
         if (!advanceFrame) return;
         _spriteFrameIndex = (_spriteFrameIndex + 1) % _spriteFrames.Count;
         ActiveJobSprite.Source = _spriteFrames[_spriteFrameIndex];

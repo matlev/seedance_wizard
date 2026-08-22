@@ -35,7 +35,6 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
         _isInitialized = true;
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _positionTimer.Tick += (_, _) => PositionTick?.Invoke(this, EventArgs.Empty);
-        Loaded += (_, _) => _positionTimer.Start();
         Unloaded += (_, _) => _positionTimer.Stop();
     }
 
@@ -109,6 +108,7 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
         PlaybackButton.IsEnabled = false;
         UpdateAudioControls();
         VideoPreview.Play();
+        StartPositionTimer();
     }
 
     public void Play()
@@ -282,6 +282,7 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
 
     public void Reset()
     {
+        _positionTimer.Stop();
         _isPriming = false;
         _playAfterPriming = false;
         _hasEnded = false;
@@ -360,7 +361,29 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
 
     private void VideoPreview_MediaEnded(object sender, RoutedEventArgs e)
     {
+        _positionTimer.Stop();
         if (!_isPriming) PlaybackEnded?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void VideoPreview_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        _positionTimer.Stop();
+        _isPriming = false;
+        _playAfterPriming = false;
+        _hasEnded = false;
+        _isScrubbing = false;
+        _resumeAfterScrub = false;
+        if (Mouse.Captured == PositionSlider) Mouse.Capture(null);
+        CloseVideoSource();
+        VideoPreview.Visibility = Visibility.Collapsed;
+        PlaybackControlsBorder.Visibility = Visibility.Collapsed;
+        PlaybackButton.IsEnabled = false;
+        SetFrameNavigationEnabled(false);
+        SetPlaying(false);
+        SetTimelineRange(0, 1);
+        PositionSlider.Value = 0;
+        ShowPosition(TimeSpan.Zero, TimeSpan.Zero);
+        ShowPlaceholder("Unable to open this video. Verify that the file exists and uses a supported format.");
     }
 
     private async void CompositionAuditionAudio_MediaOpened(object sender, RoutedEventArgs e)
@@ -485,6 +508,8 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
     private void SetPlaying(bool isPlaying)
     {
         IsPlaying = isPlaying;
+        if (isPlaying) StartPositionTimer();
+        else _positionTimer.Stop();
         PlayGlyph.Visibility = isPlaying ? Visibility.Collapsed : Visibility.Visible;
         PauseGlyph.Visibility = isPlaying ? Visibility.Visible : Visibility.Collapsed;
         PlaybackButton.ToolTip = isPlaying ? "Pause preview" : "Play preview";
@@ -495,9 +520,15 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
 
     private void CloseVideoSource()
     {
+        _positionTimer.Stop();
         VideoPreview.Stop();
         VideoPreview.Close();
         VideoPreview.Source = null;
+    }
+
+    private void StartPositionTimer()
+    {
+        if (!_disposed && !_positionTimer.IsEnabled) _positionTimer.Start();
     }
 }
 

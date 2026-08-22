@@ -32,7 +32,6 @@ public partial class GenerationJobsPanel : UserControl, IDisposable
         JobsList.ItemsSource = _jobs;
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _elapsedTimer.Tick += (_, _) => RefreshElapsedTimes();
-        _elapsedTimer.Start();
     }
 
     public bool IsOpen => Visibility == Visibility.Visible;
@@ -61,6 +60,7 @@ public partial class GenerationJobsPanel : UserControl, IDisposable
     {
         if (!IsOpen) return;
         Visibility = Visibility.Collapsed;
+        UpdateElapsedTimer();
         await DismissViewedTerminalJobsAsync();
     }
 
@@ -85,12 +85,17 @@ public partial class GenerationJobsPanel : UserControl, IDisposable
         JobsList.Visibility = _jobs.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         if (IsOpen) MarkVisibleTerminalJobsViewed();
         RefreshElapsedTimes();
+        UpdateElapsedTimer();
     }
 
     private void Coordinator_JobsChanged(object? sender, EventArgs e)
     {
         if (_disposed || Dispatcher.HasShutdownStarted) return;
-        _ = Dispatcher.BeginInvoke(Refresh, DispatcherPriority.Background);
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (_disposed || Dispatcher.HasShutdownStarted) return;
+            Refresh();
+        }, DispatcherPriority.Background);
     }
 
     private void Coordinator_JobStatusChanged(object? sender, GenerationJobStatusChangedEventArgs e)
@@ -98,6 +103,7 @@ public partial class GenerationJobsPanel : UserControl, IDisposable
         if (_disposed || !IsTerminal(e.CurrentStatus) || Dispatcher.HasShutdownStarted) return;
         _ = Dispatcher.BeginInvoke(() =>
         {
+            if (_disposed || Dispatcher.HasShutdownStarted) return;
             if (IsOpen) _viewedTerminalJobIds.Add(e.GenerationId);
         }, DispatcherPriority.Background);
     }
@@ -133,8 +139,28 @@ public partial class GenerationJobsPanel : UserControl, IDisposable
 
     private void RefreshElapsedTimes()
     {
+        if (_disposed || Dispatcher.HasShutdownStarted) return;
         var now = DateTimeOffset.UtcNow;
         foreach (var job in _jobs) job.RefreshElapsed(now);
+    }
+
+    private void UpdateElapsedTimer()
+    {
+        if (_disposed || Dispatcher.HasShutdownStarted)
+        {
+            _elapsedTimer.Stop();
+            return;
+        }
+
+        var hasActiveJob = _coordinator?.GetSnapshot().Any(job =>
+            job.Status is GenerationStatus.Queued or GenerationStatus.Running) == true;
+        if (IsOpen && hasActiveJob)
+        {
+            if (!_elapsedTimer.IsEnabled) _elapsedTimer.Start();
+            return;
+        }
+
+        _elapsedTimer.Stop();
     }
 
     private async void Close_Click(object sender, RoutedEventArgs e)
