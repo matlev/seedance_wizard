@@ -285,10 +285,6 @@
                     </TabItem>
                     <TabItem x:Name="GenerateTab" Header="Generate">
                         <generation:GenerationPanel x:Name="GenerationPanelControl"
-                                                    ProviderChanged="GenerationPanel_ProviderChanged"
-                                                    DraftChanged="GenerationPanel_DraftChanged"
-                                                    ExpandPromptRequested="GenerationPanel_ExpandPromptRequested"
-                                                    ReferenceSelected="GenerationPanel_ReferenceSelected"
                                                     NewRootRequested="GenerationPanel_NewRootRequested"
                                                     DerivedDraftRequested="GenerationPanel_DerivedDraftRequested"
                                                     SubmitRequested="GenerationPanel_SubmitRequested" />
@@ -311,8 +307,7 @@
 
             <generation:ExpandedPromptEditor x:Name="ExpandedPromptEditorControl"
                                              Grid.Column="2" Grid.ColumnSpan="3" Panel.ZIndex="10"
-                                             PromptChanged="ExpandedPromptEditor_PromptChanged"
-                                             Closed="ExpandedPromptEditor_Closed" />
+                                             />
         </Grid>
 
         <Border Grid.Row="2" Background="#0B0D12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">

@@ -135,6 +135,8 @@ Move rename/export/extract/delete/move/copy/import policy and dialogs behind typ
 
 ### Unit 5 — extract generation workspace orchestration
 
+Status: 5A implementation complete, pending human smoke acceptance. Provider runtime selection, draft capture/load/reference mapping, prompt expansion, draft autosave, and exact-frame continuation preparation now live behind focused Generation workspace collaborators. `MainWindow` retains explicit paid confirmation, credential checks, submission, Undo Send, job finalization, and auto-preview for the following 5B unit. The coordinator raises semantic reference-selection requests; the shell remains the owner of Project Media panel selection. Focused App-coordinator regression tests are deliberately deferred to Unit 7, when the App test topology exists; this unit retains portable and WPF build coverage only.
+
 Write set: a focused App coordinator, generation shell wiring, and generation/job tests.
 
 Move draft/continuation/Undo Send/workflow/result coordination out of the shell while preserving explicit paid confirmation and global jobs. Human smoke uses the fake provider only: draft/reference preparation, Undo Send cancel/submit, project switch/restart recovery, result selection, and no paid network call.

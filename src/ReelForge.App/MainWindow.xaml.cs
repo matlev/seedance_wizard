@@ -38,7 +38,6 @@ public partial class MainWindow : Window, IDisposable
     private readonly Dictionary<Guid, CancellationTokenSource> _pendingSubmissionDelays = [];
     private readonly SemaphoreSlim _submissionGate = new(1, 1);
     private readonly SemaphoreSlim _frameNavigationGate = new(1, 1);
-    private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
     private readonly ProjectMediaOperationsCoordinator _projectMediaOperationsCoordinator;
@@ -47,11 +46,8 @@ public partial class MainWindow : Window, IDisposable
     private readonly ExactVideoFrameService _exactFrameService;
     private readonly RecipeMediaMaterializer _mediaMaterializer;
     private readonly FfmpegAudioExtractionEngine _audioExtractionEngine;
-    private GenerationWorkflow _generationWorkflow = null!;
-    private IProviderAssetPreparationService? _providerPreparation;
     private readonly ISecretStore _secretStore;
     private readonly FileApplicationDiagnosticLog _diagnosticLog;
-    private IVideoGenerationProvider _generationProvider;
     private readonly IMediaToolDiscovery _mediaToolDiscovery;
     private readonly IApplicationSettingsStore _applicationSettingsStore;
     private readonly RecentProjectTracker _recentProjectTracker;
@@ -59,10 +55,10 @@ public partial class MainWindow : Window, IDisposable
     private readonly ITemporaryAssetHost _temporaryAssetHost;
     private ApplicationSettings _applicationSettings;
     private MediaToolAvailability _mediaTools;
-    private readonly DispatcherTimer _draftAutosaveTimer;
+    private readonly GenerationWorkspaceCoordinator _generationWorkspace;
+    private readonly GenerationContinuationCoordinator _generationContinuation;
     private readonly FramePreparationCoordinator _framePreparationCoordinator;
     private readonly GenerationJobCoordinator _jobCoordinator;
-    private bool _suppressDraftAutosave;
     private bool _suppressProjectMediaSelection;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
     private bool _restoringProjectUiState;
@@ -121,17 +117,25 @@ public partial class MainWindow : Window, IDisposable
         _secretStore = _runtime.SecretStore;
         _diagnosticLog = _runtime.DiagnosticLog;
         _temporaryAssetHost = _runtime.TemporaryAssetHost;
-        _generationProvider = new FakeVideoGenerationProvider();
-        RefreshProviderRuntime(preferredProviderId: null);
         _jobCoordinator = _runtime.JobCoordinator;
         _runtime.JobFinalizer.Finalized += JobFinalizer_Finalized;
         JobsPanelControl.Initialize(_jobCoordinator);
         JobsChromeControl.Initialize(_jobCoordinator);
 
         ProjectMediaPanelControl.SetItemsSource(_assets);
-        GenerationPanelControl.SetReferences(_referenceChoices);
-        _draftAutosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
-        _draftAutosaveTimer.Tick += DraftAutosaveTimer_Tick;
+        _generationWorkspace = new GenerationWorkspaceCoordinator(
+            _runtime,
+            _workspace,
+            GenerationPanelControl,
+            ExpandedPromptEditorControl,
+            _referenceChoices);
+        _generationWorkspace.ReferenceSelectionRequested += GenerationWorkspace_ReferenceSelectionRequested;
+        _generationContinuation = new GenerationContinuationCoordinator(
+            _workspace, _projectStore, _exactFrameService, new PhysicalAssetMaterializer(),
+            new GenerationContinuationPresentation(this),
+            draft => _generationWorkspace.LoadDraft(draft),
+            () => _generationWorkspace.ProviderChoices,
+            () => _generationWorkspace.CurrentProvider);
 
         MediaToolsText.Text = _mediaTools.Summary;
         ApplyWorkspaceMode();
@@ -149,6 +153,8 @@ public partial class MainWindow : Window, IDisposable
         if (_disposed) return;
         _disposed = true;
         _runtime.JobFinalizer.Finalized -= JobFinalizer_Finalized;
+        _generationWorkspace.ReferenceSelectionRequested -= GenerationWorkspace_ReferenceSelectionRequested;
+        _generationWorkspace.Dispose();
         JobsPanelControl.Dispose();
         JobsChromeControl.Dispose();
         _framePreparationCoordinator.StatusChanged -= FramePreparation_StatusChanged;
@@ -201,27 +207,8 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private void RefreshProviderRuntime(string? preferredProviderId)
-    {
-        var providerRuntime = _runtime.RefreshProviders(preferredProviderId);
-        _providerChoices = providerRuntime.Choices;
-        _providerPreparation = providerRuntime.PreparationService;
-        _generationWorkflow = providerRuntime.Workflow;
-        _generationProvider = providerRuntime.SelectedProvider;
-        var selected = providerRuntime.Choices.First(choice =>
-            ReferenceEquals(choice.Provider, providerRuntime.SelectedProvider));
-        var suppressAutosave = _suppressDraftAutosave;
-        _suppressDraftAutosave = true;
-        try
-        {
-            GenerationPanelControl.SetProviders(providerRuntime.Choices, selected);
-            GenerationPanelControl.ConfigureProvider(_generationProvider);
-        }
-        finally
-        {
-            _suppressDraftAutosave = suppressAutosave;
-        }
-    }
+    private void RefreshProviderRuntime(string? preferredProviderId) =>
+        _generationWorkspace.RefreshProviders(preferredProviderId);
 
     private void JobFinalizer_Finalized(object? sender, GenerationJobFinalizedEventArgs e)
     {
@@ -341,7 +328,7 @@ public partial class MainWindow : Window, IDisposable
 
     private async void Settings_Click(object sender, RoutedEventArgs e)
     {
-        var activeDraft = _workspace.Project is null ? null : CaptureDraftFromUi();
+        var activeDraft = _workspace.Project is null ? null : _generationWorkspace.CaptureDraft();
         var window = new SettingsWindow(
             _applicationSettingsStore,
             _applicationSettings.Clone(),
@@ -353,72 +340,28 @@ public partial class MainWindow : Window, IDisposable
             Owner = this
         };
         window.ShowDialog();
-        var selectedProviderId = _generationProvider.Capabilities.ProviderId;
+        var selectedProviderId = _generationWorkspace.CurrentProvider.Capabilities.ProviderId;
         _applicationSettings = await _runtime.ReloadAndApplySettingsAsync();
         _mediaTools = _runtime.MediaTools;
         MediaToolsText.Text = _mediaTools.Summary;
         RefreshProviderRuntime(selectedProviderId);
-        if (activeDraft is not null && _generationProvider.Capabilities.ProviderId.Equals(
+        if (activeDraft is not null && _generationWorkspace.CurrentProvider.Capabilities.ProviderId.Equals(
                 activeDraft.ProviderId,
                 StringComparison.Ordinal))
         {
-            LoadDraftIntoUi(activeDraft);
+            _generationWorkspace.LoadDraft(activeDraft);
         }
         StatusText.Text = "Application settings and provider availability applied.";
     }
 
-    private void GenerationPanel_ProviderChanged(object? sender, GenerationProviderChangedEventArgs e)
+    private void GenerationWorkspace_ReferenceSelectionRequested(
+        object? sender,
+        GenerationReferenceSelectionRequestedEventArgs e)
     {
-        _generationProvider = e.Choice.Provider;
-        _suppressDraftAutosave = true;
-        try
-        {
-            GenerationPanelControl.ConfigureProvider(_generationProvider);
-        }
-        finally
-        {
-            _suppressDraftAutosave = false;
-        }
-
-        ScheduleDraftAutosave();
-    }
-
-    private void GenerationPanel_DraftChanged(object? sender, EventArgs e)
-    {
-        if (ExpandedPromptEditorControl.IsOpen)
-            ExpandedPromptEditorControl.UpdatePrompt(GenerationPanelControl.Prompt);
-        ScheduleDraftAutosave();
-    }
-
-    private void ExpandedPromptEditor_PromptChanged(object? sender, PromptTextChangedEventArgs e) =>
-        GenerationPanelControl.Prompt = e.Prompt;
-
-    private void GenerationPanel_ExpandPromptRequested(object? sender, EventArgs e) =>
-        ExpandedPromptEditorControl.Open(GenerationPanelControl.Prompt);
-
-    private void ExpandedPromptEditor_Closed(object? sender, EventArgs e) =>
-        GenerationPanelControl.FocusPromptAtEnd();
-
-    private void ScheduleDraftAutosave()
-    {
-        if (_suppressDraftAutosave || _workspace is null || _workspace.Project is null || _draftAutosaveTimer is null) return;
-        _draftAutosaveTimer.Stop();
-        _draftAutosaveTimer.Start();
-    }
-
-    private async void DraftAutosaveTimer_Tick(object? sender, EventArgs e)
-    {
-        _draftAutosaveTimer.Stop();
-        if (_suppressDraftAutosave || _workspace.Project is null) return;
-        try
-        {
-            await _generationWorkflow.SaveDraftAsync(CaptureDraftFromUi());
-            GenerationPanelControl.Status = "Draft autosaved.";
-        }
-        catch (Exception exception)
-        {
-            GenerationPanelControl.Status = $"Draft autosave failed: {exception.Message}";
-        }
+        ProjectMediaPanelControl.SelectedItem = _assets.FirstOrDefault(item =>
+            e.ObjectKind == GenerationReferenceObjectKind.Asset
+                ? item.Asset?.Id == e.LogicalObjectId
+                : item.Anchor?.Id == e.LogicalObjectId);
     }
 
     private async void NewProject_Click(object sender, RoutedEventArgs e)
@@ -1285,22 +1228,22 @@ public partial class MainWindow : Window, IDisposable
         }
 
         GenerationSubmissionAuthorization? authorization = null;
-        var draft = CaptureDraftFromUi();
-        if (_generationProvider.CostBehavior == GenerationProviderCostBehavior.PotentiallyBillable)
+        var draft = _generationWorkspace.CaptureDraft();
+        if (_generationWorkspace.CurrentProvider.CostBehavior == GenerationProviderCostBehavior.PotentiallyBillable)
         {
-            if (_generationProvider is not IApiKeyVideoGenerationProvider apiKeyProvider)
+            if (_generationWorkspace.CurrentProvider is not IApiKeyVideoGenerationProvider apiKeyProvider)
                 throw new InvalidOperationException("This paid provider has no configured credential contract.");
             var apiKey = await _secretStore.GetAsync(apiKeyProvider.ApiKeyCredentialKey);
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                GenerationPanelControl.Status = $"Store a {_generationProvider.Capabilities.DisplayName} API key before live submission.";
+                GenerationPanelControl.Status = $"Store a {_generationWorkspace.CurrentProvider.Capabilities.DisplayName} API key before live submission.";
                 return;
             }
 
             var confirmation = MessageBox.Show(
                 this,
-                $"Review the prompt settings before submitting to {_generationProvider.Capabilities.DisplayName}.\n\n" +
-                $"Model: {_generationProvider.Capabilities.ModelVersion}\n" +
+                $"Review the prompt settings before submitting to {_generationWorkspace.CurrentProvider.Capabilities.DisplayName}.\n\n" +
+                $"Model: {_generationWorkspace.CurrentProvider.Capabilities.ModelVersion}\n" +
                 $"Mode: {draft.Mode}\nDuration: {draft.DurationSeconds}s\n" +
                 $"Resolution: {draft.Resolution}\nReferences: {draft.References.Count}\n\n" +
                 "Proceed with these settings?",
@@ -1315,13 +1258,13 @@ public partial class MainWindow : Window, IDisposable
             }
 
             authorization = GenerationSubmissionAuthorization.FromInteractiveUserConfirmation(
-                _generationProvider.Capabilities.ProviderId,
+                _generationWorkspace.CurrentProvider.Capabilities.ProviderId,
                 userConfirmedPotentialCharges: true);
         }
 
         var undoSendSeconds = Math.Clamp(_applicationSettings.General.UndoSendSeconds, 0, 30);
         if (undoSendSeconds > 0 &&
-            _generationProvider is IAsyncVideoGenerationProvider)
+            _generationWorkspace.CurrentProvider is IAsyncVideoGenerationProvider)
         {
             await QueueGenerationWithUndoSendAsync(draft, authorization, undoSendSeconds);
             return;
@@ -1758,18 +1701,6 @@ public partial class MainWindow : Window, IDisposable
         });
     }
 
-    private void GenerationPanel_ReferenceSelected(object? sender, GenerationReferenceSelectedEventArgs e)
-    {
-        var choice = e.Choice;
-        var mediaItem = _assets.FirstOrDefault(item => choice.ObjectKind switch
-        {
-            GenerationReferenceObjectKind.Asset => item.Asset?.Id == choice.LogicalObjectId,
-            GenerationReferenceObjectKind.FrameAnchor => item.Anchor?.Id == choice.LogicalObjectId,
-            _ => false
-        });
-        if (mediaItem is not null) ProjectMediaPanelControl.SelectedItem = mediaItem;
-    }
-
     private async void DeleteAsset_Click(object sender, RoutedEventArgs e)
     {
         if (ProjectMediaPanelControl.SelectedItem is not ProjectMediaListItem selected || _workspace.Project is null) return;
@@ -1964,9 +1895,9 @@ public partial class MainWindow : Window, IDisposable
         GenerationSubmissionAuthorization? authorization,
         int undoSendSeconds)
     {
-        var provider = _generationProvider;
-        var workflow = _generationWorkflow;
-        var providerPreparation = _providerPreparation;
+        var provider = _generationWorkspace.CurrentProvider;
+        var workflow = _generationWorkspace.CurrentWorkflow;
+        var providerPreparation = _generationWorkspace.CurrentPreparation;
         var projectLocation = _workspace.Location;
         var projectName = _workspace.Project?.Name;
         if (projectLocation is null || projectName is null) return;
@@ -2188,14 +2119,14 @@ public partial class MainWindow : Window, IDisposable
     {
         GenerationPanelControl.IsSubmissionEnabled = false;
         SetProjectActionsEnabled(false);
-        var provider = _generationProvider;
+        var provider = _generationWorkspace.CurrentProvider;
         var projectLocation = _workspace.Location;
         var projectName = _workspace.Project?.Name;
         var progress = new Progress<GenerationWorkflowProgress>(update => GenerationPanelControl.Status = update.Message);
 
         try
         {
-            var generation = await _generationWorkflow.SubmitAsync(
+            var generation = await _generationWorkspace.CurrentWorkflow.SubmitAsync(
                 provider,
                 draft,
                 authorization,
@@ -2272,261 +2203,26 @@ public partial class MainWindow : Window, IDisposable
 
         if (relationship is GenerationRelationshipType.ContinueAfter or GenerationRelationshipType.ContinueBefore)
         {
-            await PrepareGenerationBoundaryContinuationAsync(source, relationship);
+            await _generationContinuation.PrepareAsync(source, relationship);
             return;
         }
 
         var draft = GenerationWorkflow.CreateDerivedDraft(source, relationship);
-        LoadDraftIntoUi(draft);
-        await _generationWorkflow.SaveDraftAsync(draft);
+        _generationWorkspace.LoadDraft(draft);
+        await _generationWorkspace.CurrentWorkflow.SaveDraftAsync(draft);
         GenerationPanelControl.Status =
             $"Drafted {relationship} from generation {source.Id}. Review it, then use the submission button.";
-    }
-
-    private async Task PrepareGenerationBoundaryContinuationAsync(
-        GenerationRecord sourceGeneration,
-        GenerationRelationshipType relationship)
-    {
-        if (_workspace.Project is null) return;
-        var outputs = sourceGeneration.OutputAssetIds
-            .Select(id => _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == id))
-            .OfType<ProjectAsset>()
-            .Where(asset => asset.MediaType == MediaType.Video && asset.StorageKind == AssetStorageKind.Physical)
-            .ToArray();
-        if (outputs.Length == 0)
-        {
-            GenerationPanelControl.Status = "This generation has no durable video output to continue from.";
-            return;
-        }
-
-        ProjectAsset sourceAsset;
-        if (outputs.Length == 1)
-        {
-            sourceAsset = outputs[0];
-        }
-        else
-        {
-            var selection = new GenerationOutputSelectionDialog(outputs) { Owner = this };
-            if (selection.ShowDialog() != true || selection.SelectedOutput is null) return;
-            sourceAsset = selection.SelectedOutput;
-        }
-
-        await RunUiActionAsync("Finding the exact continuation boundary…", async () =>
-        {
-            var (frames, contentHash) = await IndexSourceFramesAsync(sourceAsset, CancellationToken.None);
-            var frame = relationship == GenerationRelationshipType.ContinueAfter ? frames[^1] : frames[0];
-            await CreateContinuationDraftAsync(sourceAsset, frame, contentHash, relationship, sourceGeneration);
-        });
-    }
-
-    private async Task<(IReadOnlyList<VideoPresentationFrame> Frames, string ContentHash)> IndexSourceFramesAsync(
-        ProjectAsset sourceAsset,
-        CancellationToken cancellationToken)
-    {
-        if (_workspace.Project is null || _workspace.Location is null)
-            throw new InvalidOperationException("Open a project first.");
-        await using var source = await new PhysicalAssetMaterializer().MaterializeAsync(
-            _workspace.Project,
-            _workspace.Location,
-            new MaterializationRequest(new AssetMaterializationTarget(sourceAsset.Id), MaterializationPurpose.Preview),
-            cancellationToken);
-        var contentHash = source.ContentIdentity.Sha256
-            ?? throw new InvalidDataException("The continuation source has no verified content identity.");
-        var frames = await _exactFrameService.IndexAsync(source.Path, cancellationToken);
-        await _workspace.SaveAsync(cancellationToken);
-        return (frames, contentHash);
-    }
-
-    private async Task CreateContinuationDraftAsync(
-        ProjectAsset sourceAsset,
-        VideoPresentationFrame frame,
-        string sourceContentHash,
-        GenerationRelationshipType relationship,
-        GenerationRecord? parentGeneration)
-    {
-        if (_workspace.Project is null || _workspace.Location is null) return;
-        var sourcePath = _workspace.GetAbsoluteAssetPath(sourceAsset);
-        var transientRevision = TransientFrameAnchorRevisionFactory.Create(sourceAsset.Id, sourceContentHash, frame);
-        await using var preview = await _exactFrameService.ExtractAsync(
-            sourcePath,
-            sourceContentHash,
-            transientRevision,
-            MaterializationPurpose.Preview,
-            "continuation-confirmation");
-        var heading = relationship == GenerationRelationshipType.ContinueAfter
-            ? "Continue after this exact frame?"
-            : "Continue before this exact frame?";
-        var confirmation = new FrameConfirmationDialog(
-            LoadBitmap(preview.Path),
-            heading,
-            sourceAsset.EffectiveDisplayName,
-            frame.TimestampSeconds,
-            frame.PresentationTimestamp,
-            frame.TimeBaseNumerator,
-            frame.TimeBaseDenominator)
-        {
-            Owner = this
-        };
-        if (confirmation.ShowDialog() != true) return;
-
-        var anchor = new FrameAnchor
-        {
-            DisplayLabel = relationship == GenerationRelationshipType.ContinueAfter
-                ? $"Final frame of {sourceAsset.EffectiveDisplayName}"
-                : $"First frame of {sourceAsset.EffectiveDisplayName}"
-        };
-        _workspace.Project.Anchors.Add(anchor);
-        var revision = _workspace.Project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
-            sourceAsset.Id,
-            sourceContentHash,
-            frame.VideoStreamIndex,
-            frame.PresentationTimestamp,
-            frame.TimeBaseNumerator,
-            frame.TimeBaseDenominator,
-            frame.FrameNumber));
-
-        var draft = parentGeneration is null
-            ? CaptureDraftFromUi()
-            : GenerationWorkflow.CreateDerivedDraft(parentGeneration, relationship);
-        if (parentGeneration is null)
-        {
-            draft.ParentGenerationId = null;
-            draft.RelationshipType = null;
-        }
-        draft.References =
-        [
-            new GenerationReferenceDraft
-            {
-                ObjectKind = GenerationReferenceObjectKind.FrameAnchor,
-                LogicalObjectId = anchor.Id,
-                AnchorRevisionId = revision.Id,
-                Role = relationship == GenerationRelationshipType.ContinueAfter
-                    ? GenerationReferenceRole.StartFrame
-                    : GenerationReferenceRole.EndFrame,
-                Order = 0,
-                Label = anchor.DisplayLabel
-            }
-        ];
-        RecommendContinuationMode(draft, relationship);
-        await _workspace.SaveAsync();
-        RefreshProjectCollections();
-        LoadDraftIntoUi(draft);
-        await _generationWorkflow.SaveDraftAsync(draft);
-        if (_framePreparationCoordinator.HasCurrentSource(sourceAsset.Id))
-            await _framePreparationCoordinator.RefreshSavedFramesAsync();
-        RightPanelTabs.SelectedIndex = 1;
-        GenerationPanelControl.Status = parentGeneration is null
-            ? "Continuation draft created from imported media. No generation parent was invented."
-            : $"Drafted {relationship} from generation {parentGeneration.Id}. Review the exact Saved Frame reference before submitting.";
-    }
-
-    private void RecommendContinuationMode(GenerationDraft draft, GenerationRelationshipType relationship)
-    {
-        var provider = _providerChoices.FirstOrDefault(choice =>
-                           choice.Provider.Capabilities.ProviderId.Equals(draft.ProviderId, StringComparison.Ordinal))
-                       ?.Provider ?? _generationProvider;
-        if (relationship == GenerationRelationshipType.ContinueBefore &&
-            provider.Capabilities.Modes.Contains(GenerationMode.ReferenceToVideo))
-        {
-            draft.Mode = GenerationMode.ReferenceToVideo;
-            return;
-        }
-        if (provider.Capabilities.Modes.Contains(GenerationMode.ImageToVideo))
-        {
-            draft.Mode = GenerationMode.ImageToVideo;
-            if (provider.Capabilities.AspectRatios.Contains("adaptive", StringComparer.OrdinalIgnoreCase))
-                draft.AspectRatio = provider.Capabilities.AspectRatios.First(ratio =>
-                    ratio.Equals("adaptive", StringComparison.OrdinalIgnoreCase));
-            return;
-        }
-        if (provider.Capabilities.Modes.Contains(GenerationMode.ReferenceToVideo))
-        {
-            draft.Mode = GenerationMode.ReferenceToVideo;
-            return;
-        }
-        throw new InvalidOperationException($"{provider.Capabilities.DisplayName} does not support a continuation-compatible image reference mode.");
     }
 
     private async void GenerationPanel_NewRootRequested(object? sender, EventArgs e)
     {
         if (!EnsureProjectOpen()) return;
-        var draft = CaptureDraftFromUi();
+        var draft = _generationWorkspace.CaptureDraft();
         draft.ParentGenerationId = null;
         draft.RelationshipType = null;
-        LoadDraftIntoUi(draft);
-        await _generationWorkflow.SaveDraftAsync(draft);
+        _generationWorkspace.LoadDraft(draft);
+        await _generationWorkspace.CurrentWorkflow.SaveDraftAsync(draft);
         GenerationPanelControl.Status = "Started a new root generation draft.";
-    }
-
-    private GenerationDraft CaptureDraftFromUi()
-    {
-        var state = GenerationPanelControl.CaptureState();
-        var selectedReferences = GenerationReferenceEditor.Capture(state.Mode, _referenceChoices);
-        var parameters = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("generate_audio"))
-        {
-            parameters["generate_audio"] = state.GenerateAudio.ToString().ToLowerInvariant();
-        }
-        else if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("generateAudio"))
-        {
-            parameters["generateAudio"] = state.GenerateAudio.ToString().ToLowerInvariant();
-        }
-        if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("watermark"))
-            parameters["watermark"] = state.Watermark.ToString().ToLowerInvariant();
-        if (_generationProvider.Capabilities.ProviderParameters.ContainsKey("output_format"))
-            parameters["output_format"] = state.OutputFormat;
-
-        var current = _workspace.Project?.CurrentGenerationDraft;
-        return new GenerationDraft
-        {
-            ProviderId = _generationProvider.Capabilities.ProviderId,
-            ModelVersion = _generationProvider.Capabilities.ModelVersion,
-            Prompt = state.Prompt,
-            Mode = state.Mode,
-            DurationSeconds = state.DurationSeconds,
-            AspectRatio = state.AspectRatio,
-            Resolution = state.Resolution,
-            References = selectedReferences,
-            ProviderParameters = parameters,
-            ParentGenerationId = current?.ParentGenerationId,
-            RelationshipType = current?.RelationshipType,
-            ModifiedAt = DateTimeOffset.UtcNow
-        };
-    }
-
-    private void LoadDraftIntoUi(GenerationDraft draft)
-    {
-        _suppressDraftAutosave = true;
-        try
-        {
-            var providerChoice = _providerChoices.FirstOrDefault(choice =>
-                choice.Provider.Capabilities.ProviderId == draft.ProviderId);
-            if (providerChoice is not null)
-            {
-                _generationProvider = providerChoice.Provider;
-                GenerationPanelControl.SelectProvider(providerChoice);
-                GenerationPanelControl.ConfigureProvider(_generationProvider);
-            }
-            GenerationPanelControl.LoadState(new GenerationPanelFormState(
-                draft.Prompt,
-                draft.Mode,
-                draft.DurationSeconds,
-                draft.AspectRatio,
-                draft.Resolution,
-                ReadDraftBoolean(draft, "generate_audio", "generateAudio", true),
-                ReadDraftBoolean(draft, "watermark", null, false),
-                draft.ProviderParameters.GetValueOrDefault("output_format", "mp4")));
-
-            GenerationReferenceEditor.ApplyDraft(draft.References, _referenceChoices);
-            GenerationPanelControl.RefreshReferences();
-            GenerationPanelControl.SetLineage(draft.ParentGenerationId is { } parent
-                ? $"{draft.RelationshipType} • parent {parent}"
-                : "New root generation");
-        }
-        finally
-        {
-            _suppressDraftAutosave = false;
-        }
     }
 
     private void ShowAssetPreview(ProjectAsset asset)
@@ -3094,14 +2790,11 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
 
-        _suppressDraftAutosave = true;
         ResetProjectSpecificUi();
         RefreshProjectCollections();
         if (_workspace.Project.CurrentGenerationDraft is { } draft)
-            LoadDraftIntoUi(draft);
+            _generationWorkspace.LoadDraft(draft);
         RestoreProjectUiState();
-        _suppressDraftAutosave = false;
-
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} media items";
         Title = $"{_workspace.Project.Name} — ReelForge";
         StatusText.Text = $"Opened {_workspace.Location!.ProjectFilePath}";
@@ -3109,18 +2802,14 @@ public partial class MainWindow : Window, IDisposable
 
     private void ResetProjectSpecificUi()
     {
-        ExpandedPromptEditorControl.CloseEditor(notify: false);
         ProjectMediaPanelControl.SelectedItem = null;
         GenerationHistoryPanelControl.ClearSelection();
-        _referenceChoices.Clear();
+        _generationWorkspace.Reset();
         ResetFrameWorkspace();
         StartEditButton.IsEnabled = false;
         RefreshEditWorkspaceState();
 
         InspectorPanelControl.Reset();
-        GenerationPanelControl.Prompt = string.Empty;
-        GenerationPanelControl.Status = string.Empty;
-        GenerationPanelControl.SetLineage("New root generation");
         ClearMediaPreview();
     }
 
@@ -3220,21 +2909,6 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private static bool ReadDraftBoolean(
-        GenerationDraft draft,
-        string primaryName,
-        string? fallbackName,
-        bool defaultValue)
-    {
-        if (draft.ProviderParameters.TryGetValue(primaryName, out var value) && bool.TryParse(value, out var parsed))
-            return parsed;
-        if (fallbackName is not null &&
-            draft.ProviderParameters.TryGetValue(fallbackName, out value) &&
-            bool.TryParse(value, out parsed))
-            return parsed;
-        return defaultValue;
-    }
-
     private static string FormatGenerationOutcome(GenerationRecord generation)
     {
         var message = $"Remote: {generation.Status} • Ingestion: {generation.IngestionStatus}";
@@ -3276,6 +2950,46 @@ public partial class MainWindow : Window, IDisposable
         StatusText.Text = exception.Message;
         InspectorPanelControl.Text = $"{title}\n\n{exception}";
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private sealed class GenerationContinuationPresentation(MainWindow window) : IGenerationContinuationPresentation
+    {
+        public ProjectAsset? SelectOutput(IReadOnlyList<ProjectAsset> outputs)
+        {
+            var dialog = new GenerationOutputSelectionDialog(outputs) { Owner = window };
+            return dialog.ShowDialog() == true ? dialog.SelectedOutput : null;
+        }
+
+        public bool ConfirmFrame(
+            BitmapSource bitmap,
+            string heading,
+            string sourceName,
+            double timestampSeconds,
+            long presentationTimestamp,
+            int timeBaseNumerator,
+            int timeBaseDenominator)
+        {
+            var dialog = new FrameConfirmationDialog(
+                bitmap,
+                heading,
+                sourceName,
+                timestampSeconds,
+                presentationTimestamp,
+                timeBaseNumerator,
+                timeBaseDenominator)
+            {
+                Owner = window
+            };
+            return dialog.ShowDialog() == true;
+        }
+
+        public BitmapSource LoadBitmap(string path) => MainWindow.LoadBitmap(path);
+        public Task RunUiActionAsync(string status, Func<Task> action) => window.RunUiActionAsync(status, action);
+        public void RefreshProjectCollections() => window.RefreshProjectCollections();
+        public bool HasCurrentFrameSource(Guid assetId) => window._framePreparationCoordinator.HasCurrentSource(assetId);
+        public Task RefreshSavedFramesAsync() => window._framePreparationCoordinator.RefreshSavedFramesAsync();
+        public void SelectGenerateTab() => window.RightPanelTabs.SelectedIndex = 1;
+        public void SetStatus(string status) => window.GenerationPanelControl.Status = status;
     }
 
 }
