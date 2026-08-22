@@ -127,7 +127,7 @@ Move indexing, cancellation, progressive contact-window refresh, keyboard naviga
 
 ### Unit 4 — extract Project Media operations
 
-Status: in progress. The Project Media grouping/presentation slice is complete with human acceptance. The unified rename coordinator and transactional Saved Clip display-name slice are implemented, automatically verified, and independently reviewed; their human smoke acceptance is pending before the remaining file-operation extraction continues.
+Status: in progress. The Project Media grouping/presentation and unified rename slices are complete with human acceptance. The remaining file-operation owners are being extracted as a coherent cluster with internal commit and review gates before a combined human smoke pass.
 
 Write set: a focused App coordinator, Project Media shell wiring, and file-operation tests.
 
@@ -158,6 +158,7 @@ The known behavior bugs—restoring a valid baked composition after restart, fra
 - Explorers perform read-only dependency tracing before a boundary is assigned.
 - Refactor workers receive a concrete write set, preserved behaviors, focused tests, and forbidden scope.
 - Parallel workers are allowed only when their write sets do not overlap and neither depends on the other's uncommitted result.
+- Several bounded, sequential units may be grouped into one human-testing handoff when they form a coherent workflow and share an acceptance matrix. Each unit still receives its own automated validation, review gate, and commit before overlapping work continues.
 - The architectural coordinator reviews every returned diff and resolves cross-cutting decisions.
 - Use the refactor reviewer for transaction, persistence, media lifetime, generation authorization, job recovery, timeline/audition, and test-topology units.
 - The primary thread performs final integration verification and commits each accepted work unit. It does not push unless explicitly requested.
