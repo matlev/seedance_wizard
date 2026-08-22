@@ -1083,8 +1083,7 @@ public partial class MainWindow : Window, IDisposable
         }
 
         var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId);
-        var encoding = source?.Encoding ?? source?.Virtual?.ExpectedMediaProperties;
-        if (encoding is not null && encoding.Audio is null)
+        if (!MediaAudioCapabilityPolicy.CanAttemptAudioOperation(source))
         {
             return false;
         }

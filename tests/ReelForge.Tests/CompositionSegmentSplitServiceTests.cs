@@ -89,7 +89,13 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
             Virtual = new VirtualAssetState
             {
                 Kind = VirtualAssetKind.SavedClip,
-                ExpectedMediaProperties = new MediaEncodingMetadata { DurationSeconds = 6 }
+                ExpectedMediaProperties = new MediaEncodingMetadata
+                {
+                    ContainerFormat = "matroska,webm",
+                    DurationSeconds = 6,
+                    Video = new VideoStreamMetadata { Codec = "h264", Width = 1920, Height = 1080 },
+                    Audio = new AudioStreamMetadata { Codec = "aac", SampleRate = 48000, Channels = 2 }
+                }
             }
         };
         project.AddAsset(clip);
@@ -130,10 +136,20 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
         Assert.Equal(result.LeadingClipAssetId, recipe.Segments[0].Source.AssetId);
         Assert.Equal(result.TrailingClipAssetId, recipe.Segments[1].Source.AssetId);
         var snappedCutSeconds = 49d / 24;
-        Assert.Equal(snappedCutSeconds, project.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
-            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
-        Assert.Equal(6 - snappedCutSeconds, project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
-            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
+        var leadingProperties = project.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!;
+        var trailingProperties = project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!;
+        Assert.Equal(snappedCutSeconds, leadingProperties.DurationSeconds!.Value, precision: 6);
+        Assert.Equal(6 - snappedCutSeconds, trailingProperties.DurationSeconds!.Value, precision: 6);
+        Assert.Equal("mp4", leadingProperties.ContainerFormat);
+        Assert.Equal("h264", trailingProperties.Video!.Codec);
+        Assert.Null(trailingProperties.Video.PixelFormat);
+        Assert.Equal("aac", leadingProperties.Audio!.Codec);
+        Assert.Null(leadingProperties.Audio.SampleRate);
+        Assert.NotSame(clip.Virtual!.ExpectedMediaProperties, leadingProperties);
+        Assert.NotSame(clip.Virtual.ExpectedMediaProperties!.Video, leadingProperties.Video);
+        Assert.NotSame(clip.Virtual.ExpectedMediaProperties.Audio, trailingProperties.Audio);
         Assert.Equal(5, project.Assets.Count);
         Assert.DoesNotContain(project.Assets, asset => asset.Origin == AssetOrigin.Exported);
         Assert.Empty(ProjectInvariantValidator.Validate(project));
@@ -181,6 +197,48 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
         Assert.Equal(5.8, workspace.Project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
             .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
         Assert.Empty(ProjectInvariantValidator.Validate(workspace.Project));
+    }
+
+    [Fact]
+    public async Task SplitClipsDeclareConservativeOutputMetadataAndUseExactChildDurations()
+    {
+        var workspace = await CreateWorkspaceAsync();
+        var project = workspace.Project!;
+        var source = AddPhysicalVideo(project, "metadata-source.mp4", new string('c', 64), 10);
+        source.Encoding = new MediaEncodingMetadata
+        {
+            ContainerFormat = "mov,mp4,m4a,3gp,3g2,mj2",
+            DurationSeconds = 10,
+            Video = new VideoStreamMetadata { Codec = "h264", Width = 1920, Height = 1080 },
+            Audio = new AudioStreamMetadata { Codec = "aac", SampleRate = 48000, Channels = 2 }
+        };
+        await new WorkingCompositionService(workspace).CreateInitialAsync(source.Id);
+        var segment = new WorkingCompositionService(workspace).GetCurrent().Recipe.Segments.Single();
+        var result = await new CompositionSegmentSplitService(
+                workspace,
+                new StubMaterializer(Path.Combine(_root, "metadata-source.mp4"), new string('c', 64), 10),
+                new StubExactFrameService([
+                    new VideoPresentationFrame(0, 95, 1, 25, 95),
+                    new VideoPresentationFrame(0, 100, 1, 25, 100),
+                    new VideoPresentationFrame(0, 105, 1, 25, 105)
+                ]))
+            .SplitAsync(segment.Id, TimeSpan.FromSeconds(4.02));
+
+        var leading = project.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!;
+        var trailing = project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!;
+        Assert.Equal("mp4", leading.ContainerFormat);
+        Assert.Equal(4, leading.DurationSeconds);
+        Assert.Equal(6, trailing.DurationSeconds);
+        Assert.Equal("h264", leading.Video!.Codec);
+        Assert.Null(leading.Video.PixelFormat);
+        Assert.Equal("aac", trailing.Audio!.Codec);
+        Assert.Null(leading.Audio!.SampleRate);
+        Assert.NotSame(source.Encoding, leading);
+        Assert.NotSame(source.Encoding!.Video, leading.Video);
+        Assert.NotSame(source.Encoding.Audio, trailing.Audio);
+
     }
 
     [Fact]

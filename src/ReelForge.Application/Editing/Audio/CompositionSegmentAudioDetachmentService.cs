@@ -74,9 +74,10 @@ public sealed class CompositionSegmentAudioDetachmentService
                              MaterializationPurpose.FinalExport,
                              cancellationToken).ConfigureAwait(false))
             {
-                var sourceEncoding = media.Encoding ??
-                                     await _mediaInspector.InspectAsync(media.Path, cancellationToken)
-                                         .ConfigureAwait(false);
+                var sourceEncoding = media.Encoding;
+                if (sourceEncoding?.Audio is null)
+                    sourceEncoding = await _mediaInspector.InspectAsync(media.Path, cancellationToken)
+                        .ConfigureAwait(false);
                 if (sourceEncoding.Audio is null)
                     throw new InvalidOperationException("The selected composition segment has no audio stream to detach.");
                 await _extractionEngine.ExtractToM4aAsync(media.Path, fileCommit.TemporaryPath, cancellationToken)

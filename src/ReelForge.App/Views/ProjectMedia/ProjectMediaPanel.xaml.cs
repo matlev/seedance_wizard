@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using ReelForge.Application;
 using ReelForge.Core;
 
 namespace ReelForge.App.Views.ProjectMedia;
@@ -109,10 +110,7 @@ public partial class ProjectMediaPanel : UserControl
         ExtractAudioItem.Visibility = isEligibleVideo ? Visibility.Visible : Visibility.Collapsed;
         if (!isEligibleVideo) return;
 
-        var knownEncoding = asset!.StorageKind == AssetStorageKind.Physical
-            ? asset.Encoding
-            : asset.Virtual?.ExpectedMediaProperties;
-        ExtractAudioItem.IsEnabled = knownEncoding?.Audio is not null || knownEncoding is null;
+        ExtractAudioItem.IsEnabled = MediaAudioCapabilityPolicy.CanAttemptAudioOperation(asset);
         ExtractAudioItem.ToolTip = ExtractAudioItem.IsEnabled
             ? "Create a permanent audio file from this video's sound."
             : "This video has no audio stream to extract.";

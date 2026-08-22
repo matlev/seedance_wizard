@@ -162,10 +162,9 @@ internal sealed class CompositionSplitMutation
             Virtual = new VirtualAssetState
             {
                 Kind = VirtualAssetKind.SavedClip,
-                ExpectedMediaProperties = new MediaEncodingMetadata
-                {
-                    ContainerFormat = "mp4"
-                }
+                ExpectedMediaProperties = SavedClipOutputMetadataFactory.Create(
+                    sourceAsset.Encoding ?? sourceAsset.Virtual?.ExpectedMediaProperties,
+                    durationSeconds: null)
             },
             Provenance = new AssetProvenance
             {
@@ -189,4 +188,5 @@ internal sealed class CompositionSplitMutation
                 revision.Id == reference.AnchorRevisionId && revision.AnchorId == reference.AnchorId)?.TimestampSeconds,
         _ => null
     };
+
 }

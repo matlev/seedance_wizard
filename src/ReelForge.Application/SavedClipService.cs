@@ -74,7 +74,8 @@ public sealed class SavedClipService
         if (source is not { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Video })
             throw new InvalidOperationException("Saved Clips currently require a durable physical video source.");
         ValidateBoundaryKinds(start, end);
-        ValidateOrder(start, end, source.DurationSeconds);
+        var sourceDuration = source.DurationSeconds ?? source.Encoding?.DurationSeconds;
+        ValidateOrder(start, end, sourceDuration);
 
         var assetsCount = project.Assets.Count;
         var anchorsCount = project.Anchors.Count;
@@ -94,11 +95,9 @@ public sealed class SavedClipService
                 Virtual = new VirtualAssetState
                 {
                     Kind = VirtualAssetKind.SavedClip,
-                    ExpectedMediaProperties = new MediaEncodingMetadata
-                    {
-                        ContainerFormat = "mp4",
-                        DurationSeconds = CalculateDuration(start, end, source.DurationSeconds)
-                    }
+                    ExpectedMediaProperties = SavedClipOutputMetadataFactory.Create(
+                        source.Encoding,
+                        CalculateDuration(start, end, sourceDuration))
                 },
                 Provenance = new AssetProvenance
                 {
@@ -267,4 +266,5 @@ public sealed class SavedClipService
     private static double? ToSeconds(ExactFramePosition? position) => position is null
         ? null
         : position.PresentationTimestamp * (double)position.TimeBaseNumerator / position.TimeBaseDenominator;
+
 }

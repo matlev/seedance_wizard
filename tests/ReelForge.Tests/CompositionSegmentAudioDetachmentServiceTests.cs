@@ -56,6 +56,59 @@ public sealed class CompositionSegmentAudioDetachmentServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task DetachFromSavedClipWithLegacyMissingAudioMetadataInspectsTheMaterializedSegment()
+    {
+        var workspace = await CreateWorkspaceAsync();
+        var project = workspace.Project!;
+        var physical = AddVideo(project, "source.mp4", 6);
+        var clip = new ProjectAsset
+        {
+            DisplayName = "Legacy saved clip",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState
+            {
+                Kind = VirtualAssetKind.SavedClip,
+                ExpectedMediaProperties = new MediaEncodingMetadata
+                {
+                    DurationSeconds = 6,
+                    Video = new VideoStreamMetadata { Codec = "h264" }
+                }
+            }
+        };
+        project.AddAsset(clip);
+        project.CommitRecipe(clip.Id, new TrimRecipe
+        {
+            Source = new AssetRevisionReference { AssetId = physical.Id }
+        });
+        await workspace.SaveAsync();
+        var composition = await new WorkingCompositionService(workspace).CreateInitialAsync(clip.Id);
+        var segment = new WorkingCompositionService(workspace).GetCurrent().Recipe.Segments.Single();
+        var extraction = new StubExtractionEngine();
+        var inspector = new AudioOnlyInspector();
+        var result = await new CompositionSegmentAudioDetachmentService(
+                workspace,
+                new StubSegmentMaterializer(
+                    Path.Combine(_root, "legacy-saved-clip.mp4"),
+                    new MediaEncodingMetadata
+                    {
+                        DurationSeconds = 6,
+                        Video = new VideoStreamMetadata { Codec = "h264" }
+                    }),
+                extraction,
+                new Sha256ContentHashService(),
+                inspector)
+            .DetachAsync(segment.Id, "legacy clip audio.m4a");
+
+        Assert.Equal(composition.Id, result.CompositionRevision.VirtualAssetId);
+        Assert.Single(extraction.OutputPaths);
+        Assert.Equal(2, inspector.CallCount);
+        Assert.Equal(clip.Id, Assert.Single(result.AudioAsset.Provenance!.SourceAssetIds));
+        Assert.False(new WorkingCompositionService(workspace).GetCurrent().Recipe.Segments.Single().AudioEnabled);
+    }
+
+    [Fact]
     public async Task SaveFailureRollsBackDetachedAudioAndCompositionState()
     {
         var store = new ToggleFailingProjectStore();
@@ -149,7 +202,7 @@ public sealed class CompositionSegmentAudioDetachmentServiceTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
-    private sealed class StubSegmentMaterializer(string path) : ICompositionSegmentMaterializer
+    private sealed class StubSegmentMaterializer(string path, MediaEncodingMetadata? encoding = null) : ICompositionSegmentMaterializer
     {
         public Guid CompositionAssetId { get; private set; }
         public Guid RecipeRevisionId { get; private set; }
@@ -171,7 +224,7 @@ public sealed class CompositionSegmentAudioDetachmentServiceTests : IDisposable
             return Task.FromResult(new MaterializedMediaLease(
                 path,
                 new ContentIdentity { Sha256 = new string('b', 64), Status = ContentHashStatus.Verified },
-                new MediaEncodingMetadata
+                encoding ?? new MediaEncodingMetadata
                 {
                     DurationSeconds = 6,
                     Video = new VideoStreamMetadata { Codec = "h264", Width = 1280, Height = 720 },
@@ -197,21 +250,27 @@ public sealed class CompositionSegmentAudioDetachmentServiceTests : IDisposable
 
     private sealed class AudioOnlyInspector : IMediaInspectionService
     {
+        public int CallCount { get; private set; }
+
         public Task<MediaEncodingMetadata> InspectAsync(
             string mediaPath,
-            CancellationToken cancellationToken = default) => Task.FromResult(new MediaEncodingMetadata
+            CancellationToken cancellationToken = default)
         {
-            ContainerFormat = "mov,mp4,m4a,3gp,3g2,mj2",
-            DurationSeconds = 6,
-            SizeBytes = 4,
-            Audio = new AudioStreamMetadata
+            CallCount++;
+            return Task.FromResult(new MediaEncodingMetadata
             {
-                Codec = "aac",
-                SampleRate = 48000,
-                Channels = 2,
-                ChannelLayout = "stereo"
-            }
-        });
+                ContainerFormat = "mov,mp4,m4a,3gp,3g2,mj2",
+                DurationSeconds = 6,
+                SizeBytes = 4,
+                Audio = new AudioStreamMetadata
+                {
+                    Codec = "aac",
+                    SampleRate = 48000,
+                    Channels = 2,
+                    ChannelLayout = "stereo"
+                }
+            });
+        }
     }
 
     private sealed class UnusedImporter : IAssetImportService
