@@ -119,7 +119,7 @@ Move the complete timeline visual and local gesture state behind semantic events
 
 ### Unit 3 — extract frame-preparation orchestration
 
-Status: implementation, automated verification, and deep review complete; final human smoke acceptance pending.
+Status: complete. Implementation, automated verification, deep review, and human smoke acceptance passed.
 
 Write set: a focused App coordinator, frame-preparation shell wiring, and frame/Saved Frame/Clip tests.
 
