@@ -267,9 +267,6 @@ public sealed class FramePreparationCoordinator : IDisposable
         return await new SavedFrameService(_workspace).RemoveAsync(anchorId, cancellationToken);
     }
 
-    public Task DeleteSavedClipAsync(Guid savedClipAssetId, CancellationToken cancellationToken = default) =>
-        new SavedClipService(_workspace).DeleteAsync(savedClipAssetId, cancellationToken);
-
     private CancellationTokenSource ReplaceCancellation()
     {
         _cancellation?.Cancel();

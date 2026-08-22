@@ -99,7 +99,9 @@ public partial class MainWindow : Window, IDisposable
         _projectMediaOperationsCoordinator = new ProjectMediaOperationsCoordinator(
             _workspace,
             _runtime.RenderedAssetPromotionService,
-            _runtime.AudioExtractionService);
+            _runtime.AudioExtractionService,
+            _runtime.ProjectAssetDependencyAnalyzer,
+            _runtime.PhysicalAssetRemovalService);
         _framePreparationCoordinator = new FramePreparationCoordinator(
             _workspace,
             _exactFrameService,
@@ -1800,7 +1802,7 @@ public partial class MainWindow : Window, IDisposable
             if (deleteClip != MessageBoxResult.Yes) return;
             await RunUiActionAsync($"Deleting {asset.EffectiveDisplayName}…", async () =>
             {
-                await _framePreparationCoordinator.DeleteSavedClipAsync(asset.Id);
+                await _projectMediaOperationsCoordinator.DeleteSavedClipAsync(asset.Id);
                 ProjectMediaPanelControl.SelectedItem = null;
                 ClearMediaPreview();
                 RefreshProjectCollections();
@@ -1819,12 +1821,12 @@ public partial class MainWindow : Window, IDisposable
                 MessageBoxImage.Information);
             return;
         }
-        var usage = GetAssetUsage(_workspace.Project, asset);
-        if (usage.Count > 0)
+        var usage = _projectMediaOperationsCoordinator.AnalyzeDependencies(asset);
+        if (usage.IsInUse)
         {
             MessageBox.Show(
                 this,
-                $"'{asset.EffectiveDisplayName}' cannot be deleted because it is still used by:\n\n• {string.Join("\n• ", usage)}",
+                $"'{asset.EffectiveDisplayName}' cannot be deleted because it is still used by:\n\n• {string.Join("\n• ", usage.DisplayDescriptions)}",
                 "Asset is in use",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -1859,7 +1861,7 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
         if (selected.Asset is not { } asset) return;
-        var usage = GetAssetUsage(_workspace.Project, asset);
+        var usage = _projectMediaOperationsCoordinator.AnalyzeDependencies(asset);
         if (asset.StorageKind != AssetStorageKind.Physical)
         {
             MessageBox.Show(this, "Virtual assets cannot be moved between projects yet.", "Move asset", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1874,7 +1876,7 @@ public partial class MainWindow : Window, IDisposable
             async () =>
             {
                 var result = await _assetTransferService.CopyToProjectAsync(_workspace, asset, targetProjectFile);
-                if (usage.Count == 0)
+                if (!usage.IsInUse)
                 {
                     await RemoveCurrentProjectAssetAsync(asset);
                     StatusText.Text = $"Moved {asset.FileName} to {result.TargetProjectName}.";
@@ -1886,7 +1888,7 @@ public partial class MainWindow : Window, IDisposable
                     this,
                     $"'{asset.FileName}' is now available in '{result.TargetProjectName}'.\n\n" +
                     "ReelForge retained the source copy because removing it would break:\n\n" +
-                    $"• {string.Join("\n• ", usage)}",
+                    $"• {string.Join("\n• ", usage.DisplayDescriptions)}",
                     "Asset transferred; source retained",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -1945,57 +1947,12 @@ public partial class MainWindow : Window, IDisposable
     private async Task RemoveCurrentProjectAssetAsync(ProjectAsset asset)
     {
         if (_workspace.Project is null || _workspace.Location is null) return;
-        var absolutePath = asset.StorageKind == AssetStorageKind.Physical
-            ? _workspace.GetAbsoluteAssetPath(asset)
-            : null;
-        _workspace.Project.Assets.Remove(asset);
-        try
-        {
-            await _workspace.SaveAsync();
-        }
-        catch
-        {
-            _workspace.Project.Assets.Add(asset);
-            throw;
-        }
-
-        if (absolutePath is not null && File.Exists(absolutePath)) File.Delete(absolutePath);
+        await _projectMediaOperationsCoordinator.DeletePhysicalAssetAsync(asset.Id);
         ProjectMediaPanelControl.SelectedItem = null;
         InspectorPanelControl.Reset();
         ClearMediaPreview();
         RefreshProjectCollections();
     }
-
-    private static IReadOnlyList<string> GetAssetUsage(VideoProject project, ProjectAsset asset)
-    {
-        var usage = new List<string>();
-        if (project.CurrentGenerationDraft?.References.Any(reference =>
-                reference.ObjectKind == GenerationReferenceObjectKind.Asset && reference.LogicalObjectId == asset.Id) == true)
-            usage.Add("the current generation draft");
-        if (project.Generations.Any(generation => generation.RequestSnapshot.References.Any(reference =>
-                reference.ObjectKind == GenerationReferenceObjectKind.Asset && reference.LogicalObjectId == asset.Id)))
-            usage.Add("submitted generation references");
-        if (project.Generations.Any(generation => generation.OutputAssetIds.Contains(asset.Id)))
-            usage.Add("generated-output history");
-        if (project.AnchorRevisions.Any(revision => revision.SourceAssetId == asset.Id)) usage.Add("saved frames");
-        if (project.Assets.Any(candidate => candidate.Id != asset.Id && candidate.Provenance?.SourceAssetIds.Contains(asset.Id) == true))
-            usage.Add("derived-asset history");
-        if (project.RecipeRevisions.Any(revision =>
-                revision.VirtualAssetId != asset.Id && RecipeReferencesAsset(revision.Recipe, asset.Id)) ||
-            project.RecipeDrafts.Any(draft =>
-                draft.VirtualAssetId != asset.Id && RecipeReferencesAsset(draft.EditableRecipe, asset.Id)))
-            usage.Add("media recipes");
-        return usage.Distinct(StringComparer.Ordinal).ToArray();
-    }
-
-    private static bool RecipeReferencesAsset(AssetRecipe recipe, Guid assetId) => recipe switch
-    {
-        TrimRecipe trim => trim.Source.AssetId == assetId,
-        ExtractFrameRecipe frame => frame.Source.AssetId == assetId,
-        CompositionRecipe composition => composition.Segments.Any(segment => segment.Source.AssetId == assetId) ||
-                                         composition.AudioClips.Any(clip => clip.Source.AssetId == assetId),
-        _ => false
-    };
 
     private async Task QueueGenerationWithUndoSendAsync(
         GenerationDraft draft,

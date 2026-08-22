@@ -62,6 +62,8 @@ internal sealed class ApplicationRuntime : IDisposable
             AudioExtractionEngine,
             ContentHashService,
             MediaInspector);
+        ProjectAssetDependencyAnalyzer = new ProjectAssetDependencyAnalyzer();
+        PhysicalAssetRemovalService = new PhysicalAssetRemovalService();
 
         SecretStore = new WindowsCredentialStore();
         DiagnosticLog = new FileApplicationDiagnosticLog(Settings.General.LogDirectory);
@@ -95,6 +97,8 @@ internal sealed class ApplicationRuntime : IDisposable
     public IContentHashService ContentHashService { get; }
     public RenderedAssetPromotionService RenderedAssetPromotionService { get; }
     public AudioExtractionService AudioExtractionService { get; }
+    public ProjectAssetDependencyAnalyzer ProjectAssetDependencyAnalyzer { get; }
+    public PhysicalAssetRemovalService PhysicalAssetRemovalService { get; }
     public FfprobeMediaInspectionService MediaInspector { get; }
     public ExactVideoFrameService ExactFrameService { get; }
     public RecipeMediaMaterializer MediaMaterializer { get; }

@@ -14,16 +14,22 @@ public sealed class ProjectMediaOperationsCoordinator
     private readonly SavedClipService _savedClipService;
     private readonly RenderedAssetPromotionService _renderedAssetPromotionService;
     private readonly AudioExtractionService _audioExtractionService;
+    private readonly ProjectAssetDependencyAnalyzer _dependencyAnalyzer;
+    private readonly PhysicalAssetRemovalService _physicalAssetRemovalService;
 
     public ProjectMediaOperationsCoordinator(
         ProjectWorkspace workspace,
         RenderedAssetPromotionService renderedAssetPromotionService,
-        AudioExtractionService audioExtractionService)
+        AudioExtractionService audioExtractionService,
+        ProjectAssetDependencyAnalyzer dependencyAnalyzer,
+        PhysicalAssetRemovalService physicalAssetRemovalService)
     {
         _workspace = workspace;
         _savedClipService = new SavedClipService(workspace);
         _renderedAssetPromotionService = renderedAssetPromotionService;
         _audioExtractionService = audioExtractionService;
+        _dependencyAnalyzer = dependencyAnalyzer;
+        _physicalAssetRemovalService = physicalAssetRemovalService;
     }
 
     public async Task RenameAsync(
@@ -92,6 +98,19 @@ public sealed class ProjectMediaOperationsCoordinator
             requestedFileName,
             cancellationToken);
     }
+
+    public ProjectAssetDependencyReport AnalyzeDependencies(ProjectAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        var project = _workspace.Project ?? throw new InvalidOperationException("Create or open a project first.");
+        return _dependencyAnalyzer.Analyze(project, asset.Id);
+    }
+
+    public Task DeletePhysicalAssetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
+        _physicalAssetRemovalService.RemoveAsync(_workspace, assetId, cancellationToken);
+
+    public Task DeleteSavedClipAsync(Guid assetId, CancellationToken cancellationToken = default) =>
+        _savedClipService.DeleteAsync(assetId, cancellationToken);
 }
 
 public enum ProjectMediaRenameKind
