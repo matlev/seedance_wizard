@@ -20,7 +20,7 @@ Infrastructure
 Platform.Windows / WPF App
 ```
 
-The Windows platform assembly, explicit runtime composition root, feature-organized Core and Infrastructure projects, decomposed persistence/materialization/provider/generation services, global job finalization, and the first WPF feature controls are established. The portable suite contains 266 tests and the Windows platform suite contains 3 tests.
+The Windows platform assembly, explicit runtime composition root, feature-organized Core and Infrastructure projects, decomposed persistence/materialization/provider/generation services, global job finalization, and the first WPF feature controls are established. The portable suite contains 279 tests and the Windows platform suite contains 3 tests.
 
 The principal remaining production concentration is `MainWindow.xaml.cs`, currently about 3,300 physical lines. Its remaining responsibilities are not one problem:
 
@@ -127,7 +127,7 @@ Move indexing, cancellation, progressive contact-window refresh, keyboard naviga
 
 ### Unit 4 — extract Project Media operations
 
-Status: in progress. The Project Media grouping/presentation and unified rename slices are complete with human acceptance. Export, audio extraction, dependency analysis, deletion, copy/move, and import now route through the focused operations coordinator and passed their internal automated and review gates. This file-operation cluster is ready for one combined human smoke pass before the remaining cross-feature selection routing is extracted.
+Status: in progress. The Project Media grouping/presentation and unified rename slices are complete with human acceptance. Export, audio extraction, dependency analysis, deletion, physical copy/move, cached-media copy, and import now route through the focused operations coordinator and passed their internal automated and review gates. Saved Clip audio extraction and timeline detachment now resolve incomplete legacy metadata through materialization and inspection. Cached Saved Frames, Saved Clips, and the Working Composition copy to another project as permanent physical media; cached Move is intentionally unavailable because it would conflate flattening with deletion of editable source state. These final extensions require human smoke acceptance before the remaining cross-feature selection routing is extracted.
 
 Write set: a focused App coordinator, Project Media shell wiring, and file-operation tests.
 
