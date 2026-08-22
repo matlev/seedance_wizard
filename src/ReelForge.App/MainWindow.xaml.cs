@@ -539,7 +539,7 @@ public partial class MainWindow : Window, IDisposable
                 $"Importing {filePaths.Count} asset(s)…",
                 async () =>
                 {
-                    var imported = await _workspace.ImportAssetsAsync(filePaths);
+                    var imported = await _projectMediaOperationsCoordinator.ImportAsync(filePaths);
                     RefreshProjectCollections();
                     StatusText.Text = skippedCount == 0
                         ? $"Imported {imported.Count} asset(s)."

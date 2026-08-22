@@ -59,6 +59,14 @@ public sealed class ProjectMediaOperationsCoordinator
         }
     }
 
+    public Task<IReadOnlyList<ProjectAsset>> ImportAsync(
+        IReadOnlyCollection<string> sourcePaths,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sourcePaths);
+        return _workspace.ImportAssetsAsync(sourcePaths, cancellationToken);
+    }
+
     public Task<string> ExportSavedFrameAsync(
         FrameAnchor anchor,
         FrameAnchorRevision revision,
