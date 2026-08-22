@@ -125,6 +125,7 @@ public partial class MainWindow : Window, IDisposable
             _audioExtractionEngine,
             _mediaInspector);
         _compositionWorkspace.StateChanged += CompositionWorkspace_StateChanged;
+        _compositionWorkspace.RecipeMutationCommitted += CompositionWorkspace_RecipeMutationCommitted;
         _secretStore = _runtime.SecretStore;
         _diagnosticLog = _runtime.DiagnosticLog;
         _temporaryAssetHost = _runtime.TemporaryAssetHost;
@@ -182,6 +183,7 @@ public partial class MainWindow : Window, IDisposable
         _compositionAuditionController.PositionChanged -= CompositionAudition_PositionChanged;
         _compositionAuditionController.Dispose();
         _compositionWorkspace.StateChanged -= CompositionWorkspace_StateChanged;
+        _compositionWorkspace.RecipeMutationCommitted -= CompositionWorkspace_RecipeMutationCommitted;
         _compositionWorkspace.Dispose();
         CompositionTimelineControl.Dispose();
         MediaPreviewPanelControl.Dispose();
@@ -633,8 +635,7 @@ public partial class MainWindow : Window, IDisposable
         WorkingCompositionNameText.Text = composition!.EffectiveDisplayName;
         var revision = _workspace.Project!.RecipeRevisions.Single(candidate =>
             candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
-        if (_activeCompositionPreviewRevisionId is { } previewRevisionId && previewRevisionId != revision.Id)
-            ClearStaleCompositionPreview(composition, revision);
+        ClearStaleCompositionPreviewIfNeeded(composition, revision);
         var recipe = (CompositionRecipe)revision.Recipe;
         WorkingCompositionSummaryText.Text =
             $"{recipe.Segments.Count} video segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • " +
@@ -881,6 +882,18 @@ public partial class MainWindow : Window, IDisposable
 
     private void CompositionWorkspace_StateChanged(object? sender, EventArgs e) =>
         UpdateCompositionActionState();
+
+    private void CompositionWorkspace_RecipeMutationCommitted(object? sender, EventArgs e)
+    {
+        var composition = _workspace.Project?.WorkingCompositionAssetId is { } compositionId
+            ? _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == compositionId)
+            : null;
+        if (composition?.Virtual?.CurrentRecipeRevisionId is not { } revisionId)
+            return;
+        var revision = _workspace.Project!.RecipeRevisions.SingleOrDefault(candidate => candidate.Id == revisionId);
+        if (revision is not null)
+            ClearStaleCompositionPreviewIfNeeded(composition, revision);
+    }
 
     private async void MediaPreparationPanel_MakeClipRequested(object? sender, EventArgs e)
     {
@@ -1606,6 +1619,12 @@ public partial class MainWindow : Window, IDisposable
 
         var selectedItem = ProjectMediaPanelControl.SelectedItem;
         _ = OpenCompositionDraftPreviewAsync(composition, selectedItem, _workspace.Project?.Id);
+    }
+
+    private void ClearStaleCompositionPreviewIfNeeded(ProjectAsset composition, RecipeRevision currentRevision)
+    {
+        if (_activeCompositionPreviewRevisionId is { } previewRevisionId && previewRevisionId != currentRevision.Id)
+            ClearStaleCompositionPreview(composition, currentRevision);
     }
 
     private void MediaPreview_VideoReady(object? sender, MediaPreviewReadyEventArgs e)

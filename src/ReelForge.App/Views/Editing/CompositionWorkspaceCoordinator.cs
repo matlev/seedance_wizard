@@ -81,6 +81,13 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
 
     public event EventHandler? StateChanged;
 
+    /// <summary>
+    /// Raised only after a Working Composition mutation has completed successfully.
+    /// Hosts use this semantic notification to invalidate revision-pinned previews;
+    /// <see cref="StateChanged"/> also represents non-mutating selection and projection updates.
+    /// </summary>
+    public event EventHandler? RecipeMutationCommitted;
+
     public void SetSelection(Guid? segmentId, Guid? audioClipId)
     {
         SelectedSegmentId = segmentId;
@@ -405,9 +412,18 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
 
     private async Task MutateAsync(string action, Func<Task> mutation, bool completePending = false)
     {
+        var mutationCompleted = false;
         try
         {
-            await _host.RunUiActionAsync(action, mutation);
+            await _host.RunUiActionAsync(action, async () =>
+            {
+                await mutation();
+                mutationCompleted = true;
+            });
+            if (mutationCompleted)
+            {
+                RecipeMutationCommitted?.Invoke(this, EventArgs.Empty);
+            }
         }
         finally
         {
