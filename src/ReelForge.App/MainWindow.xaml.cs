@@ -41,7 +41,6 @@ public partial class MainWindow : Window, IDisposable
     private IReadOnlyList<GenerationProviderChoice> _providerChoices = [];
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
-    private readonly ProjectAssetTransferService _assetTransferService;
     private readonly ProjectMediaOperationsCoordinator _projectMediaOperationsCoordinator;
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private readonly ExactVideoFrameService _exactFrameService;
@@ -101,7 +100,8 @@ public partial class MainWindow : Window, IDisposable
             _runtime.RenderedAssetPromotionService,
             _runtime.AudioExtractionService,
             _runtime.ProjectAssetDependencyAnalyzer,
-            _runtime.PhysicalAssetRemovalService);
+            _runtime.PhysicalAssetRemovalService,
+            _runtime.ProjectAssetTransferWorkflow);
         _framePreparationCoordinator = new FramePreparationCoordinator(
             _workspace,
             _exactFrameService,
@@ -115,7 +115,6 @@ public partial class MainWindow : Window, IDisposable
             _mediaMaterializer,
             MediaPreviewPanelControl);
         _compositionAuditionController.PositionChanged += CompositionAudition_PositionChanged;
-        _assetTransferService = _runtime.AssetTransferService;
         _secretStore = _runtime.SecretStore;
         _diagnosticLog = _runtime.DiagnosticLog;
         _temporaryAssetHost = _runtime.TemporaryAssetHost;
@@ -1861,7 +1860,6 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
         if (selected.Asset is not { } asset) return;
-        var usage = _projectMediaOperationsCoordinator.AnalyzeDependencies(asset);
         if (asset.StorageKind != AssetStorageKind.Physical)
         {
             MessageBox.Show(this, "Virtual assets cannot be moved between projects yet.", "Move asset", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1875,20 +1873,21 @@ public partial class MainWindow : Window, IDisposable
             $"Moving {asset.EffectiveDisplayName}…",
             async () =>
             {
-                var result = await _assetTransferService.CopyToProjectAsync(_workspace, asset, targetProjectFile);
-                if (!usage.IsInUse)
+                var result = await _projectMediaOperationsCoordinator
+                    .MovePhysicalAssetToProjectAsync(asset, targetProjectFile);
+                if (result.SourceRemoved)
                 {
-                    await RemoveCurrentProjectAssetAsync(asset);
-                    StatusText.Text = $"Moved {asset.FileName} to {result.TargetProjectName}.";
+                    ApplyRemovedCurrentProjectAssetUi();
+                    StatusText.Text = $"Moved {asset.FileName} to {result.CopyResult.TargetProjectName}.";
                     return;
                 }
 
-                StatusText.Text = $"Copied {asset.FileName} to {result.TargetProjectName}; the source remains because project history references it.";
+                StatusText.Text = $"Copied {asset.FileName} to {result.CopyResult.TargetProjectName}; the source remains because project history references it.";
                 MessageBox.Show(
                     this,
-                    $"'{asset.FileName}' is now available in '{result.TargetProjectName}'.\n\n" +
+                    $"'{asset.FileName}' is now available in '{result.CopyResult.TargetProjectName}'.\n\n" +
                     "ReelForge retained the source copy because removing it would break:\n\n" +
-                    $"• {string.Join("\n• ", usage.DisplayDescriptions)}",
+                    $"• {string.Join("\n• ", result.DependencyReport.DisplayDescriptions)}",
                     "Asset transferred; source retained",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -1922,7 +1921,8 @@ public partial class MainWindow : Window, IDisposable
             $"Copying {asset.FileName}…",
             async () =>
             {
-                var result = await _assetTransferService.CopyToProjectAsync(_workspace, asset, targetProjectFile);
+                var result = await _projectMediaOperationsCoordinator
+                    .CopyPhysicalAssetToProjectAsync(asset, targetProjectFile);
                 StatusText.Text = $"Copied {asset.FileName} to {result.TargetProjectName} as {result.CopiedAsset.FileName}.";
             });
     }
@@ -1948,6 +1948,11 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_workspace.Project is null || _workspace.Location is null) return;
         await _projectMediaOperationsCoordinator.DeletePhysicalAssetAsync(asset.Id);
+        ApplyRemovedCurrentProjectAssetUi();
+    }
+
+    private void ApplyRemovedCurrentProjectAssetUi()
+    {
         ProjectMediaPanelControl.SelectedItem = null;
         InspectorPanelControl.Reset();
         ClearMediaPreview();

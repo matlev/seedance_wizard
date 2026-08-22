@@ -30,15 +30,24 @@ public sealed class ProjectAssetTransferService
         ArgumentException.ThrowIfNullOrWhiteSpace(targetProjectFilePath);
         if (sourceWorkspace.Project is null || sourceWorkspace.Location is null)
             throw new InvalidOperationException("Create or open the source project first.");
-        if (sourceAsset.StorageKind != AssetStorageKind.Physical || sourceAsset.Physical is null)
+        var sourceProject = sourceWorkspace.Project;
+        var sourceLocation = sourceWorkspace.Location;
+        var capturedSourceAsset = sourceProject.Assets.SingleOrDefault(asset => asset.Id == sourceAsset.Id)
+                                  ?? throw new InvalidOperationException("The selected asset no longer exists in this project.");
+        if (capturedSourceAsset.StorageKind != AssetStorageKind.Physical || capturedSourceAsset.Physical is null)
             throw new InvalidOperationException("Virtual assets cannot be copied between projects until recipe materialization is available.");
 
-        var sourceProjectPath = Path.GetFullPath(sourceWorkspace.Location.ProjectFilePath);
+        // Everything used after the first await is captured from the original project.
+        // The shell may open a different project while the target import is in flight.
+        var sourceProjectId = sourceProject.Id;
+        var sourceAssetId = capturedSourceAsset.Id;
+        var sourceContentHash = capturedSourceAsset.Physical.ContentIdentity.Sha256 ?? string.Empty;
+        var sourceProjectPath = Path.GetFullPath(sourceLocation.ProjectFilePath);
+        var sourceMediaPath = sourceWorkspace.GetAbsoluteAssetPath(capturedSourceAsset);
         var targetProjectPath = Path.GetFullPath(targetProjectFilePath);
         if (sourceProjectPath.Equals(targetProjectPath, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Choose a different destination project.");
 
-        var sourceMediaPath = sourceWorkspace.GetAbsoluteAssetPath(sourceAsset);
         if (!File.Exists(sourceMediaPath))
             throw new FileNotFoundException("The source media file is missing and cannot be copied.", sourceMediaPath);
 
@@ -57,9 +66,9 @@ public sealed class ProjectAssetTransferService
             Operation = "copied-from-project",
             Parameters = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["sourceProjectId"] = sourceWorkspace.Project.Id.ToString("D"),
-                ["sourceAssetId"] = sourceAsset.Id.ToString("D"),
-                ["sourceContentHash"] = sourceAsset.Physical.ContentIdentity.Sha256 ?? string.Empty
+                ["sourceProjectId"] = sourceProjectId.ToString("D"),
+                ["sourceAssetId"] = sourceAssetId.ToString("D"),
+                ["sourceContentHash"] = sourceContentHash
             }
         };
         targetProject.AddAsset(copiedAsset);

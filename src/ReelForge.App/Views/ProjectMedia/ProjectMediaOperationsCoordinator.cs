@@ -16,13 +16,15 @@ public sealed class ProjectMediaOperationsCoordinator
     private readonly AudioExtractionService _audioExtractionService;
     private readonly ProjectAssetDependencyAnalyzer _dependencyAnalyzer;
     private readonly PhysicalAssetRemovalService _physicalAssetRemovalService;
+    private readonly ProjectAssetTransferWorkflow _projectAssetTransferWorkflow;
 
     public ProjectMediaOperationsCoordinator(
         ProjectWorkspace workspace,
         RenderedAssetPromotionService renderedAssetPromotionService,
         AudioExtractionService audioExtractionService,
         ProjectAssetDependencyAnalyzer dependencyAnalyzer,
-        PhysicalAssetRemovalService physicalAssetRemovalService)
+        PhysicalAssetRemovalService physicalAssetRemovalService,
+        ProjectAssetTransferWorkflow projectAssetTransferWorkflow)
     {
         _workspace = workspace;
         _savedClipService = new SavedClipService(workspace);
@@ -30,6 +32,7 @@ public sealed class ProjectMediaOperationsCoordinator
         _audioExtractionService = audioExtractionService;
         _dependencyAnalyzer = dependencyAnalyzer;
         _physicalAssetRemovalService = physicalAssetRemovalService;
+        _projectAssetTransferWorkflow = projectAssetTransferWorkflow;
     }
 
     public async Task RenameAsync(
@@ -111,6 +114,18 @@ public sealed class ProjectMediaOperationsCoordinator
 
     public Task DeleteSavedClipAsync(Guid assetId, CancellationToken cancellationToken = default) =>
         _savedClipService.DeleteAsync(assetId, cancellationToken);
+
+    public Task<ProjectAssetCopyResult> CopyPhysicalAssetToProjectAsync(
+        ProjectAsset asset,
+        string targetProjectFilePath,
+        CancellationToken cancellationToken = default) =>
+        _projectAssetTransferWorkflow.CopyAsync(asset, targetProjectFilePath, cancellationToken);
+
+    public Task<ProjectAssetMoveResult> MovePhysicalAssetToProjectAsync(
+        ProjectAsset asset,
+        string targetProjectFilePath,
+        CancellationToken cancellationToken = default) =>
+        _projectAssetTransferWorkflow.MoveAsync(asset, targetProjectFilePath, cancellationToken);
 }
 
 public enum ProjectMediaRenameKind
