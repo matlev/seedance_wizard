@@ -5,7 +5,6 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -120,9 +119,7 @@ public partial class MainWindow : Window, IDisposable
         JobsPanelControl.Initialize(_jobCoordinator);
         JobsChromeControl.Initialize(_jobCoordinator);
 
-        var projectMediaView = new ListCollectionView(_assets);
-        projectMediaView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ProjectMediaListItem.GroupName)));
-        ProjectMediaPanelControl.SetItemsSource(projectMediaView);
+        ProjectMediaPanelControl.SetItemsSource(_assets);
         GenerationPanelControl.SetReferences(_referenceChoices);
         _draftAutosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
         _draftAutosaveTimer.Tick += DraftAutosaveTimer_Tick;

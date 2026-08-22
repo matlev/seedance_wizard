@@ -127,6 +127,8 @@ Move indexing, cancellation, progressive contact-window refresh, keyboard naviga
 
 ### Unit 4 — extract Project Media operations
 
+Status: in progress. The Project Media grouping/presentation slice is implemented, automatically verified, and independently reviewed; human smoke acceptance is pending before mutation and file-operation extraction continues.
+
 Write set: a focused App coordinator, Project Media shell wiring, and file-operation tests.
 
 Move rename/export/extract/delete/move/copy/import policy and dialogs behind typed outcomes. Keep cross-feature selection routing explicit. Add a Project Media context action for renaming a Saved Clip's project display name without changing its source media, recipe identity, or materialized filename. Preserve the planned presentation enhancement allowing each Project Media group (Videos, Audio, Saved Frames, Saved Clips, and Compositions) to be independently collapsed or expanded without changing project-domain state. Human smoke: every Project Media kind, group collapse/expand behavior, physical and Saved Clip display-name changes, dependency-protected deletion, copy/move between projects, audio extraction, and drag import.

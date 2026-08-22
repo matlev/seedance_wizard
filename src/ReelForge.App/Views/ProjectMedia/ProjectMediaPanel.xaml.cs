@@ -2,6 +2,7 @@ using System.Collections;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using ReelForge.Core;
 
@@ -31,6 +32,8 @@ public partial class ProjectMediaPanel : UserControl
 {
     private Point _dragStart;
     private ProjectMediaListItem? _dragItem;
+    private readonly Dictionary<string, bool> _groupExpansionStates = new(StringComparer.Ordinal);
+    private bool _restoringGroupExpansionState;
 
     public ProjectMediaPanel() => InitializeComponent();
 
@@ -44,12 +47,44 @@ public partial class ProjectMediaPanel : UserControl
     public event EventHandler<ProjectMediaActionRequestedEventArgs>? ActionRequested;
     public event EventHandler? DragCompleted;
 
-    public void SetItemsSource(IEnumerable source) => MediaList.ItemsSource = source;
+    public void SetItemsSource(IList source)
+    {
+        var view = new ListCollectionView(source);
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ProjectMediaListItem.GroupName)));
+        MediaList.ItemsSource = view;
+    }
 
     public void RefreshItems() => MediaList.Items.Refresh();
 
     private void MediaList_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
         SelectedItemChanged?.Invoke(this, new ProjectMediaSelectionChangedEventArgs(SelectedItem));
+
+    private void GroupExpander_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Expander { Tag: string groupName } expander) return;
+
+        _restoringGroupExpansionState = true;
+        try
+        {
+            expander.IsExpanded = !_groupExpansionStates.TryGetValue(groupName, out var isExpanded) || isExpanded;
+        }
+        finally
+        {
+            _restoringGroupExpansionState = false;
+        }
+    }
+
+    private void GroupExpander_Expanded(object sender, RoutedEventArgs e) =>
+        UpdateGroupExpansionState(sender, isExpanded: true);
+
+    private void GroupExpander_Collapsed(object sender, RoutedEventArgs e) =>
+        UpdateGroupExpansionState(sender, isExpanded: false);
+
+    private void UpdateGroupExpansionState(object sender, bool isExpanded)
+    {
+        if (_restoringGroupExpansionState || sender is not Expander { Tag: string groupName }) return;
+        _groupExpansionStates[groupName] = isExpanded;
+    }
 
     private void MediaList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
