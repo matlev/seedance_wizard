@@ -143,6 +143,8 @@ Move draft/continuation/Undo Send/workflow/result coordination out of the shell 
 
 ### Unit 6 — shell and topology cleanup
 
+Status: in progress. Composition editor projection, segment/audio selection, timeline mutation routing, and Edit Tools mutation routing now live in a focused `CompositionWorkspaceCoordinator`. The shell retains the shared media-preview/audition seek bridge and composition render/export lifecycle because those are cross-feature playback concerns. The coordinator extraction passed the portable and Windows suites, Release WPF build, and independent refactor review; human composition-editing smoke acceptance is pending.
+
 Remove superseded shell fields/methods, finish App folders/resources, move remaining cohesive Application and Platform files to their target folders, and explain any intentionally large retained production files. Do not split cohesive files solely to meet a number.
 
 ### Unit 7 — test topology and CI

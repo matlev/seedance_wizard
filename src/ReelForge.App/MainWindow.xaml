@@ -260,16 +260,8 @@
                                                                Grid.Row="1"
                                                                Margin="0,0,0,8"
                                                                ActivationRequested="CompositionTimeline_ActivationRequested"
-                                                               SelectionChanged="CompositionTimeline_SelectionChanged"
                                                                SeekRequested="CompositionTimeline_SeekRequested"
-                                                               SegmentReorderRequested="CompositionTimeline_SegmentReorderRequested"
-                                                               AudioMoveRequested="CompositionTimeline_AudioMoveRequested"
-                                                               MediaDropRequested="CompositionTimeline_MediaDropRequested"
-                                                               SplitRequested="CompositionTimeline_SplitRequested"
-                                                               ShiftLeftRequested="CompositionTimeline_ShiftLeftRequested"
-                                                               ShiftRightRequested="CompositionTimeline_ShiftRightRequested"
-                                                               DetachAudioRequested="CompositionTimeline_DetachAudioRequested"
-                                                               RemoveRequested="CompositionTimeline_RemoveRequested" />
+                                                               />
                         </Grid>
                     </Grid>
                 </Border>
@@ -291,11 +283,7 @@
                     </TabItem>
                     <TabItem x:Name="EditToolsTab" Header="Edit Tools" Visibility="Collapsed">
                         <editing:EditToolsPanel x:Name="EditToolsPanelControl"
-                                                SegmentAudioChanged="EditToolsPanel_SegmentAudioChanged"
-                                                AudioClipMutedChanged="EditToolsPanel_AudioClipMutedChanged"
-                                                AudioClipGainCommitted="EditToolsPanel_AudioClipGainCommitted"
-                                                AudioClipPanCommitted="EditToolsPanel_AudioClipPanCommitted"
-                                                AudioClipFadesCommitted="EditToolsPanel_AudioClipFadesCommitted" />
+                                                />
                     </TabItem>
                 </TabControl>
                     <jobs:GenerationJobsPanel x:Name="JobsPanelControl" Visibility="Collapsed" Margin="8"
