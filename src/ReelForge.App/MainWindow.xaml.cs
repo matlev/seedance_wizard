@@ -101,7 +101,8 @@ public partial class MainWindow : Window, IDisposable
             _runtime.AudioExtractionService,
             _runtime.ProjectAssetDependencyAnalyzer,
             _runtime.PhysicalAssetRemovalService,
-            _runtime.ProjectAssetTransferWorkflow);
+            _runtime.ProjectAssetTransferWorkflow,
+            _runtime.MaterializedProjectMediaTransferService);
         _framePreparationCoordinator = new FramePreparationCoordinator(
             _workspace,
             _exactFrameService,
@@ -1850,18 +1851,15 @@ public partial class MainWindow : Window, IDisposable
             _workspace.Project is null || _workspace.Location is null) return;
         if (selected.Anchor is not null)
         {
-            MessageBox.Show(
-                this,
-                "Saved Frames cannot be moved between projects yet. A Saved Frame is an exact position tied to its source video and may also be referenced by generation or editing history.",
-                "Move Saved Frame",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            // Saved Frames are deliberately copy-only. The context menu hides
+            // Move for anchors; this guard protects routed UI invocations.
             return;
         }
         if (selected.Asset is not { } asset) return;
         if (asset.StorageKind != AssetStorageKind.Physical)
         {
-            MessageBox.Show(this, "Virtual assets cannot be moved between projects yet.", "Move asset", MessageBoxButton.OK, MessageBoxImage.Information);
+            // Cache-backed Project Media is deliberately copy-only. The context
+            // menu hides Move for it; this guard protects routed UI invocations.
             return;
         }
 
@@ -1897,25 +1895,37 @@ public partial class MainWindow : Window, IDisposable
     {
         if (ProjectMediaPanelControl.SelectedItem is not ProjectMediaListItem selected ||
             _workspace.Project is null || _workspace.Location is null) return;
-        if (selected.Anchor is not null)
+        var targetProjectFile = ChooseTransferTargetProject();
+        if (targetProjectFile is null) return;
+
+        if (selected.Anchor is { } anchor && selected.AnchorRevision is { } anchorRevision)
         {
-            MessageBox.Show(
-                this,
-                "Saved Frames cannot be copied between projects yet. A Saved Frame is an exact position tied to its source video in the current project.",
-                "Copy Saved Frame",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-        if (selected.Asset is not { } asset) return;
-        if (asset.StorageKind != AssetStorageKind.Physical)
-        {
-            MessageBox.Show(this, "Virtual assets cannot be copied between projects until recipe materialization is available.", "Copy asset", MessageBoxButton.OK, MessageBoxImage.Information);
+            var fileName = selected.DisplayName;
+            await RunUiActionAsync($"Copying {selected.DisplayName}…", async () =>
+            {
+                var result = await _projectMediaOperationsCoordinator.CopySavedFrameToProjectAsync(
+                    anchor, anchorRevision, fileName, targetProjectFile);
+                StatusText.Text = $"Copied {selected.DisplayName} to {result.TargetProjectName} as {result.CopiedAsset.FileName}.";
+            });
             return;
         }
 
-        var targetProjectFile = ChooseTransferTargetProject();
-        if (targetProjectFile is null) return;
+        if (selected.Asset is not { } asset) return;
+        if (asset.StorageKind == AssetStorageKind.Virtual)
+        {
+            if (asset.MediaType != MediaType.Video ||
+                asset.Virtual?.Kind is not (VirtualAssetKind.SavedClip or VirtualAssetKind.Composition) ||
+                asset.Virtual.CurrentRecipeRevisionId is not { } recipeRevisionId) return;
+            var fileName = asset.EffectiveDisplayName;
+            await RunUiActionAsync($"Copying {asset.EffectiveDisplayName}…", async () =>
+            {
+                var result = await _projectMediaOperationsCoordinator.CopyVirtualVideoToProjectAsync(
+                    asset, recipeRevisionId, fileName, targetProjectFile);
+                StatusText.Text = $"Copied {asset.EffectiveDisplayName} to {result.TargetProjectName} as {result.CopiedAsset.FileName}.";
+            });
+            return;
+        }
+        if (asset.StorageKind != AssetStorageKind.Physical) return;
         await RunUiActionAsync(
             $"Copying {asset.FileName}…",
             async () =>

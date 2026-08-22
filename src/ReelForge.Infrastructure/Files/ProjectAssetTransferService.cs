@@ -8,6 +8,16 @@ public sealed record ProjectAssetCopyResult(
     string TargetProjectFilePath,
     ProjectAsset CopiedAsset);
 
+/// <summary>
+/// Describes the source-independent metadata assigned after a file has been
+/// imported into a different project. This keeps the target-project import,
+/// persistence, and rollback boundary in one place for physical and
+/// materialized copies alike.
+/// </summary>
+public sealed record ProjectAssetCopyMetadata(
+    AssetOrigin Origin,
+    AssetProvenance Provenance);
+
 public sealed class ProjectAssetTransferService
 {
     private readonly IProjectStore _projectStore;
@@ -51,6 +61,43 @@ public sealed class ProjectAssetTransferService
         if (!File.Exists(sourceMediaPath))
             throw new FileNotFoundException("The source media file is missing and cannot be copied.", sourceMediaPath);
 
+        return await ImportFileToProjectAsync(
+            sourceMediaPath,
+            targetProjectPath,
+            new ProjectAssetCopyMetadata(
+                AssetOrigin.Imported,
+                new AssetProvenance
+                {
+                    Operation = "copied-from-project",
+                    Parameters = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["sourceProjectId"] = sourceProjectId.ToString("D"),
+                        ["sourceAssetId"] = sourceAssetId.ToString("D"),
+                        ["sourceContentHash"] = sourceContentHash
+                    }
+                }),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Imports one already-materialized file into a target project and commits
+    /// both the target metadata and file as a single target-project operation.
+    /// On a target save failure the newly-imported target metadata and file are
+    /// removed; the caller's source is deliberately untouched.
+    /// </summary>
+    public async Task<ProjectAssetCopyResult> ImportFileToProjectAsync(
+        string sourceMediaPath,
+        string targetProjectFilePath,
+        ProjectAssetCopyMetadata metadata,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceMediaPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetProjectFilePath);
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (!File.Exists(sourceMediaPath))
+            throw new FileNotFoundException("The materialized media file is missing and cannot be copied.", sourceMediaPath);
+
+        var targetProjectPath = Path.GetFullPath(targetProjectFilePath);
         var (targetProject, targetLocation) = await _projectStore
             .OpenAsync(targetProjectPath, cancellationToken)
             .ConfigureAwait(false);
@@ -61,16 +108,8 @@ public sealed class ProjectAssetTransferService
             ? copiedAssets[0]
             : throw new InvalidOperationException("Expected exactly one copied asset.");
 
-        copiedAsset.Provenance = new AssetProvenance
-        {
-            Operation = "copied-from-project",
-            Parameters = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["sourceProjectId"] = sourceProjectId.ToString("D"),
-                ["sourceAssetId"] = sourceAssetId.ToString("D"),
-                ["sourceContentHash"] = sourceContentHash
-            }
-        };
+        copiedAsset.Origin = metadata.Origin;
+        copiedAsset.Provenance = metadata.Provenance;
         targetProject.AddAsset(copiedAsset);
         try
         {

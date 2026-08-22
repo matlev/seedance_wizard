@@ -17,6 +17,7 @@ public sealed class ProjectMediaOperationsCoordinator
     private readonly ProjectAssetDependencyAnalyzer _dependencyAnalyzer;
     private readonly PhysicalAssetRemovalService _physicalAssetRemovalService;
     private readonly ProjectAssetTransferWorkflow _projectAssetTransferWorkflow;
+    private readonly MaterializedProjectMediaTransferService _materializedProjectMediaTransferService;
 
     public ProjectMediaOperationsCoordinator(
         ProjectWorkspace workspace,
@@ -24,7 +25,8 @@ public sealed class ProjectMediaOperationsCoordinator
         AudioExtractionService audioExtractionService,
         ProjectAssetDependencyAnalyzer dependencyAnalyzer,
         PhysicalAssetRemovalService physicalAssetRemovalService,
-        ProjectAssetTransferWorkflow projectAssetTransferWorkflow)
+        ProjectAssetTransferWorkflow projectAssetTransferWorkflow,
+        MaterializedProjectMediaTransferService materializedProjectMediaTransferService)
     {
         _workspace = workspace;
         _savedClipService = new SavedClipService(workspace);
@@ -33,6 +35,7 @@ public sealed class ProjectMediaOperationsCoordinator
         _dependencyAnalyzer = dependencyAnalyzer;
         _physicalAssetRemovalService = physicalAssetRemovalService;
         _projectAssetTransferWorkflow = projectAssetTransferWorkflow;
+        _materializedProjectMediaTransferService = materializedProjectMediaTransferService;
     }
 
     public async Task RenameAsync(
@@ -134,6 +137,24 @@ public sealed class ProjectMediaOperationsCoordinator
         string targetProjectFilePath,
         CancellationToken cancellationToken = default) =>
         _projectAssetTransferWorkflow.MoveAsync(asset, targetProjectFilePath, cancellationToken);
+
+    public Task<ProjectAssetCopyResult> CopySavedFrameToProjectAsync(
+        FrameAnchor anchor,
+        FrameAnchorRevision revision,
+        string requestedFileName,
+        string targetProjectFilePath,
+        CancellationToken cancellationToken = default) =>
+        _materializedProjectMediaTransferService.CopySavedFrameAsync(
+            anchor, revision, requestedFileName, targetProjectFilePath, cancellationToken);
+
+    public Task<ProjectAssetCopyResult> CopyVirtualVideoToProjectAsync(
+        ProjectAsset asset,
+        Guid recipeRevisionId,
+        string requestedFileName,
+        string targetProjectFilePath,
+        CancellationToken cancellationToken = default) =>
+        _materializedProjectMediaTransferService.CopyVirtualVideoAsync(
+            asset, recipeRevisionId, requestedFileName, targetProjectFilePath, cancellationToken);
 }
 
 public enum ProjectMediaRenameKind

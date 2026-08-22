@@ -64,6 +64,7 @@ public sealed class ProjectAssetTransferServiceTests : IDisposable
         Assert.Null(result.CopiedAsset.Provenance?.GenerationId);
         Assert.Equal(sourceWorkspace.Project.Id.ToString("D"), result.CopiedAsset.Provenance?.Parameters["sourceProjectId"]);
         Assert.Equal(sourceAsset.Id.ToString("D"), result.CopiedAsset.Provenance?.Parameters["sourceAssetId"]);
+        Assert.DoesNotContain("materializedContentHash", result.CopiedAsset.Provenance!.Parameters.Keys);
         Assert.True(File.Exists(sourcePath));
         Assert.Contains(sourceAsset.Id, generation.OutputAssetIds);
 

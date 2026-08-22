@@ -96,6 +96,22 @@ public partial class ProjectMediaPanel : UserControl
     private void ContextMenu_Opened(object sender, RoutedEventArgs e)
     {
         var asset = SelectedItem?.Asset;
+        var savedFrame = SelectedItem is { Anchor: not null, AnchorRevision: not null };
+        var copyableVirtualVideo = asset is
+        {
+            StorageKind: AssetStorageKind.Virtual,
+            MediaType: MediaType.Video,
+            Virtual.Kind: VirtualAssetKind.SavedClip or VirtualAssetKind.Composition,
+            Virtual.CurrentRecipeRevisionId: not null
+        };
+        var physicalAsset = asset is { StorageKind: AssetStorageKind.Physical, Physical: not null };
+        CopyToProjectItem.Visibility = savedFrame || copyableVirtualVideo || physicalAsset
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        MoveToProjectItem.Visibility = physicalAsset
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         var renameKind = ProjectMediaRenamePolicy.GetKind(asset);
         RenameItem.Visibility = renameKind == ProjectMediaRenameKind.None
             ? Visibility.Collapsed
