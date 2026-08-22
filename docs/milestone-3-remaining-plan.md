@@ -20,7 +20,7 @@ Infrastructure
 Platform.Windows / WPF App
 ```
 
-The Windows platform assembly, explicit runtime composition root, feature-organized Core and Infrastructure projects, decomposed persistence/materialization/provider/generation services, global job finalization, and the first WPF feature controls are established. The portable suite contains 250 tests and the Windows platform suite contains 3 tests.
+The Windows platform assembly, explicit runtime composition root, feature-organized Core and Infrastructure projects, decomposed persistence/materialization/provider/generation services, global job finalization, and the first WPF feature controls are established. The portable suite contains 266 tests and the Windows platform suite contains 3 tests.
 
 The principal remaining production concentration is `MainWindow.xaml.cs`, currently about 3,300 physical lines. Its remaining responsibilities are not one problem:
 
@@ -127,7 +127,7 @@ Move indexing, cancellation, progressive contact-window refresh, keyboard naviga
 
 ### Unit 4 — extract Project Media operations
 
-Status: in progress. The Project Media grouping/presentation and unified rename slices are complete with human acceptance. The remaining file-operation owners are being extracted as a coherent cluster with internal commit and review gates before a combined human smoke pass.
+Status: in progress. The Project Media grouping/presentation and unified rename slices are complete with human acceptance. Export, audio extraction, dependency analysis, deletion, copy/move, and import now route through the focused operations coordinator and passed their internal automated and review gates. This file-operation cluster is ready for one combined human smoke pass before the remaining cross-feature selection routing is extracted.
 
 Write set: a focused App coordinator, Project Media shell wiring, and file-operation tests.
 
@@ -152,6 +152,8 @@ Split tests by layer/capability, centralize only proven shared fakes/builders, a
 Remove dead or Seedance-era tracked names, refresh repository/contributor documentation, rerun the file/responsibility inventory, and execute the complete manual acceptance matrix. Every remaining large file must have a documented cohesive reason to exist.
 
 The known behavior bugs—restoring a valid baked composition after restart, frame stepping across fast-audition cuts, and ordinary viewer frame-step controls not synchronizing the precision-frame strip while Select Frame or Make Clip is active—remain deferred unless a refactor unit naturally takes ownership of their root cause and fixes them under the characterization, regression-coverage, review, and acceptance rule above. They must not be accidentally declared fixed or silently changed by a structural commit.
+
+Project import also has a pre-existing reliability limitation: a multi-file import can leave previously committed media files on disk if a later file fails, and a final project-save failure can leave imported files plus in-memory project mutations without durable project metadata. The Project Media coordinator extraction deliberately preserves this behavior. A future reliability unit must design and test the complete import transaction and rollback boundary rather than add partial cleanup in the WPF shell.
 
 ## Coordination and review policy
 
