@@ -63,6 +63,44 @@ public sealed class ExternalProcessRunnerCommandLoggingTests
         await runner.LogCommandIfEnabledAsync(new ExternalProcessRequest("ffmpeg.exe", ["-version"]));
     }
 
+    [Fact]
+    public async Task RunAsyncDoesNotWaitForBlockedCommandLogging()
+    {
+        var directoryPath = Path.Combine(Path.GetTempPath(), $"reelforge-command-log-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directoryPath);
+        var executablePath = Path.Combine(directoryPath, OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg");
+        var arguments = OperatingSystem.IsWindows()
+            ? new[] { "/c", "exit 0" }
+            : new[] { "-c", "exit 0" };
+        if (OperatingSystem.IsWindows())
+        {
+            File.Copy(Path.Combine(Environment.SystemDirectory, "cmd.exe"), executablePath);
+        }
+        else
+        {
+            File.Copy("/bin/sh", executablePath);
+            File.SetUnixFileMode(
+                executablePath,
+                UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        }
+        var log = new BlockingLog();
+        var runner = new ExternalProcessRunner(log, logFfmpegCommands: true);
+
+        try
+        {
+            var result = await runner.RunAsync(new ExternalProcessRequest(executablePath, arguments))
+                .WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.True(result.Succeeded);
+            await log.WriteStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            log.Release.TrySetResult();
+            Directory.Delete(directoryPath, recursive: true);
+        }
+    }
+
     private sealed class RecordingLog : IApplicationDiagnosticLog
     {
         public string LogDirectory => string.Empty;
@@ -82,5 +120,20 @@ public sealed class ExternalProcessRunnerCommandLoggingTests
         public Task<DiagnosticLogReference?> WriteAsync(DiagnosticLogLevel level, string category, string message,
             IReadOnlyDictionary<string, string?> details, CancellationToken cancellationToken = default) =>
             throw new IOException("Intentional test failure.");
+    }
+
+    private sealed class BlockingLog : IApplicationDiagnosticLog
+    {
+        public string LogDirectory => string.Empty;
+        public TaskCompletionSource WriteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<DiagnosticLogReference?> WriteAsync(DiagnosticLogLevel level, string category, string message,
+            IReadOnlyDictionary<string, string?> details, CancellationToken cancellationToken = default)
+        {
+            WriteStarted.TrySetResult();
+            await Release.Task.ConfigureAwait(false);
+            return null;
+        }
     }
 }

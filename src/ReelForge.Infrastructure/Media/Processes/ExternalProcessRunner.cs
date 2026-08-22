@@ -47,7 +47,7 @@ public sealed class ExternalProcessRunner : IExternalProcessRunner
             startInfo.ArgumentList.Add(argument);
         }
 
-        await LogCommandIfEnabledAsync(request).ConfigureAwait(false);
+        QueueCommandIfEnabled(request);
 
         using var process = new Process { StartInfo = startInfo };
         if (!process.Start())
@@ -106,24 +106,56 @@ public sealed class ExternalProcessRunner : IExternalProcessRunner
 
     internal async Task LogCommandIfEnabledAsync(ExternalProcessRequest request)
     {
-        if (_diagnosticLog is null) return;
+        if (!TryCreateCommandLogEntry(request, out var diagnosticLog, out var command, out var details)) return;
+
+        await WriteCommandSafelyAsync(diagnosticLog, command, details).ConfigureAwait(false);
+    }
+
+    private void QueueCommandIfEnabled(ExternalProcessRequest request)
+    {
+        if (!TryCreateCommandLogEntry(request, out var diagnosticLog, out var command, out var details)) return;
+
+        _ = Task.Run(() => WriteCommandSafelyAsync(diagnosticLog, command, details));
+    }
+
+    private bool TryCreateCommandLogEntry(
+        ExternalProcessRequest request,
+        out IApplicationDiagnosticLog diagnosticLog,
+        out string command,
+        out IReadOnlyDictionary<string, string?> details)
+    {
+        diagnosticLog = _diagnosticLog!;
+        command = string.Empty;
+        details = null!;
+
+        if (diagnosticLog is null) return false;
         var tool = GetCommandLoggingTool(
             request.ExecutablePath,
             Volatile.Read(ref _logFfmpegCommands) != 0,
             Volatile.Read(ref _logFfprobeCommands) != 0);
-        if (tool is null) return;
+        if (tool is null) return false;
 
+        command = FormatCommandLine(request.ExecutablePath, request.Arguments);
+        details = new Dictionary<string, string?>
+        {
+            ["tool"] = tool,
+            ["executable"] = request.ExecutablePath
+        };
+        return true;
+    }
+
+    private static async Task WriteCommandSafelyAsync(
+        IApplicationDiagnosticLog diagnosticLog,
+        string command,
+        IReadOnlyDictionary<string, string?> details)
+    {
         try
         {
-            await _diagnosticLog.WriteAsync(
+            await diagnosticLog.WriteAsync(
                 DiagnosticLogLevel.Information,
                 "media-tool-command",
-                FormatCommandLine(request.ExecutablePath, request.Arguments),
-                new Dictionary<string, string?>
-                {
-                    ["tool"] = tool,
-                    ["executable"] = request.ExecutablePath
-                }).ConfigureAwait(false);
+                command,
+                details).ConfigureAwait(false);
         }
         catch
         {
