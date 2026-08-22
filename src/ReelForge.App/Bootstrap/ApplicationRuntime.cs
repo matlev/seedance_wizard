@@ -50,6 +50,18 @@ internal sealed class ApplicationRuntime : IDisposable
         AssetImporter = new AssetImportService(MediaInspector);
         Workspace = new ProjectWorkspace(ProjectStore, AssetImporter);
         AssetTransferService = new ProjectAssetTransferService(ProjectStore, AssetImporter);
+        ContentHashService = new Sha256ContentHashService();
+        RenderedAssetPromotionService = new RenderedAssetPromotionService(
+            Workspace,
+            MediaMaterializer,
+            ContentHashService,
+            MediaInspector);
+        AudioExtractionService = new AudioExtractionService(
+            Workspace,
+            MediaMaterializer,
+            AudioExtractionEngine,
+            ContentHashService,
+            MediaInspector);
 
         SecretStore = new WindowsCredentialStore();
         DiagnosticLog = new FileApplicationDiagnosticLog(Settings.General.LogDirectory);
@@ -80,6 +92,9 @@ internal sealed class ApplicationRuntime : IDisposable
     public AssetImportService AssetImporter { get; }
     public ProjectWorkspace Workspace { get; }
     public ProjectAssetTransferService AssetTransferService { get; }
+    public IContentHashService ContentHashService { get; }
+    public RenderedAssetPromotionService RenderedAssetPromotionService { get; }
+    public AudioExtractionService AudioExtractionService { get; }
     public FfprobeMediaInspectionService MediaInspector { get; }
     public ExactVideoFrameService ExactFrameService { get; }
     public RecipeMediaMaterializer MediaMaterializer { get; }

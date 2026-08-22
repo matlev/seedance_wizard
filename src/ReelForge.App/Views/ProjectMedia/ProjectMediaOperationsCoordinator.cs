@@ -12,11 +12,18 @@ public sealed class ProjectMediaOperationsCoordinator
 {
     private readonly ProjectWorkspace _workspace;
     private readonly SavedClipService _savedClipService;
+    private readonly RenderedAssetPromotionService _renderedAssetPromotionService;
+    private readonly AudioExtractionService _audioExtractionService;
 
-    public ProjectMediaOperationsCoordinator(ProjectWorkspace workspace)
+    public ProjectMediaOperationsCoordinator(
+        ProjectWorkspace workspace,
+        RenderedAssetPromotionService renderedAssetPromotionService,
+        AudioExtractionService audioExtractionService)
     {
         _workspace = workspace;
         _savedClipService = new SavedClipService(workspace);
+        _renderedAssetPromotionService = renderedAssetPromotionService;
+        _audioExtractionService = audioExtractionService;
     }
 
     public async Task RenameAsync(
@@ -41,6 +48,49 @@ public sealed class ProjectMediaOperationsCoordinator
             default:
                 throw new InvalidOperationException("This Project Media item cannot be renamed.");
         }
+    }
+
+    public Task<string> ExportSavedFrameAsync(
+        FrameAnchor anchor,
+        FrameAnchorRevision revision,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(anchor);
+        ArgumentNullException.ThrowIfNull(revision);
+        return _renderedAssetPromotionService.ExportFrameAsync(
+            anchor.Id,
+            revision.Id,
+            destinationPath,
+            cancellationToken);
+    }
+
+    public Task<string> ExportVirtualVideoAsync(
+        ProjectAsset asset,
+        Guid recipeRevisionId,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return _renderedAssetPromotionService.ExportAsync(
+            asset.Id,
+            recipeRevisionId,
+            destinationPath,
+            cancellationToken);
+    }
+
+    public Task<ProjectAsset> ExtractAudioAsync(
+        ProjectAsset source,
+        Guid? recipeRevisionId,
+        string requestedFileName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return _audioExtractionService.ExtractAsAssetAsync(
+            source.Id,
+            recipeRevisionId,
+            requestedFileName,
+            cancellationToken);
     }
 }
 

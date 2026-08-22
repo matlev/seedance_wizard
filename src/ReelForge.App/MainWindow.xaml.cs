@@ -96,7 +96,10 @@ public partial class MainWindow : Window, IDisposable
         _audioExtractionEngine = _runtime.AudioExtractionEngine;
         _projectStore = _runtime.ProjectStore;
         _workspace = _runtime.Workspace;
-        _projectMediaOperationsCoordinator = new ProjectMediaOperationsCoordinator(_workspace);
+        _projectMediaOperationsCoordinator = new ProjectMediaOperationsCoordinator(
+            _workspace,
+            _runtime.RenderedAssetPromotionService,
+            _runtime.AudioExtractionService);
         _framePreparationCoordinator = new FramePreparationCoordinator(
             _workspace,
             _exactFrameService,
@@ -999,9 +1002,8 @@ public partial class MainWindow : Window, IDisposable
             "Composition export cancelled.",
             async cancellationToken =>
             {
-                var service = CreateRenderedAssetPromotionService();
-                var path = await service.ExportAsync(
-                    composition.Id,
+                var path = await _projectMediaOperationsCoordinator.ExportVirtualVideoAsync(
+                    composition,
                     revision.Id,
                     dialog.FileName,
                     cancellationToken);
@@ -1632,7 +1634,6 @@ public partial class MainWindow : Window, IDisposable
     private async void ExportSelectedMedia_Click(object sender, RoutedEventArgs e)
     {
         if (ProjectMediaPanelControl.SelectedItem is not ProjectMediaListItem item || _workspace.Project is null) return;
-        var service = CreateRenderedAssetPromotionService();
         var exportsDirectory = Path.Combine(_workspace.Location!.RootDirectory, "exports");
         if (item.Anchor is { } anchor && item.AnchorRevision is { } anchorRevision)
         {
@@ -1649,7 +1650,10 @@ public partial class MainWindow : Window, IDisposable
             if (dialog.ShowDialog(this) != true) return;
             await RunUiActionAsync("Exporting Saved Frame…", async () =>
             {
-                var path = await service.ExportFrameAsync(anchor.Id, anchorRevision.Id, dialog.FileName);
+                var path = await _projectMediaOperationsCoordinator.ExportSavedFrameAsync(
+                    anchor,
+                    anchorRevision,
+                    dialog.FileName);
                 StatusText.Text = $"Exported Saved Frame to {path}.";
             });
             return;
@@ -1675,7 +1679,10 @@ public partial class MainWindow : Window, IDisposable
         if (videoDialog.ShowDialog(this) != true) return;
         await RunUiActionAsync($"Exporting {asset.EffectiveDisplayName}…", async () =>
         {
-            var path = await service.ExportAsync(asset.Id, recipeRevisionId, videoDialog.FileName);
+            var path = await _projectMediaOperationsCoordinator.ExportVirtualVideoAsync(
+                asset,
+                recipeRevisionId,
+                videoDialog.FileName);
             StatusText.Text = $"Exported {asset.EffectiveDisplayName} to {path}.";
         });
     }
@@ -1707,26 +1714,14 @@ public partial class MainWindow : Window, IDisposable
 
         await RunUiActionAsync($"Extracting audio from {source.EffectiveDisplayName}…", async () =>
         {
-            var service = new AudioExtractionService(
-                _workspace,
-                _mediaMaterializer,
-                _audioExtractionEngine,
-                new Sha256ContentHashService(),
-                _mediaInspector);
-            var extracted = await service.ExtractAsAssetAsync(
-                source.Id,
+            var extracted = await _projectMediaOperationsCoordinator.ExtractAudioAsync(
+                source,
                 recipeRevisionId,
                 dialog.FileName);
             RefreshProjectCollections(extracted.Id);
             StatusText.Text = $"Extracted audio as {extracted.FileName}.";
         });
     }
-
-    private RenderedAssetPromotionService CreateRenderedAssetPromotionService() => new(
-        _workspace,
-        _mediaMaterializer,
-        new Sha256ContentHashService(),
-        _mediaInspector);
 
     private async Task ShowSavedFramePreviewAsync(ProjectMediaListItem item, Guid? selectedProjectId)
     {
