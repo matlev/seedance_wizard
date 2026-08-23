@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.Tests", "tests\Re
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.Platform.Windows.Tests", "tests\ReelForge.Platform.Windows.Tests\ReelForge.Platform.Windows.Tests.csproj", "{B831F3F1-D778-4142-B7E3-A8E0ACEEA43D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.App.Tests", "tests\ReelForge.App.Tests\ReelForge.App.Tests.csproj", "{C01D6D6A-5F35-4FA3-8B4E-DA371A9FDD1F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -58,6 +60,10 @@ Global
 		{B831F3F1-D778-4142-B7E3-A8E0ACEEA43D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B831F3F1-D778-4142-B7E3-A8E0ACEEA43D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B831F3F1-D778-4142-B7E3-A8E0ACEEA43D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C01D6D6A-5F35-4FA3-8B4E-DA371A9FDD1F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C01D6D6A-5F35-4FA3-8B4E-DA371A9FDD1F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C01D6D6A-5F35-4FA3-8B4E-DA371A9FDD1F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C01D6D6A-5F35-4FA3-8B4E-DA371A9FDD1F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{6E4741D6-61C6-4157-A512-096E57B74133} = {667F9217-6D5A-483C-A831-8BFF3898D60C}
@@ -67,5 +73,6 @@ Global
 		{F02C9D76-A3A2-4F43-AB33-79927B3C2EA6} = {667F9217-6D5A-483C-A831-8BFF3898D60C}
 		{15C2DC8C-2AE4-41FD-9A60-990E804715E3} = {339921A3-BCD5-4C31-A9A2-08AA1FA20A6A}
 		{B831F3F1-D778-4142-B7E3-A8E0ACEEA43D} = {339921A3-BCD5-4C31-A9A2-08AA1FA20A6A}
+		{C01D6D6A-5F35-4FA3-8B4E-DA371A9FDD1F} = {339921A3-BCD5-4C31-A9A2-08AA1FA20A6A}
 	EndGlobalSection
 EndGlobal
