@@ -36,6 +36,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
     private readonly ProjectMediaOperationsCoordinator _projectMediaOperationsCoordinator;
+    private readonly ProjectMediaCommandCoordinator _projectMediaCommandCoordinator;
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private readonly PhysicalAssetSelectionPreparationService _physicalAssetSelectionPreparationService;
     private readonly ExactVideoFrameService _exactFrameService;
@@ -89,6 +90,9 @@ public partial class MainWindow : Window, IDisposable
             _runtime.PhysicalAssetRemovalService,
             _runtime.ProjectAssetTransferWorkflow,
             _runtime.MaterializedProjectMediaTransferService);
+        _projectMediaCommandCoordinator = new ProjectMediaCommandCoordinator(
+            _projectMediaOperationsCoordinator,
+            new ProjectMediaCommandPresentation(this));
         _physicalAssetSelectionPreparationService = new PhysicalAssetSelectionPreparationService(_workspace, _mediaInspector);
         _mediaPreviewCoordinator = new MediaPreviewCoordinator(
             _workspace, _mediaMaterializer, _exactFrameService, MediaPreviewPanelControl,
@@ -858,168 +862,16 @@ public partial class MainWindow : Window, IDisposable
         await _generationSubmission.SubmitAsync(_applicationSettings.General.UndoSendSeconds);
     }
 
-    private void ProjectMediaPanel_ActionRequested(
+    private async void ProjectMediaPanel_ActionRequested(
         object? sender,
         ProjectMediaActionRequestedEventArgs e)
     {
-        var routedEvent = new RoutedEventArgs();
-        switch (e.Action)
-        {
-            case ProjectMediaAction.Rename:
-                RenameAsset_Click(this, routedEvent);
-                break;
-            case ProjectMediaAction.Export:
-                ExportSelectedMedia_Click(this, routedEvent);
-                break;
-            case ProjectMediaAction.ExtractAudio:
-                ExtractAudio_Click(this, routedEvent);
-                break;
-            case ProjectMediaAction.Copy:
-                CopyAssetToProject_Click(this, routedEvent);
-                break;
-            case ProjectMediaAction.Move:
-                MoveAssetToProject_Click(this, routedEvent);
-                break;
-            case ProjectMediaAction.Delete:
-                DeleteAsset_Click(this, routedEvent);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(e), e.Action, "Unknown Project Media action.");
-        }
+        await _projectMediaCommandCoordinator.HandleAsync(e.Action, ProjectMediaPanelControl.SelectedItem);
     }
 
     private void ProjectMediaPanel_DragCompleted(object? sender, EventArgs e) =>
         CompositionTimelineControl.CancelExternalDrag();
 
-    private async void RenameAsset_Click(object sender, RoutedEventArgs e)
-    {
-        if (GetSelectedAsset() is not { } asset) return;
-        var renameKind = ProjectMediaRenamePolicy.GetKind(asset);
-        if (renameKind == ProjectMediaRenameKind.None)
-        {
-            return;
-        }
-
-        string requestedName;
-        if (renameKind == ProjectMediaRenameKind.PhysicalFile)
-        {
-            var dialog = new AssetNameDialog(asset.FileName) { Owner = this };
-            if (dialog.ShowDialog() != true) return;
-            requestedName = dialog.FileName;
-        }
-        else
-        {
-            var dialog = new DisplayNameDialog(asset.EffectiveDisplayName) { Owner = this };
-            if (dialog.ShowDialog() != true) return;
-            requestedName = dialog.DisplayName;
-        }
-
-        await RunUiActionAsync(
-            renameKind == ProjectMediaRenameKind.PhysicalFile
-                ? $"Renaming {asset.FileName}…"
-                : $"Renaming {asset.EffectiveDisplayName}…",
-            async () =>
-            {
-                await _projectMediaOperationsCoordinator.RenameAsync(asset, requestedName);
-                RefreshProjectCollections(asset.Id);
-                InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
-                StatusText.Text = renameKind == ProjectMediaRenameKind.PhysicalFile
-                    ? $"Renamed stored media file to {asset.FileName}."
-                    : $"Renamed Saved Clip to {asset.EffectiveDisplayName}.";
-            });
-    }
-
-    private async void ExportSelectedMedia_Click(object sender, RoutedEventArgs e)
-    {
-        if (ProjectMediaPanelControl.SelectedItem is not ProjectMediaListItem item || _workspace.Project is null) return;
-        var exportsDirectory = Path.Combine(_workspace.Location!.RootDirectory, "exports");
-        if (item.Anchor is { } anchor && item.AnchorRevision is { } anchorRevision)
-        {
-            var dialog = new SaveFileDialog
-            {
-                Title = "Export Saved Frame",
-                Filter = "PNG image|*.png",
-                DefaultExt = ".png",
-                AddExtension = true,
-                OverwritePrompt = true,
-                FileName = $"{MakeSafeFileName(item.DisplayName)}.png",
-                InitialDirectory = exportsDirectory
-            };
-            if (dialog.ShowDialog(this) != true) return;
-            await RunUiActionAsync("Exporting Saved Frame…", async () =>
-            {
-                var path = await _projectMediaOperationsCoordinator.ExportSavedFrameAsync(
-                    anchor,
-                    anchorRevision,
-                    dialog.FileName);
-                StatusText.Text = $"Exported Saved Frame to {path}.";
-            });
-            return;
-        }
-
-        if (item.Asset is not { StorageKind: AssetStorageKind.Virtual, MediaType: MediaType.Video } asset ||
-            asset.Virtual?.CurrentRecipeRevisionId is not { } recipeRevisionId)
-        {
-            MessageBox.Show(this, "Choose a Saved Frame, Saved Clip, or Working Composition to export rendered media.",
-                "Export", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-        var videoDialog = new SaveFileDialog
-        {
-            Title = $"Export {asset.EffectiveDisplayName}",
-            Filter = "MP4 video|*.mp4",
-            DefaultExt = ".mp4",
-            AddExtension = true,
-            OverwritePrompt = true,
-            FileName = $"{MakeSafeFileName(asset.EffectiveDisplayName)}.mp4",
-            InitialDirectory = exportsDirectory
-        };
-        if (videoDialog.ShowDialog(this) != true) return;
-        await RunUiActionAsync($"Exporting {asset.EffectiveDisplayName}…", async () =>
-        {
-            var path = await _projectMediaOperationsCoordinator.ExportVirtualVideoAsync(
-                asset,
-                recipeRevisionId,
-                videoDialog.FileName);
-            StatusText.Text = $"Exported {asset.EffectiveDisplayName} to {path}.";
-        });
-    }
-
-    private async void ExtractAudio_Click(object sender, RoutedEventArgs e)
-    {
-        if (GetSelectedAsset() is not { MediaType: MediaType.Video } source) return;
-        var recipeRevisionId = source.Virtual?.Kind == VirtualAssetKind.SavedClip
-            ? source.Virtual.CurrentRecipeRevisionId
-            : null;
-        if (source.StorageKind == AssetStorageKind.Virtual && recipeRevisionId is null)
-        {
-            MessageBox.Show(this, "This Saved Clip does not have a committed recipe revision.",
-                "Extract audio", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(source.EffectiveDisplayName));
-        var dialog = new AssetNameDialog(
-            $"{stem} audio.m4a",
-            title: "Extract audio",
-            heading: "EXTRACT AUDIO",
-            description: "Create a permanent .m4a audio file in this project's media folder. The source video remains unchanged.",
-            confirmLabel: "Extract")
-        {
-            Owner = this
-        };
-        if (dialog.ShowDialog() != true) return;
-
-        await RunUiActionAsync($"Extracting audio from {source.EffectiveDisplayName}…", async () =>
-        {
-            var extracted = await _projectMediaOperationsCoordinator.ExtractAudioAsync(
-                source,
-                recipeRevisionId,
-                dialog.FileName);
-            RefreshProjectCollections(extracted.Id);
-            StatusText.Text = $"Extracted audio as {extracted.FileName}.";
-        });
-    }
 
     private async Task ShowSavedFramePreviewAsync(ProjectMediaListItem item, Guid? selectedProjectId)
     {
@@ -1064,197 +916,17 @@ public partial class MainWindow : Window, IDisposable
         });
     }
 
-    private async void DeleteAsset_Click(object sender, RoutedEventArgs e)
-    {
-        if (ProjectMediaPanelControl.SelectedItem is not ProjectMediaListItem selected || _workspace.Project is null) return;
-        if (selected.Anchor is { } anchor)
-        {
-            await ConfirmAndRemoveSavedFrameAsync(anchor, selected.DisplayName);
-            return;
-        }
-        if (selected.Asset is not { } asset) return;
-        if (asset.Virtual?.Kind == VirtualAssetKind.SavedClip)
-        {
-            var deleteClip = MessageBox.Show(
-                this,
-                $"Delete Saved Clip '{asset.EffectiveDisplayName}' from this project?\n\n" +
-                "Its non-destructive recipe and private boundaries will be removed. The source video is unchanged.",
-                "Delete Saved Clip",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning,
-                MessageBoxResult.No);
-            if (deleteClip != MessageBoxResult.Yes) return;
-            await RunUiActionAsync($"Deleting {asset.EffectiveDisplayName}…", async () =>
-            {
-                await _projectMediaOperationsCoordinator.DeleteSavedClipAsync(asset.Id);
-                ProjectMediaPanelControl.SelectedItem = null;
-                _mediaPreviewCoordinator.Clear();
-                RefreshProjectCollections();
-                InspectorPanelControl.Reset();
-                StatusText.Text = $"Deleted Saved Clip '{asset.EffectiveDisplayName}'. The source video was unchanged.";
-            });
-            return;
-        }
-        if (asset.StorageKind == AssetStorageKind.Virtual)
-        {
-            MessageBox.Show(
-                this,
-                "This virtual project item cannot be deleted from Project Media yet.",
-                "Delete project media",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-        var usage = _projectMediaOperationsCoordinator.AnalyzeDependencies(asset);
-        if (usage.IsInUse)
-        {
-            MessageBox.Show(
-                this,
-                $"'{asset.EffectiveDisplayName}' cannot be deleted because it is still used by:\n\n• {string.Join("\n• ", usage.DisplayDescriptions)}",
-                "Asset is in use",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-
-        var confirmation = MessageBox.Show(
-            this,
-            $"Delete '{asset.EffectiveDisplayName}' from this project and remove its stored media file?\n\nThis cannot be undone.",
-            "Delete asset",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
-        if (confirmation != MessageBoxResult.Yes) return;
-
-        await RemoveCurrentProjectAssetAsync(asset);
-        StatusText.Text = $"Deleted {asset.EffectiveDisplayName}.";
-    }
-
-    private async void MoveAssetToProject_Click(object sender, RoutedEventArgs e)
-    {
-        if (ProjectMediaPanelControl.SelectedItem is not ProjectMediaListItem selected ||
-            _workspace.Project is null || _workspace.Location is null) return;
-        if (selected.Anchor is not null)
-        {
-            // Saved Frames are deliberately copy-only. The context menu hides
-            // Move for anchors; this guard protects routed UI invocations.
-            return;
-        }
-        if (selected.Asset is not { } asset) return;
-        if (asset.StorageKind != AssetStorageKind.Physical)
-        {
-            // Cache-backed Project Media is deliberately copy-only. The context
-            // menu hides Move for it; this guard protects routed UI invocations.
-            return;
-        }
-
-        var targetProjectFile = ChooseTransferTargetProject();
-        if (targetProjectFile is null) return;
-
-        await RunUiActionAsync(
-            $"Moving {asset.EffectiveDisplayName}…",
-            async () =>
-            {
-                var result = await _projectMediaOperationsCoordinator
-                    .MovePhysicalAssetToProjectAsync(asset, targetProjectFile);
-                if (result.SourceRemoved)
-                {
-                    ApplyRemovedCurrentProjectAssetUi();
-                    StatusText.Text = $"Moved {asset.FileName} to {result.CopyResult.TargetProjectName}.";
-                    return;
-                }
-
-                StatusText.Text = $"Copied {asset.FileName} to {result.CopyResult.TargetProjectName}; the source remains because project history references it.";
-                MessageBox.Show(
-                    this,
-                    $"'{asset.FileName}' is now available in '{result.CopyResult.TargetProjectName}'.\n\n" +
-                    "ReelForge retained the source copy because removing it would break:\n\n" +
-                    $"• {string.Join("\n• ", result.DependencyReport.DisplayDescriptions)}",
-                    "Asset transferred; source retained",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            });
-    }
-
-    private async void CopyAssetToProject_Click(object sender, RoutedEventArgs e)
-    {
-        if (ProjectMediaPanelControl.SelectedItem is not ProjectMediaListItem selected ||
-            _workspace.Project is null || _workspace.Location is null) return;
-        var targetProjectFile = ChooseTransferTargetProject();
-        if (targetProjectFile is null) return;
-
-        if (selected.Anchor is { } anchor && selected.AnchorRevision is { } anchorRevision)
-        {
-            var fileName = selected.DisplayName;
-            await RunUiActionAsync($"Copying {selected.DisplayName}…", async () =>
-            {
-                var result = await _projectMediaOperationsCoordinator.CopySavedFrameToProjectAsync(
-                    anchor, anchorRevision, fileName, targetProjectFile);
-                StatusText.Text = $"Copied {selected.DisplayName} to {result.TargetProjectName} as {result.CopiedAsset.FileName}.";
-            });
-            return;
-        }
-
-        if (selected.Asset is not { } asset) return;
-        if (asset.StorageKind == AssetStorageKind.Virtual)
-        {
-            if (asset.MediaType != MediaType.Video ||
-                asset.Virtual?.Kind is not (VirtualAssetKind.SavedClip or VirtualAssetKind.Composition) ||
-                asset.Virtual.CurrentRecipeRevisionId is not { } recipeRevisionId) return;
-            var fileName = asset.EffectiveDisplayName;
-            await RunUiActionAsync($"Copying {asset.EffectiveDisplayName}…", async () =>
-            {
-                var result = await _projectMediaOperationsCoordinator.CopyVirtualVideoToProjectAsync(
-                    asset, recipeRevisionId, fileName, targetProjectFile);
-                StatusText.Text = $"Copied {asset.EffectiveDisplayName} to {result.TargetProjectName} as {result.CopiedAsset.FileName}.";
-            });
-            return;
-        }
-        if (asset.StorageKind != AssetStorageKind.Physical) return;
-        await RunUiActionAsync(
-            $"Copying {asset.FileName}…",
-            async () =>
-            {
-                var result = await _projectMediaOperationsCoordinator
-                    .CopyPhysicalAssetToProjectAsync(asset, targetProjectFile);
-                StatusText.Text = $"Copied {asset.FileName} to {result.TargetProjectName} as {result.CopiedAsset.FileName}.";
-            });
-    }
-
-    private string? ChooseTransferTargetProject()
-    {
-        var projectFilePath = _projectDialogs.SelectProjectToOpen(_applicationSettings);
-        if (projectFilePath is null) return null;
-        if (_workspace.Location is not null &&
-            Path.GetFullPath(projectFilePath).Equals(
-                Path.GetFullPath(_workspace.Location.ProjectFilePath),
-                StringComparison.OrdinalIgnoreCase))
-        {
-            MessageBox.Show(this, "Choose a different destination project.", "Transfer asset", MessageBoxButton.OK, MessageBoxImage.Information);
-            return null;
-        }
-        return projectFilePath;
-    }
-
     private ProjectAsset? GetSelectedAsset() => ProjectMediaPanelControl.SelectedItem?.Asset;
 
     private bool IsCurrentProjectMediaSelection(ProjectMediaListItem item, Guid? projectId) =>
         _workspace.Project?.Id == projectId &&
         ReferenceEquals(ProjectMediaPanelControl.SelectedItem, item);
 
-    private async Task RemoveCurrentProjectAssetAsync(ProjectAsset asset)
-    {
-        if (_workspace.Project is null || _workspace.Location is null) return;
-        await _projectMediaOperationsCoordinator.DeletePhysicalAssetAsync(asset.Id);
-        ApplyRemovedCurrentProjectAssetUi();
-    }
-
-    private void ApplyRemovedCurrentProjectAssetUi()
+    private void ClearProjectMediaSelectionAndPreview()
     {
         ProjectMediaPanelControl.SelectedItem = null;
         InspectorPanelControl.Reset();
         _mediaPreviewCoordinator.Clear();
-        RefreshProjectCollections();
     }
 
     private async void JobsPanelControl_CancelRequested(
@@ -1717,6 +1389,90 @@ public partial class MainWindow : Window, IDisposable
         StatusText.Text = exception.Message;
         InspectorPanelControl.Text = $"{title}\n\n{exception}";
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private sealed class ProjectMediaCommandPresentation(MainWindow window) : IProjectMediaCommandHost
+    {
+        public bool HasOpenProject => window._workspace.Project is not null && window._workspace.Location is not null;
+
+        public Task RunUiActionAsync(string status, Func<Task> action) => window.RunUiActionAsync(status, action);
+
+        public string? PromptPhysicalFileName(string fileName)
+        {
+            var dialog = new AssetNameDialog(fileName) { Owner = window };
+            return dialog.ShowDialog() == true ? dialog.FileName : null;
+        }
+
+        public string? PromptSavedClipDisplayName(string displayName)
+        {
+            var dialog = new DisplayNameDialog(displayName) { Owner = window };
+            return dialog.ShowDialog() == true ? dialog.DisplayName : null;
+        }
+
+        public string? PromptExportPath(ProjectMediaExportRequest request)
+        {
+            if (window._workspace.Location is null) return null;
+            var dialog = new SaveFileDialog
+            {
+                Title = request.Title,
+                Filter = request.Filter,
+                DefaultExt = request.DefaultExtension,
+                AddExtension = true,
+                OverwritePrompt = true,
+                FileName = request.FileName,
+                InitialDirectory = Path.Combine(window._workspace.Location.RootDirectory, "exports")
+            };
+            return dialog.ShowDialog(window) == true ? dialog.FileName : null;
+        }
+
+        public string? PromptAudioExtractionFileName(string suggestedFileName)
+        {
+            var dialog = new AssetNameDialog(
+                suggestedFileName,
+                title: "Extract audio",
+                heading: "EXTRACT AUDIO",
+                description: "Create a permanent .m4a audio file in this project's media folder. The source video remains unchanged.",
+                confirmLabel: "Extract")
+            {
+                Owner = window
+            };
+            return dialog.ShowDialog() == true ? dialog.FileName : null;
+        }
+
+        public bool Confirm(string message, string title) =>
+            MessageBox.Show(
+                window,
+                message,
+                title,
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No) == MessageBoxResult.Yes;
+
+        public void ShowInformation(string message, string title) =>
+            MessageBox.Show(window, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+
+        public string? ChooseTransferTargetProject()
+        {
+            var projectFilePath = window._projectDialogs.SelectProjectToOpen(window._applicationSettings);
+            if (projectFilePath is null) return null;
+            if (window._workspace.Location is not null &&
+                Path.GetFullPath(projectFilePath).Equals(
+                    Path.GetFullPath(window._workspace.Location.ProjectFilePath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                ShowInformation("Choose a different destination project.", "Transfer asset");
+                return null;
+            }
+            return projectFilePath;
+        }
+
+        public void SetStatus(string status) => window.StatusText.Text = status;
+        public void RefreshProjectMedia(Guid? selectedAssetId = null) => window.RefreshProjectCollections(selectedAssetId);
+        public void ClearSelectionAndPreview() => window.ClearProjectMediaSelectionAndPreview();
+        public void UpdateAssetInspector(ProjectAsset asset) =>
+            window.InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
+        public Task DeleteSavedFrameAsync(FrameAnchor anchor, string displayLabel) =>
+            window.ConfirmAndRemoveSavedFrameAsync(anchor, displayLabel);
     }
 
     private sealed class GenerationSubmissionPresentation(MainWindow window) : IGenerationSubmissionPresentation
