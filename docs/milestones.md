@@ -449,6 +449,19 @@ Execution guardrails:
 - re-run the primary Milestone 2 human workflows after major structural boundaries move, especially project switching, generation recovery, exact-frame tools, composition editing, preview/export, and settings changes;
 - judge completion across the whole repository: no major subsystem should remain an unexplained monolith merely because the WPF shell became smaller.
 
+## Unscheduled Project Media bulk operations
+
+Large imports make one-item-at-a-time Project Media management impractical. A future productivity slice should add standard multi-selection and bulk commands without changing the underlying logical-media model.
+
+1. Support contiguous and discontiguous Project Media selection with familiar Shift/Ctrl interactions while retaining one explicit active preview/Inspector item.
+2. Offer bulk Delete, Copy to Project, and Move to Project only with eligibility derived from every selected item. Cached and logical media remain copy-only unless a later design explicitly defines safe move semantics.
+3. Run dependency analysis per item. Before bulk deletion or movement, present an aggregate summary of allowed, blocked, copy-only, and source-retained outcomes; never silently delete only a subset.
+4. Use one destination choice for a bulk transfer, collision-safe filenames and destination-local identities for every result, and the existing provenance/content-hash rules per item.
+5. Execute heavy batches asynchronously with progress, cancellation, and a final per-item success/failure summary so large operations do not freeze the shell or conceal partial completion.
+6. Define and test batch failure semantics before implementation, including whether completed copies remain after a later failure and how retry resumes safely.
+
+This feature is not part of the Milestone 3 structural refactor. The refactor should preserve command and projection seams that allow a later bulk coordinator without embedding batch policy in `ProjectMediaPanel`.
+
 ## Unscheduled future product and commercialization discovery
 
 The accepted [Business and packaging direction](business-and-packaging.md) preserves a genuinely useful Free product, first-class BYOK, a possible capability-based Pro entitlement, and a separate possible managed-compute credit route. This is product context, not current behavior or an implementation milestone. It does not expand Milestone 2 or the Milestone 3 structural refactor.
