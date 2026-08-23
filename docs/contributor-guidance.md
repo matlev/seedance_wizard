@@ -56,6 +56,8 @@ Status: active rules for Milestone 3 and later work
 
 - add characterization before moving high-risk persistence, job, materialization, playback, or cancellation behavior.
 - mirror production feature ownership in tests; share builders/fakes only when semantics are genuinely repeated.
+- use `ReelForge.Core.Tests`, `ReelForge.Application.Tests`, and `ReelForge.Infrastructure.Tests` for tests that require only that production layer. Keep cross-layer provider, filesystem, media, and offline-acceptance coverage in `ReelForge.Tests`; keep Windows integration and WPF presentation coverage in their dedicated Platform.Windows and App suites.
+- non-Windows CI runs the four portable suites. Windows CI restores the solution, builds Debug and Release, then runs all six suites in Release. Run `dotnet test ReelForge.sln --configuration Release --no-build` only after a Windows solution build; on other platforms, invoke the four portable test projects explicitly as shown in the README.
 - keep the full suite green after every work unit. Run the relevant human workflow after a high-risk WPF/media change.
 - refactor in behavior-preserving vertical slices. Do not mix schema redesign, editor features, or provider contract changes into a structural commit.
 - keep each commit independently buildable and rollback-friendly with a brief declarative message.

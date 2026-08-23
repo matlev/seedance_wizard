@@ -28,10 +28,23 @@ The desktop defaults to the fake provider. BytePlus ModelArk and AtlasCloud are 
 
 ## Build and run
 
+On Windows, restore, build both configurations, run every test suite, and launch the app with:
+
 ```powershell
 dotnet restore ReelForge.sln
-dotnet test ReelForge.sln
+dotnet build ReelForge.sln --configuration Debug --no-restore
+dotnet build ReelForge.sln --configuration Release --no-restore
+dotnet test ReelForge.sln --configuration Release --no-build
 dotnet run --project src/ReelForge.App/ReelForge.App.csproj
+```
+
+The portable Core, Application, Infrastructure, and cross-layer acceptance suites can run without the Windows/WPF projects:
+
+```powershell
+dotnet test tests/ReelForge.Core.Tests/ReelForge.Core.Tests.csproj --configuration Release
+dotnet test tests/ReelForge.Application.Tests/ReelForge.Application.Tests.csproj --configuration Release
+dotnet test tests/ReelForge.Infrastructure.Tests/ReelForge.Infrastructure.Tests.csproj --configuration Release
+dotnet test tests/ReelForge.Tests/ReelForge.Tests.csproj --configuration Release
 ```
 
 If this repository is running in a restricted agent environment, set `DOTNET_CLI_HOME`, `NUGET_PACKAGES`, `APPDATA`, and `LOCALAPPDATA` to writable task-specific directories before restoring.

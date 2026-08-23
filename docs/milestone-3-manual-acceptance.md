@@ -42,4 +42,15 @@ Current behavior: frame stepping stops at the active source segment boundary. It
 
 Expected behavior: advancing from the final frame of a segment should select the first decoded frame of the next segment, and rewinding from the first frame should select the final decoded frame of the previous segment. This may be pre-existing behavior; it is intentionally deferred until the Milestone 3 structural refactor is complete.
 
+### Viewer frame stepping does not synchronize precision-frame tools
+
+Reproduction:
+
+1. Select a physical video and open Select Frame or Make Clip.
+2. Use the ordinary media viewer's previous-frame or next-frame transport button.
+
+Current behavior: the viewer position changes, but the precision frame strip does not navigate to or select the corresponding decoded frame.
+
+Expected behavior: frame-step transport while a precision tool is active should update the tool's exact-frame window and selection without resuming playback or producing audible snippets. This issue is recorded for the post-refactor correction pass.
+
 The Windows shell remains the current manual presentation target. Screenshot-perfect automation is not required; extracted presenter/state logic should carry deterministic tests as it is introduced.

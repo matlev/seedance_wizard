@@ -1,6 +1,6 @@
 # Milestone 3 remaining architecture and migration plan
 
-Status: approved architecture, ready for delegated execution
+Status: structural implementation and automated audit complete; final manual acceptance pending
 
 Assessment baseline: commit `896ed6c` on branch `milestone-3`
 
@@ -20,9 +20,9 @@ Infrastructure
 Platform.Windows / WPF App
 ```
 
-The Windows platform assembly, explicit runtime composition root, feature-organized production projects, decomposed persistence/materialization/provider/generation services, global job finalization, and focused WPF feature controls and coordinators are established. The portable suite contains 300 tests and the Windows platform suite contains 3 tests.
+The Windows platform assembly, explicit runtime composition root, feature-organized production projects, decomposed persistence/materialization/provider/generation services, global job finalization, and focused WPF feature controls and coordinators are established. Four portable suites contain 302 tests; the Windows Platform and WPF App suites contain another 44, for 346 network-isolated tests in total.
 
-The principal remaining production concentration is `MainWindow.xaml.cs`, now about 1,473 physical lines. Its remaining responsibilities are shell and cross-feature integration:
+The principal retained production concentration is `MainWindow.xaml.cs`, now about 1,523 physical lines. Its remaining responsibilities are shell and cross-feature integration:
 
 - media-preparation entry/exit policy plus cross-feature projection of Saved Frame/Clip results;
 - Project Media selection consequences and dialog/presentation routing to the focused operations coordinator;
@@ -30,7 +30,7 @@ The principal remaining production concentration is `MainWindow.xaml.cs`, now ab
 - narrow WPF presentation adapters around the focused composition workspace, preview, and render coordinators;
 - shell workspace state, project lifecycle, refresh, status, and cross-feature routing.
 
-The original largest non-UI exception, `WorkingCompositionService`, has now been decomposed behind its compatibility facade. Composition lifecycle, current-state access, transactional recipe revision edits, segment commands, audio commands, and exact split mutation have focused owners under `Editing/Composition` and `Editing/Audio`. The CI topology is now established: Ubuntu restores and runs the portable Release suite, while Windows restores once, builds Debug and Release, then runs every suite in Release. Test projects remain broad, and the final naming/dead-code audit has not begun.
+The original largest non-UI exception, `WorkingCompositionService`, has now been decomposed behind its compatibility facade. Composition lifecycle, current-state access, transactional recipe revision edits, segment commands, audio commands, and exact split mutation have focused owners under `Editing/Composition` and `Editing/Audio`. The CI topology is established: Ubuntu restores and runs the four portable Release suites, while Windows restores once, builds Debug and Release, then runs all six suites in Release. The final naming, dead-code, responsibility, and dependency audits found no remaining unexplained production monolith or stale ReelForge product branding.
 
 ## Remaining target architecture
 
@@ -149,13 +149,24 @@ Remove superseded shell fields/methods, finish App folders/resources, move remai
 
 ### Unit 7 — test topology and CI
 
-Status: in progress. The dedicated WPF App test project now provides focused coordinator and preview-policy coverage. Deterministic shared-preview policies establish that ordinary Project Media ticks never move the composition timeline, retained baked-composition ticks do, and fast-audition positions yield to quiescence and active timeline seeks. Project Media selection work now carries an exact in-session `VideoProject`, `ProjectLocation`, list-item identity, and cancellation token through physical inspection, cached previews, and fast audition opening; this prevents a reopened or copied same-GUID project from receiving stale media or persistence results. Deterministic App and Platform.Windows assembly-reference checks enforce their direct production-layer dependencies. The first portable split is complete: Application-only tests now live in `ReelForge.Application.Tests`, Infrastructure-focused tests now live in `ReelForge.Infrastructure.Tests`, and the remaining broad `ReelForge.Tests` suite retains cross-layer coverage. GitHub Actions restores and runs all three portable suites on Ubuntu; Windows builds Debug and Release, then runs all five suites in Release. The broader layer-by-layer split of the remaining portable suite remains staged work.
+Status: complete. The dedicated WPF App test project provides focused coordinator and preview-policy coverage. Deterministic shared-preview policies establish that ordinary Project Media ticks never move the composition timeline, retained baked-composition ticks do, and fast-audition positions yield to quiescence and active timeline seeks. Project Media selection work carries an exact in-session `VideoProject`, `ProjectLocation`, list-item identity, and cancellation token through physical inspection, cached previews, and fast audition opening; this prevents a reopened or copied same-GUID project from receiving stale media or persistence results. Deterministic App and Platform.Windows assembly-reference checks enforce their direct production-layer dependencies. Core-only, Application-only, and Infrastructure-focused tests now live in projects that reference only their corresponding production layer; the broad `ReelForge.Tests` suite intentionally retains cross-layer provider, filesystem, media, and offline-acceptance coverage. GitHub Actions restores and runs all four portable suites on Ubuntu; Windows builds Debug and Release, then runs all six suites in Release.
 
-Split tests by layer/capability, centralize only proven shared fakes/builders, and continue adding focused App coordinator coverage. App-level playback coverage must distinguish the three shared-viewer modes: baked-composition ticks advance the composition playhead, ordinary Project Media ticks do not, and quiesced fast-audition sessions remain pinned to their audition position. It must also cover bake-selection lifecycle races: an unchanged session bake is restored after selecting other media, a changed revision falls back to audition, and stale physical inspection or cached-restore work cannot publish over a newer exact Project Media selection. Exact selection identity captures the in-memory `VideoProject`, `ProjectLocation`, and list-item instances rather than trusting matching project IDs or paths after a reopen. CI builds Debug and Release, then runs all suites in Release.
+Tests are split by layer/capability, with shared fakes/builders centralized only where semantics are genuinely repeated. App policy coverage distinguishes the three shared-viewer modes: baked-composition ticks advance the composition playhead, ordinary Project Media ticks do not, and quiesced fast-audition sessions remain pinned to their audition position. Retained-preview identity tests establish that only the unchanged exact project/location/composition/revision session is eligible for restore and that a changed revision is ineligible; the complete WPF restore-versus-audition behavior remains part of the manual Preview and export acceptance row. Stale physical inspection or cached-restore work cannot publish over a newer exact Project Media selection. Exact selection identity captures the in-memory `VideoProject`, `ProjectLocation`, and list-item instances rather than trusting matching project IDs or paths after a reopen. CI builds Debug and Release, then runs all suites in Release.
 
 ### Unit 8 — final audit and acceptance
 
+Status: automated audit and documentation complete; final human acceptance pending.
+
 Remove dead or Seedance-era tracked names, refresh repository/contributor documentation, rerun the file/responsibility inventory, and execute the complete manual acceptance matrix. Every remaining large file must have a documented cohesive reason to exist.
+
+The final inventory retained a small number of intentionally large WPF orchestration surfaces rather than splitting them to meet an arbitrary line quota:
+
+- `MainWindow.xaml.cs` (about 1,523 lines) is the composition root and cross-feature shell adapter: project/workspace routing, selection consequences, projection publication, dialogs, status/error routing, and narrow coordinator hosts.
+- `CompositionTimelineControl.xaml.cs` (about 1,281 lines) owns one cohesive interactive timeline surface: layout, ruler/zoom/playhead, lanes, context menus, gestures, drag/drop, insertion markers, and edge autoscroll.
+- `MediaPreviewCoordinator.cs` (about 747 lines), `FramePreparationCoordinator.cs` (about 660 lines), `MediaPreviewPanel.xaml.cs` (about 549 lines), and `CompositionAuditionController.cs` (about 538 lines) each own a single media/view lifecycle with explicit cancellation and lease boundaries.
+- `GenerationJobCoordinator.cs` (about 528 lines) owns the global recoverable job lifecycle; `CompositionWorkspaceCoordinator.cs` (about 509 lines) owns Edit-workspace projection and semantic mutation routing.
+
+The audit found no remaining direct App construction of physical materializers outside `ApplicationRuntime`, no embedded feature state machine in the shell, no stale legacy product branding, and no production file that warrants another split solely because of size.
 
 The known behavior bugs—restoring a valid baked composition after restart, frame stepping across fast-audition cuts, and ordinary viewer frame-step controls not synchronizing the precision-frame strip while Select Frame or Make Clip is active—remain deferred unless a refactor unit naturally takes ownership of their root cause and fixes them under the characterization, regression-coverage, review, and acceptance rule above. They must not be accidentally declared fixed or silently changed by a structural commit.
 
