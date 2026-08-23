@@ -27,6 +27,11 @@ internal sealed class MediaPreviewCoordinator : IDisposable
     private readonly CompositionAuditionController _audition;
     private readonly SemaphoreSlim _frameNavigationGate = new(1, 1);
     private Guid? _activeCompositionPreviewRevisionId;
+    // This intentionally lasts only for the application session. It remembers that the user
+    // explicitly previewed a rendered composition, while Clear releases the viewer lease as
+    // the user moves through Project Media.
+    private SessionCompositionPreviewIdentity? _retainedCompositionPreview;
+    private long _previewOperationGeneration;
     private double? _pendingTimelineSeekSeconds;
     private long _timelineSeekGeneration;
     private long? _activeTimelineSeekGeneration;
@@ -76,12 +81,19 @@ internal sealed class MediaPreviewCoordinator : IDisposable
 
     public void Clear()
     {
+        _previewOperationGeneration++;
         _activeCompositionPreviewRevisionId = null;
         _audition.Reset();
         _preview.Reset();
         _timeline.CancelInteractions();
         ResetTimelineSeek();
         UpdateTimelinePlayback(0);
+    }
+
+    public void ClearRetainedCompositionPreview()
+    {
+        _previewOperationGeneration++;
+        _retainedCompositionPreview = null;
     }
 
     public void OpenVideo(string path, bool requiresWarmup, bool playAfterPriming = false,
@@ -97,25 +109,133 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         _host.PreviewStateChanged();
     }
 
-    public void ClearStaleCompositionPreviewIfNeeded(ProjectAsset composition, RecipeRevision revision)
+    /// <summary>
+    /// Opens an explicitly rendered composition preview and remembers its exact recipe only for
+    /// this application session. It is deliberately not persisted as project state.
+    /// </summary>
+    public void OpenBakedCompositionPreview(
+        MaterializedMediaLease lease,
+        Guid projectId,
+        Guid compositionAssetId,
+        Guid recipeRevisionId)
     {
-        if (_activeCompositionPreviewRevisionId is not { } previewRevisionId || previewRevisionId == revision.Id)
-            return;
-        Clear();
-        if (!_host.IsCompositionSelected(composition.Id)) return;
-        _ = OpenCompositionDraftAsync(composition, revision, _workspace.Project?.Id);
+        _retainedCompositionPreview = new SessionCompositionPreviewIdentity(
+            projectId,
+            compositionAssetId,
+            recipeRevisionId);
+        OpenLeasedVideo(lease, requiresWarmup: true, compositionRevisionId: recipeRevisionId);
     }
 
-    public async Task OpenCompositionDraftAsync(ProjectAsset composition, RecipeRevision revision, Guid? projectId)
+    public bool HasRetainedCompositionPreview(Guid? projectId, Guid compositionAssetId, Guid recipeRevisionId) =>
+        projectId is { } id &&
+        _retainedCompositionPreview is { } retained &&
+        retained.ProjectId == id &&
+        retained.CompositionAssetId == compositionAssetId &&
+        retained.RecipeRevisionId == recipeRevisionId;
+
+    public void ClearStaleCompositionPreviewIfNeeded(ProjectAsset composition, RecipeRevision revision)
+    {
+        var projectId = _workspace.Project?.Id;
+        if (_retainedCompositionPreview is { } retained &&
+            projectId is { } currentProjectId &&
+            retained.ProjectId == currentProjectId &&
+            retained.CompositionAssetId == composition.Id &&
+            retained.RecipeRevisionId != revision.Id)
+        {
+            ClearRetainedCompositionPreview();
+        }
+
+        if (_activeCompositionPreviewRevisionId is not { } previewRevisionId || previewRevisionId == revision.Id)
+            return;
+
+        Clear();
+        if (!_host.IsCompositionSelected(composition.Id)) return;
+        _ = OpenCompositionDraftAsync(composition, revision, projectId);
+    }
+
+    /// <summary>
+    /// Restores the last explicit rendered preview only when the current selection still refers
+    /// to exactly the same project composition and recipe revision. A completed restore never
+    /// publishes over a newer Project Media selection.
+    /// </summary>
+    public async Task<RetainedCompositionPreviewRestoreOutcome> TryOpenRetainedCompositionPreviewAsync(
+        ProjectAsset composition,
+        RecipeRevision revision,
+        ProjectMediaListItem selectedItem,
+        Guid? projectId)
+    {
+        if (!HasRetainedCompositionPreview(projectId, composition.Id, revision.Id) ||
+            _workspace.Project is null || _workspace.Location is null || projectId is not { } expectedProjectId)
+        {
+            return RetainedCompositionPreviewRestoreOutcome.NotRetained;
+        }
+
+        var requestGeneration = _previewOperationGeneration;
+        var outcome = RetainedCompositionPreviewRestoreOutcome.NotRetained;
+        await _host.RunUiActionAsync("Restoring composition preview…", async () =>
+        {
+            MaterializedMediaLease? lease = null;
+            try
+            {
+                lease = await _materializer.MaterializeAsync(
+                    _workspace.Project,
+                    _workspace.Location,
+                    new MaterializationRequest(
+                        new AssetMaterializationTarget(composition.Id, revision.Id),
+                        MaterializationPurpose.Preview));
+
+                if (!IsRestoreCurrent(requestGeneration, expectedProjectId, composition, revision, selectedItem) ||
+                    !HasRetainedCompositionPreview(expectedProjectId, composition.Id, revision.Id))
+                {
+                    outcome = RetainedCompositionPreviewRestoreOutcome.Stale;
+                    return;
+                }
+
+                var encoding = lease.Encoding;
+                Clear();
+                OpenBakedCompositionPreview(lease, expectedProjectId, composition.Id, revision.Id);
+                lease = null;
+                _host.UpdateCompositionPreviewInspector(composition, encoding);
+                _host.SetStatus("Restored Working Composition preview.");
+                outcome = RetainedCompositionPreviewRestoreOutcome.Restored;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                if (!IsRestoreCurrent(requestGeneration, expectedProjectId, composition, revision, selectedItem))
+                {
+                    outcome = RetainedCompositionPreviewRestoreOutcome.Stale;
+                    return;
+                }
+
+                if (HasRetainedCompositionPreview(expectedProjectId, composition.Id, revision.Id))
+                    ClearRetainedCompositionPreview();
+                outcome = RetainedCompositionPreviewRestoreOutcome.Failed;
+                _host.ShowError("Composition preview restoration failed", exception);
+            }
+            finally
+            {
+                if (lease is not null) await lease.DisposeAsync();
+            }
+        });
+
+        return outcome;
+    }
+
+    public async Task OpenCompositionDraftAsync(
+        ProjectAsset composition,
+        RecipeRevision revision,
+        Guid? projectId,
+        ProjectMediaListItem? expectedItem = null)
     {
         await _host.RunUiActionAsync("Preparing fast composition audition…", async () =>
         {
+            if (!IsCompositionSelectionCurrent(projectId, composition.Id, expectedItem)) return;
             Clear();
             var requestedPosition = _pendingTimelineSeekSeconds ?? 0;
             _pendingTimelineSeekSeconds = null;
             var result = await _audition.OpenAsync(composition, revision, requestedPosition,
-                () => _workspace.Project?.Id == projectId && _host.IsCompositionSelected(composition.Id));
-            if (result.IsStale) return;
+                () => IsCompositionSelectionCurrent(projectId, composition.Id, expectedItem));
+            if (result.IsStale || !IsCompositionSelectionCurrent(projectId, composition.Id, expectedItem)) return;
             _host.SetStatus(result.AudioWarning is not null
                 ? $"Fast composition audition ready without independent audio: {result.AudioWarning}"
                 : result.HasAuditionAudio
@@ -124,6 +244,25 @@ internal sealed class MediaPreviewCoordinator : IDisposable
             _host.PreviewStateChanged();
         });
     }
+
+    private bool IsRestoreCurrent(
+        long requestGeneration,
+        Guid expectedProjectId,
+        ProjectAsset composition,
+        RecipeRevision revision,
+        ProjectMediaListItem selectedItem) =>
+        _previewOperationGeneration == requestGeneration &&
+        HasRetainedCompositionPreview(expectedProjectId, composition.Id, revision.Id) &&
+        IsCompositionSelectionCurrent(expectedProjectId, composition.Id, selectedItem);
+
+    private bool IsCompositionSelectionCurrent(
+        Guid? projectId,
+        Guid compositionId,
+        ProjectMediaListItem? expectedItem) =>
+        _workspace.Project?.Id == projectId &&
+        (expectedItem is null
+            ? _host.IsCompositionSelected(compositionId)
+            : _host.IsCompositionSelected(compositionId, expectedItem));
 
     public void UpdateTimelinePlayback(double playbackSeconds) =>
         _timeline.UpdatePlayback(playbackSeconds, _preview.IsPlaying, IsPreviewActive, IsPlaybackEnabled);
@@ -518,6 +657,11 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         // Frame preparation can still be unwinding an asynchronous wait during window disposal.
         // Leaving this private semaphore for GC avoids disposing a synchronization primitive in use.
     }
+
+    private sealed record SessionCompositionPreviewIdentity(
+        Guid ProjectId,
+        Guid CompositionAssetId,
+        Guid RecipeRevisionId);
 }
 
 internal interface IPreviewCoordinatorHost
@@ -526,7 +670,17 @@ internal interface IPreviewCoordinatorHost
     void SetStatus(string status);
     void ShowError(string title, Exception exception);
     bool IsCompositionSelected(Guid compositionId);
+    bool IsCompositionSelected(Guid compositionId, ProjectMediaListItem expectedItem);
     void SelectWorkingComposition();
     void ScheduleContactFrameRefresh(double seconds);
     void PreviewStateChanged();
+    void UpdateCompositionPreviewInspector(ProjectAsset composition, MediaEncodingMetadata? encoding);
+}
+
+internal enum RetainedCompositionPreviewRestoreOutcome
+{
+    NotRetained,
+    Restored,
+    Stale,
+    Failed
 }

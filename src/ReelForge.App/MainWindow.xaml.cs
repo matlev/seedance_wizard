@@ -559,7 +559,8 @@ public partial class MainWindow : Window, IDisposable
                     asset,
                     selectedProjectId,
                     _mediaTools.FfprobePath is not null);
-                if (resolution.Kind == PhysicalAssetSelectionPreparationKind.Stale)
+                if (resolution.Kind == PhysicalAssetSelectionPreparationKind.Stale ||
+                    !IsCurrentProjectMediaSelection(item, selectedProjectId))
                     return;
 
                 if (resolution.Kind == PhysicalAssetSelectionPreparationKind.Missing)
@@ -571,7 +572,6 @@ public partial class MainWindow : Window, IDisposable
                     return;
                 }
 
-                if (_workspace.Project?.Id != selectedProjectId) return;
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
                 ShowAssetPreview(asset);
                 ConfigureMediaPreparationFor(asset);
@@ -670,7 +670,11 @@ public partial class MainWindow : Window, IDisposable
                     return;
                 }
                 _mediaPreviewCoordinator.Clear();
-                _mediaPreviewCoordinator.OpenLeasedVideo(lease, requiresWarmup: true, revision.Id);
+                _mediaPreviewCoordinator.OpenBakedCompositionPreview(
+                    lease,
+                    projectId,
+                    composition.Id,
+                    revision.Id);
                 lease = null;
                 UpdateCompositionActionState();
                 StatusText.Text = "Working Composition preview is ready.";
@@ -1234,6 +1238,10 @@ public partial class MainWindow : Window, IDisposable
 
     private ProjectAsset? GetSelectedAsset() => ProjectMediaPanelControl.SelectedItem?.Asset;
 
+    private bool IsCurrentProjectMediaSelection(ProjectMediaListItem item, Guid? projectId) =>
+        _workspace.Project?.Id == projectId &&
+        ReferenceEquals(ProjectMediaPanelControl.SelectedItem, item);
+
     private async Task RemoveCurrentProjectAssetAsync(ProjectAsset asset)
     {
         if (_workspace.Project is null || _workspace.Location is null) return;
@@ -1347,7 +1355,20 @@ public partial class MainWindow : Window, IDisposable
         {
             InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
             var revision = _workspace.Project.RecipeRevisions.Single(candidate => candidate.Id == asset.Virtual.CurrentRecipeRevisionId);
-            await _mediaPreviewCoordinator.OpenCompositionDraftAsync(asset, revision, selectedProjectId);
+            var restoreOutcome = await _mediaPreviewCoordinator.TryOpenRetainedCompositionPreviewAsync(
+                    asset,
+                    revision,
+                    selectedItem,
+                    selectedProjectId);
+            if (restoreOutcome is RetainedCompositionPreviewRestoreOutcome.Restored or
+                RetainedCompositionPreviewRestoreOutcome.Stale)
+            {
+                return;
+            }
+            if (!IsCurrentProjectMediaSelection(selectedItem, selectedProjectId)) return;
+            if (restoreOutcome == RetainedCompositionPreviewRestoreOutcome.Failed)
+                StatusText.Text = "Composition preview could not be restored; opening fast audition instead.";
+            await _mediaPreviewCoordinator.OpenCompositionDraftAsync(asset, revision, selectedProjectId, selectedItem);
             return;
         }
         var kindName = asset.Virtual?.Kind == VirtualAssetKind.Composition
@@ -1568,6 +1589,7 @@ public partial class MainWindow : Window, IDisposable
 
         InspectorPanelControl.Reset();
         _mediaPreviewCoordinator.Clear();
+        _mediaPreviewCoordinator.ClearRetainedCompositionPreview();
     }
 
     private void RefreshProjectCollections(Guid? selectedAssetId = null)
@@ -1771,6 +1793,9 @@ public partial class MainWindow : Window, IDisposable
         public void ShowError(string title, Exception exception) => window.ShowError(title, exception);
         public bool IsCompositionSelected(Guid compositionId) =>
             window.ProjectMediaPanelControl.SelectedItem is ProjectMediaListItem { Asset: { Id: var assetId } } && assetId == compositionId;
+        public bool IsCompositionSelected(Guid compositionId, ProjectMediaListItem expectedItem) =>
+            ReferenceEquals(window.ProjectMediaPanelControl.SelectedItem, expectedItem) &&
+            IsCompositionSelected(compositionId);
         public void SelectWorkingComposition() => window.SelectWorkingCompositionInProjectMedia();
         public void ScheduleContactFrameRefresh(double seconds) => window._framePreparationCoordinator.ScheduleContactFrameRefresh(seconds);
         public void PreviewStateChanged()
@@ -1778,6 +1803,8 @@ public partial class MainWindow : Window, IDisposable
             window._compositionWorkspace.UpdateControls();
             window.UpdateCompositionActionState();
         }
+        public void UpdateCompositionPreviewInspector(ProjectAsset composition, MediaEncodingMetadata? encoding) =>
+            window.InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(composition, encoding);
     }
 
     private sealed class GenerationContinuationPresentation(MainWindow window) : IGenerationContinuationPresentation
