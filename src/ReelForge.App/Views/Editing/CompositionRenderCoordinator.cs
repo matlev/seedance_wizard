@@ -13,8 +13,8 @@ namespace ReelForge.App.Views.Editing;
 internal sealed class CompositionRenderCoordinator : IDisposable
 {
     private readonly ProjectWorkspace _workspace;
-    private readonly RecipeMediaMaterializer _materializer;
-    private readonly ProjectMediaOperationsCoordinator _operations;
+    private readonly IMediaMaterializer _materializer;
+    private readonly ICompositionRenderOperations _operations;
     private readonly ICompositionRenderHost _host;
     private CancellationTokenSource? _cancellation;
     private CompositionRenderTarget? _activeTarget;
@@ -24,8 +24,8 @@ internal sealed class CompositionRenderCoordinator : IDisposable
 
     public CompositionRenderCoordinator(
         ProjectWorkspace workspace,
-        RecipeMediaMaterializer materializer,
-        ProjectMediaOperationsCoordinator operations,
+        IMediaMaterializer materializer,
+        ICompositionRenderOperations operations,
         ICompositionRenderHost host)
     {
         _workspace = workspace;
@@ -38,6 +38,7 @@ internal sealed class CompositionRenderCoordinator : IDisposable
 
     public Task PreviewAsync()
     {
+        if (IsRendering) return Task.CompletedTask;
         if (!TryCaptureTarget(out var target) || !_host.CanAdoptBakedPreview(target)) return Task.CompletedTask;
         return RunAsync(target, "Rendering preview…", "Composition preview render cancelled.", async cancellationToken =>
         {
@@ -69,6 +70,7 @@ internal sealed class CompositionRenderCoordinator : IDisposable
 
     public Task ExportAsync()
     {
+        if (IsRendering) return Task.CompletedTask;
         if (!TryCaptureTarget(out var target)) return Task.CompletedTask;
         var destinationPath = _host.PromptExportPath(target);
         if (string.IsNullOrWhiteSpace(destinationPath)) return Task.CompletedTask;
@@ -224,4 +226,17 @@ internal interface ICompositionRenderHost
     void RefreshCompositionActions();
     void SetStatus(string status);
     void ShowError(string title, Exception exception);
+}
+
+/// <summary>
+/// Narrow export dependency owned by the composition-rendering consumer. The
+/// Project Media coordinator supplies the production implementation.
+/// </summary>
+internal interface ICompositionRenderOperations
+{
+    Task<string> ExportVirtualVideoAsync(
+        ProjectAsset asset,
+        Guid recipeRevisionId,
+        string destinationPath,
+        CancellationToken cancellationToken = default);
 }

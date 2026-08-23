@@ -1,4 +1,5 @@
 using ReelForge.Application;
+using ReelForge.App.Views.Editing;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
 
@@ -8,7 +9,7 @@ namespace ReelForge.App.Views.ProjectMedia;
 /// Coordinates narrowly-scoped Project Media mutations whose persistence is owned
 /// by application or infrastructure services. UI policy remains with the shell.
 /// </summary>
-public sealed class ProjectMediaOperationsCoordinator
+public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperations
 {
     private readonly ProjectWorkspace _workspace;
     private readonly SavedClipService _savedClipService;
