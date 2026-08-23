@@ -300,14 +300,27 @@ public sealed class ApplicationSettingsTests
         Assert.Equal(Path.GetFullPath(paths.DefaultLogDirectory), settings.General.LogDirectory);
         Assert.Equal(Path.GetFullPath(paths.DefaultProjectsDirectory), settings.General.ProjectsRoot);
 
-        ApplicationSettingsAccessor.Set(settings, "General.LogDirectory", @"%LOCALAPPDATA%\ReelForge\Alternate Logs");
+        var environmentVariableName = $"REELFORGE_TEST_LOG_ROOT_{Guid.NewGuid():N}";
+        var configuredLogRoot = Path.Combine(Path.GetTempPath(), environmentVariableName);
+        var originalValue = Environment.GetEnvironmentVariable(environmentVariableName);
+        try
+        {
+            Environment.SetEnvironmentVariable(environmentVariableName, configuredLogRoot);
 
-        Assert.Equal(
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ReelForge",
-                "Alternate Logs"),
-            settings.General.LogDirectory);
+            ApplicationSettingsAccessor.Set(
+                settings,
+                "General.LogDirectory",
+                $"%{environmentVariableName}%{Path.DirectorySeparatorChar}ReelForge{Path.DirectorySeparatorChar}Alternate Logs");
+
+            Assert.Equal(
+                Path.GetFullPath(Path.Combine(configuredLogRoot, "ReelForge", "Alternate Logs")),
+                settings.General.LogDirectory);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(environmentVariableName, originalValue);
+        }
+
         Assert.Throws<ArgumentException>(() =>
             ApplicationSettingsAccessor.Set(settings, "General.LogDirectory", " "));
     }
