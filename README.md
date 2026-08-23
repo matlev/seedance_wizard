@@ -69,7 +69,7 @@ All project-media paths stored in the `.rfp` file are relative to the project ro
 
 - [Architecture](docs/architecture.md)
 - [Milestone plan](docs/milestones.md)
-- [Milestone 3 architecture review and refactor plan](docs/milestone-3-refactor-plan.md)
+- [Manual regression acceptance matrix](docs/manual-acceptance.md)
 - [Contributor guidance](docs/contributor-guidance.md)
 - [Seedance provider research](docs/provider-research.md)
 - [MiniMax H3 local execution research](docs/minimax-h3-local-research.md)

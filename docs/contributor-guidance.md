@@ -1,6 +1,6 @@
 # Contributor guidance
 
-Status: active rules for Milestone 3 and later work
+Status: active contributor guidance
 
 ## Dependency direction
 
@@ -13,7 +13,7 @@ Status: active rules for Milestone 3 and later work
 
 ## Feature ownership and files
 
-- place code under the feature/capability that owns its reason to change; follow the target map in the [Milestone 3 refactor plan](milestone-3-refactor-plan.md).
+- place code under the feature/capability that owns its reason to change; follow the current feature-owned structure described in the [architecture](architecture.md).
 - do not add root-level grab-bag files, generic `Helpers`/`Utils` folders, or unrelated types to an existing large file because it is convenient.
 - one file may contain closely related private/internal value types. Split public concepts when they have different owners or reasons to change.
 - file length is a review signal, not a quota. Prefer cohesive types over artificial micro-files.

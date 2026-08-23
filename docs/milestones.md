@@ -1,6 +1,6 @@
 ﻿# Milestone plan
 
-Status: Milestones 1 and 2 complete. Milestone 3 structural implementation and automated audit are complete; final human acceptance is pending.
+Status: Milestones 1, 2, and 3 complete.
 
 ## Product priority
 
@@ -365,9 +365,9 @@ Complete. ReelForge projects the committed Working Composition into a duration-a
 
 The market-research synthesis and the owner's fifteen product decisions are accepted as post-foundation direction in [Editor capability direction](editor-capability-direction.md). ReelForge targets an AI-native finishing editor for AI short-film makers, social creators, and hobby filmmakers rather than a general-purpose professional NLE. The research establishes future architecture for typed effect stacks, generic parameter automation, multitrack/time semantics, analysis artifacts, durable repair/Bake outputs, provider-neutral media editing, universal logical generation references, optional ML engines, and continuity-focused differentiation.
 
-This does not expand Phase 2E into the complete researched feature set or make every researched “minimum” capability a first-release gate. Feature order and commercial tiering remain provisional until the business-model handoff is reconciled. The approved post-Milestone 2 architecture review and Milestone 3 structural refactor retain their place before a large editor-feature program.
+This does not expand Phase 2E into the complete researched feature set or make every researched “minimum” capability a first-release gate. Feature order and commercial tiering remain provisional until the business-model handoff is reconciled. The completed Milestone 3 structural refactor provides the maintained foundation for the next editor-feature program.
 
-Post-Milestone 2 editor work, to be rescheduled after the architecture review and structural refactor:
+Post-Milestone 3 editor work awaiting prioritization:
 
 1. Extend the initial sequential-video plus timed-audio model with persistent multitrack identity, richer clip properties, track controls, snapping, trim/ripple/gap semantics, and later transitions/effects.
 2. Capture immutable exact composition/range snapshots when compositions or their subranges become provider references or durable historical dependencies.
@@ -378,78 +378,17 @@ Timeline editing must compose the same recipe graph and must not introduce autho
 
 Future workspace UX should support detaching the composition timeline and Edit Tools into separate floating windows, then docking either surface back into the Edit workspace. The windows must share the same selection, composition, history, playback, and project state; floating a surface must never create a second editing session or media owner. Remember layout as machine-local, preferably per-project UI state, and restore off-screen windows safely when monitor topology changes. This capability is intentionally unscheduled beyond Milestone 2 and does not add layout data to `.rfp` files.
 
-## Post-Milestone 2 architecture review and Milestone 3 planning gate
+## Milestone 3 — completed whole-codebase structural refactor
 
-After Milestone 2 is complete, pause feature implementation and review the entire ReelForge codebase before finalizing the Milestone 3 execution plan. `MainWindow.xaml.cs`, currently approximately 4,800 lines, is one visible symptom rather than the complete scope. The review must cover every project, layer, folder, production file, test fixture, resource, and cross-component dependency so Milestone 3 addresses structural debt systematically instead of moving one monolith into several arbitrary files.
+Milestone 3 completed the repository-wide refactor that reduced mixed-purpose file bloat and made feature ownership easier to explore and review. `MainWindow.xaml.cs` is now approximately 1,554 lines and serves as a composition/integration shell rather than the former multi-thousand-line feature monolith.
 
-The review deliverables are:
+Core, Application, Infrastructure, Platform.Windows, and WPF App responsibilities now have explicit physical homes and enforceable dependency direction. `Bootstrap/ApplicationRuntime` owns runtime construction and disposal; focused WPF controls and coordinators own Jobs, Project Media, generation, media preview, frame preparation, editing, timeline, audition, project lifecycle, settings, dialogs, and composition rendering. Portable composition/audition planning preserves exact pinned boundaries and remains independently testable.
 
-1. A repository-wide inventory of responsibilities, file sizes, dependency directions, ownership boundaries, duplicated behavior, high-coupling areas, and classes with multiple reasons to change.
-2. A proposed target solution, project, folder, and subfolder map covering Core, Application, Infrastructure, WPF presentation, provider integrations, media tooling, persistence, diagnostics, resources, and tests.
-3. A SOLID-oriented responsibility map identifying appropriate domain services, application coordinators, provider adapters, repositories/stores, utilities, presentation controllers/view models, WPF controls, and genuinely shared primitives.
-4. Explicit recommendations for oversized or mixed-purpose files throughout the repository—not only `MainWindow.xaml.cs` and `MainWindow.xaml`—including which responsibilities should be extracted, combined, renamed, relocated, or deleted.
-5. A dependency audit for layer violations, UI-to-infrastructure shortcuts, provider-specific leakage, static/global state, duplicated utility code, and unclear lifecycle ownership.
-6. A test-organization review covering characterization gaps, oversized fixtures, reusable fakes/builders, integration boundaries, and the appropriate mirrored structure for production tests.
-7. A risk-ranked, staged Milestone 3 plan with small reviewable slices, behavioral acceptance checks, expected file moves, and rollback-friendly commit boundaries.
-8. Updated architecture and contributor guidance defining the target structure, naming conventions, ownership rules, dependency rules, and extension points.
-9. A platform-portability audit identifying WPF/native-Windows dependencies, portable compilation boundaries, genuine OS variation points, and machine-local path ownership without implementing a macOS client or selecting its UI framework.
-10. A media-tool distribution recommendation covering CI-built, pinned, license-audited LGPL FFmpeg/ffprobe artifacts; verified upstream source; exact configuration and dependency/SBOM capture; Windows/macOS and architecture-specific outputs; SHA-256/provenance manifests; installer integration; security updates; licensing/source obligations; a later commercial codec/patent review; and advanced explicit-path/PATH/manual fallbacks.
-11. Enforceable dependency/build checks that keep Core, Application, and reusable media/provider/persistence code free of WPF and native Windows facilities, plus a proposal for cross-platform non-UI CI where practical.
+The supported portability direction keeps reusable behavior free of WPF/native Windows concerns while preserving Windows as the current host. Machine-local settings, logs, jobs, cache, paths, and credentials are platform-owned. Project media remains project-relative and cache-independent; cross-OS live `.rfp` interchange is not a release requirement. Future packaged FFmpeg/ffprobe should be CI-built, pinned, license-audited LGPL artifacts, with Advanced explicit paths taking precedence over packaged tools and PATH retained as a fallback.
 
-The review is planning work only. It must not begin opportunistic file moves or partial refactors before the proposed Milestone 3 plan is reviewed and approved.
+The six-suite topology is established in CI: Core (7), Application (77), Infrastructure (21), broad acceptance (203), Platform.Windows (4), and WPF App (46), for 358 passing network-isolated tests. Windows CI builds Debug and Release and runs all six suites; non-Windows CI runs the portable suites. Paid provider submission remains physically excluded from automated testing.
 
-## Milestone 3 — whole-codebase structural refactor and reorganization
-
-Milestone 3 will execute the approved architecture-review plan across the complete repository. Its primary goal is to cut down the severe file bloat caused by too many concerns and make the code human-readable, explorable, reviewable, and maintainable. Its physical organization must communicate responsibility so a contributor can locate and meaningfully review a feature without reading thousands of unrelated lines. This is not satisfied by moving the same monolith into partial classes or arbitrary folders; components must have cohesive reasons to change and be independently understandable, changeable, and testable.
-
-The repository-wide baseline, target project/folder map, responsibility audit, portability and FFmpeg-distribution boundaries, risk ordering, enforceable checks, and staged execution proposal are recorded in [Milestone 3 architecture review and refactor plan](milestone-3-refactor-plan.md). The current repository was reassessed after the first Stage 6 extractions; the authoritative remaining ownership boundaries, migration sequence, delegation policy, and completion gate are recorded in [Milestone 3 remaining architecture and migration plan](milestone-3-remaining-plan.md).
-
-Historical progress snapshot during Stage 6: the plan was approved. Stage 0 established executable dependency-direction checks, a manual acceptance matrix, and concurrent atomic active-job persistence. Stage 1 introduced the Windows platform/test projects, moved machine-local path and Credential Manager ownership behind portable contracts, injected explicit settings/job/log/cache/project locations, neutralized portable secure-store wording, and moved service construction, provider HTTP-client ownership, job-coordinator construction, and disposal into `Bootstrap/ApplicationRuntime`. Stage 2 organized Core models by domain family and established capability-owned Application contracts. Stage 3 decomposed persistence and canonicalized filesystem policies. Stage 4 decomposed process/media tooling and materialization. Stage 5 extracted generation finalization, provider preparation, monitoring, and submission ownership. Stage 6 then moved Jobs, timeline, viewer, frame preparation, Project Media, generation, project lifecycle, composition workspace, audition, preview, and render behavior behind focused WPF controls and coordinators.
-
-The next Stage 6 boundaries are also established. Settings and reusable dialogs have explicit `Views` homes, dynamic settings-control construction is separated from persistence/window lifecycle, and the composition root reapplies changed media-tool, cache, and retention settings to runtime-owned services. Project creation/open/import dialog policy is isolated from workspace mutation. The Project Media control owns grouped item presentation, right-click selection and action requests, extract-audio availability display, and composition drag initiation while the shell retains project-domain operations and cross-feature selection consequences. The Generate panel owns provider-capability presentation, prompt/settings form state, reference editing and occurrence projection, lineage action intent, and submission intent; its full-workspace prompt editor owns text synchronization/focus/close behavior, and its sibling history panel owns concise history projection, retained selection, and selected-generation lookup. None can call providers. Paid confirmation, Undo Send, request preparation, submission, monitoring, and finalization remain behind the already-extracted application workflow. Inspector is now a focused read-only view with formatting policy for physical/virtual media, Saved Frames, generation history, and verbose failures outside the shell. Edit Tools owns context-sensitive video/audio property controls, control-update suppression, display formatting, and typed edit intents; immutable composition mutation remains outside the view. Frame/Saved Frame and composition timeline presentation models now live with their respective feature surfaces rather than after the `MainWindow` class.
-
-The media viewer visual tree, transport state machine, and active representation lifetimes now live in `Views/MediaPreview/MediaPreviewPanel`. The focused surface owns player priming, play/pause/replay state, scrubbing capture, position/volume presentation, mute policy, silent precision mode, frame-step intent, independent audition-audio synchronization, and replacement/release of video and audition materialization leases without exposing its WPF controls. The shell retains composition sequencing, exact-frame lookup, materialization requests, timeline playhead projection, and failure routing as cross-feature policy.
-
-The Select Frame/Make Clip surface now lives in `Views/MediaPreparation/MediaPreparationPanel`. It owns precision-mode presentation, frame/Saved Frame selection, editor enablement, clip-boundary draft state, and typed UI intents. Exact-frame indexing/extraction, project mutation, Saved Clip creation, Inspector updates, and cross-feature preview coordination remain outside the view.
-
-Composition audition planning and mutable playback position are now portable and independently characterized. `CompositionAuditionPlan` validates pinned sources and exact ranges, projects them onto one contiguous timeline, defines cut selection, and maps composition positions to source positions without WPF or media-player dependencies. `CompositionAuditionSession` owns the pinned revision, active segment, seeking, source-time updates, progression, and completion state. The remaining Stage 6 work can extract timeline gestures and lease sequencing against this stable session.
-
-Fast-audition lease sequencing now belongs to `Views/Editing/CompositionAuditionController`. It opens the pinned source segment represented by the portable session, rejects stale asynchronous materializations, advances at cuts, maps seeks and source positions, synchronizes independent audio, and publishes semantic timeline positions. Rapid cross-cut pointer scrubbing now coalesces transient positions, cancels stale work, serializes segment openings, and commits the final pointer-up position so overlapping WPF source switches cannot poison the audition player. `MainWindow` retains selected-project checks, status text, ordinary-media routing, and timeline playhead projection. Composition timeline rendering and gesture ownership remain the next dense Stage 6 boundary.
-
-Working Composition editing now has a focused Application boundary under `Editing/Composition` and `Editing/Audio`. The public `WorkingCompositionService` remains source-compatible while delegating to current-state access, lifecycle creation, segment commands, audio commands, exact split mutation, and one ordinary revision transaction owner. Failed saves restore revisions, current pointers, drafts, provenance, derived assets/anchors/files, and project modification timestamps; focused failure-injection tests cover ordinary edits, initial creation, splitting, and audio detachment.
-
-Human acceptance for the first media-preview extraction covers multi-segment audition, muted source audio, layered independent audio, seeking across cuts, frame stepping, volume/mute, end replay, and switching between composition and ordinary Project Media playback. The independent composition-audition audio open/prime/synchronize/pause/stop state machine belongs to the focused media-preview feature while composition-time policy remains outside it.
-
-Human acceptance also passed after the full transport-state move into `MediaPreviewPanel`, including ordinary and Saved Clip playback, composition audition, timeline scrubbing, precision-navigation audio suppression/restoration, and switching among all Project Media kinds.
-
-Current Milestone 3 result: structural implementation and automated audit are complete. `MainWindow` is now a 1,523-line composition/integration shell rather than the former approximately 4,800-line feature monolith. Runtime construction is centralized in `ApplicationRuntime`; Core, Application, Infrastructure, Platform.Windows, and App responsibilities have explicit physical homes and enforceable dependency checks. Core, Application, Infrastructure, cross-layer acceptance, Platform.Windows, and WPF App test projects contain 346 passing network-isolated tests; portable and Windows CI paths are defined. The remaining gate is the complete human acceptance matrix, after which the three explicitly deferred playback/frame-step defects move to the post-refactor correction pass.
-
-Expected scope includes:
-
-1. Reorganize the solution into coherent projects, feature folders, and subfolders while preserving intentional architectural layers.
-2. Decompose oversized and mixed-purpose classes, services, UI files, provider files, persistence components, utilities, and tests into cohesive units with explicit responsibilities.
-3. Split the WPF shell into focused controls and presentation components, moving orchestration and state transitions out of code-behind where doing so creates a clearer boundary.
-4. Consolidate duplicated helpers into appropriately scoped utilities or services; do not create generic dumping-ground `Helpers` or `Utils` folders.
-5. Clarify interfaces and dependency injection at meaningful seams without producing one-method abstractions or abstraction for its own sake.
-6. Align provider, generation, media-processing, project-lifecycle, persistence, settings, diagnostics, and editing components with stable dependency directions.
-7. Reorganize tests to mirror production responsibilities, introduce focused fixtures/builders/fakes, and retain end-to-end characterization of Milestone 2 behavior.
-8. Remove dead code, obsolete presentation paths, duplicate refresh/orchestration flows, misleading names, and superseded files discovered during the review.
-9. Complete the documented target folder map and contributor guidance as the physical structure settles.
-10. Separate genuine platform implementations—secure storage, application-data defaults, media-tool discovery, native shell integration, and related Windows facilities—from reusable application/media/provider/persistence behavior.
-11. Add dependency and build checks that keep reusable assemblies platform-neutral; do not create speculative interfaces or split projects without a concrete ownership, variation, or compilation boundary.
-
-Execution guardrails:
-
-- execute Milestone 3 as a sequence of reviewable behavior-preserving vertical refactor slices, not a big-bang rewrite;
-- do not mix the structural work with unrelated product features or schema redesign;
-- preserve the current `.rfp` contract, atomic settings/project persistence, immutable recipe semantics, job recovery, and the no-paid-automated-call rule unless a separately approved change explicitly supersedes one;
-- preserve Windows behavior while preparing reusable components for a possible future macOS host; Milestone 3 does not implement macOS, replace WPF, or select a Mac UI framework;
-- do not treat cross-OS `.rfp` folder interchange as an acceptance requirement. Keep project state logically relative and cache-independent, while using explicit physical-media export/import as the supported cross-machine handoff;
-- resolve logs, settings, job state, cache, and other machine-local defaults through platform-owned locations rather than embedding Windows directory conventions in reusable application logic;
-- plan CI-built, pinned, license-audited LGPL FFmpeg/ffprobe as the normal installed experience. A valid Advanced-setting local path overrides the packaged executable; manual browsing configures that override, and PATH remains a lower-priority fallback. Retain these routes after packaging so developers and power users can supply builds ReelForge cannot redistribute;
-- establish characterization coverage before relocating or decomposing risky behavior, and keep the complete automated suite passing after every slice;
-- re-run the primary Milestone 2 human workflows after major structural boundaries move, especially project switching, generation recovery, exact-frame tools, composition editing, preview/export, and settings changes;
-- judge completion across the whole repository: no major subsystem should remain an unexplained monolith merely because the WPF shell became smaller.
+The [manual regression acceptance matrix](manual-acceptance.md) is the active human smoke guide. Its accepted post-refactor corrections include restoring an unchanged baked preview after restart, PTS-aware frame stepping across audition cuts, and synchronizing viewer frame transport with Select Frame and Make Clip precision tools.
 
 ## Unscheduled Project Media bulk operations
 
@@ -462,7 +401,7 @@ Large imports make one-item-at-a-time Project Media management impractical. A fu
 5. Execute heavy batches asynchronously with progress, cancellation, and a final per-item success/failure summary so large operations do not freeze the shell or conceal partial completion.
 6. Define and test batch failure semantics before implementation, including whether completed copies remain after a later failure and how retry resumes safely.
 
-This feature is not part of the Milestone 3 structural refactor. The refactor should preserve command and projection seams that allow a later bulk coordinator without embedding batch policy in `ProjectMediaPanel`.
+This feature was not part of the Milestone 3 structural refactor. The completed refactor preserved command and projection seams that allow a later bulk coordinator without embedding batch policy in `ProjectMediaPanel`.
 
 ## Unscheduled future product and commercialization discovery
 

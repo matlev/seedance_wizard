@@ -1,6 +1,6 @@
 ﻿# Architecture
 
-Status: accepted direction; Milestones 1 and 2 complete; post-Milestone 2 architecture review is next
+Status: accepted direction; Milestones 1, 2, and 3 complete
 Original platform decision: 2026-08-09
 Recipe-model design revision: 2026-08-10
 Generate/Edit workspace revision: 2026-08-13
@@ -8,9 +8,9 @@ Platform-portability revision: 2026-08-19
 Commercial-optionality revision: 2026-08-19
 Timeline-foundation completion: 2026-08-20
 
-This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, exact physical- and virtual-video frame materialization, recursive virtual-recipe rendering, compatible/normalized composition rendering, and the Milestone 2 composition/timeline foundation are implemented. The next gate is a repository-wide architecture review and approved Milestone 3 structural-refactor plan before a broader editor-feature program.
+This document records the accepted target architecture. Current-format logical assets, immutable recipe/anchor revisions and generation snapshots, SHA-256 identity, provider-specific reference preparation, BytePlus ModelArk plus AtlasCloud Seedance 2.5 and MiniMax H3 submission/polling, durable output ingestion, exact physical- and virtual-video frame materialization, recursive virtual-recipe rendering, compatible/normalized composition rendering, and the Milestone 2 composition/timeline foundation are implemented.
 
-The completed repository audit and proposed staged target are recorded in [Milestone 3 architecture review and refactor plan](milestone-3-refactor-plan.md). The remaining execution contract after the completed backend stages and first WPF extractions is recorded in [Milestone 3 remaining architecture and migration plan](milestone-3-remaining-plan.md). Together they preserve the current four-layer direction, the justified Windows platform boundary, feature ownership, and behavior-preserving migration order.
+Milestone 3 completed the repository-wide structural program: the layer boundaries are enforced, `Bootstrap/ApplicationRuntime` is the WPF composition root, focused controls and coordinators own feature-local interaction and lifecycle work, and the six-suite test topology is exercised by portable and Windows CI. The follow-up corrections restore unchanged baked previews after restart and provide PTS-aware frame transport across audition cuts and precision-frame tools. The active manual smoke matrix is [Manual regression acceptance](manual-acceptance.md); automated tests remain network-isolated and incapable of paid provider submission.
 
 ## Architectural direction
 
@@ -82,7 +82,7 @@ The Generate surface under `Views/Generation` owns provider capability presentat
 
 The media viewer lives under `Views/MediaPreview`. `MediaPreviewPanel` owns the video, still-image, placeholder, transport-chrome, position timer, playback/priming/replay state, pointer scrubbing, frame-step intent, volume/mute policy, silent precision-navigation mode, independent composition-audio synchronization, and the active video/audition materialization leases. It exposes semantic state and operations rather than its private WPF elements. The editing-owned `CompositionAuditionController` coordinates pinned segment materialization, stale-open invalidation, cut advancement, source/timeline seeking, and independent-audio synchronization against that viewer. `MediaPreviewCoordinator` owns the bridge between those state machines and the composition timeline: transport event routing, playhead projection, timeline and pointer seek generations, composition frame stepping, stale rendered-preview invalidation, and audition lifetime. Cross-cut pointer scrubbing is a latest-position-wins operation: transient positions are debounced, stale materialization requests are cancelled, source openings are serialized, and pointer release commits one authoritative seek. This prevents the WPF player from receiving overlapping source switches without preloading whole source videos into memory. `MainWindow` retains cross-feature asset selection and materialization entry policy, project lifecycle integration, and user-visible status and failure routing.
 
-Exact-frame media preparation lives under `Views/MediaPreparation`. `MediaPreparationPanel` owns the Select Frame/Make Clip presentation modes, contact-strip and Saved Frame selection, Saved Frame editor state, clip-name and exact-boundary draft state, and typed user intents. It does not index or extract frames, mutate project state, or materialize Saved Clips. The shell currently coordinates those application operations and projects their results back into the focused surface; later extraction may move that coordination behind an application-facing controller without exposing WPF elements to portable layers.
+Exact-frame media preparation lives under `Views/MediaPreparation`. `MediaPreparationPanel` owns the Select Frame/Make Clip presentation modes, contact-strip and Saved Frame selection, Saved Frame editor state, clip-name and exact-boundary draft state, and typed user intents. It does not index or extract frames, mutate project state, or materialize Saved Clips. `FramePreparationCoordinator` owns those application operations and projects their results back into the focused surface without exposing WPF elements to portable layers.
 
 Core and Application must not reference WPF or native Windows facilities. Portable media, provider, and persistence components must not consume WPF types. Windows P/Invoke, Credential Manager, native dialogs, shell behavior, WPF media presentation, and other genuine OS integrations belong to an explicitly Windows-owned implementation or presentation boundary. Extract a platform contract only for a real variation point—such as secret storage, application-data locations, media-tool discovery, hardware discovery, or shell integration—not merely because macOS may exist someday.
 
@@ -151,7 +151,9 @@ Local-provider readiness is an application concern. A future environment probe s
 
 See [MiniMax H3 local execution research](minimax-h3-local-research.md) for the official native workflows, dependencies, limits, hardware gate, Server API mapping, and license restrictions. AtlasCloud-hosted H3 is implemented; local ComfyUI H3 remains researched but not scheduled or implemented.
 
-## Current architecture assessment
+## Historical pre-recipe / pre-Milestone 2 architecture assessment
+
+The following table records the baseline that motivated the recipe architecture. Its gaps describe the pre-Milestone 2 repository and are retained as design history, not current implementation status.
 
 | Existing component | Useful foundation | Gap against the proposed model |
 | --- | --- | --- |
@@ -835,4 +837,4 @@ The Phase 2C product-direction questions are settled. Remaining cross-phase item
 
 ## Phase gate
 
-Milestone 2 is complete. Phase 2C human acceptance covered the Generate/Edit shell, Project Media projection, exact Saved Frames, Saved Clips, cache reconstruction, missing-source handling, reference preparation, and trim materialization. Phase 2D acceptance covered recursive virtual planning, compatibility analysis, normalized multi-segment composition rendering, immutable composition edits, export, and optional durable modified-media representations. Phase 2E acceptance covered the duration-aware timeline, direct arrangement, exact virtual-video positions and playhead splitting, fast audition, cancellable preview/export, context-sensitive audio controls, layered audio mixing, and whole-source plus exact-segment audio extraction. Automated verification remains network-isolated and incapable of paid provider submission. The post-Milestone 2 repository review and Milestone 3 planning gate now precede further editor expansion.
+Milestones 1 through 3 are complete. Phase 2C human acceptance covered the Generate/Edit shell, Project Media projection, exact Saved Frames, Saved Clips, cache reconstruction, missing-source handling, reference preparation, and trim materialization. Phase 2D acceptance covered recursive virtual planning, compatibility analysis, normalized multi-segment composition rendering, immutable composition edits, export, and optional durable modified-media representations. Phase 2E acceptance covered the duration-aware timeline, direct arrangement, exact virtual-video positions and playhead splitting, fast audition, cancellable preview/export, context-sensitive audio controls, layered audio mixing, and whole-source plus exact-segment audio extraction. Milestone 3 completed the structural refactor and its post-refactor playback/frame-transport corrections. Automated verification remains network-isolated and incapable of paid provider submission; live paid generation remains a deliberate human-only action.
