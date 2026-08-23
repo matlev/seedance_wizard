@@ -33,7 +33,6 @@ public partial class MainWindow : Window, IDisposable
     private readonly ObservableCollection<ProjectMediaListItem> _assets = [];
     private readonly ObservableCollection<GenerationReferenceChoice> _referenceChoices = [];
     private readonly ApplicationRuntime _runtime;
-    private readonly SemaphoreSlim _frameNavigationGate = new(1, 1);
     private readonly ProjectWorkspace _workspace;
     private readonly PortableProjectStore _projectStore;
     private readonly ProjectMediaOperationsCoordinator _projectMediaOperationsCoordinator;
@@ -55,19 +54,13 @@ public partial class MainWindow : Window, IDisposable
     private readonly GenerationContinuationCoordinator _generationContinuation;
     private readonly GenerationSubmissionCoordinator _generationSubmission;
     private readonly CompositionWorkspaceCoordinator _compositionWorkspace;
+    private readonly MediaPreviewCoordinator _mediaPreviewCoordinator;
     private readonly FramePreparationCoordinator _framePreparationCoordinator;
     private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressProjectMediaSelection;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
     private bool _restoringProjectUiState;
     private CancellationTokenSource? _compositionRenderCancellation;
-    private readonly CompositionAuditionController _compositionAuditionController;
-    private Guid? _activeCompositionPreviewRevisionId;
-    private double? _pendingCompositionTimelineSeekSeconds;
-    private long _compositionTimelineSeekGeneration;
-    private long? _activeCompositionTimelineSeekGeneration;
-    private long? _activeMediaPreviewScrubGeneration;
-    private double _activeCompositionTimelineSeekSeconds;
     private bool _disposed;
     private bool _isMediaImportInProgress;
 
@@ -97,27 +90,25 @@ public partial class MainWindow : Window, IDisposable
             _runtime.ProjectAssetTransferWorkflow,
             _runtime.MaterializedProjectMediaTransferService);
         _physicalAssetSelectionPreparationService = new PhysicalAssetSelectionPreparationService(_workspace, _mediaInspector);
+        _mediaPreviewCoordinator = new MediaPreviewCoordinator(
+            _workspace, _mediaMaterializer, _exactFrameService, MediaPreviewPanelControl,
+            CompositionTimelineControl, new MediaPreviewCoordinatorHost(this));
         _framePreparationCoordinator = new FramePreparationCoordinator(
             _workspace,
             _exactFrameService,
             MediaPreparationPanelControl,
             MediaPreviewPanelControl,
-            _frameNavigationGate);
+            _mediaPreviewCoordinator.FrameNavigationGate);
         _framePreparationCoordinator.StatusChanged += FramePreparation_StatusChanged;
         _framePreparationCoordinator.SavedFramesProjected += FramePreparation_SavedFramesProjected;
-        _compositionAuditionController = new CompositionAuditionController(
-            _workspace,
-            _mediaMaterializer,
-            MediaPreviewPanelControl);
-        _compositionAuditionController.PositionChanged += CompositionAudition_PositionChanged;
         _compositionWorkspace = new CompositionWorkspaceCoordinator(
             _workspace,
             CompositionTimelineControl,
             EditToolsPanelControl,
-            GetCurrentTimelinePlaybackSeconds,
-            () => _activeCompositionPreviewRevisionId is not null || _compositionAuditionController.IsActive,
-            () => MediaPreviewPanelControl.IsPlaying,
-            () => MediaPreviewPanelControl.HasVideoSource && !MediaPreviewPanelControl.IsPriming && MediaPreviewPanelControl.IsPlaybackEnabled,
+            () => _mediaPreviewCoordinator.CurrentTimelinePosition,
+            () => _mediaPreviewCoordinator.IsPreviewActive,
+            () => _mediaPreviewCoordinator.IsPlaying,
+            () => _mediaPreviewCoordinator.IsPlaybackEnabled,
             IsWorkingCompositionSelected,
             new CompositionWorkspaceHost(this),
             _mediaMaterializer,
@@ -180,8 +171,7 @@ public partial class MainWindow : Window, IDisposable
         _framePreparationCoordinator.SavedFramesProjected -= FramePreparation_SavedFramesProjected;
         _framePreparationCoordinator.Dispose();
         _compositionRenderCancellation?.Cancel();
-        _compositionAuditionController.PositionChanged -= CompositionAudition_PositionChanged;
-        _compositionAuditionController.Dispose();
+        _mediaPreviewCoordinator.Dispose();
         _compositionWorkspace.StateChanged -= CompositionWorkspace_StateChanged;
         _compositionWorkspace.RecipeMutationCommitted -= CompositionWorkspace_RecipeMutationCommitted;
         _compositionWorkspace.Dispose();
@@ -635,7 +625,7 @@ public partial class MainWindow : Window, IDisposable
         WorkingCompositionNameText.Text = composition!.EffectiveDisplayName;
         var revision = _workspace.Project!.RecipeRevisions.Single(candidate =>
             candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
-        ClearStaleCompositionPreviewIfNeeded(composition, revision);
+        _mediaPreviewCoordinator.ClearStaleCompositionPreviewIfNeeded(composition, revision);
         var recipe = (CompositionRecipe)revision.Recipe;
         WorkingCompositionSummaryText.Text =
             $"{recipe.Segments.Count} video segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • " +
@@ -643,12 +633,12 @@ public partial class MainWindow : Window, IDisposable
             $"exact, revision-pinned sources • recipe revision {revision.RevisionNumber}";
         _compositionWorkspace.Refresh();
         UpdateCompositionActionState();
-        if (_compositionAuditionController.RecipeRevisionId is { } draftRevisionId && draftRevisionId != revision.Id &&
+        if (_mediaPreviewCoordinator.AuditionRecipeRevisionId is { } draftRevisionId && draftRevisionId != revision.Id &&
             ProjectMediaPanelControl.SelectedItem is ProjectMediaListItem selectedItem &&
             selectedItem.Asset?.Id == composition.Id)
         {
-            ClearMediaPreview();
-            _ = OpenCompositionDraftPreviewAsync(composition, selectedItem, _workspace.Project.Id);
+            _mediaPreviewCoordinator.Clear();
+            _ = _mediaPreviewCoordinator.OpenCompositionDraftAsync(composition, revision, _workspace.Project.Id);
         }
     }
 
@@ -679,10 +669,8 @@ public partial class MainWindow : Window, IDisposable
                     lease = null;
                     return;
                 }
-                ClearMediaPreview();
-                _activeCompositionPreviewRevisionId = revision.Id;
-                MediaPreviewPanelControl.HidePlaceholder();
-                MediaPreviewPanelControl.OpenLeasedVideo(lease, requiresWarmup: true);
+                _mediaPreviewCoordinator.Clear();
+                _mediaPreviewCoordinator.OpenLeasedVideo(lease, requiresWarmup: true, revision.Id);
                 lease = null;
                 UpdateCompositionActionState();
                 StatusText.Text = "Working Composition preview is ready.";
@@ -756,7 +744,7 @@ public partial class MainWindow : Window, IDisposable
         {
             MediaPreviewPanelControl.IsHitTestVisible = false;
             CompositionTimelineControl.IsHitTestVisible = false;
-            auditionQuiescence = await _compositionAuditionController.PauseAndQuiesceAsync(cancellation.Token);
+            auditionQuiescence = await _mediaPreviewCoordinator.PauseAndQuiesceAsync(cancellation.Token);
             await action(cancellation.Token);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -780,9 +768,6 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private double GetCurrentTimelinePlaybackSeconds() =>
-        _compositionAuditionController.GetCurrentTimelinePosition(MediaPreviewPanelControl.PositionSeconds);
-
     private bool IsWorkingCompositionSelected() =>
         _workspace.Project?.WorkingCompositionAssetId is { } compositionId &&
         ProjectMediaPanelControl.SelectedItem is ProjectMediaListItem { Asset: { } selected } &&
@@ -800,62 +785,6 @@ public partial class MainWindow : Window, IDisposable
         {
             ProjectMediaPanelControl.SelectedItem = item;
         }
-    }
-
-    private void SeekCompositionTimeline(double seconds)
-    {
-        if (!MediaPreviewPanelControl.HasVideoSource)
-        {
-            return;
-        }
-
-        if (_compositionAuditionController.IsActive)
-        {
-            _compositionAuditionController.QueueSeek(seconds);
-        }
-        else
-        {
-            SeekPreview(seconds);
-        }
-
-        MediaPreviewPanelControl.ClearEndedState();
-        MediaPreviewPanelControl.SetPosition(seconds);
-        UpdateCompositionTimelinePlayback(seconds);
-    }
-
-    private async Task CompleteCompositionTimelineScrubAsync(bool resumePlayback)
-    {
-        if (_compositionAuditionController.IsActive)
-        {
-            await _compositionAuditionController.CommitQueuedSeekAsync(resumePlayback);
-            return;
-        }
-
-        if (resumePlayback)
-        {
-            MediaPreviewPanelControl.Play();
-        }
-        else
-        {
-            MediaPreviewPanelControl.Pause();
-        }
-    }
-
-    private void CancelCompositionTimelineScrub()
-    {
-        _compositionAuditionController.CancelQueuedSeek();
-        MediaPreviewPanelControl.Pause();
-    }
-
-    private void UpdateCompositionTimelinePlayback(double playbackSeconds)
-    {
-        CompositionTimelineControl.UpdatePlayback(
-            playbackSeconds,
-            MediaPreviewPanelControl.IsPlaying,
-            _activeCompositionPreviewRevisionId is not null || _compositionAuditionController.IsActive,
-            MediaPreviewPanelControl.HasVideoSource &&
-            !MediaPreviewPanelControl.IsPriming &&
-            MediaPreviewPanelControl.IsPlaybackEnabled);
     }
 
     private void UpdateCompositionActionState()
@@ -892,7 +821,7 @@ public partial class MainWindow : Window, IDisposable
             return;
         var revision = _workspace.Project!.RecipeRevisions.SingleOrDefault(candidate => candidate.Id == revisionId);
         if (revision is not null)
-            ClearStaleCompositionPreviewIfNeeded(composition, revision);
+            _mediaPreviewCoordinator.ClearStaleCompositionPreviewIfNeeded(composition, revision);
     }
 
     private async void MediaPreparationPanel_MakeClipRequested(object? sender, EventArgs e)
@@ -957,78 +886,6 @@ public partial class MainWindow : Window, IDisposable
 
     private void ProjectMediaPanel_DragCompleted(object? sender, EventArgs e) =>
         CompositionTimelineControl.CancelExternalDrag();
-
-    private void CompositionTimeline_ActivationRequested(
-        object? sender,
-        CompositionTimelineActivationEventArgs e)
-    {
-        _pendingCompositionTimelineSeekSeconds = e.PendingRulerSeekSeconds;
-        SelectWorkingCompositionInProjectMedia();
-    }
-
-    private async void CompositionTimeline_SeekRequested(
-        object? sender,
-        CompositionTimelineSeekEventArgs e)
-    {
-        switch (e.Phase)
-        {
-            case CompositionTimelineSeekPhase.Started:
-                _activeMediaPreviewScrubGeneration = null;
-                BeginCompositionTimelineSeek(e.Seconds);
-                MediaPreviewPanelControl.Pause();
-                SeekCompositionTimeline(e.Seconds);
-                break;
-            case CompositionTimelineSeekPhase.Changed:
-                EnsureCompositionTimelineSeek(e.Seconds);
-                SeekCompositionTimeline(e.Seconds);
-                break;
-            case CompositionTimelineSeekPhase.Completed:
-                var generation = EnsureCompositionTimelineSeek(e.Seconds);
-                SeekCompositionTimeline(e.Seconds);
-                try
-                {
-                    await CompleteCompositionTimelineScrubAsync(e.ResumePlayback);
-                }
-                finally
-                {
-                    CompleteCompositionTimelineSeek(generation);
-                }
-                break;
-            case CompositionTimelineSeekPhase.Cancelled:
-                CancelCompositionTimelineScrub();
-                CompleteCompositionTimelineSeek(_activeCompositionTimelineSeekGeneration);
-                break;
-        }
-    }
-
-    private long BeginCompositionTimelineSeek(double seconds)
-    {
-        var generation = ++_compositionTimelineSeekGeneration;
-        _activeCompositionTimelineSeekGeneration = generation;
-        _activeCompositionTimelineSeekSeconds = seconds;
-        return generation;
-    }
-
-    private long EnsureCompositionTimelineSeek(double seconds)
-    {
-        _activeCompositionTimelineSeekSeconds = seconds;
-        return _activeCompositionTimelineSeekGeneration ?? BeginCompositionTimelineSeek(seconds);
-    }
-
-    private void CompleteCompositionTimelineSeek(long? generation)
-    {
-        if (generation is not null && _activeCompositionTimelineSeekGeneration == generation)
-            _activeCompositionTimelineSeekGeneration = null;
-        if (generation is not null && _activeMediaPreviewScrubGeneration == generation)
-            _activeMediaPreviewScrubGeneration = null;
-    }
-
-    private void ResetCompositionTimelineSeek()
-    {
-        _compositionTimelineSeekGeneration++;
-        _activeCompositionTimelineSeekGeneration = null;
-        _activeMediaPreviewScrubGeneration = null;
-    }
 
     private async void RenameAsset_Click(object sender, RoutedEventArgs e)
     {
@@ -1185,7 +1042,7 @@ public partial class MainWindow : Window, IDisposable
                     choice.UpdateThumbnail(thumbnail);
                 ProjectMediaPanelControl.RefreshItems();
                 GenerationPanelControl.RefreshReferences();
-                ClearMediaPreview();
+                _mediaPreviewCoordinator.Clear();
                 MediaPreviewPanelControl.ShowImage(thumbnail);
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
                     new SavedFrameListItem(anchor, revision, thumbnail, error: null));
@@ -1194,7 +1051,7 @@ public partial class MainWindow : Window, IDisposable
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 if (_workspace.Project?.Id != selectedProjectId) return;
-                ClearMediaPreview();
+                _mediaPreviewCoordinator.Clear();
                 MediaPreviewPanelControl.ShowPlaceholder($"Saved Frame preview unavailable\n\n{exception.Message}");
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
                     new SavedFrameListItem(anchor, revision, thumbnail: null, exception.Message));
@@ -1227,7 +1084,7 @@ public partial class MainWindow : Window, IDisposable
             {
                 await _projectMediaOperationsCoordinator.DeleteSavedClipAsync(asset.Id);
                 ProjectMediaPanelControl.SelectedItem = null;
-                ClearMediaPreview();
+                _mediaPreviewCoordinator.Clear();
                 RefreshProjectCollections();
                 InspectorPanelControl.Reset();
                 StatusText.Text = $"Deleted Saved Clip '{asset.EffectiveDisplayName}'. The source video was unchanged.";
@@ -1388,7 +1245,7 @@ public partial class MainWindow : Window, IDisposable
     {
         ProjectMediaPanelControl.SelectedItem = null;
         InspectorPanelControl.Reset();
-        ClearMediaPreview();
+        _mediaPreviewCoordinator.Clear();
         RefreshProjectCollections();
     }
 
@@ -1455,7 +1312,7 @@ public partial class MainWindow : Window, IDisposable
 
     private void ShowAssetPreview(ProjectAsset asset)
     {
-        ClearMediaPreview();
+        _mediaPreviewCoordinator.Clear();
         MediaPreviewPanelControl.HidePlaceholder();
 
         var absolutePath = _workspace.GetAbsoluteAssetPath(asset);
@@ -1477,39 +1334,7 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
 
-        OpenVideoPreview(absolutePath, requiresWarmup: true);
-    }
-
-    private async Task OpenCompositionDraftPreviewAsync(
-        ProjectAsset composition,
-        ProjectMediaListItem selectedItem,
-        Guid? selectedProjectId)
-    {
-        if (_workspace.Project is null || _workspace.Location is null ||
-            composition.Virtual?.CurrentRecipeRevisionId is not { } revisionId)
-            return;
-
-        await RunUiActionAsync("Preparing fast composition audition…", async () =>
-        {
-            var revision = _workspace.Project.RecipeRevisions.Single(candidate => candidate.Id == revisionId);
-            ClearMediaPreview();
-            var requestedPosition = _pendingCompositionTimelineSeekSeconds ?? 0;
-            _pendingCompositionTimelineSeekSeconds = null;
-            var result = await _compositionAuditionController.OpenAsync(
-                composition,
-                revision,
-                requestedPosition,
-                () => _workspace.Project?.Id == selectedProjectId &&
-                      ProjectMediaPanelControl.SelectedItem == selectedItem);
-            if (result.IsStale) return;
-            StatusText.Text = result.AudioWarning is not null
-                ? $"Fast composition audition ready without independent audio: {result.AudioWarning}"
-                : result.HasAuditionAudio
-                    ? "Fast composition audition ready with independent audio clips. " +
-                      "Use Preview composition to verify final mix fidelity and render continuity."
-                    : "Fast composition audition ready. Source video and source audio play at cuts; " +
-                      "use Preview composition to verify the complete audio mix and final render.";
-        });
+        _mediaPreviewCoordinator.OpenVideo(absolutePath, requiresWarmup: true);
     }
 
     private async Task ShowVirtualAssetPreviewAsync(
@@ -1521,7 +1346,8 @@ public partial class MainWindow : Window, IDisposable
         if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
         {
             InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
-            await OpenCompositionDraftPreviewAsync(asset, selectedItem, selectedProjectId);
+            var revision = _workspace.Project.RecipeRevisions.Single(candidate => candidate.Id == asset.Virtual.CurrentRecipeRevisionId);
+            await _mediaPreviewCoordinator.OpenCompositionDraftAsync(asset, revision, selectedProjectId);
             return;
         }
         var kindName = asset.Virtual?.Kind == VirtualAssetKind.Composition
@@ -1545,20 +1371,19 @@ public partial class MainWindow : Window, IDisposable
                 }
 
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset, lease.Encoding);
-                ClearMediaPreview();
-                if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
-                    _activeCompositionPreviewRevisionId = asset.Virtual.CurrentRecipeRevisionId;
-                MediaPreviewPanelControl.HidePlaceholder();
-                MediaPreviewPanelControl.OpenLeasedVideo(
+                _mediaPreviewCoordinator.Clear();
+                _mediaPreviewCoordinator.OpenLeasedVideo(
                     lease,
-                    requiresWarmup: asset.Virtual?.Kind != VirtualAssetKind.SavedClip);
+                    requiresWarmup: asset.Virtual?.Kind != VirtualAssetKind.SavedClip,
+                    compositionRevisionId: asset.Virtual?.Kind == VirtualAssetKind.Composition
+                        ? asset.Virtual.CurrentRecipeRevisionId : null);
                 lease = null;
                 StatusText.Text = $"Selected {kindName} {asset.EffectiveDisplayName}.";
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 if (_workspace.Project?.Id != selectedProjectId) return;
-                ClearMediaPreview();
+                _mediaPreviewCoordinator.Clear();
                 MediaPreviewPanelControl.ShowPlaceholder($"{kindName} preview unavailable\n\n{exception.Message}");
                 StatusText.Text = $"Could not prepare {asset.EffectiveDisplayName}.";
             }
@@ -1568,308 +1393,6 @@ public partial class MainWindow : Window, IDisposable
             }
         });
     }
-
-    private void OpenVideoPreview(
-        string absolutePath,
-        bool requiresWarmup,
-        bool playAfterPriming = false,
-        double startSeconds = 0,
-        bool forceMuted = false)
-    {
-        MediaPreviewPanelControl.OpenVideo(
-            absolutePath,
-            requiresWarmup,
-            playAfterPriming,
-            startSeconds,
-            forceMuted,
-            useExternalTimeline: _compositionAuditionController.IsActive);
-    }
-
-    private void CompositionAuditionAudio_MediaFailed(object sender, ExceptionRoutedEventArgs e)
-    {
-        MediaPreviewPanelControl.StopAuditionAudio();
-        StatusText.Text = $"Independent audio audition unavailable: {e.ErrorException?.Message ?? "media playback failed"}.";
-    }
-
-    private void CompositionAudition_PositionChanged(
-        object? sender,
-        CompositionAuditionPositionChangedEventArgs e)
-    {
-        if (_activeCompositionTimelineSeekGeneration is null &&
-            !_compositionAuditionController.IsQuiesced)
-            UpdateCompositionTimelinePlayback(e.PositionSeconds);
-    }
-
-    private void ClearMediaPreview()
-    {
-        _activeCompositionPreviewRevisionId = null;
-        _compositionAuditionController.Reset();
-        MediaPreviewPanelControl.Reset();
-        CompositionTimelineControl.CancelInteractions();
-        ResetCompositionTimelineSeek();
-        UpdateCompositionTimelinePlayback(0);
-    }
-
-    private void ClearStaleCompositionPreview(ProjectAsset composition, RecipeRevision currentRevision)
-    {
-        ClearMediaPreview();
-        if (ProjectMediaPanelControl.SelectedItem is not ProjectMediaListItem { Asset: { } selected } ||
-            selected.Id != composition.Id)
-            return;
-
-        var selectedItem = ProjectMediaPanelControl.SelectedItem;
-        _ = OpenCompositionDraftPreviewAsync(composition, selectedItem, _workspace.Project?.Id);
-    }
-
-    private void ClearStaleCompositionPreviewIfNeeded(ProjectAsset composition, RecipeRevision currentRevision)
-    {
-        if (_activeCompositionPreviewRevisionId is { } previewRevisionId && previewRevisionId != currentRevision.Id)
-            ClearStaleCompositionPreview(composition, currentRevision);
-    }
-
-    private void MediaPreview_VideoReady(object? sender, MediaPreviewReadyEventArgs e)
-    {
-        _compositionAuditionController.OnVideoReady(e.ShouldPlay);
-        UpdatePlaybackPosition();
-    }
-
-    private async void MediaPreview_PlaybackEnded(object? sender, EventArgs e)
-    {
-        if (_activeCompositionTimelineSeekGeneration is not null ||
-            _compositionAuditionController.IsQuiesced)
-            return;
-        if (_compositionAuditionController.IsActive &&
-            await _compositionAuditionController.AdvanceAsync())
-            return;
-        CompleteVideoPlayback();
-    }
-
-    private void Playback_Click(object? sender, EventArgs e)
-    {
-        if (!MediaPreviewPanelControl.HasVideoSource) return;
-        if (MediaPreviewPanelControl.HasEnded || IsAtVideoEnd())
-        {
-            if (_compositionAuditionController.IsActive)
-            {
-                MediaPreviewPanelControl.ClearEndedState();
-                _ = _compositionAuditionController.ReplayAsync();
-                return;
-            }
-            MediaPreviewPanelControl.ReopenForPlayback();
-            return;
-        }
-        if (MediaPreviewPanelControl.IsPlaying)
-        {
-            MediaPreviewPanelControl.Pause();
-            return;
-        }
-
-        if (_compositionAuditionController.IsActive)
-            _compositionAuditionController.SynchronizeAudio(play: true);
-        MediaPreviewPanelControl.Play();
-    }
-
-    private async void PreviousFrame_Click(object? sender, EventArgs e) =>
-        await StepPreviewFrameAsync(-1);
-
-    private async void NextFrame_Click(object? sender, EventArgs e) =>
-        await StepPreviewFrameAsync(1);
-
-    private async Task StepPreviewFrameAsync(int direction)
-    {
-        if (direction is not (-1 or 1) || MediaPreviewPanelControl.LocalSourcePath is not { } sourcePath ||
-            !await _frameNavigationGate.WaitAsync(0))
-            return;
-        try
-        {
-            MediaPreviewPanelControl.Pause();
-            MediaPreviewPanelControl.SetFrameNavigationEnabled(false);
-            var currentSeconds = MediaPreviewPanelControl.PositionSeconds;
-            var frames = await _exactFrameService.IndexWindowAsync(sourcePath, currentSeconds, radiusSeconds: 2);
-            var target = direction < 0
-                ? frames.Where(frame => frame.TimestampSeconds < currentSeconds - 0.000_000_1)
-                    .OrderByDescending(frame => frame.TimestampSeconds)
-                    .FirstOrDefault()
-                : frames.Where(frame => frame.TimestampSeconds > currentSeconds + 0.000_000_1)
-                    .OrderBy(frame => frame.TimestampSeconds)
-                    .FirstOrDefault();
-            if (target is null) return;
-
-            if (_compositionAuditionController.IsActive)
-            {
-                var globalSeconds = _compositionAuditionController.MapSourcePositionToTimeline(
-                    target.TimestampSeconds);
-                await SeekCompositionDraftAsync(globalSeconds, playAfterSeek: false);
-            }
-            else
-            {
-                SeekPreview(target.TimestampSeconds);
-                MediaPreviewPanelControl.SetPosition(target.TimestampSeconds);
-            }
-        }
-        catch (Exception exception)
-        {
-            ShowError("Frame navigation failed", exception);
-        }
-        finally
-        {
-            MediaPreviewPanelControl.SetFrameNavigationEnabled(MediaPreviewPanelControl.HasNaturalVideo);
-            _frameNavigationGate.Release();
-        }
-    }
-
-    private void CompleteVideoPlayback()
-    {
-        if (_compositionAuditionController.IsActive)
-        {
-            _compositionAuditionController.Complete();
-        }
-        MediaPreviewPanelControl.MarkPlaybackEnded(resetVideoPosition: !_compositionAuditionController.IsActive);
-        UpdatePlaybackPosition();
-    }
-
-    private bool IsAtVideoEnd() =>
-        MediaPreviewPanelControl.IsAtVideoEnd(TimeSpan.FromMilliseconds(10));
-
-    private void MediaPreview_ScrubStarted(object? sender, MediaPreviewPositionEventArgs e)
-    {
-        if (!_compositionAuditionController.IsActive) return;
-        var generation = BeginCompositionTimelineSeek(e.PositionSeconds);
-        _activeMediaPreviewScrubGeneration = generation;
-        _compositionAuditionController.CancelQueuedSeek();
-    }
-
-    private void MediaPreview_ScrubPositionChanged(object? sender, MediaPreviewPositionEventArgs e)
-    {
-        if (_compositionAuditionController.IsActive)
-        {
-            if (_activeMediaPreviewScrubGeneration is not { } generation ||
-                _activeCompositionTimelineSeekGeneration != generation)
-                return;
-            _activeCompositionTimelineSeekSeconds = e.PositionSeconds;
-            _compositionAuditionController.QueueSeek(e.PositionSeconds);
-            UpdateCompositionTimelinePlayback(e.PositionSeconds);
-            return;
-        }
-        SeekPreview(e.PositionSeconds);
-    }
-
-    private async void MediaPreview_ScrubCompleted(object? sender, MediaPreviewScrubCompletedEventArgs e)
-    {
-        if (_compositionAuditionController.IsActive)
-        {
-            if (_activeMediaPreviewScrubGeneration is not { } generation ||
-                _activeCompositionTimelineSeekGeneration != generation)
-            {
-                _compositionAuditionController.CancelQueuedSeek();
-                return;
-            }
-            _activeCompositionTimelineSeekSeconds = e.PositionSeconds;
-            try
-            {
-                await _compositionAuditionController.CommitSeekAsync(e.PositionSeconds, e.ResumePlayback);
-            }
-            finally
-            {
-                CompleteCompositionTimelineSeek(generation);
-            }
-        }
-        else
-            SeekPreview(e.PositionSeconds);
-        if (e.ResumePlayback && !_compositionAuditionController.IsActive)
-        {
-            MediaPreviewPanelControl.Play();
-        }
-        else if (!_compositionAuditionController.IsActive)
-        {
-            MediaPreviewPanelControl.Pause();
-        }
-        _framePreparationCoordinator.ScheduleContactFrameRefresh(e.PositionSeconds);
-    }
-
-    private void MediaPreview_ScrubCancelled(object? sender, EventArgs e)
-    {
-        if (_activeMediaPreviewScrubGeneration is not { } generation) return;
-        _compositionAuditionController.CancelQueuedSeek();
-        CompleteCompositionTimelineSeek(generation);
-    }
-
-    private void SeekPreview(double seconds)
-    {
-        if (!MediaPreviewPanelControl.HasVideoSource) return;
-        if (_compositionAuditionController.IsActive)
-        {
-            _ = SeekCompositionDraftAsync(seconds, playAfterSeek: false);
-            return;
-        }
-        MediaPreviewPanelControl.SeekVideo(seconds);
-        MediaPreviewPanelControl.ShowPosition(
-            MediaPreviewPanelControl.MediaPosition,
-            MediaPreviewPanelControl.MediaDuration);
-    }
-
-    private async Task SeekCompositionDraftAsync(double seconds, bool playAfterSeek)
-    {
-        await _compositionAuditionController.SeekAsync(seconds, playAfterSeek);
-    }
-
-    private void UpdatePlaybackPosition()
-    {
-        if (!MediaPreviewPanelControl.HasVideoSource)
-        {
-            MediaPreviewPanelControl.ShowPosition(TimeSpan.Zero, TimeSpan.Zero);
-            return;
-        }
-
-        var mediaPosition = MediaPreviewPanelControl.MediaPosition;
-        var mediaDuration = MediaPreviewPanelControl.MediaDuration;
-
-        if (_compositionAuditionController.IsQuiesced)
-        {
-            MediaPreviewPanelControl.ShowTimelinePosition(_compositionAuditionController.PositionSeconds);
-            return;
-        }
-
-        if (_compositionAuditionController.IsActive &&
-            _activeCompositionTimelineSeekGeneration is not null)
-        {
-            MediaPreviewPanelControl.ShowTimelinePosition(_activeCompositionTimelineSeekSeconds);
-            return;
-        }
-
-        if (MediaPreviewPanelControl.IsPlaying && _compositionAuditionController.IsActive)
-        {
-            if (_compositionAuditionController.HasReachedActiveSegmentEnd(mediaPosition.TotalSeconds))
-            {
-                _ = _compositionAuditionController.AdvanceAsync();
-                return;
-            }
-        }
-
-        if (MediaPreviewPanelControl.IsPlaying && IsAtVideoEnd())
-        {
-            if (_compositionAuditionController.IsActive)
-                _ = _compositionAuditionController.AdvanceAsync();
-            else
-                CompleteVideoPlayback();
-            return;
-        }
-
-        if (_compositionAuditionController.IsActive)
-        {
-            var currentSeconds = _compositionAuditionController.UpdateFromSourcePosition(
-                mediaPosition.TotalSeconds);
-            if (!MediaPreviewPanelControl.IsScrubbing) MediaPreviewPanelControl.SetPosition(currentSeconds);
-            MediaPreviewPanelControl.ShowTimelinePosition(currentSeconds);
-            return;
-        }
-
-        if (!MediaPreviewPanelControl.IsScrubbing) MediaPreviewPanelControl.SetPosition(mediaPosition.TotalSeconds);
-        MediaPreviewPanelControl.ShowPosition(mediaPosition, mediaDuration);
-        UpdateCompositionTimelinePlayback(mediaPosition.TotalSeconds);
-    }
-
-    private void MediaPreview_PositionTick(object? sender, EventArgs e) => UpdatePlaybackPosition();
 
     private void ResetFrameWorkspace()
     {
@@ -2044,7 +1567,7 @@ public partial class MainWindow : Window, IDisposable
         RefreshEditWorkspaceState();
 
         InspectorPanelControl.Reset();
-        ClearMediaPreview();
+        _mediaPreviewCoordinator.Clear();
     }
 
     private void RefreshProjectCollections(Guid? selectedAssetId = null)
@@ -2230,7 +1753,7 @@ public partial class MainWindow : Window, IDisposable
         public Task RunUiActionAsync(string status, Func<Task> action) => window.RunUiActionAsync(status, action);
         public void SetStatus(string status) => window.StatusText.Text = status;
         public void RefreshProjectMedia() => window.RefreshProjectCollections(window._workspace.Project?.WorkingCompositionAssetId);
-        public void PausePreview() => window.MediaPreviewPanelControl.Pause();
+        public void PausePreview() => window._mediaPreviewCoordinator.Pause();
         public MediaSplitBehavior SplitBehavior => window._applicationSettings.MediaTools.SplitBehavior;
         public string? PromptDetachAudioFileName(string displayName)
         {
@@ -2238,6 +1761,22 @@ public partial class MainWindow : Window, IDisposable
             var dialog = new AssetNameDialog($"{stem} detached audio.m4a", "Detach segment audio", "DETACH SEGMENT AUDIO",
                 "Create a permanent audio file from this exact timeline segment, add it at the same timeline position, and mute the segment's embedded audio to prevent doubled sound.", "Detach") { Owner = window };
             return dialog.ShowDialog() == true ? dialog.FileName : null;
+        }
+    }
+
+    private sealed class MediaPreviewCoordinatorHost(MainWindow window) : IPreviewCoordinatorHost
+    {
+        public Task RunUiActionAsync(string status, Func<Task> action) => window.RunUiActionAsync(status, action);
+        public void SetStatus(string status) => window.StatusText.Text = status;
+        public void ShowError(string title, Exception exception) => window.ShowError(title, exception);
+        public bool IsCompositionSelected(Guid compositionId) =>
+            window.ProjectMediaPanelControl.SelectedItem is ProjectMediaListItem { Asset: { Id: var assetId } } && assetId == compositionId;
+        public void SelectWorkingComposition() => window.SelectWorkingCompositionInProjectMedia();
+        public void ScheduleContactFrameRefresh(double seconds) => window._framePreparationCoordinator.ScheduleContactFrameRefresh(seconds);
+        public void PreviewStateChanged()
+        {
+            window._compositionWorkspace.UpdateControls();
+            window.UpdateCompositionActionState();
         }
     }
 

@@ -20,14 +20,14 @@ Infrastructure
 Platform.Windows / WPF App
 ```
 
-The Windows platform assembly, explicit runtime composition root, feature-organized Core and Infrastructure projects, decomposed persistence/materialization/provider/generation services, global job finalization, and the first WPF feature controls are established. The portable suite contains 279 tests and the Windows platform suite contains 3 tests.
+The Windows platform assembly, explicit runtime composition root, feature-organized production projects, decomposed persistence/materialization/provider/generation services, global job finalization, and focused WPF feature controls and coordinators are established. The portable suite contains 300 tests and the Windows platform suite contains 3 tests.
 
-The principal remaining production concentration is `MainWindow.xaml.cs`, currently about 3,300 physical lines. Its remaining responsibilities are not one problem:
+The principal remaining production concentration is `MainWindow.xaml.cs`, now about 1,800 physical lines. Its remaining responsibilities are primarily shell and cross-feature integration:
 
-- composition workspace commands, preview/audition coordination, and cross-feature timeline refresh routing;
 - media-preparation entry/exit policy plus cross-feature projection of Saved Frame/Clip results;
-- Project Media selection consequences plus rename/export/extract/delete/transfer operations;
-- generation draft, continuation preparation, Undo Send, submission, and cross-project result coordination;
+- Project Media selection consequences and dialog/presentation routing to the focused operations coordinator;
+- generation continuation and submission presentation adapters around the focused generation coordinators;
+- composition render/export lifecycle around the focused composition workspace and preview coordinators;
 - shell workspace state, project lifecycle, refresh, status, and cross-feature routing.
 
 The original largest non-UI exception, `WorkingCompositionService`, has now been decomposed behind its compatibility facade. Composition lifecycle, current-state access, transactional recipe revision edits, segment commands, audio commands, and exact split mutation have focused owners under `Editing/Composition` and `Editing/Audio`. Test projects remain broad, CI topology is not yet established, and the final naming/dead-code audit has not begun.
@@ -143,7 +143,7 @@ Move draft/continuation/Undo Send/workflow/result coordination out of the shell 
 
 ### Unit 6 — shell and topology cleanup
 
-Status: in progress. Composition editor projection, segment/audio selection, timeline mutation routing, and Edit Tools mutation routing now live in a focused `CompositionWorkspaceCoordinator`. The shell retains the shared media-preview/audition seek bridge and composition render/export lifecycle because those are cross-feature playback concerns. The coordinator extraction passed the portable and Windows suites, Release WPF build, and independent refactor review; human composition-editing smoke acceptance is pending.
+Status: in progress. Composition editor projection, segment/audio selection, timeline mutation routing, and Edit Tools mutation routing now live in a focused `CompositionWorkspaceCoordinator` and passed human smoke acceptance. Shared transport events, composition audition lifetime, timeline/playhead seeking, frame-step gating, and stale rendered-preview invalidation now live in `MediaPreviewCoordinator`; the shell retains asset-selection/materialization entry policy and composition render/export lifecycle. A set of previously flat Application feature files has been moved mechanically into capability folders without namespace or behavior changes. The preview-coordinator extraction has passed automated build/test and independent review; human playback/audition smoke acceptance is pending.
 
 Remove superseded shell fields/methods, finish App folders/resources, move remaining cohesive Application and Platform files to their target folders, and explain any intentionally large retained production files. Do not split cohesive files solely to meet a number.
 
