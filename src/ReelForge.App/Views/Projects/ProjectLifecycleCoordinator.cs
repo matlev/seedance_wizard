@@ -14,7 +14,7 @@ internal sealed class ProjectLifecycleCoordinator
 {
     private readonly ProjectWorkspace _workspace;
     private readonly RecentProjectTracker _recentProjectTracker;
-    private readonly ProjectLifecycleDialogs _dialogs;
+    private readonly IProjectLifecycleDialogs _dialogs;
     private readonly IApplicationSettingsStore _settingsStore;
     private readonly Func<ApplicationSettings> _currentSettings;
     private readonly IProjectLifecycleCoordinatorHost _host;
@@ -22,7 +22,7 @@ internal sealed class ProjectLifecycleCoordinator
     public ProjectLifecycleCoordinator(
         ProjectWorkspace workspace,
         RecentProjectTracker recentProjectTracker,
-        ProjectLifecycleDialogs dialogs,
+        IProjectLifecycleDialogs dialogs,
         IApplicationSettingsStore settingsStore,
         Func<ApplicationSettings> currentSettings,
         IProjectLifecycleCoordinatorHost host)

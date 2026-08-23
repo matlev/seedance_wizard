@@ -9,10 +9,21 @@ namespace ReelForge.App.Views.Projects;
 internal sealed record NewProjectSelection(string ProjectDirectory, string ProjectName);
 
 /// <summary>
+/// Narrows project-creation and project-opening dialog policy for lifecycle coordination.
+/// Import dialogs deliberately remain outside this contract because they belong to the
+/// separate media-import workflow.
+/// </summary>
+internal interface IProjectLifecycleDialogs
+{
+    NewProjectSelection? SelectNewProject(ApplicationSettings settings);
+    string? SelectProjectToOpen(ApplicationSettings settings);
+}
+
+/// <summary>
 /// Owns Windows dialog policy for choosing project and import locations. Workspace
 /// mutation stays with the caller so this service cannot create, open, or alter a project.
 /// </summary>
-internal sealed class ProjectLifecycleDialogs(Window owner, ApplicationPaths paths)
+internal sealed class ProjectLifecycleDialogs(Window owner, ApplicationPaths paths) : IProjectLifecycleDialogs
 {
     private const string SupportedMediaFilter =
         "Supported media|*.bmp;*.gif;*.heic;*.heif;*.jpeg;*.jpg;*.png;*.tif;*.tiff;*.webp;" +
