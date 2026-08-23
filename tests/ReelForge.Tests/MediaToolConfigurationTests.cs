@@ -31,8 +31,8 @@ public sealed class MediaToolConfigurationTests : IDisposable
     {
         var settingsPath = Path.Combine(_temporaryRoot, "settings", "appsettings.local.json");
         var store = new JsonApplicationSettingsStore(
-            Path.Combine(_temporaryRoot, "missing-defaults.json"),
-            settingsPath);
+            settingsPath,
+            Path.Combine(_temporaryRoot, "missing-defaults.json"));
         var configuration = new ApplicationSettings();
         configuration.MediaTools.FfmpegPath = @"C:\Tools With Spaces\ffmpeg.exe";
         configuration.MediaTools.FfprobePath = @"D:\Video\ffprobe.exe";
@@ -42,6 +42,36 @@ public sealed class MediaToolConfigurationTests : IDisposable
 
         Assert.Equal(configuration.MediaTools.FfmpegPath, loaded.MediaTools.FfmpegPath);
         Assert.Equal(configuration.MediaTools.FfprobePath, loaded.MediaTools.FfprobePath);
+    }
+
+    [Fact]
+    public async Task CommandLoggingSettingsDefaultFalseAndRoundTrip()
+    {
+        var settingsPath = Path.Combine(_temporaryRoot, "settings", "appsettings.local.json");
+        var store = new JsonApplicationSettingsStore(settingsPath, Path.Combine(_temporaryRoot, "missing-defaults.json"));
+        var configuration = new ApplicationSettings();
+
+        Assert.False(configuration.MediaTools.LogFfmpegCommands);
+        Assert.False(configuration.MediaTools.LogFfprobeCommands);
+        ApplicationSettingsAccessor.Set(configuration, "MediaTools.LogFfmpegCommands", "true");
+        ApplicationSettingsAccessor.Set(configuration, "MediaTools.LogFfprobeCommands", "true");
+        await store.SaveAsync(configuration);
+        var loaded = await store.LoadAsync();
+
+        Assert.Equal("true", ApplicationSettingsAccessor.Get(loaded, "MediaTools.LogFfmpegCommands"));
+        Assert.Equal("true", ApplicationSettingsAccessor.Get(loaded, "MediaTools.LogFfprobeCommands"));
+    }
+
+    [Fact]
+    public void CommandLoggingCatalogEntriesFollowTheirToolPaths()
+    {
+        var requirements = ApplicationConfigurationCatalog.Requirements;
+        Assert.Equal(
+            requirements.ToList().FindIndex(item => item.Key == "MediaTools.FfmpegPath") + 1,
+            requirements.ToList().FindIndex(item => item.Key == "MediaTools.LogFfmpegCommands"));
+        Assert.Equal(
+            requirements.ToList().FindIndex(item => item.Key == "MediaTools.FfprobePath") + 1,
+            requirements.ToList().FindIndex(item => item.Key == "MediaTools.LogFfprobeCommands"));
     }
 
     public void Dispose()

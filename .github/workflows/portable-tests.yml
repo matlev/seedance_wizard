@@ -1,0 +1,34 @@
+name: Portable tests
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Portable test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore portable tests
+        run: >-
+          dotnet restore tests/ReelForge.Tests/ReelForge.Tests.csproj --verbosity minimal
+          && dotnet restore tests/ReelForge.Core.Tests/ReelForge.Core.Tests.csproj --verbosity minimal
+          && dotnet restore tests/ReelForge.Application.Tests/ReelForge.Application.Tests.csproj --verbosity minimal
+          && dotnet restore tests/ReelForge.Infrastructure.Tests/ReelForge.Infrastructure.Tests.csproj --verbosity minimal
+
+      - name: Test portable suites
+        run: >-
+          dotnet test tests/ReelForge.Tests/ReelForge.Tests.csproj --configuration Release --no-restore --verbosity normal
+          && dotnet test tests/ReelForge.Core.Tests/ReelForge.Core.Tests.csproj --configuration Release --no-restore --verbosity normal
+          && dotnet test tests/ReelForge.Application.Tests/ReelForge.Application.Tests.csproj --configuration Release --no-restore --verbosity normal
+          && dotnet test tests/ReelForge.Infrastructure.Tests/ReelForge.Infrastructure.Tests.csproj --configuration Release --no-restore --verbosity normal

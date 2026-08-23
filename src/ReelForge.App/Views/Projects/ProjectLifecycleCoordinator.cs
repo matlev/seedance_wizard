@@ -1,0 +1,223 @@
+using System.Globalization;
+using ReelForge.App.Views.ProjectMedia;
+using ReelForge.Application;
+using ReelForge.Core;
+
+namespace ReelForge.App.Views.Projects;
+
+/// <summary>
+/// Coordinates project creation/opening and project-local shell state. WPF controls
+/// remain behind <see cref="IProjectLifecycleCoordinatorHost"/> so this class owns
+/// lifecycle policy without taking ownership of shell presentation.
+/// </summary>
+internal sealed class ProjectLifecycleCoordinator
+{
+    private readonly ProjectWorkspace _workspace;
+    private readonly RecentProjectTracker _recentProjectTracker;
+    private readonly IProjectLifecycleDialogs _dialogs;
+    private readonly IApplicationSettingsStore _settingsStore;
+    private readonly Func<ApplicationSettings> _currentSettings;
+    private readonly IProjectLifecycleCoordinatorHost _host;
+
+    public ProjectLifecycleCoordinator(
+        ProjectWorkspace workspace,
+        RecentProjectTracker recentProjectTracker,
+        IProjectLifecycleDialogs dialogs,
+        IApplicationSettingsStore settingsStore,
+        Func<ApplicationSettings> currentSettings,
+        IProjectLifecycleCoordinatorHost host)
+    {
+        _workspace = workspace;
+        _recentProjectTracker = recentProjectTracker;
+        _dialogs = dialogs;
+        _settingsStore = settingsStore;
+        _currentSettings = currentSettings;
+        _host = host;
+    }
+
+    public bool IsRestoringProjectUiState { get; private set; }
+
+    public async Task TryReopenLastProjectAsync()
+    {
+        var settings = _currentSettings();
+        if (string.IsNullOrWhiteSpace(settings.General.LastProjectFilePath)) return;
+
+        var projectFilePath = RecentProjectTracker.GetExistingProjectFile(settings);
+        if (projectFilePath is null)
+        {
+            _host.SetStatus("The last project is unavailable. Use Open to choose its current location or another project.");
+            return;
+        }
+
+        _host.SetStatus($"Reopening {projectFilePath}…");
+        try
+        {
+            await _workspace.OpenAsync(projectFilePath);
+            _host.RefreshProjectUi();
+        }
+        catch (Exception exception)
+        {
+            _host.SetStatus($"The last project could not be reopened: {exception.Message}");
+            _host.SetInspectorText($"Automatic project reopen failed\n\n{exception}");
+        }
+    }
+
+    public async Task CreateProjectFromDialogAsync()
+    {
+        var selection = _dialogs.SelectNewProject(_currentSettings());
+        if (selection is null) return;
+
+        await _host.RunUiActionAsync(
+            "Creating project…",
+            async () =>
+            {
+                await _workspace.CreateAsync(selection.ProjectDirectory, selection.ProjectName);
+                _host.RefreshProjectUi();
+                await RememberCurrentProjectAsync();
+            });
+    }
+
+    public async Task OpenProjectFromDialogAsync()
+    {
+        var projectFilePath = _dialogs.SelectProjectToOpen(_currentSettings());
+        if (projectFilePath is null) return;
+
+        await _host.RunUiActionAsync(
+            "Opening project…",
+            async () =>
+            {
+                await _workspace.OpenAsync(projectFilePath);
+                _host.RefreshProjectUi();
+                await RememberCurrentProjectAsync();
+            });
+    }
+
+    public async Task SaveProjectUiStateAsync(string? mediaKind = null, Guid? mediaId = null)
+    {
+        if (_workspace.Project is null) return;
+
+        var state = GetOrCreateCurrentProjectState();
+        if (state is null) return;
+
+        state.Workspace = _host.ActiveWorkspace;
+        if (mediaKind is not null)
+        {
+            state.SelectedMediaKind = mediaKind;
+            state.SelectedMediaId = mediaId;
+        }
+
+        await _settingsStore.SaveAsync(_currentSettings());
+    }
+
+    /// <summary>
+    /// Records only the user's intent to reopen this exact rendered composition. The cache path
+    /// is intentionally not part of settings: materialization may reuse or rebuild it later.
+    /// </summary>
+    public async Task RememberBakedCompositionPreviewAsync(
+        VideoProject project,
+        ProjectLocation location,
+        Guid compositionAssetId,
+        Guid recipeRevisionId)
+    {
+        if (!ReferenceEquals(_workspace.Project, project) || !ReferenceEquals(_workspace.Location, location))
+            return;
+
+        var state = GetOrCreateCurrentProjectState();
+        if (state is null) return;
+
+        state.BakedCompositionPreview = new BakedCompositionPreviewPreference
+        {
+            ProjectFilePath = location.ProjectFilePath,
+            CompositionAssetId = compositionAssetId,
+            RecipeRevisionId = recipeRevisionId
+        };
+        await _settingsStore.SaveAsync(_currentSettings());
+    }
+
+    /// <summary>
+    /// Requires the exact currently-opened project location in addition to logical IDs, so a
+    /// copied project with the same project ID cannot inherit a cached-preview preference.
+    /// </summary>
+    public bool HasRememberedBakedCompositionPreview(
+        VideoProject? project,
+        ProjectLocation? location,
+        Guid compositionAssetId,
+        Guid recipeRevisionId)
+    {
+        if (project is null || location is null ||
+            !ReferenceEquals(_workspace.Project, project) || !ReferenceEquals(_workspace.Location, location))
+        {
+            return false;
+        }
+
+        var key = project.Id.ToString("N", CultureInfo.InvariantCulture);
+        return _currentSettings().General.ProjectStates.TryGetValue(key, out var state) &&
+               state.BakedCompositionPreview is { } preference &&
+               preference.Matches(location.ProjectFilePath, compositionAssetId, recipeRevisionId);
+    }
+
+    public void RestoreProjectUiState()
+    {
+        if (_workspace.Project is null) return;
+
+        var settings = _currentSettings();
+        var key = _workspace.Project.Id.ToString("N", CultureInfo.InvariantCulture);
+        settings.General.ProjectStates.TryGetValue(key, out var state);
+
+        IsRestoringProjectUiState = true;
+        try
+        {
+            _host.ApplyRestoredWorkspaceMode(state?.Workspace ?? ProjectWorkspaceKind.Generate);
+            if (state is { SelectedMediaKind: { } kind, SelectedMediaId: { } mediaId })
+                _host.SelectProjectMediaItem(_host.FindProjectMediaItem(kind, mediaId));
+        }
+        finally
+        {
+            IsRestoringProjectUiState = false;
+        }
+    }
+
+    private async Task RememberCurrentProjectAsync()
+    {
+        if (_workspace.Location is null) return;
+
+        try
+        {
+            await _recentProjectTracker.RememberAsync(
+                _currentSettings(),
+                _workspace.Location.ProjectFilePath);
+        }
+        catch (Exception exception)
+        {
+            _host.AppendStatus($" ReelForge could not remember this project for the next launch: {exception.Message}");
+        }
+    }
+
+    private ProjectUserInterfaceState? GetOrCreateCurrentProjectState()
+    {
+        if (_workspace.Project is null) return null;
+
+        var settings = _currentSettings();
+        var key = _workspace.Project.Id.ToString("N", CultureInfo.InvariantCulture);
+        if (!settings.General.ProjectStates.TryGetValue(key, out var state))
+        {
+            state = new ProjectUserInterfaceState();
+            settings.General.ProjectStates[key] = state;
+        }
+
+        return state;
+    }
+}
+
+internal interface IProjectLifecycleCoordinatorHost
+{
+    ProjectWorkspaceKind ActiveWorkspace { get; }
+    Task RunUiActionAsync(string status, Func<Task> action);
+    void RefreshProjectUi();
+    void ApplyRestoredWorkspaceMode(ProjectWorkspaceKind workspace);
+    ProjectMediaListItem? FindProjectMediaItem(string mediaKind, Guid mediaId);
+    void SelectProjectMediaItem(ProjectMediaListItem? item);
+    void SetStatus(string status);
+    void AppendStatus(string status);
+    void SetInspectorText(string text);
+}

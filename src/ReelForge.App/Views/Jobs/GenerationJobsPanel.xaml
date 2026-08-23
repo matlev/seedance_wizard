@@ -1,0 +1,77 @@
+<UserControl x:Class="ReelForge.App.Views.Jobs.GenerationJobsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource PanelBrush}">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <DockPanel Margin="2,4,2,10">
+            <Button DockPanel.Dock="Right" Content="Close" Click="Close_Click" Padding="8,3" />
+            <StackPanel>
+                <TextBlock Text="GENERATION JOBS" FontWeight="SemiBold"
+                           Foreground="{DynamicResource MutedTextBrush}" />
+                <TextBlock Text="Completed jobs clear from this pane after you view them and leave Jobs."
+                           TextWrapping="Wrap" FontSize="11"
+                           Foreground="{DynamicResource MutedTextBrush}" Margin="0,4,0,0" />
+            </StackPanel>
+        </DockPanel>
+        <Grid Grid.Row="1">
+            <TextBlock x:Name="EmptyText" Text="No generation jobs to review."
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <ListBox x:Name="JobsList" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                Background="#10131A" CornerRadius="4" Padding="10" Margin="1,2">
+                            <StackPanel>
+                                <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding ProviderAndModel}"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           TextWrapping="Wrap" Margin="0,3,0,0" />
+                                <DockPanel x:Name="StandardStatusRow" Margin="0,7,0,0">
+                                    <TextBlock Text="{Binding ElapsedText}" DockPanel.Dock="Right"
+                                               Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"
+                                               Margin="8,0,0,0" />
+                                    <TextBlock Text="{Binding StatusText}"
+                                               Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                                <TextBlock x:Name="JobMessage" Text="{Binding Message}"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <StackPanel x:Name="UndoSendPanel" Visibility="Collapsed" Margin="0,7,0,0">
+                                    <DockPanel>
+                                        <TextBlock Text="{Binding UndoSendRemainingText}" DockPanel.Dock="Right"
+                                                   Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"
+                                                   Margin="8,0,0,0" />
+                                        <TextBlock Text="Queued" Foreground="{DynamicResource TextBrush}"
+                                                   FontWeight="SemiBold" />
+                                    </DockPanel>
+                                    <Button Content="Cancel Job" Tag="{Binding GenerationId}"
+                                            Style="{DynamicResource DangerButtonStyle}"
+                                            HorizontalAlignment="Left" Margin="0,8,0,0"
+                                            Click="Cancel_Click" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsUndoSendPending}" Value="True">
+                                <Setter TargetName="StandardStatusRow" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="JobMessage" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="UndoSendPanel" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding WasCancelledBeforeSubmission}" Value="True">
+                                <Setter TargetName="StandardStatusRow" Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+    </Grid>
+</UserControl>

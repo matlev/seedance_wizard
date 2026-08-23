@@ -1,6 +1,6 @@
 # Contributor guidance
 
-Status: active rules for Milestone 3 and later work
+Status: active contributor guidance
 
 ## Dependency direction
 
@@ -13,10 +13,11 @@ Status: active rules for Milestone 3 and later work
 
 ## Feature ownership and files
 
-- place code under the feature/capability that owns its reason to change; follow the target map in the [Milestone 3 refactor plan](milestone-3-refactor-plan.md).
+- place code under the feature/capability that owns its reason to change; follow the current feature-owned structure described in the [architecture](architecture.md).
 - do not add root-level grab-bag files, generic `Helpers`/`Utils` folders, or unrelated types to an existing large file because it is convenient.
 - one file may contain closely related private/internal value types. Split public concepts when they have different owners or reasons to change.
 - file length is a review signal, not a quota. Prefer cohesive types over artificial micro-files.
+- optimize physical structure for human exploration and review: a contributor should be able to locate a feature owner and understand a local change without traversing unrelated workflows or oversized coordinator state.
 - name application operations for creator intent (`DetachSegmentAudio`, `PrepareGenerationReferences`), and infrastructure for mechanism (`FfmpegAudioExtractionEngine`, `JsonProjectStore`).
 
 ## WPF presentation
@@ -55,6 +56,8 @@ Status: active rules for Milestone 3 and later work
 
 - add characterization before moving high-risk persistence, job, materialization, playback, or cancellation behavior.
 - mirror production feature ownership in tests; share builders/fakes only when semantics are genuinely repeated.
+- use `ReelForge.Core.Tests`, `ReelForge.Application.Tests`, and `ReelForge.Infrastructure.Tests` for tests that require only that production layer. Keep cross-layer provider, filesystem, media, and offline-acceptance coverage in `ReelForge.Tests`; keep Windows integration and WPF presentation coverage in their dedicated Platform.Windows and App suites.
+- non-Windows CI runs the four portable suites. Windows CI restores the solution, builds Debug and Release, then runs all six suites in Release. Run `dotnet test ReelForge.sln --configuration Release --no-build` only after a Windows solution build; on other platforms, invoke the four portable test projects explicitly as shown in the README.
 - keep the full suite green after every work unit. Run the relevant human workflow after a high-risk WPF/media change.
 - refactor in behavior-preserving vertical slices. Do not mix schema redesign, editor features, or provider contract changes into a structural commit.
 - keep each commit independently buildable and rollback-friendly with a brief declarative message.

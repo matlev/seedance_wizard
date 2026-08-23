@@ -51,7 +51,7 @@ public sealed class ApplicationSettingsTests
                 }
                 """);
 
-            var settings = await new JsonApplicationSettingsStore(defaultsPath, localPath).LoadAsync();
+            var settings = await new JsonApplicationSettingsStore(localPath, defaultsPath).LoadAsync();
 
             Assert.Equal("default-bucket", settings.TemporaryAssetHosting.CloudflareR2.BucketName);
             Assert.Equal("local-account", settings.TemporaryAssetHosting.CloudflareR2.AccountId);
@@ -72,7 +72,7 @@ public sealed class ApplicationSettingsTests
             var localPath = Path.Combine(directory, "appsettings.local.json");
             var settings = new ApplicationSettings();
             settings.TemporaryAssetHosting.CloudflareR2.Credentials.SecretAccessKey!.Value = "must-not-persist";
-            var store = new JsonApplicationSettingsStore(Path.Combine(directory, "missing.json"), localPath);
+            var store = new JsonApplicationSettingsStore(localPath, Path.Combine(directory, "missing.json"));
 
             await store.SaveAsync(settings);
             var json = await File.ReadAllTextAsync(localPath);
@@ -97,8 +97,8 @@ public sealed class ApplicationSettingsTests
             var defaultsPath = Path.Combine(directory, "missing.json");
             var stores = new[]
             {
-                new JsonApplicationSettingsStore(defaultsPath, localPath),
-                new JsonApplicationSettingsStore(defaultsPath, localPath)
+                new JsonApplicationSettingsStore(localPath, defaultsPath),
+                new JsonApplicationSettingsStore(localPath, defaultsPath)
             };
 
             await stores[0].SaveAsync(new ApplicationSettings());
@@ -203,7 +203,7 @@ public sealed class ApplicationSettingsTests
                 SelectedMediaKind = "asset",
                 SelectedMediaId = selectedMediaId
             };
-            var store = new JsonApplicationSettingsStore(Path.Combine(directory, "missing.json"), localPath);
+            var store = new JsonApplicationSettingsStore(localPath, Path.Combine(directory, "missing.json"));
 
             await store.SaveAsync(settings);
             var loaded = await store.LoadAsync();
@@ -284,20 +284,43 @@ public sealed class ApplicationSettingsTests
     }
 
     [Fact]
-    public void LogDirectoryDefaultsToCurrentDiagnosticLocationAndExpandsEnvironmentVariables()
+    public void PlatformDefaultsSupplyMachineLocalDirectoriesAndConfiguredPathsExpandEnvironmentVariables()
     {
         var settings = new ApplicationSettings();
+        var root = Path.Combine(Path.GetTempPath(), "ReelForge platform defaults");
+        var paths = new ApplicationPaths(
+            Path.Combine(root, "settings.json"),
+            Path.Combine(root, "jobs.json"),
+            Path.Combine(root, "cache"),
+            Path.Combine(root, "logs"),
+            Path.Combine(root, "projects"));
 
-        Assert.Equal(FileApplicationDiagnosticLog.GetDefaultLogDirectory(), settings.General.LogDirectory);
+        ApplicationSettingsPlatformDefaults.Apply(settings, paths);
 
-        ApplicationSettingsAccessor.Set(settings, "General.LogDirectory", @"%LOCALAPPDATA%\ReelForge\Alternate Logs");
+        Assert.Equal(Path.GetFullPath(paths.DefaultLogDirectory), settings.General.LogDirectory);
+        Assert.Equal(Path.GetFullPath(paths.DefaultProjectsDirectory), settings.General.ProjectsRoot);
 
-        Assert.Equal(
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ReelForge",
-                "Alternate Logs"),
-            settings.General.LogDirectory);
+        var environmentVariableName = $"REELFORGE_TEST_LOG_ROOT_{Guid.NewGuid():N}";
+        var configuredLogRoot = Path.Combine(Path.GetTempPath(), environmentVariableName);
+        var originalValue = Environment.GetEnvironmentVariable(environmentVariableName);
+        try
+        {
+            Environment.SetEnvironmentVariable(environmentVariableName, configuredLogRoot);
+
+            ApplicationSettingsAccessor.Set(
+                settings,
+                "General.LogDirectory",
+                $"%{environmentVariableName}%{Path.DirectorySeparatorChar}ReelForge{Path.DirectorySeparatorChar}Alternate Logs");
+
+            Assert.Equal(
+                Path.GetFullPath(Path.Combine(configuredLogRoot, "ReelForge", "Alternate Logs")),
+                settings.General.LogDirectory);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(environmentVariableName, originalValue);
+        }
+
         Assert.Throws<ArgumentException>(() =>
             ApplicationSettingsAccessor.Set(settings, "General.LogDirectory", " "));
     }

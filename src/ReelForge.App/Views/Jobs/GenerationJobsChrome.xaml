@@ -1,0 +1,19 @@
+<UserControl x:Class="ReelForge.App.Views.Jobs.GenerationJobsChrome"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+    <StackPanel Orientation="Horizontal">
+        <Image x:Name="ActiveJobSprite" Width="44" Height="44" Margin="0,0,2,0"
+               Stretch="Uniform" Visibility="Collapsed"
+               ToolTip="ReelForge is forging a generation" />
+        <Button Click="Jobs_Click" Margin="8,0,4,0"
+                ToolTip="View generation jobs from any workspace">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Jobs" />
+                <Ellipse x:Name="ActivityIndicator" Width="8" Height="8" Margin="6,0,0,0"
+                         VerticalAlignment="Center" Fill="#FFD166" Visibility="Collapsed"
+                         ToolTip="A generation job changed status" />
+            </StackPanel>
+        </Button>
+    </StackPanel>
+</UserControl>

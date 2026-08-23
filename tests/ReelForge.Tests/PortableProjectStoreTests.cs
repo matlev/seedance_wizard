@@ -216,6 +216,54 @@ public sealed class PortableProjectStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SavedClipDeclaresConservativeTranscodedOutputMetadata()
+    {
+        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        await workspace.CreateAsync(_temporaryRoot, "Clip metadata");
+        var source = CreatePhysicalAsset("source.mp4", "assets/videos/source.mp4");
+        source.DurationSeconds = 12;
+        source.Encoding = new MediaEncodingMetadata
+        {
+            ContainerFormat = "matroska,webm",
+            DurationSeconds = 12,
+            SizeBytes = 1234,
+            BitRate = 5678,
+            Video = new VideoStreamMetadata { Codec = "h264", Width = 1920, Height = 1080, FrameRate = "24/1" },
+            Audio = new AudioStreamMetadata { Codec = "aac", SampleRate = 48000, Channels = 2, ChannelLayout = "stereo" }
+        };
+        workspace.Project!.AddAsset(source);
+        await workspace.SaveAsync();
+        var position = new ExactFramePosition(source.Id, new string('a', 64), 0, 96, 1, 24, 96);
+
+        var clip = await new SavedClipService(workspace).CreateAsync(
+            "Favorite moment",
+            source.Id,
+            ClipBoundarySelection.AtFrame(position, AnchorBoundaryEdge.BeforeFrame),
+            ClipBoundarySelection.SourceEnd);
+
+        var expected = clip.Virtual!.ExpectedMediaProperties!;
+        Assert.Equal("mp4", expected.ContainerFormat);
+        Assert.Equal(8, expected.DurationSeconds);
+        Assert.Null(expected.SizeBytes);
+        Assert.Null(expected.BitRate);
+        Assert.Equal("h264", expected.Video!.Codec);
+        Assert.Equal(1920, expected.Video.Width);
+        Assert.Equal(1080, expected.Video.Height);
+        Assert.Equal("24/1", expected.Video.FrameRate);
+        Assert.Null(expected.Video.PixelFormat);
+        Assert.Null(expected.Video.CodecProfile);
+        Assert.Null(expected.Video.TimeBase);
+        Assert.Null(expected.Video.CodecLevel);
+        Assert.Equal("aac", expected.Audio!.Codec);
+        Assert.Null(expected.Audio.SampleRate);
+        Assert.Null(expected.Audio.Channels);
+        Assert.Null(expected.Audio.ChannelLayout);
+        Assert.NotSame(source.Encoding, expected);
+        Assert.NotSame(source.Encoding!.Video, expected.Video);
+        Assert.NotSame(source.Encoding.Audio, expected.Audio);
+    }
+
+    [Fact]
     public async Task DeletingSavedClipRemovesItsRecipeAndPrivateBoundaries()
     {
         var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());

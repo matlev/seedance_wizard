@@ -76,12 +76,57 @@ public sealed class AudioExtractionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SavedClipWithLegacyMissingAudioMetadataInspectsItsMaterializedMedia()
+    {
+        var (workspace, source, sourcePath) = await CreateProjectWithSourceAsync(hasAudio: true);
+        var clip = new ProjectAsset
+        {
+            DisplayName = "Legacy favorite scene",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState
+            {
+                Kind = VirtualAssetKind.SavedClip,
+                ExpectedMediaProperties = new MediaEncodingMetadata
+                {
+                    DurationSeconds = source.Encoding!.DurationSeconds,
+                    Video = new VideoStreamMetadata { Codec = "h264" }
+                }
+            }
+        };
+        workspace.Project!.AddAsset(clip);
+        var revision = workspace.Project.CommitRecipe(clip.Id, new TrimRecipe
+        {
+            Source = new AssetRevisionReference { AssetId = source.Id }
+        });
+        await workspace.SaveAsync();
+        var engine = new StubExtractionEngine();
+        var inspector = new OutputInspector();
+        var extracted = await CreateService(
+                workspace,
+                new StubMaterializer(sourcePath, new MediaEncodingMetadata
+                {
+                    DurationSeconds = source.Encoding!.DurationSeconds,
+                    Video = new VideoStreamMetadata { Codec = "h264" }
+                }),
+                engine,
+                inspector)
+            .ExtractAsAssetAsync(clip.Id, revision.Id, "legacy scene audio.m4a");
+
+        Assert.Equal(1, engine.CallCount);
+        Assert.Equal(2, inspector.CallCount);
+        Assert.Equal(clip.Id, Assert.Single(extracted.Provenance!.SourceAssetIds));
+        Assert.Equal(revision.Id, extracted.Provenance.SourceRecipeRevisionId);
+    }
+
+    [Fact]
     public async Task SourceWithoutAudioDoesNotRunFfmpegOrCreateAnAsset()
     {
         var (workspace, source, sourcePath) = await CreateProjectWithSourceAsync(hasAudio: false);
         var materializer = new StubMaterializer(sourcePath, source.Encoding!);
         var engine = new StubExtractionEngine();
-        var service = CreateService(workspace, materializer, engine);
+        var service = CreateService(workspace, materializer, engine, new NoAudioInspector());
         var originalAssetCount = workspace.Project!.Assets.Count;
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -115,12 +160,13 @@ public sealed class AudioExtractionServiceTests : IDisposable
     private static AudioExtractionService CreateService(
         ProjectWorkspace workspace,
         IMediaMaterializer materializer,
-        IAudioExtractionEngine engine) => new(
+        IAudioExtractionEngine engine,
+        IMediaInspectionService? inspector = null) => new(
         workspace,
         materializer,
         engine,
         new Sha256ContentHashService(),
-        new OutputInspector());
+        inspector ?? new OutputInspector());
 
     private async Task<(ProjectWorkspace Workspace, ProjectAsset Source, string SourcePath)>
         CreateProjectWithSourceAsync(bool hasAudio)
@@ -200,20 +246,36 @@ public sealed class AudioExtractionServiceTests : IDisposable
 
     private sealed class OutputInspector : IMediaInspectionService
     {
+        public int CallCount { get; private set; }
+
+        public Task<MediaEncodingMetadata> InspectAsync(
+            string mediaPath,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(new MediaEncodingMetadata
+            {
+                ContainerFormat = "mov,mp4,m4a,3gp,3g2,mj2",
+                DurationSeconds = 8,
+                SizeBytes = 4,
+                Audio = new AudioStreamMetadata
+                {
+                    Codec = "aac",
+                    SampleRate = 48000,
+                    Channels = 2,
+                    ChannelLayout = "stereo"
+                }
+            });
+        }
+    }
+
+    private sealed class NoAudioInspector : IMediaInspectionService
+    {
         public Task<MediaEncodingMetadata> InspectAsync(
             string mediaPath,
             CancellationToken cancellationToken = default) => Task.FromResult(new MediaEncodingMetadata
         {
-            ContainerFormat = "mov,mp4,m4a,3gp,3g2,mj2",
-            DurationSeconds = 8,
-            SizeBytes = 4,
-            Audio = new AudioStreamMetadata
-            {
-                Codec = "aac",
-                SampleRate = 48000,
-                Channels = 2,
-                ChannelLayout = "stereo"
-            }
+            Video = new VideoStreamMetadata { Codec = "h264" }
         });
     }
 

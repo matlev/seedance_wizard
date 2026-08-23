@@ -1,0 +1,338 @@
+using System.IO;
+using ReelForge.App.Views.ProjectMedia;
+using ReelForge.App.Views.Projects;
+using ReelForge.Application;
+using ReelForge.Core;
+
+namespace ReelForge.App.Tests;
+
+#pragma warning disable CA1707 // Test names describe behavior with readable clauses.
+public sealed class ProjectLifecycleCoordinatorTests : IDisposable
+{
+    private readonly string _temporaryDirectory = Path.Combine(Path.GetTempPath(), "ReelForge.App.Tests", Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public async Task TryReopenLastProjectAsync_WhenNoLastProject_DoesNothing()
+    {
+        var fixture = CreateFixture();
+
+        await fixture.Coordinator.TryReopenLastProjectAsync();
+
+        Assert.Empty(fixture.Store.OpenedPaths);
+        Assert.Empty(fixture.Host.Statuses);
+        Assert.Equal(0, fixture.Host.RefreshCount);
+    }
+
+    [Fact]
+    public async Task TryReopenLastProjectAsync_WhenLastProjectIsMissing_ReportsStatusWithoutOpening()
+    {
+        var fixture = CreateFixture();
+        fixture.Settings.General.LastProjectFilePath = Path.Combine(_temporaryDirectory, "missing.rfp");
+
+        await fixture.Coordinator.TryReopenLastProjectAsync();
+
+        Assert.Empty(fixture.Store.OpenedPaths);
+        Assert.Equal("The last project is unavailable. Use Open to choose its current location or another project.", Assert.Single(fixture.Host.Statuses));
+    }
+
+    [Fact]
+    public async Task TryReopenLastProjectAsync_WhenValidProjectExists_OpensAndRefreshesUi()
+    {
+        var projectPath = CreateProjectFile("last.rfp");
+        var fixture = CreateFixture();
+        fixture.Settings.General.LastProjectFilePath = projectPath;
+
+        await fixture.Coordinator.TryReopenLastProjectAsync();
+
+        Assert.Equal([Path.GetFullPath(projectPath)], fixture.Store.OpenedPaths);
+        Assert.Equal(1, fixture.Host.RefreshCount);
+        Assert.Contains(fixture.Host.Statuses, status => status.StartsWith("Reopening ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TryReopenLastProjectAsync_WhenOpenFails_ReportsDiagnosticDetails()
+    {
+        var projectPath = CreateProjectFile("broken.rfp");
+        var fixture = CreateFixture();
+        fixture.Settings.General.LastProjectFilePath = projectPath;
+        fixture.Store.OpenException = new InvalidOperationException("corrupt project");
+
+        await fixture.Coordinator.TryReopenLastProjectAsync();
+
+        Assert.Equal(0, fixture.Host.RefreshCount);
+        Assert.Contains(fixture.Host.Statuses, status => status.Contains("could not be reopened: corrupt project", StringComparison.Ordinal));
+        Assert.Contains("Automatic project reopen failed", fixture.Host.InspectorText);
+        Assert.Contains("corrupt project", fixture.Host.InspectorText);
+    }
+
+    [Fact]
+    public async Task CreateProjectFromDialogAsync_CreatesRefreshesAndRemembersProject()
+    {
+        var projectPath = Path.Combine(_temporaryDirectory, "created", "created.rfp");
+        var fixture = CreateFixture();
+        fixture.Dialogs.NewProjectSelection = new NewProjectSelection(Path.GetDirectoryName(projectPath)!, "created");
+        fixture.Store.CreatedLocation = new ProjectLocation(Path.GetDirectoryName(projectPath)!, projectPath);
+
+        await fixture.Coordinator.CreateProjectFromDialogAsync();
+
+        Assert.Equal((Path.GetDirectoryName(projectPath)!, "created"), Assert.Single(fixture.Store.CreateRequests));
+        Assert.Equal(1, fixture.Host.RefreshCount);
+        Assert.Equal(Path.GetFullPath(projectPath), fixture.Settings.General.LastProjectFilePath);
+        Assert.Equal(Path.GetFullPath(projectPath), Assert.Single(fixture.Settings.General.RecentProjectFilePaths));
+        Assert.Equal(1, fixture.SettingsStore.SaveCount);
+        Assert.Equal("Creating project…", Assert.Single(fixture.Host.RunStatuses));
+    }
+
+    [Fact]
+    public async Task OpenProjectFromDialogAsync_RefreshesAndRemembersProject()
+    {
+        var projectPath = CreateProjectFile("chosen.rfp");
+        var fixture = CreateFixture();
+        fixture.Dialogs.ProjectFilePath = projectPath;
+
+        await fixture.Coordinator.OpenProjectFromDialogAsync();
+
+        Assert.Equal([Path.GetFullPath(projectPath)], fixture.Store.OpenedPaths);
+        Assert.Equal(1, fixture.Host.RefreshCount);
+        Assert.Equal(Path.GetFullPath(projectPath), fixture.Settings.General.LastProjectFilePath);
+        Assert.Equal(Path.GetFullPath(projectPath), Assert.Single(fixture.Settings.General.RecentProjectFilePaths));
+        Assert.Equal(1, fixture.SettingsStore.SaveCount);
+        Assert.Equal("Opening project…", Assert.Single(fixture.Host.RunStatuses));
+    }
+
+    [Fact]
+    public async Task OpenProjectFromDialogAsync_WhenRememberingFails_LeavesOpenedProjectAndReportsNonFatalStatus()
+    {
+        var projectPath = CreateProjectFile("chosen.rfp");
+        var fixture = CreateFixture();
+        fixture.Dialogs.ProjectFilePath = projectPath;
+        fixture.SettingsStore.SaveException = new IOException("settings locked");
+
+        await fixture.Coordinator.OpenProjectFromDialogAsync();
+
+        Assert.Equal(1, fixture.Host.RefreshCount);
+        Assert.Equal(Path.GetFullPath(projectPath), fixture.Workspace.Location!.ProjectFilePath);
+        Assert.Contains(fixture.Host.AppendedStatuses, status => status.Contains("could not remember this project", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SaveAndRestoreProjectUiState_PersistsAndRestoresWorkspaceAndSelectedMedia()
+    {
+        var fixture = CreateFixture();
+        await OpenFixtureProjectAsync(fixture, "state.rfp");
+        fixture.Host.ActiveWorkspaceValue = ProjectWorkspaceKind.Edit;
+        var selectedId = Guid.NewGuid();
+
+        await fixture.Coordinator.SaveProjectUiStateAsync("asset", selectedId);
+        fixture.Host.ProjectMediaItemToFind = new ProjectMediaListItem(new ProjectAsset { Id = selectedId, FileName = "clip", DisplayName = "clip" });
+        fixture.Coordinator.RestoreProjectUiState();
+
+        var state = fixture.Settings.General.ProjectStates[fixture.Workspace.Project!.Id.ToString("N")];
+        Assert.Equal(ProjectWorkspaceKind.Edit, state.Workspace);
+        Assert.Equal("asset", state.SelectedMediaKind);
+        Assert.Equal(selectedId, state.SelectedMediaId);
+        Assert.Equal(1, fixture.SettingsStore.SaveCount);
+        Assert.Equal([ProjectWorkspaceKind.Edit], fixture.Host.RestoredWorkspaces);
+        Assert.Equal("asset", fixture.Host.FoundMediaKind);
+        Assert.Equal(selectedId, fixture.Host.FoundMediaId);
+        Assert.Same(fixture.Host.ProjectMediaItemToFind, fixture.Host.SelectedProjectMediaItem);
+        Assert.False(fixture.Coordinator.IsRestoringProjectUiState);
+    }
+
+    [Fact]
+    public async Task RestoreProjectUiState_WhenHostThrows_ResetsRestorationGuard()
+    {
+        var fixture = CreateFixture();
+        await OpenFixtureProjectAsync(fixture, "restore-failure.rfp");
+        fixture.Host.ApplyRestoredWorkspaceException = new InvalidOperationException("host failed");
+
+        Assert.Throws<InvalidOperationException>(() => fixture.Coordinator.RestoreProjectUiState());
+
+        Assert.False(fixture.Coordinator.IsRestoringProjectUiState);
+    }
+
+    [Fact]
+    public async Task RememberedBakedPreview_MatchesOnlyTheExactCurrentProjectPathCompositionAndRevision()
+    {
+        var fixture = CreateFixture();
+        await OpenFixtureProjectAsync(fixture, "preview.rfp");
+        var project = fixture.Workspace.Project!;
+        var location = fixture.Workspace.Location!;
+        var compositionId = Guid.NewGuid();
+        var revisionId = Guid.NewGuid();
+
+        await fixture.Coordinator.RememberBakedCompositionPreviewAsync(project, location, compositionId, revisionId);
+
+        Assert.True(fixture.Coordinator.HasRememberedBakedCompositionPreview(project, location, compositionId, revisionId));
+        Assert.False(fixture.Coordinator.HasRememberedBakedCompositionPreview(project, location, compositionId, Guid.NewGuid()));
+        Assert.False(fixture.Coordinator.HasRememberedBakedCompositionPreview(
+            project,
+            new ProjectLocation(location.RootDirectory, Path.Combine(location.RootDirectory, "copied.rfp")),
+            compositionId,
+            revisionId));
+        Assert.Equal(location.ProjectFilePath,
+            fixture.Settings.General.ProjectStates[project.Id.ToString("N")].BakedCompositionPreview!.ProjectFilePath);
+        Assert.Equal(1, fixture.SettingsStore.SaveCount);
+    }
+
+    [Fact]
+    public async Task RememberedBakedPreview_DoesNotPersistForAProjectThatIsNoLongerCurrent()
+    {
+        var fixture = CreateFixture();
+        await OpenFixtureProjectAsync(fixture, "current.rfp");
+        var staleProject = fixture.Workspace.Project!;
+        var staleLocation = fixture.Workspace.Location!;
+        await OpenFixtureProjectAsync(fixture, "replacement.rfp");
+
+        await fixture.Coordinator.RememberBakedCompositionPreviewAsync(
+            staleProject, staleLocation, Guid.NewGuid(), Guid.NewGuid());
+
+        Assert.Equal(0, fixture.SettingsStore.SaveCount);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_temporaryDirectory))
+            Directory.Delete(_temporaryDirectory, recursive: true);
+    }
+
+    private static Fixture CreateFixture()
+    {
+        var settings = new ApplicationSettings();
+        var settingsStore = new FakeSettingsStore();
+        var store = new FakeProjectStore();
+        var workspace = new ProjectWorkspace(store, new FakeAssetImporter());
+        var host = new FakeHost();
+        var dialogs = new FakeDialogs();
+        return new Fixture(
+            settings,
+            settingsStore,
+            store,
+            workspace,
+            host,
+            dialogs,
+            new ProjectLifecycleCoordinator(
+                workspace,
+                new RecentProjectTracker(settingsStore),
+                dialogs,
+                settingsStore,
+                () => settings,
+                host));
+    }
+
+    private async Task OpenFixtureProjectAsync(Fixture fixture, string fileName)
+    {
+        var path = CreateProjectFile(fileName);
+        await fixture.Workspace.OpenAsync(path);
+    }
+
+    private string CreateProjectFile(string fileName)
+    {
+        Directory.CreateDirectory(_temporaryDirectory);
+        var path = Path.Combine(_temporaryDirectory, fileName);
+        File.WriteAllText(path, "{}");
+        return path;
+    }
+
+    private sealed record Fixture(
+        ApplicationSettings Settings,
+        FakeSettingsStore SettingsStore,
+        FakeProjectStore Store,
+        ProjectWorkspace Workspace,
+        FakeHost Host,
+        FakeDialogs Dialogs,
+        ProjectLifecycleCoordinator Coordinator);
+
+    private sealed class FakeDialogs : IProjectLifecycleDialogs
+    {
+        public NewProjectSelection? NewProjectSelection { get; set; }
+        public string? ProjectFilePath { get; set; }
+        public NewProjectSelection? SelectNewProject(ApplicationSettings settings) => NewProjectSelection;
+        public string? SelectProjectToOpen(ApplicationSettings settings) => ProjectFilePath;
+    }
+
+    private sealed class FakeSettingsStore : IApplicationSettingsStore
+    {
+        public string LocalSettingsPath => "settings.json";
+        public int SaveCount { get; private set; }
+        public Exception? SaveException { get; set; }
+        public Task<ApplicationSettings> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(new ApplicationSettings());
+        public Task SaveAsync(ApplicationSettings settings, CancellationToken cancellationToken = default)
+        {
+            SaveCount++;
+            return SaveException is null ? Task.CompletedTask : Task.FromException(SaveException);
+        }
+    }
+
+    private sealed class FakeProjectStore : IProjectStore
+    {
+        public List<(string RootDirectory, string Name)> CreateRequests { get; } = [];
+        public List<string> OpenedPaths { get; } = [];
+        public ProjectLocation? CreatedLocation { get; set; }
+        public Exception? OpenException { get; set; }
+
+        public Task<(VideoProject Project, ProjectLocation Location)> CreateAsync(string rootDirectory, string name, CancellationToken cancellationToken = default)
+        {
+            CreateRequests.Add((rootDirectory, name));
+            var location = CreatedLocation ?? new ProjectLocation(rootDirectory, Path.Combine(rootDirectory, $"{name}.rfp"));
+            return Task.FromResult((new VideoProject { Name = name }, location));
+        }
+
+        public Task<(VideoProject Project, ProjectLocation Location)> OpenAsync(string projectFilePath, CancellationToken cancellationToken = default)
+        {
+            OpenedPaths.Add(projectFilePath);
+            return OpenException is null
+                ? Task.FromResult((new VideoProject { Name = Path.GetFileNameWithoutExtension(projectFilePath) }, new ProjectLocation(Path.GetDirectoryName(projectFilePath)!, projectFilePath)))
+                : Task.FromException<(VideoProject Project, ProjectLocation Location)>(OpenException);
+        }
+
+        public Task SaveAsync(VideoProject project, ProjectLocation location, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class FakeAssetImporter : IAssetImportService
+    {
+        public Task<IReadOnlyList<ProjectAsset>> ImportAsync(ProjectLocation location, IEnumerable<string> sourcePaths, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ProjectAsset>>([]);
+    }
+
+    private sealed class FakeHost : IProjectLifecycleCoordinatorHost
+    {
+        public ProjectWorkspaceKind ActiveWorkspace { get; set; }
+        public ProjectWorkspaceKind ActiveWorkspaceValue { get => ActiveWorkspace; set => ActiveWorkspace = value; }
+        public List<string> Statuses { get; } = [];
+        public List<string> AppendedStatuses { get; } = [];
+        public List<string> RunStatuses { get; } = [];
+        public List<ProjectWorkspaceKind> RestoredWorkspaces { get; } = [];
+        public int RefreshCount { get; private set; }
+        public string InspectorText { get; private set; } = string.Empty;
+        public ProjectMediaListItem? ProjectMediaItemToFind { get; set; }
+        public ProjectMediaListItem? SelectedProjectMediaItem { get; private set; }
+        public string? FoundMediaKind { get; private set; }
+        public Guid? FoundMediaId { get; private set; }
+        public Exception? ApplyRestoredWorkspaceException { get; set; }
+
+        public async Task RunUiActionAsync(string status, Func<Task> action)
+        {
+            RunStatuses.Add(status);
+            await action();
+        }
+
+        public void RefreshProjectUi() => RefreshCount++;
+        public void ApplyRestoredWorkspaceMode(ProjectWorkspaceKind workspace)
+        {
+            RestoredWorkspaces.Add(workspace);
+            if (ApplyRestoredWorkspaceException is not null) throw ApplyRestoredWorkspaceException;
+        }
+        public ProjectMediaListItem? FindProjectMediaItem(string mediaKind, Guid mediaId)
+        {
+            FoundMediaKind = mediaKind;
+            FoundMediaId = mediaId;
+            return ProjectMediaItemToFind;
+        }
+        public void SelectProjectMediaItem(ProjectMediaListItem? item) => SelectedProjectMediaItem = item;
+        public void SetStatus(string status) => Statuses.Add(status);
+        public void AppendStatus(string status) => AppendedStatuses.Add(status);
+        public void SetInspectorText(string text) => InspectorText = text;
+    }
+}
+#pragma warning restore CA1707

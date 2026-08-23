@@ -39,7 +39,7 @@ Conventional editing depth exists to make that loop credible. It is not the prim
 
 The researched “minimum editor feature set” is the capability target for ReelForge to feel like a credible finishing editor, not an automatically approved MVP or first-public-release checklist. Titles, captions, transcription, advanced HDR, variant comparison, proxies, and specialized repair engines retain different priority and effort gates described below. Business-model decisions may change tiering and order, but should not reverse the architectural boundaries settled here.
 
-Likewise, the research's near-term list is dependency guidance rather than a replacement for the current roadmap. Milestone 2 Phase 2E remains the composition/timeline foundation. The already-approved post-Milestone 2 review and Milestone 3 structural refactor remain the next architecture program. Later editor features must be divided into reviewable milestones after that work rather than accumulated into one oversized “near-term editor” release.
+Likewise, the research's near-term list is dependency guidance rather than a replacement for the current roadmap. Milestone 2 Phase 2E remains the composition/timeline foundation, and the completed Milestone 3 structural refactor provides its maintainable architecture. Later editor features must be prioritized and divided into reviewable milestones rather than accumulated into one oversized “near-term editor” release.
 
 Market comparisons and third-party engine/license observations are research leads. Current official capability, code license, model-weight license, redistribution terms, platform support, and commercial suitability must be re-verified at the implementation go/no-go gate for each integration.
 

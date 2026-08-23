@@ -89,7 +89,13 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
             Virtual = new VirtualAssetState
             {
                 Kind = VirtualAssetKind.SavedClip,
-                ExpectedMediaProperties = new MediaEncodingMetadata { DurationSeconds = 6 }
+                ExpectedMediaProperties = new MediaEncodingMetadata
+                {
+                    ContainerFormat = "matroska,webm",
+                    DurationSeconds = 6,
+                    Video = new VideoStreamMetadata { Codec = "h264", Width = 1920, Height = 1080 },
+                    Audio = new AudioStreamMetadata { Codec = "aac", SampleRate = 48000, Channels = 2 }
+                }
             }
         };
         project.AddAsset(clip);
@@ -130,10 +136,20 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
         Assert.Equal(result.LeadingClipAssetId, recipe.Segments[0].Source.AssetId);
         Assert.Equal(result.TrailingClipAssetId, recipe.Segments[1].Source.AssetId);
         var snappedCutSeconds = 49d / 24;
-        Assert.Equal(snappedCutSeconds, project.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
-            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
-        Assert.Equal(6 - snappedCutSeconds, project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
-            .Virtual!.ExpectedMediaProperties!.DurationSeconds!.Value, precision: 6);
+        var leadingProperties = project.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!;
+        var trailingProperties = project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!;
+        Assert.Equal(snappedCutSeconds, leadingProperties.DurationSeconds!.Value, precision: 6);
+        Assert.Equal(6 - snappedCutSeconds, trailingProperties.DurationSeconds!.Value, precision: 6);
+        Assert.Equal("mp4", leadingProperties.ContainerFormat);
+        Assert.Equal("h264", trailingProperties.Video!.Codec);
+        Assert.Null(trailingProperties.Video.PixelFormat);
+        Assert.Equal("aac", leadingProperties.Audio!.Codec);
+        Assert.Null(leadingProperties.Audio.SampleRate);
+        Assert.NotSame(clip.Virtual!.ExpectedMediaProperties, leadingProperties);
+        Assert.NotSame(clip.Virtual.ExpectedMediaProperties!.Video, leadingProperties.Video);
+        Assert.NotSame(clip.Virtual.ExpectedMediaProperties.Audio, trailingProperties.Audio);
         Assert.Equal(5, project.Assets.Count);
         Assert.DoesNotContain(project.Assets, asset => asset.Origin == AssetOrigin.Exported);
         Assert.Empty(ProjectInvariantValidator.Validate(project));
@@ -183,10 +199,101 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
         Assert.Empty(ProjectInvariantValidator.Validate(workspace.Project));
     }
 
-    private async Task<ProjectWorkspace> CreateWorkspaceAsync()
+    [Fact]
+    public async Task SplitClipsDeclareConservativeOutputMetadataAndUseExactChildDurations()
+    {
+        var workspace = await CreateWorkspaceAsync();
+        var project = workspace.Project!;
+        var source = AddPhysicalVideo(project, "metadata-source.mp4", new string('c', 64), 10);
+        source.Encoding = new MediaEncodingMetadata
+        {
+            ContainerFormat = "mov,mp4,m4a,3gp,3g2,mj2",
+            DurationSeconds = 10,
+            Video = new VideoStreamMetadata { Codec = "h264", Width = 1920, Height = 1080 },
+            Audio = new AudioStreamMetadata { Codec = "aac", SampleRate = 48000, Channels = 2 }
+        };
+        await new WorkingCompositionService(workspace).CreateInitialAsync(source.Id);
+        var segment = new WorkingCompositionService(workspace).GetCurrent().Recipe.Segments.Single();
+        var result = await new CompositionSegmentSplitService(
+                workspace,
+                new StubMaterializer(Path.Combine(_root, "metadata-source.mp4"), new string('c', 64), 10),
+                new StubExactFrameService([
+                    new VideoPresentationFrame(0, 95, 1, 25, 95),
+                    new VideoPresentationFrame(0, 100, 1, 25, 100),
+                    new VideoPresentationFrame(0, 105, 1, 25, 105)
+                ]))
+            .SplitAsync(segment.Id, TimeSpan.FromSeconds(4.02));
+
+        var leading = project.Assets.Single(asset => asset.Id == result.LeadingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!;
+        var trailing = project.Assets.Single(asset => asset.Id == result.TrailingClipAssetId)
+            .Virtual!.ExpectedMediaProperties!;
+        Assert.Equal("mp4", leading.ContainerFormat);
+        Assert.Equal(4, leading.DurationSeconds);
+        Assert.Equal(6, trailing.DurationSeconds);
+        Assert.Equal("h264", leading.Video!.Codec);
+        Assert.Null(leading.Video.PixelFormat);
+        Assert.Equal("aac", trailing.Audio!.Codec);
+        Assert.Null(leading.Audio!.SampleRate);
+        Assert.NotSame(source.Encoding, leading);
+        Assert.NotSame(source.Encoding!.Video, leading.Video);
+        Assert.NotSame(source.Encoding.Audio, trailing.Audio);
+
+    }
+
+    [Fact]
+    public async Task SaveFailureRollsBackAllSplitMutationState()
+    {
+        var store = new ToggleFailingProjectStore();
+        var workspace = await CreateWorkspaceAsync(store);
+        var project = workspace.Project!;
+        var source = AddPhysicalVideo(project, "rollback-source.mp4", new string('d', 64), 10);
+        var compositionService = new WorkingCompositionService(workspace);
+        var composition = await compositionService.CreateInitialAsync(source.Id);
+        var before = compositionService.GetCurrent();
+        var draft = Assert.Single(project.RecipeDrafts);
+        var originalModifiedAt = project.ModifiedAt;
+        var originalAssetCount = project.Assets.Count;
+        var originalAnchorCount = project.Anchors.Count;
+        var originalAnchorRevisionCount = project.AnchorRevisions.Count;
+        var originalRecipeRevisionCount = project.RecipeRevisions.Count;
+        var originalSources = composition.Provenance!.SourceAssetIds.ToArray();
+        var originalDraftBasedOnRevisionId = draft.BasedOnRevisionId;
+        var originalDraftRecipe = draft.EditableRecipe;
+        var originalDraftModifiedAt = draft.ModifiedAt;
+        store.FailSaves = true;
+        var service = new CompositionSegmentSplitService(
+            workspace,
+            new StubMaterializer(Path.Combine(_root, "rollback-source.mp4"), new string('d', 64), 10),
+            new StubExactFrameService([
+                new VideoPresentationFrame(0, 95, 1, 25, 95),
+                new VideoPresentationFrame(0, 100, 1, 25, 100),
+                new VideoPresentationFrame(0, 105, 1, 25, 105)
+            ]));
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.SplitAsync(before.Recipe.Segments.Single().Id, TimeSpan.FromSeconds(4.02)));
+
+        var after = compositionService.GetCurrent();
+        Assert.Equal(originalModifiedAt, project.ModifiedAt);
+        Assert.Equal(originalAssetCount, project.Assets.Count);
+        Assert.Equal(originalAnchorCount, project.Anchors.Count);
+        Assert.Equal(originalAnchorRevisionCount, project.AnchorRevisions.Count);
+        Assert.Equal(originalRecipeRevisionCount, project.RecipeRevisions.Count);
+        Assert.Same(before.Asset, after.Asset);
+        Assert.Same(before.Revision, after.Revision);
+        Assert.Same(before.Recipe, after.Recipe);
+        Assert.Equal(originalDraftBasedOnRevisionId, draft.BasedOnRevisionId);
+        Assert.Same(originalDraftRecipe, draft.EditableRecipe);
+        Assert.Equal(originalDraftModifiedAt, draft.ModifiedAt);
+        Assert.Equal(originalSources, composition.Provenance.SourceAssetIds);
+        Assert.DoesNotContain(project.Assets, asset => asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
+    }
+
+    private async Task<ProjectWorkspace> CreateWorkspaceAsync(IProjectStore? store = null)
     {
         Directory.CreateDirectory(_root);
-        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        var workspace = new ProjectWorkspace(store ?? new PortableProjectStore(), new UnusedImporter());
         await workspace.CreateAsync(_root, "Split Tests");
         return workspace;
     }
@@ -258,5 +365,31 @@ public sealed class CompositionSegmentSplitServiceTests : IDisposable
             ProjectLocation location,
             IEnumerable<string> sourcePaths,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class ToggleFailingProjectStore : IProjectStore
+    {
+        private readonly PortableProjectStore _inner = new();
+
+        public bool FailSaves { get; set; }
+
+        public Task<(VideoProject Project, ProjectLocation Location)> CreateAsync(
+            string rootDirectory,
+            string name,
+            CancellationToken cancellationToken = default) =>
+            _inner.CreateAsync(rootDirectory, name, cancellationToken);
+
+        public Task<(VideoProject Project, ProjectLocation Location)> OpenAsync(
+            string projectFilePath,
+            CancellationToken cancellationToken = default) =>
+            _inner.OpenAsync(projectFilePath, cancellationToken);
+
+        public Task SaveAsync(
+            VideoProject project,
+            ProjectLocation location,
+            CancellationToken cancellationToken = default) =>
+            FailSaves
+                ? Task.FromException(new IOException("Simulated project save failure."))
+                : _inner.SaveAsync(project, location, cancellationToken);
     }
 }
