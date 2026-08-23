@@ -30,7 +30,7 @@ The principal remaining production concentration is `MainWindow.xaml.cs`, now ab
 - narrow WPF presentation adapters around the focused composition workspace, preview, and render coordinators;
 - shell workspace state, project lifecycle, refresh, status, and cross-feature routing.
 
-The original largest non-UI exception, `WorkingCompositionService`, has now been decomposed behind its compatibility facade. Composition lifecycle, current-state access, transactional recipe revision edits, segment commands, audio commands, and exact split mutation have focused owners under `Editing/Composition` and `Editing/Audio`. Test projects remain broad, CI topology is not yet established, and the final naming/dead-code audit has not begun.
+The original largest non-UI exception, `WorkingCompositionService`, has now been decomposed behind its compatibility facade. Composition lifecycle, current-state access, transactional recipe revision edits, segment commands, audio commands, and exact split mutation have focused owners under `Editing/Composition` and `Editing/Audio`. The CI topology is now established: Ubuntu restores and runs the portable Release suite, while Windows restores once, builds Debug and Release, then runs every suite in Release. Test projects remain broad, and the final naming/dead-code audit has not begun.
 
 ## Remaining target architecture
 
@@ -149,7 +149,9 @@ Remove superseded shell fields/methods, finish App folders/resources, move remai
 
 ### Unit 7 — test topology and CI
 
-Split tests by layer/capability, centralize only proven shared fakes/builders, add App/Platform architecture checks, and add portable plus Windows CI workflows. App-level playback coverage must distinguish the three shared-viewer modes: baked-composition ticks advance the composition playhead, ordinary Project Media ticks do not, and quiesced fast-audition sessions remain pinned to their audition position. It must also cover bake-selection lifecycle races: an unchanged session bake is restored after selecting other media, a changed revision falls back to audition, and stale physical inspection or cached-restore work cannot publish over a newer exact Project Media selection. Run Debug and Release builds and all tests.
+Status: in progress. The dedicated WPF App test project now provides focused coordinator coverage, and deterministic App and Platform.Windows assembly-reference checks enforce their direct production-layer dependencies. GitHub Actions now defines an Ubuntu portable-test workflow and a Windows Debug/Release-build and Release-test workflow. The broader layer-by-layer split of the existing portable suite remains staged work.
+
+Split tests by layer/capability, centralize only proven shared fakes/builders, and continue adding focused App coordinator coverage. App-level playback coverage must distinguish the three shared-viewer modes: baked-composition ticks advance the composition playhead, ordinary Project Media ticks do not, and quiesced fast-audition sessions remain pinned to their audition position. It must also cover bake-selection lifecycle races: an unchanged session bake is restored after selecting other media, a changed revision falls back to audition, and stale physical inspection or cached-restore work cannot publish over a newer exact Project Media selection. CI builds Debug and Release, then runs all suites in Release.
 
 ### Unit 8 — final audit and acceptance
 

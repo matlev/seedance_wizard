@@ -1,0 +1,26 @@
+name: Portable tests
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Portable test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore portable tests
+        run: dotnet restore tests/ReelForge.Tests/ReelForge.Tests.csproj --verbosity minimal
+
+      - name: Test portable suite
+        run: dotnet test tests/ReelForge.Tests/ReelForge.Tests.csproj --configuration Release --no-restore --verbosity normal
