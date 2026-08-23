@@ -459,6 +459,13 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         if (!_preview.IsScrubbing) _preview.SetPosition(mediaPosition.TotalSeconds);
         _preview.ShowPosition(mediaPosition, mediaDuration);
         // Ordinary Project Media playback deliberately does not move composition state.
+        // A rendered composition preview is ordinary MediaElement playback too, but it
+        // remains associated with a pinned composition revision and therefore must
+        // continue to drive the composition playhead.
+        if (_activeCompositionPreviewRevisionId is not null)
+        {
+            UpdateTimelinePlayback(mediaPosition.TotalSeconds);
+        }
     }
 
     private void CompletePlayback()
