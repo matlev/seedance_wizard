@@ -233,11 +233,13 @@ internal sealed class MediaPreviewCoordinator : IDisposable
     {
         _audition.OnVideoReady(e.ShouldPlay);
         UpdatePlaybackPosition();
+        UpdateBakedPreviewTimeline(_preview.MediaPosition.TotalSeconds);
     }
 
     private async void Preview_PlaybackEnded(object? sender, EventArgs e)
     {
-        if (_activeTimelineSeekGeneration is not null || _audition.IsQuiesced)
+        if (_activeTimelineSeekGeneration is not null ||
+            (_audition.IsActive && _audition.IsQuiesced))
         {
             return;
         }
@@ -247,6 +249,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
             return;
         }
         CompletePlayback();
+        UpdateBakedPreviewTimeline(_preview.MediaPosition.TotalSeconds);
     }
 
     private void Preview_AuditionAudioFailed(object? sender, ExceptionRoutedEventArgs e)
@@ -338,6 +341,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         if (!_audition.IsActive)
         {
             SeekPreview(e.PositionSeconds);
+            UpdateBakedPreviewTimeline(e.PositionSeconds);
             return;
         }
 
@@ -370,7 +374,11 @@ internal sealed class MediaPreviewCoordinator : IDisposable
                 CompleteTimelineSeek(generation);
             }
         }
-        else SeekPreview(e.PositionSeconds);
+        else
+        {
+            SeekPreview(e.PositionSeconds);
+            UpdateBakedPreviewTimeline(e.PositionSeconds);
+        }
         if (e.ResumePlayback && !_audition.IsActive) _preview.Play();
         else if (!_audition.IsActive) _preview.Pause();
         _host.ScheduleContactFrameRefresh(e.PositionSeconds);
@@ -417,7 +425,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
 
         var mediaPosition = _preview.MediaPosition;
         var mediaDuration = _preview.MediaDuration;
-        if (_audition.IsQuiesced)
+        if (_audition.IsActive && _audition.IsQuiesced)
         {
             _preview.ShowTimelinePosition(_audition.PositionSeconds);
             return;
@@ -458,13 +466,17 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         }
         if (!_preview.IsScrubbing) _preview.SetPosition(mediaPosition.TotalSeconds);
         _preview.ShowPosition(mediaPosition, mediaDuration);
+    }
+
+    private void UpdateBakedPreviewTimeline(double playbackSeconds)
+    {
         // Ordinary Project Media playback deliberately does not move composition state.
         // A rendered composition preview is ordinary MediaElement playback too, but it
         // remains associated with a pinned composition revision and therefore must
         // continue to drive the composition playhead.
         if (_activeCompositionPreviewRevisionId is not null)
         {
-            UpdateTimelinePlayback(mediaPosition.TotalSeconds);
+            UpdateTimelinePlayback(playbackSeconds);
         }
     }
 
@@ -478,7 +490,11 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         UpdatePlaybackPosition();
     }
 
-    private void Preview_PositionTick(object? sender, EventArgs e) => UpdatePlaybackPosition();
+    private void Preview_PositionTick(object? sender, EventArgs e)
+    {
+        UpdatePlaybackPosition();
+        UpdateBakedPreviewTimeline(_preview.MediaPosition.TotalSeconds);
+    }
 
     public void Dispose()
     {

@@ -149,7 +149,7 @@ Remove superseded shell fields/methods, finish App folders/resources, move remai
 
 ### Unit 7 — test topology and CI
 
-Split tests by layer/capability, centralize only proven shared fakes/builders, add App/Platform architecture checks, and add portable plus Windows CI workflows. Run Debug and Release builds and all tests.
+Split tests by layer/capability, centralize only proven shared fakes/builders, add App/Platform architecture checks, and add portable plus Windows CI workflows. App-level playback coverage must distinguish the three shared-viewer modes: baked-composition ticks advance the composition playhead, ordinary Project Media ticks do not, and quiesced fast-audition sessions remain pinned to their audition position. Run Debug and Release builds and all tests.
 
 ### Unit 8 — final audit and acceptance
 
