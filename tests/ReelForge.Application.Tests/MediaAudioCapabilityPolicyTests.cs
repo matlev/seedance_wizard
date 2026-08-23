@@ -1,7 +1,7 @@
 using ReelForge.Application;
 using ReelForge.Core;
 
-namespace ReelForge.Tests;
+namespace ReelForge.Application.Tests;
 
 public sealed class MediaAudioCapabilityPolicyTests
 {

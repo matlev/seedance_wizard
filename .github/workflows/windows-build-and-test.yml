@@ -31,6 +31,9 @@ jobs:
       - name: Test portable suite
         run: dotnet test tests/ReelForge.Tests/ReelForge.Tests.csproj --configuration Release --no-restore --verbosity normal
 
+      - name: Test Core suite
+        run: dotnet test tests/ReelForge.Core.Tests/ReelForge.Core.Tests.csproj --configuration Release --no-restore --verbosity normal
+
       - name: Test Application suite
         run: dotnet test tests/ReelForge.Application.Tests/ReelForge.Application.Tests.csproj --configuration Release --no-restore --verbosity normal
 
