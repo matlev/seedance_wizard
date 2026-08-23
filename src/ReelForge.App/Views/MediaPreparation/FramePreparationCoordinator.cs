@@ -165,6 +165,36 @@ public sealed class FramePreparationCoordinator : IDisposable
         _debounceTimer.Start();
     }
 
+    /// <summary>
+    /// Gives the precision workspace first claim on the shared viewer's frame transport.
+    /// An active precision operation deliberately consumes the request even while indexing
+    /// is incomplete, so ordinary MediaElement stepping cannot desynchronize the contact strip.
+    /// </summary>
+    public async Task<bool> TryHandlePreviewFrameStepAsync(int direction)
+    {
+        if (direction is not (-1 or 1) || !_panel.IsPreparing)
+            return false;
+
+        _debounceTimer.Stop();
+        if (_panel.SelectedContactFrame is null || _sourceAssetId is null || _indexedFrames.Count == 0)
+            return true;
+
+        var cancellationToken = _cancellation?.Token ?? CancellationToken.None;
+        try
+        {
+            await NavigateExactFramesAsync(direction, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            PublishStatus($"Could not navigate exact frames: {exception.Message}");
+        }
+
+        return true;
+    }
+
     public async Task RefreshSavedFramesAsync(CancellationToken cancellationToken = default)
     {
         if (_workspace.Project is not { } project || _workspace.Location is null ||
@@ -448,22 +478,7 @@ public sealed class FramePreparationCoordinator : IDisposable
                 var steps = _pendingKeyboardSteps;
                 _pendingKeyboardSteps = 0;
                 var cancellationToken = _cancellation?.Token ?? CancellationToken.None;
-                await RunNavigationAsync(async token =>
-                {
-                    if (_panel.SelectedContactFrame is not { } selected) return;
-                    var targetSeconds = EstimateKeyboardTargetSeconds(selected.Frame, steps);
-                    var nearestIndex = ExactFrameContactWindow.FindNearestIndex(_indexedFrames, targetSeconds);
-                    var localInterval = EstimateFrameIntervalSeconds(selected.Frame);
-                    if (nearestIndex < 0 ||
-                        Math.Abs(_indexedFrames[nearestIndex].TimestampSeconds - targetSeconds) > localInterval * 0.6)
-                    {
-                        await EnsureFrameWindowAsync(targetSeconds, token);
-                        nearestIndex = ExactFrameContactWindow.FindNearestIndex(_indexedFrames, targetSeconds);
-                    }
-                    if (nearestIndex < 0) return;
-                    var target = _indexedFrames[nearestIndex];
-                    await RefreshContactFramesAsync(target.TimestampSeconds, token);
-                }, cancellationToken);
+                await NavigateExactFramesAsync(steps, cancellationToken);
             }
         }
         catch (OperationCanceledException)
@@ -482,6 +497,33 @@ public sealed class FramePreparationCoordinator : IDisposable
                 _ = ProcessKeyboardNavigationAsync();
             }
         }
+    }
+
+    private async Task NavigateExactFramesAsync(int steps, CancellationToken cancellationToken)
+    {
+        await RunNavigationAsync(async token =>
+        {
+            if (_panel.SelectedContactFrame is not { } selected) return;
+            var targetSeconds = EstimateKeyboardTargetSeconds(selected.Frame, steps);
+            var nearestIndex = ExactFrameContactWindow.FindNearestIndex(_indexedFrames, targetSeconds);
+            var localInterval = EstimateFrameIntervalSeconds(selected.Frame);
+            if (nearestIndex < 0 ||
+                Math.Abs(_indexedFrames[nearestIndex].TimestampSeconds - targetSeconds) > localInterval * 0.6)
+            {
+                await EnsureFrameWindowAsync(targetSeconds, token);
+                nearestIndex = ExactFrameContactWindow.FindNearestIndex(_indexedFrames, targetSeconds);
+            }
+            if (nearestIndex < 0) return;
+
+            var target = _indexedFrames[nearestIndex];
+            if (target.VideoStreamIndex == selected.Frame.VideoStreamIndex &&
+                target.PresentationTimestamp == selected.Frame.PresentationTimestamp)
+                return;
+
+            // Refresh selects the target contact item while suppressing prefetch; its selection
+            // event owns the one silent preview seek. Do not seek again here.
+            await RefreshContactFramesAsync(target.TimestampSeconds, token);
+        }, cancellationToken);
     }
 
     private async Task EnsureAdjacentFramesAvailableAsync(

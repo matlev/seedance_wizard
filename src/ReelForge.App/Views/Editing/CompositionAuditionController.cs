@@ -9,6 +9,7 @@ namespace ReelForge.App.Views.Editing;
 public sealed class CompositionAuditionController : IDisposable
 {
     private readonly RecipeMediaMaterializer _materializer;
+    private readonly IExactVideoFrameService _exactFrames;
     private readonly MediaPreviewPanel _preview;
     private CompositionAuditionSession? _session;
     private VideoProject? _sessionProject;
@@ -27,9 +28,11 @@ public sealed class CompositionAuditionController : IDisposable
 
     public CompositionAuditionController(
         RecipeMediaMaterializer materializer,
+        IExactVideoFrameService exactFrames,
         MediaPreviewPanel preview)
     {
         _materializer = materializer;
+        _exactFrames = exactFrames;
         _preview = preview;
     }
 
@@ -186,6 +189,114 @@ public sealed class CompositionAuditionController : IDisposable
     {
         if (_quiescing || _session is null) return;
         await RequestSegmentOpenAsync(0, 0, playAfterOpen: true, cancellationToken);
+    }
+
+    /// <summary>
+    /// Moves to the adjacent decoded presentation frame in an active audition.
+    /// Crossing a cut opens the adjacent segment at its first or final valid
+    /// decoded frame. Segment source ranges are half-open: [start, end).
+    /// </summary>
+    public async Task<bool> StepFrameAsync(int direction, CancellationToken cancellationToken = default)
+    {
+        if (direction is not (-1 or 1) || _quiescing || _session is null ||
+            _sessionProject is null || _sessionLocation is null ||
+            _preview.LocalSourcePath is not { } sourcePath)
+            return false;
+
+        using var operation = _openOperations.Begin(cancellationToken);
+        Func<bool>? sessionCurrent = null;
+        var sessionCancellationToken = default(CancellationToken);
+        try
+        {
+            var session = _session;
+            var project = _sessionProject;
+            var location = _sessionLocation;
+            sessionCurrent = _sessionIsCurrent;
+            sessionCancellationToken = _sessionCancellationToken;
+            if (!CanContinue(operation, session, sessionCurrent, sessionCancellationToken))
+                return false;
+
+            _preview.PauseAndCancelDeferredPlayback();
+            _preview.PauseAuditionAudio();
+            using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                operation.CancellationToken,
+                sessionCancellationToken);
+            var activeSegment = session.ActiveSegment;
+            var currentSourceSeconds = session.CurrentPosition.SourceSeconds;
+            var frames = await _exactFrames.IndexWindowAsync(
+                sourcePath,
+                currentSourceSeconds,
+                radiusSeconds: 2,
+                cancellationToken: linkedCancellation.Token);
+            if (!CanContinue(operation, session, sessionCurrent, sessionCancellationToken))
+                return false;
+
+            var activeTarget = CompositionAuditionFrameNavigation.FindAdjacentFrame(
+                frames,
+                currentSourceSeconds,
+                activeSegment.SourceStartSeconds,
+                activeSegment.SourceStartSeconds + activeSegment.DurationSeconds,
+                direction);
+            if (activeTarget is not null)
+            {
+                SeekActiveSegmentToFrame(session, activeTarget);
+                return true;
+            }
+
+            var adjacentIndex = session.ActiveSegmentIndex + direction;
+            if (adjacentIndex < 0 || adjacentIndex >= session.Plan.Segments.Count)
+                return false;
+
+            var adjacentSegment = session.Plan.Segments[adjacentIndex];
+            MaterializedMediaLease? adjacentLease = null;
+            try
+            {
+                adjacentLease = await _materializer.MaterializeAsync(
+                    project,
+                    location,
+                    new MaterializationRequest(
+                        new AssetMaterializationTarget(adjacentSegment.Source.AssetId, adjacentSegment.Source.RecipeRevisionId),
+                        MaterializationPurpose.Preview),
+                    linkedCancellation.Token);
+                var adjacentBoundary = direction < 0
+                    ? adjacentSegment.SourceStartSeconds + adjacentSegment.DurationSeconds
+                    : adjacentSegment.SourceStartSeconds;
+                var adjacentFrames = await _exactFrames.IndexWindowAsync(
+                    adjacentLease.Path,
+                    adjacentBoundary,
+                    radiusSeconds: 2,
+                    cancellationToken: linkedCancellation.Token);
+                if (!CanContinue(operation, session, sessionCurrent, sessionCancellationToken))
+                    return false;
+                var boundaryTarget = CompositionAuditionFrameNavigation.FindBoundaryFrame(
+                    adjacentFrames,
+                    adjacentSegment.SourceStartSeconds,
+                    adjacentSegment.SourceStartSeconds + adjacentSegment.DurationSeconds,
+                    direction);
+                if (boundaryTarget is null)
+                    return false;
+
+                var globalSeconds = session.Plan.GetGlobalPosition(adjacentIndex, boundaryTarget.TimestampSeconds);
+                var lease = adjacentLease;
+                adjacentLease = null;
+                return await OpenSegmentAsync(
+                    adjacentIndex,
+                    globalSeconds,
+                    false,
+                    operation,
+                    preparedLease: lease);
+            }
+            finally
+            {
+                if (adjacentLease is not null)
+                    await adjacentLease.DisposeAsync();
+            }
+        }
+        catch (OperationCanceledException) when (
+            IsStaleSelectionOperation(operation.IsCurrent, sessionCurrent, sessionCancellationToken))
+        {
+            return false;
+        }
     }
 
     public void QueueSeek(double globalSeconds, TimeSpan? delay = null)
@@ -401,14 +512,22 @@ public sealed class CompositionAuditionController : IDisposable
         double globalSeconds,
         bool playAfterOpen,
         LatestOperationSequence.Operation operation,
-        Func<bool>? isStillCurrent = null)
+        Func<bool>? isStillCurrent = null,
+        MaterializedMediaLease? preparedLease = null)
     {
+        MaterializedMediaLease? lease = preparedLease;
         if (_session is null || _sessionProject is null || _sessionLocation is null ||
             segmentIndex < 0 || segmentIndex >= _session.Plan.Segments.Count)
+        {
+            if (lease is not null)
+                await lease.DisposeAsync();
             return false;
-        await _segmentOpenGate.WaitAsync(operation.CancellationToken);
+        }
+        var gateAcquired = false;
         try
         {
+            await _segmentOpenGate.WaitAsync(operation.CancellationToken);
+            gateAcquired = true;
             var session = _session;
             var project = _sessionProject;
             var location = _sessionLocation;
@@ -423,30 +542,31 @@ public sealed class CompositionAuditionController : IDisposable
             using var materializationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 operation.CancellationToken,
                 sessionCancellationToken);
-            MaterializedMediaLease lease;
-            try
+            if (lease is null)
             {
-                lease = await _materializer.MaterializeAsync(
-                    project,
-                    location,
-                    new MaterializationRequest(
-                        new AssetMaterializationTarget(segment.Source.AssetId, segment.Source.RecipeRevisionId),
-                        MaterializationPurpose.Preview),
-                    materializationCancellation.Token);
-            }
-            catch (OperationCanceledException) when (
-                IsStaleSelectionOperation(operation.IsCurrent, sessionCurrent, sessionCancellationToken))
-            {
-                // Project Media selected something else while this segment was being prepared.
-                // MediaElement playback events call AdvanceAsync fire-and-forget, so stale
-                // selection cancellation must resolve as an ordinary unsuccessful advance.
-                return false;
+                try
+                {
+                    lease = await _materializer.MaterializeAsync(
+                        project,
+                        location,
+                        new MaterializationRequest(
+                            new AssetMaterializationTarget(segment.Source.AssetId, segment.Source.RecipeRevisionId),
+                            MaterializationPurpose.Preview),
+                        materializationCancellation.Token);
+                }
+                catch (OperationCanceledException) when (
+                    IsStaleSelectionOperation(operation.IsCurrent, sessionCurrent, sessionCancellationToken))
+                {
+                    // Project Media selected something else while this segment was being prepared.
+                    // MediaElement playback events call AdvanceAsync fire-and-forget, so stale
+                    // selection cancellation must resolve as an ordinary unsuccessful advance.
+                    return false;
+                }
             }
             if (!operation.IsCurrent || sessionCancellationToken.IsCancellationRequested ||
                 isStillCurrent?.Invoke() == false || sessionCurrent?.Invoke() == false ||
                 !ReferenceEquals(_session, session))
             {
-                await lease.DisposeAsync();
                 return false;
             }
 
@@ -459,14 +579,42 @@ public sealed class CompositionAuditionController : IDisposable
                 startSeconds: position.SourceSeconds,
                 forceMuted: !segment.AudioEnabled,
                 useExternalTimeline: true);
+            lease = null; // Ownership transferred to the preview panel.
             _preview.SetPosition(position.GlobalSeconds);
             RaisePositionChanged(position.GlobalSeconds);
             return true;
         }
         finally
         {
-            _segmentOpenGate.Release();
+            if (lease is not null)
+                await lease.DisposeAsync();
+            if (gateAcquired)
+                _segmentOpenGate.Release();
         }
+    }
+
+    private bool CanContinue(
+        LatestOperationSequence.Operation operation,
+        CompositionAuditionSession session,
+        Func<bool>? sessionCurrent,
+        CancellationToken sessionCancellationToken) =>
+        operation.IsCurrent &&
+        !sessionCancellationToken.IsCancellationRequested &&
+        ReferenceEquals(_session, session) &&
+        sessionCurrent?.Invoke() != false;
+
+    private void SeekActiveSegmentToFrame(
+        CompositionAuditionSession session,
+        VideoPresentationFrame target)
+    {
+        var position = session.ActivateSegment(
+            session.ActiveSegmentIndex,
+            session.Plan.GetGlobalPosition(session.ActiveSegmentIndex, target.TimestampSeconds));
+        _preview.SeekVideo(target.TimestampSeconds);
+        _preview.SetPosition(position.GlobalSeconds);
+        _preview.ShowTimelinePosition(position.GlobalSeconds);
+        _preview.SyncAuditionAudio(position.GlobalSeconds, play: false);
+        RaisePositionChanged(position.GlobalSeconds);
     }
 
     private async Task RunQueuedSeekAsync(

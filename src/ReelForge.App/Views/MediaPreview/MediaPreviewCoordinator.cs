@@ -48,7 +48,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         _preview = preview;
         _timeline = timeline;
         _host = host;
-        _audition = new CompositionAuditionController(materializer, preview);
+        _audition = new CompositionAuditionController(materializer, exactFrames, preview);
         _audition.PositionChanged += Audition_PositionChanged;
         _preview.VideoReady += Preview_VideoReady;
         _preview.PlaybackEnded += Preview_PlaybackEnded;
@@ -494,16 +494,30 @@ internal sealed class MediaPreviewCoordinator : IDisposable
 
     private async Task StepFrameAsync(int direction)
     {
-        if (direction is not (-1 or 1) ||
-            _preview.LocalSourcePath is not { } sourcePath ||
-            !await _frameNavigationGate.WaitAsync(0))
+        if (direction is not (-1 or 1) || !_preview.HasVideoSource)
         {
             return;
         }
+
+        _preview.PauseAndCancelDeferredPlayback();
+        _preview.SetFrameNavigationEnabled(false);
+        var frameNavigationGateAcquired = false;
         try
         {
-            _preview.Pause();
-            _preview.SetFrameNavigationEnabled(false);
+            // Precision preparation owns exact-frame state and the same navigation gate.
+            // Ask it first, before attempting to acquire that gate here.
+            if (await _host.TryHandlePrecisionFrameStepAsync(direction)) return;
+
+            if (_audition.IsActive)
+            {
+                await _audition.StepFrameAsync(direction);
+                return;
+            }
+
+            frameNavigationGateAcquired = await _frameNavigationGate.WaitAsync(0);
+            if (!frameNavigationGateAcquired || _preview.LocalSourcePath is not { } sourcePath)
+                return;
+
             var currentSeconds = _preview.PositionSeconds;
             var frames = await _exactFrames.IndexWindowAsync(sourcePath, currentSeconds, radiusSeconds: 2);
             var target = direction < 0 ? frames.Where(frame => frame.TimestampSeconds < currentSeconds - 0.0000001).OrderByDescending(frame => frame.TimestampSeconds).FirstOrDefault()
@@ -530,7 +544,8 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         finally
         {
             _preview.SetFrameNavigationEnabled(_preview.HasNaturalVideo);
-            _frameNavigationGate.Release();
+            if (frameNavigationGateAcquired)
+                _frameNavigationGate.Release();
         }
     }
 
@@ -741,6 +756,7 @@ internal interface IPreviewCoordinatorHost
     bool IsCompositionSelected(Guid compositionId, ProjectMediaListItem expectedItem);
     void SelectWorkingComposition();
     void ScheduleContactFrameRefresh(double seconds);
+    Task<bool> TryHandlePrecisionFrameStepAsync(int direction);
     void PreviewStateChanged();
     void UpdateCompositionPreviewInspector(ProjectAsset composition, MediaEncodingMetadata? encoding);
     bool HasRememberedBakedCompositionPreview(

@@ -1374,6 +1374,8 @@ public partial class MainWindow : Window, IDisposable
             IsCompositionSelected(compositionId);
         public void SelectWorkingComposition() => window.SelectWorkingCompositionInProjectMedia();
         public void ScheduleContactFrameRefresh(double seconds) => window._framePreparationCoordinator.ScheduleContactFrameRefresh(seconds);
+        public Task<bool> TryHandlePrecisionFrameStepAsync(int direction) =>
+            window._framePreparationCoordinator.TryHandlePreviewFrameStepAsync(direction);
         public void PreviewStateChanged()
         {
             window._compositionWorkspace.UpdateControls();
