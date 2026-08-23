@@ -27,9 +27,8 @@ internal sealed class MediaPreviewCoordinator : IDisposable
     private readonly CompositionAuditionController _audition;
     private readonly SemaphoreSlim _frameNavigationGate = new(1, 1);
     private Guid? _activeCompositionPreviewRevisionId;
-    // This intentionally lasts only for the application session. It remembers that the user
-    // explicitly previewed a rendered composition, while Clear releases the viewer lease as
-    // the user moves through Project Media.
+    // This is the in-memory half of retained-preview identity. A matching machine-local
+    // preference can re-establish it after restart; neither form stores a cache filename.
     private SessionCompositionPreviewIdentity? _retainedCompositionPreview;
     private long _previewOperationGeneration;
     private double? _pendingTimelineSeekSeconds;
@@ -110,8 +109,8 @@ internal sealed class MediaPreviewCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Opens an explicitly rendered composition preview and remembers its exact recipe only for
-    /// this application session. It is deliberately not persisted as project state.
+    /// Opens an explicitly rendered composition preview and retains its exact in-memory identity.
+    /// The render coordinator separately records machine-local user intent after successful adoption.
     /// </summary>
     public void OpenBakedCompositionPreview(
         MaterializedMediaLease lease,
@@ -167,7 +166,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
     {
         var project = selection.Project;
         var location = selection.Location;
-        if (!HasRetainedCompositionPreview(project, location, composition.Id, revision.Id) ||
+        if (!CanRestoreRetainedCompositionPreview(project, location, composition.Id, revision.Id) ||
             !IsSelectionCurrent(selection, composition.Id))
         {
             return RetainedCompositionPreviewRestoreOutcome.NotRetained;
@@ -189,7 +188,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
                     selection.CancellationToken);
 
                 if (!IsRestoreCurrent(requestGeneration, project, location, composition, revision, selection) ||
-                    !HasRetainedCompositionPreview(project, location, composition.Id, revision.Id))
+                    !CanRestoreRetainedCompositionPreview(project, location, composition.Id, revision.Id))
                 {
                     outcome = RetainedCompositionPreviewRestoreOutcome.Stale;
                     return;
@@ -314,8 +313,16 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         RecipeRevision revision,
         ProjectMediaSelectionIdentity selection) =>
         _previewOperationGeneration == requestGeneration &&
-        HasRetainedCompositionPreview(project, location, composition.Id, revision.Id) &&
+        CanRestoreRetainedCompositionPreview(project, location, composition.Id, revision.Id) &&
         IsSelectionCurrent(selection, composition.Id);
+
+    private bool CanRestoreRetainedCompositionPreview(
+        VideoProject project,
+        ProjectLocation location,
+        Guid compositionAssetId,
+        Guid recipeRevisionId) =>
+        HasRetainedCompositionPreview(project, location, compositionAssetId, recipeRevisionId) ||
+        _host.HasRememberedBakedCompositionPreview(project, location, compositionAssetId, recipeRevisionId);
 
     private bool IsSelectionCurrent(ProjectMediaSelectionIdentity selection, Guid compositionId) =>
         !selection.CancellationToken.IsCancellationRequested &&
@@ -736,6 +743,11 @@ internal interface IPreviewCoordinatorHost
     void ScheduleContactFrameRefresh(double seconds);
     void PreviewStateChanged();
     void UpdateCompositionPreviewInspector(ProjectAsset composition, MediaEncodingMetadata? encoding);
+    bool HasRememberedBakedCompositionPreview(
+        VideoProject project,
+        ProjectLocation location,
+        Guid compositionAssetId,
+        Guid recipeRevisionId);
 }
 
 internal enum RetainedCompositionPreviewRestoreOutcome

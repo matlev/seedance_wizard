@@ -40,7 +40,7 @@ internal sealed class CompositionRenderCoordinator : IDisposable
     {
         if (IsRendering) return Task.CompletedTask;
         if (!TryCaptureTarget(out var target) || !_host.CanAdoptBakedPreview(target)) return Task.CompletedTask;
-        return RunAsync(target, "Rendering preview…", "Composition preview render cancelled.", async cancellationToken =>
+        return RunAsync(target, "Rendering preview…", "Composition preview render cancelled.", async (cancellationToken, canPublish) =>
         {
             MaterializedMediaLease? lease = null;
             try
@@ -58,8 +58,14 @@ internal sealed class CompositionRenderCoordinator : IDisposable
 
                 _host.AdoptBakedPreview(lease, target);
                 lease = null;
-                _host.RefreshCompositionActions();
-                _host.SetStatus("Working Composition preview is ready.");
+                // Adoption is the success boundary. The host treats persistence failure as
+                // nonfatal, so it cannot revoke an already-visible preview.
+                var persistenceWarning = await _host.RememberBakedCompositionPreviewAsync(target);
+                if (canPublish())
+                {
+                    _host.RefreshCompositionActions();
+                    _host.SetStatus($"Working Composition preview is ready.{persistenceWarning}");
+                }
             }
             finally
             {
@@ -75,7 +81,7 @@ internal sealed class CompositionRenderCoordinator : IDisposable
         var destinationPath = _host.PromptExportPath(target);
         if (string.IsNullOrWhiteSpace(destinationPath)) return Task.CompletedTask;
 
-        return RunAsync(target, "Exporting composition…", "Composition export cancelled.", async cancellationToken =>
+        return RunAsync(target, "Exporting composition…", "Composition export cancelled.", async (cancellationToken, canPublish) =>
         {
             // The workspace can change while preview playback is being quiesced. The export
             // workflow owns the captured target once invoked, but it must never start for a
@@ -86,7 +92,7 @@ internal sealed class CompositionRenderCoordinator : IDisposable
                 target.Revision.Id,
                 destinationPath,
                 cancellationToken);
-            if (CanPublishStatus(_cancellation, target, _activeSelectionIdentity))
+            if (canPublish())
                 _host.SetStatus($"Exported Working Composition to {path}.");
         });
     }
@@ -138,7 +144,7 @@ internal sealed class CompositionRenderCoordinator : IDisposable
         CompositionRenderTarget target,
         string activeStatus,
         string cancelledStatus,
-        Func<CancellationToken, Task> action)
+        Func<CancellationToken, Func<bool>, Task> action)
     {
         if (_cancellation is not null) return;
 
@@ -157,7 +163,9 @@ internal sealed class CompositionRenderCoordinator : IDisposable
             interactionSuppression = _host.SuppressPreviewInteractions();
             auditionQuiescence = await _host.PauseAndQuiescePreviewAsync(cancellation.Token);
             if (!IsCurrentOperation(cancellation, operationGeneration) || !_host.IsCurrentCompositionTarget(target)) return;
-            await action(cancellation.Token);
+            await action(
+                cancellation.Token,
+                () => CanPublishStatus(cancellation, target, _activeSelectionIdentity, operationGeneration));
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -222,6 +230,11 @@ internal interface ICompositionRenderHost
     IDisposable SuppressPreviewInteractions();
     Task<IDisposable> PauseAndQuiescePreviewAsync(CancellationToken cancellationToken);
     void AdoptBakedPreview(MaterializedMediaLease lease, CompositionRenderTarget target);
+    /// <summary>
+    /// Persists local preview intent after adoption. A failure is returned as nonfatal text so
+    /// the coordinator can decide whether its captured UI session may still publish it.
+    /// </summary>
+    Task<string?> RememberBakedCompositionPreviewAsync(CompositionRenderTarget target);
     void SetRenderState(string? status, bool canCancel);
     void RefreshCompositionActions();
     void SetStatus(string status);

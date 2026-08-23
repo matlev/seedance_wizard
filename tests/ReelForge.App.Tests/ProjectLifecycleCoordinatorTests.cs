@@ -151,6 +151,45 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
         Assert.False(fixture.Coordinator.IsRestoringProjectUiState);
     }
 
+    [Fact]
+    public async Task RememberedBakedPreview_MatchesOnlyTheExactCurrentProjectPathCompositionAndRevision()
+    {
+        var fixture = CreateFixture();
+        await OpenFixtureProjectAsync(fixture, "preview.rfp");
+        var project = fixture.Workspace.Project!;
+        var location = fixture.Workspace.Location!;
+        var compositionId = Guid.NewGuid();
+        var revisionId = Guid.NewGuid();
+
+        await fixture.Coordinator.RememberBakedCompositionPreviewAsync(project, location, compositionId, revisionId);
+
+        Assert.True(fixture.Coordinator.HasRememberedBakedCompositionPreview(project, location, compositionId, revisionId));
+        Assert.False(fixture.Coordinator.HasRememberedBakedCompositionPreview(project, location, compositionId, Guid.NewGuid()));
+        Assert.False(fixture.Coordinator.HasRememberedBakedCompositionPreview(
+            project,
+            new ProjectLocation(location.RootDirectory, Path.Combine(location.RootDirectory, "copied.rfp")),
+            compositionId,
+            revisionId));
+        Assert.Equal(location.ProjectFilePath,
+            fixture.Settings.General.ProjectStates[project.Id.ToString("N")].BakedCompositionPreview!.ProjectFilePath);
+        Assert.Equal(1, fixture.SettingsStore.SaveCount);
+    }
+
+    [Fact]
+    public async Task RememberedBakedPreview_DoesNotPersistForAProjectThatIsNoLongerCurrent()
+    {
+        var fixture = CreateFixture();
+        await OpenFixtureProjectAsync(fixture, "current.rfp");
+        var staleProject = fixture.Workspace.Project!;
+        var staleLocation = fixture.Workspace.Location!;
+        await OpenFixtureProjectAsync(fixture, "replacement.rfp");
+
+        await fixture.Coordinator.RememberBakedCompositionPreviewAsync(
+            staleProject, staleLocation, Guid.NewGuid(), Guid.NewGuid());
+
+        Assert.Equal(0, fixture.SettingsStore.SaveCount);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_temporaryDirectory))

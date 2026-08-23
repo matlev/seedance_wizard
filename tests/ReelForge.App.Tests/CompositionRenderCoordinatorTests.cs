@@ -38,6 +38,65 @@ public sealed class CompositionRenderCoordinatorTests
     }
 
     [Fact]
+    public async Task PreviewAsyncRemembersOnlyAnAdoptedBakedPreview()
+    {
+        var harness = await RenderHarness.CreateAsync();
+        harness.Materializer.Complete(harness.Materializer.CreateLease());
+
+        await harness.Coordinator.PreviewAsync();
+
+        Assert.Equal(1, harness.Host.RememberedPreviewCount);
+        Assert.Single(harness.Host.AdoptedLeases);
+    }
+
+    [Fact]
+    public async Task PreviewAsyncDoesNotRememberAStaleOrCancelledPreview()
+    {
+        var harness = await RenderHarness.CreateAsync();
+        var preview = harness.Coordinator.PreviewAsync();
+        await harness.Materializer.WaitUntilStartedAsync();
+        harness.Host.CanAdopt = false;
+        harness.Materializer.Complete(harness.Materializer.CreateLease());
+
+        await preview;
+
+        Assert.Equal(0, harness.Host.RememberedPreviewCount);
+    }
+
+    [Fact]
+    public async Task PreviewAsyncKeepsAnAdoptedPreviewWhenRememberingReportsANonfatalWarning()
+    {
+        var harness = await RenderHarness.CreateAsync();
+        harness.Host.RememberWarning = "settings locked";
+        harness.Materializer.Complete(harness.Materializer.CreateLease());
+
+        await harness.Coordinator.PreviewAsync();
+
+        Assert.Single(harness.Host.AdoptedLeases);
+        Assert.Empty(harness.Host.Errors);
+        Assert.Contains("Working Composition preview is ready.", harness.Host.Statuses[^1], StringComparison.Ordinal);
+        Assert.Contains("settings locked", harness.Host.Statuses[^1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PreviewAsyncDoesNotPublishLateSuccessActionsAfterRememberingWhenTargetChanges()
+    {
+        var harness = await RenderHarness.CreateAsync();
+        harness.Host.BlockRemember = true;
+        harness.Materializer.Complete(harness.Materializer.CreateLease());
+
+        var preview = harness.Coordinator.PreviewAsync();
+        await harness.Host.WaitUntilRememberingAsync();
+        harness.Host.CurrentTarget = false;
+        harness.Host.CompleteRemembering();
+
+        await preview;
+
+        Assert.Equal(["Rendering preview…"], harness.Host.Statuses);
+        Assert.Equal(1, harness.Host.RefreshCount);
+    }
+
+    [Fact]
     public async Task PreviewAsyncDisposesLateLeaseWhenSelectionBecomesStale()
     {
         var harness = await RenderHarness.CreateAsync();
@@ -249,9 +308,15 @@ public sealed class CompositionRenderCoordinatorTests
         public List<Exception> Errors { get; } = [];
         public bool InteractionSuppressionDisposed { get; private set; }
         public bool AuditionQuiescenceDisposed { get; private set; }
+        public int RememberedPreviewCount { get; private set; }
+        public string? RememberWarning { get; set; }
+        public bool BlockRemember { get; set; }
+        public int RefreshCount { get; private set; }
 
         private TaskCompletionSource? _quiescing;
         private TaskCompletionSource<IDisposable>? _quiescenceCompletion;
+        private TaskCompletionSource? _remembering;
+        private TaskCompletionSource<string?>? _rememberCompletion;
 
         public bool IsCurrentCompositionTarget(CompositionRenderTarget target) => CurrentTarget;
         public bool CanAdoptBakedPreview(CompositionRenderTarget target) => CanAdopt && CurrentTarget;
@@ -276,8 +341,26 @@ public sealed class CompositionRenderCoordinatorTests
         public Task WaitUntilQuiescingAsync() => _quiescing?.Task ?? throw new InvalidOperationException("Quiescence is not blocked.");
         public void CompleteQuiescence() => _quiescenceCompletion?.TrySetResult(new CallbackDisposable(() => AuditionQuiescenceDisposed = true));
         public void AdoptBakedPreview(MaterializedMediaLease lease, CompositionRenderTarget target) => AdoptedLeases.Add(lease);
+        public Task<string?> RememberBakedCompositionPreviewAsync(CompositionRenderTarget target)
+        {
+            RememberedPreviewCount++;
+            var warning = RememberWarning is null
+                ? null
+                : $" ReelForge could not remember this composition preview for the next launch: {RememberWarning}";
+            if (!BlockRemember) return Task.FromResult(warning);
+            _remembering ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _rememberCompletion ??= new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _remembering.TrySetResult();
+            return _rememberCompletion.Task;
+        }
+
+        public Task WaitUntilRememberingAsync() => _remembering?.Task ?? throw new InvalidOperationException("Remembering is not blocked.");
+        public void CompleteRemembering() => _rememberCompletion?.TrySetResult(RememberWarning is null
+            ? null
+            : $" ReelForge could not remember this composition preview for the next launch: {RememberWarning}");
+
         public void SetRenderState(string? status, bool canCancel) => RenderStates.Add((status, canCancel));
-        public void RefreshCompositionActions() { }
+        public void RefreshCompositionActions() => RefreshCount++;
         public void SetStatus(string status) => Statuses.Add(status);
         public void ShowError(string title, Exception exception) => Errors.Add(exception);
     }

@@ -1381,6 +1381,16 @@ public partial class MainWindow : Window, IDisposable
         }
         public void UpdateCompositionPreviewInspector(ProjectAsset composition, MediaEncodingMetadata? encoding) =>
             window.InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(composition, encoding);
+        public bool HasRememberedBakedCompositionPreview(
+            VideoProject project,
+            ProjectLocation location,
+            Guid compositionAssetId,
+            Guid recipeRevisionId) =>
+            window._projectLifecycleCoordinator.HasRememberedBakedCompositionPreview(
+                project,
+                location,
+                compositionAssetId,
+                recipeRevisionId);
     }
 
     private sealed class CompositionRenderPresentation(MainWindow window) : ICompositionRenderHost
@@ -1435,6 +1445,25 @@ public partial class MainWindow : Window, IDisposable
                 target.Composition.Id,
                 target.Revision.Id);
             window.InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(target.Composition, lease.Encoding);
+        }
+
+        public async Task<string?> RememberBakedCompositionPreviewAsync(CompositionRenderTarget target)
+        {
+            try
+            {
+                await window._projectLifecycleCoordinator.RememberBakedCompositionPreviewAsync(
+                    target.Project,
+                    target.Location,
+                    target.Composition.Id,
+                    target.Revision.Id);
+                return null;
+            }
+            catch (Exception exception)
+            {
+                // The preview was already adopted successfully. Settings are convenience state,
+                // not part of the render transaction, so preserve that success for this session.
+                return $" ReelForge could not remember this composition preview for the next launch: {exception.Message}";
+            }
         }
 
         public void SetRenderState(string? status, bool canCancel)

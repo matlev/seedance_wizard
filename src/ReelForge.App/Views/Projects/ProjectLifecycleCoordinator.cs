@@ -96,13 +96,8 @@ internal sealed class ProjectLifecycleCoordinator
     {
         if (_workspace.Project is null) return;
 
-        var settings = _currentSettings();
-        var key = _workspace.Project.Id.ToString("N", CultureInfo.InvariantCulture);
-        if (!settings.General.ProjectStates.TryGetValue(key, out var state))
-        {
-            state = new ProjectUserInterfaceState();
-            settings.General.ProjectStates[key] = state;
-        }
+        var state = GetOrCreateCurrentProjectState();
+        if (state is null) return;
 
         state.Workspace = _host.ActiveWorkspace;
         if (mediaKind is not null)
@@ -111,7 +106,54 @@ internal sealed class ProjectLifecycleCoordinator
             state.SelectedMediaId = mediaId;
         }
 
-        await _settingsStore.SaveAsync(settings);
+        await _settingsStore.SaveAsync(_currentSettings());
+    }
+
+    /// <summary>
+    /// Records only the user's intent to reopen this exact rendered composition. The cache path
+    /// is intentionally not part of settings: materialization may reuse or rebuild it later.
+    /// </summary>
+    public async Task RememberBakedCompositionPreviewAsync(
+        VideoProject project,
+        ProjectLocation location,
+        Guid compositionAssetId,
+        Guid recipeRevisionId)
+    {
+        if (!ReferenceEquals(_workspace.Project, project) || !ReferenceEquals(_workspace.Location, location))
+            return;
+
+        var state = GetOrCreateCurrentProjectState();
+        if (state is null) return;
+
+        state.BakedCompositionPreview = new BakedCompositionPreviewPreference
+        {
+            ProjectFilePath = location.ProjectFilePath,
+            CompositionAssetId = compositionAssetId,
+            RecipeRevisionId = recipeRevisionId
+        };
+        await _settingsStore.SaveAsync(_currentSettings());
+    }
+
+    /// <summary>
+    /// Requires the exact currently-opened project location in addition to logical IDs, so a
+    /// copied project with the same project ID cannot inherit a cached-preview preference.
+    /// </summary>
+    public bool HasRememberedBakedCompositionPreview(
+        VideoProject? project,
+        ProjectLocation? location,
+        Guid compositionAssetId,
+        Guid recipeRevisionId)
+    {
+        if (project is null || location is null ||
+            !ReferenceEquals(_workspace.Project, project) || !ReferenceEquals(_workspace.Location, location))
+        {
+            return false;
+        }
+
+        var key = project.Id.ToString("N", CultureInfo.InvariantCulture);
+        return _currentSettings().General.ProjectStates.TryGetValue(key, out var state) &&
+               state.BakedCompositionPreview is { } preference &&
+               preference.Matches(location.ProjectFilePath, compositionAssetId, recipeRevisionId);
     }
 
     public void RestoreProjectUiState()
@@ -149,6 +191,21 @@ internal sealed class ProjectLifecycleCoordinator
         {
             _host.AppendStatus($" ReelForge could not remember this project for the next launch: {exception.Message}");
         }
+    }
+
+    private ProjectUserInterfaceState? GetOrCreateCurrentProjectState()
+    {
+        if (_workspace.Project is null) return null;
+
+        var settings = _currentSettings();
+        var key = _workspace.Project.Id.ToString("N", CultureInfo.InvariantCulture);
+        if (!settings.General.ProjectStates.TryGetValue(key, out var state))
+        {
+            state = new ProjectUserInterfaceState();
+            settings.General.ProjectStates[key] = state;
+        }
+
+        return state;
     }
 }
 
