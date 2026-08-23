@@ -814,8 +814,7 @@ public partial class MainWindow : Window, IDisposable
             var restoreOutcome = await _mediaPreviewCoordinator.TryOpenRetainedCompositionPreviewAsync(
                     asset,
                     revision,
-                    selectedItem,
-                    selectedProjectId);
+                    selectedItem);
             if (restoreOutcome is RetainedCompositionPreviewRestoreOutcome.Restored or
                 RetainedCompositionPreviewRestoreOutcome.Stale)
             {
@@ -1381,7 +1380,8 @@ public partial class MainWindow : Window, IDisposable
             window._mediaPreviewCoordinator.Clear();
             window._mediaPreviewCoordinator.OpenBakedCompositionPreview(
                 lease,
-                target.ProjectId,
+                target.Project,
+                target.Location,
                 target.Composition.Id,
                 target.Revision.Id);
             window.InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(target.Composition, lease.Encoding);

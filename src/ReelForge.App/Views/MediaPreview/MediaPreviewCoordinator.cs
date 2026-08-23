@@ -115,30 +115,32 @@ internal sealed class MediaPreviewCoordinator : IDisposable
     /// </summary>
     public void OpenBakedCompositionPreview(
         MaterializedMediaLease lease,
-        Guid projectId,
+        VideoProject project,
+        ProjectLocation location,
         Guid compositionAssetId,
         Guid recipeRevisionId)
     {
         _retainedCompositionPreview = new SessionCompositionPreviewIdentity(
-            projectId,
+            project,
+            location,
             compositionAssetId,
             recipeRevisionId);
         OpenLeasedVideo(lease, requiresWarmup: true, compositionRevisionId: recipeRevisionId);
     }
 
-    public bool HasRetainedCompositionPreview(Guid? projectId, Guid compositionAssetId, Guid recipeRevisionId) =>
-        projectId is { } id &&
+    public bool HasRetainedCompositionPreview(
+        VideoProject? project,
+        ProjectLocation? location,
+        Guid compositionAssetId,
+        Guid recipeRevisionId) =>
         _retainedCompositionPreview is { } retained &&
-        retained.ProjectId == id &&
-        retained.CompositionAssetId == compositionAssetId &&
-        retained.RecipeRevisionId == recipeRevisionId;
+        retained.Matches(project, location, compositionAssetId, recipeRevisionId);
 
     public void ClearStaleCompositionPreviewIfNeeded(ProjectAsset composition, RecipeRevision revision)
     {
-        var projectId = _workspace.Project?.Id;
         if (_retainedCompositionPreview is { } retained &&
-            projectId is { } currentProjectId &&
-            retained.ProjectId == currentProjectId &&
+            ReferenceEquals(retained.Project, _workspace.Project) &&
+            ReferenceEquals(retained.Location, _workspace.Location) &&
             retained.CompositionAssetId == composition.Id &&
             retained.RecipeRevisionId != revision.Id)
         {
@@ -150,7 +152,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
 
         Clear();
         if (!_host.IsCompositionSelected(composition.Id)) return;
-        _ = OpenCompositionDraftAsync(composition, revision, projectId);
+        _ = OpenCompositionDraftAsync(composition, revision, _workspace.Project?.Id);
     }
 
     /// <summary>
@@ -161,11 +163,12 @@ internal sealed class MediaPreviewCoordinator : IDisposable
     public async Task<RetainedCompositionPreviewRestoreOutcome> TryOpenRetainedCompositionPreviewAsync(
         ProjectAsset composition,
         RecipeRevision revision,
-        ProjectMediaListItem selectedItem,
-        Guid? projectId)
+        ProjectMediaListItem selectedItem)
     {
-        if (!HasRetainedCompositionPreview(projectId, composition.Id, revision.Id) ||
-            _workspace.Project is null || _workspace.Location is null || projectId is not { } expectedProjectId)
+        var project = _workspace.Project;
+        var location = _workspace.Location;
+        if (!HasRetainedCompositionPreview(project, location, composition.Id, revision.Id) ||
+            project is null || location is null)
         {
             return RetainedCompositionPreviewRestoreOutcome.NotRetained;
         }
@@ -178,14 +181,14 @@ internal sealed class MediaPreviewCoordinator : IDisposable
             try
             {
                 lease = await _materializer.MaterializeAsync(
-                    _workspace.Project,
-                    _workspace.Location,
+                    project,
+                    location,
                     new MaterializationRequest(
                         new AssetMaterializationTarget(composition.Id, revision.Id),
                         MaterializationPurpose.Preview));
 
-                if (!IsRestoreCurrent(requestGeneration, expectedProjectId, composition, revision, selectedItem) ||
-                    !HasRetainedCompositionPreview(expectedProjectId, composition.Id, revision.Id))
+                if (!IsRestoreCurrent(requestGeneration, project, location, composition, revision, selectedItem) ||
+                    !HasRetainedCompositionPreview(project, location, composition.Id, revision.Id))
                 {
                     outcome = RetainedCompositionPreviewRestoreOutcome.Stale;
                     return;
@@ -193,7 +196,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
 
                 var encoding = lease.Encoding;
                 Clear();
-                OpenBakedCompositionPreview(lease, expectedProjectId, composition.Id, revision.Id);
+                OpenBakedCompositionPreview(lease, project, location, composition.Id, revision.Id);
                 lease = null;
                 _host.UpdateCompositionPreviewInspector(composition, encoding);
                 _host.SetStatus("Restored Working Composition preview.");
@@ -201,13 +204,13 @@ internal sealed class MediaPreviewCoordinator : IDisposable
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                if (!IsRestoreCurrent(requestGeneration, expectedProjectId, composition, revision, selectedItem))
+                if (!IsRestoreCurrent(requestGeneration, project, location, composition, revision, selectedItem))
                 {
                     outcome = RetainedCompositionPreviewRestoreOutcome.Stale;
                     return;
                 }
 
-                if (HasRetainedCompositionPreview(expectedProjectId, composition.Id, revision.Id))
+                if (HasRetainedCompositionPreview(project, location, composition.Id, revision.Id))
                     ClearRetainedCompositionPreview();
                 outcome = RetainedCompositionPreviewRestoreOutcome.Failed;
                 _host.ShowError("Composition preview restoration failed", exception);
@@ -247,13 +250,16 @@ internal sealed class MediaPreviewCoordinator : IDisposable
 
     private bool IsRestoreCurrent(
         long requestGeneration,
-        Guid expectedProjectId,
+        VideoProject project,
+        ProjectLocation location,
         ProjectAsset composition,
         RecipeRevision revision,
         ProjectMediaListItem selectedItem) =>
         _previewOperationGeneration == requestGeneration &&
-        HasRetainedCompositionPreview(expectedProjectId, composition.Id, revision.Id) &&
-        IsCompositionSelectionCurrent(expectedProjectId, composition.Id, selectedItem);
+        HasRetainedCompositionPreview(project, location, composition.Id, revision.Id) &&
+        ReferenceEquals(_workspace.Project, project) &&
+        ReferenceEquals(_workspace.Location, location) &&
+        IsCompositionSelectionCurrent(project.Id, composition.Id, selectedItem);
 
     private bool IsCompositionSelectionCurrent(
         Guid? projectId,
@@ -551,7 +557,13 @@ internal sealed class MediaPreviewCoordinator : IDisposable
 
     private void Audition_PositionChanged(object? sender, CompositionAuditionPositionChangedEventArgs e)
     {
-        if (_activeTimelineSeekGeneration is null && !_audition.IsQuiesced) UpdateTimelinePlayback(e.PositionSeconds);
+        if (MediaPreviewTimelinePolicy.ShouldProjectAuditionPosition(
+                _audition.IsActive,
+                _audition.IsQuiesced,
+                _activeTimelineSeekGeneration is not null))
+        {
+            UpdateTimelinePlayback(e.PositionSeconds);
+        }
     }
 
     private void UpdatePlaybackPosition()
@@ -613,7 +625,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         // A rendered composition preview is ordinary MediaElement playback too, but it
         // remains associated with a pinned composition revision and therefore must
         // continue to drive the composition playhead.
-        if (_activeCompositionPreviewRevisionId is not null)
+        if (MediaPreviewTimelinePolicy.ShouldProjectMediaTick(_activeCompositionPreviewRevisionId is not null))
         {
             UpdateTimelinePlayback(playbackSeconds);
         }
@@ -658,10 +670,6 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         // Leaving this private semaphore for GC avoids disposing a synchronization primitive in use.
     }
 
-    private sealed record SessionCompositionPreviewIdentity(
-        Guid ProjectId,
-        Guid CompositionAssetId,
-        Guid RecipeRevisionId);
 }
 
 internal interface IPreviewCoordinatorHost
