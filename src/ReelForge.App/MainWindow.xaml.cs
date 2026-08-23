@@ -1222,6 +1222,8 @@ public partial class MainWindow : Window, IDisposable
             MessageBoxResult.No);
         if (result != MessageBoxResult.Yes) return;
         var disposition = await _framePreparationCoordinator.RemoveSavedFrameAsync(anchor.Id);
+        if (ProjectMediaPanelControl.SelectedItem?.Anchor?.Id == anchor.Id)
+            ClearProjectMediaSelectionAndPreview();
         RefreshProjectCollections();
         if (MediaPreparationPanelControl.IsPreparing && _framePreparationCoordinator.CurrentSourceAssetId is not null)
             await _framePreparationCoordinator.RefreshSavedFramesAsync();
