@@ -46,8 +46,8 @@ public partial class MainWindow : Window, IDisposable
     private readonly FileApplicationDiagnosticLog _diagnosticLog;
     private readonly IMediaToolDiscovery _mediaToolDiscovery;
     private readonly IApplicationSettingsStore _applicationSettingsStore;
-    private readonly RecentProjectTracker _recentProjectTracker;
     private readonly ProjectLifecycleDialogs _projectDialogs;
+    private readonly ProjectLifecycleCoordinator _projectLifecycleCoordinator;
     private readonly ITemporaryAssetHost _temporaryAssetHost;
     private ApplicationSettings _applicationSettings;
     private MediaToolAvailability _mediaTools;
@@ -60,7 +60,6 @@ public partial class MainWindow : Window, IDisposable
     private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressProjectMediaSelection;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
-    private bool _restoringProjectUiState;
     private CancellationTokenSource? _compositionRenderCancellation;
     private bool _disposed;
     private bool _isMediaImportInProgress;
@@ -72,7 +71,6 @@ public partial class MainWindow : Window, IDisposable
         _runtime = ApplicationRuntime.Create();
         _mediaToolDiscovery = _runtime.MediaToolDiscovery;
         _applicationSettingsStore = _runtime.ApplicationSettingsStore;
-        _recentProjectTracker = _runtime.RecentProjectTracker;
         _projectDialogs = new ProjectLifecycleDialogs(this, _runtime.Paths);
         _applicationSettings = _runtime.Settings;
         _mediaTools = _runtime.MediaTools;
@@ -82,6 +80,13 @@ public partial class MainWindow : Window, IDisposable
         _audioExtractionEngine = _runtime.AudioExtractionEngine;
         _projectStore = _runtime.ProjectStore;
         _workspace = _runtime.Workspace;
+        _projectLifecycleCoordinator = new ProjectLifecycleCoordinator(
+            _workspace,
+            _runtime.RecentProjectTracker,
+            _projectDialogs,
+            _applicationSettingsStore,
+            () => _applicationSettings,
+            new ProjectLifecyclePresentation(this));
         _projectMediaOperationsCoordinator = new ProjectMediaOperationsCoordinator(
             _workspace,
             _runtime.RenderedAssetPromotionService,
@@ -198,26 +203,7 @@ public partial class MainWindow : Window, IDisposable
             StatusText.Text = $"Active generation jobs could not be restored: {exception.Message}";
         }
 
-        if (string.IsNullOrWhiteSpace(_applicationSettings.General.LastProjectFilePath)) return;
-
-        var projectFilePath = RecentProjectTracker.GetExistingProjectFile(_applicationSettings);
-        if (projectFilePath is null)
-        {
-            StatusText.Text = "The last project is unavailable. Use Open to choose its current location or another project.";
-            return;
-        }
-
-        StatusText.Text = $"Reopening {projectFilePath}…";
-        try
-        {
-            await _workspace.OpenAsync(projectFilePath);
-            RefreshProjectUi();
-        }
-        catch (Exception exception)
-        {
-            StatusText.Text = $"The last project could not be reopened: {exception.Message}";
-            InspectorPanelControl.Text = $"Automatic project reopen failed\n\n{exception}";
-        }
+        await _projectLifecycleCoordinator.TryReopenLastProjectAsync();
     }
 
     private void RefreshProviderRuntime(string? preferredProviderId) =>
@@ -227,6 +213,7 @@ public partial class MainWindow : Window, IDisposable
     private async void WorkspaceMode_Checked(object sender, RoutedEventArgs e)
     {
         if (RightPanelTabs is null) return;
+        var beganDuringProjectUiStateRestoration = _projectLifecycleCoordinator.IsRestoringProjectUiState;
         if (JobsPanelControl.IsOpen)
         {
             await JobsPanelControl.HideJobsAsync();
@@ -236,7 +223,8 @@ public partial class MainWindow : Window, IDisposable
             ? ProjectWorkspaceKind.Edit
             : ProjectWorkspaceKind.Generate;
         ApplyWorkspaceMode();
-        if (!_restoringProjectUiState) await SaveProjectUiStateAsync();
+        if (!beganDuringProjectUiStateRestoration)
+            await _projectLifecycleCoordinator.SaveProjectUiStateAsync();
     }
 
     private void ApplyWorkspaceMode()
@@ -284,46 +272,6 @@ public partial class MainWindow : Window, IDisposable
     private void JobsPanelControl_ErrorOccurred(object? sender, GenerationJobsPanelErrorEventArgs e) =>
         StatusText.Text = e.Message;
 
-    private async Task SaveProjectUiStateAsync(string? mediaKind = null, Guid? mediaId = null)
-    {
-        if (_workspace.Project is null) return;
-        var key = _workspace.Project.Id.ToString("N", CultureInfo.InvariantCulture);
-        if (!_applicationSettings.General.ProjectStates.TryGetValue(key, out var state))
-        {
-            state = new ProjectUserInterfaceState();
-            _applicationSettings.General.ProjectStates[key] = state;
-        }
-        state.Workspace = _activeWorkspace;
-        if (mediaKind is not null)
-        {
-            state.SelectedMediaKind = mediaKind;
-            state.SelectedMediaId = mediaId;
-        }
-        await _applicationSettingsStore.SaveAsync(_applicationSettings);
-    }
-
-    private void RestoreProjectUiState()
-    {
-        if (_workspace.Project is null) return;
-        var key = _workspace.Project.Id.ToString("N", CultureInfo.InvariantCulture);
-        _applicationSettings.General.ProjectStates.TryGetValue(key, out var state);
-        _restoringProjectUiState = true;
-        try
-        {
-            _activeWorkspace = state?.Workspace ?? ProjectWorkspaceKind.Generate;
-            GenerateWorkspaceButton.IsChecked = _activeWorkspace == ProjectWorkspaceKind.Generate;
-            EditWorkspaceButton.IsChecked = _activeWorkspace == ProjectWorkspaceKind.Edit;
-            ApplyWorkspaceMode();
-            if (state is { SelectedMediaKind: { } kind, SelectedMediaId: { } mediaId })
-                ProjectMediaPanelControl.SelectedItem = _assets.FirstOrDefault(item =>
-                    kind == "asset" ? item.Asset?.Id == mediaId : item.Anchor?.Id == mediaId);
-        }
-        finally
-        {
-            _restoringProjectUiState = false;
-        }
-    }
-
     private async void Settings_Click(object sender, RoutedEventArgs e)
     {
         var activeDraft = _workspace.Project is null ? null : _generationWorkspace.CaptureDraft();
@@ -364,46 +312,12 @@ public partial class MainWindow : Window, IDisposable
 
     private async void NewProject_Click(object sender, RoutedEventArgs e)
     {
-        var selection = _projectDialogs.SelectNewProject(_applicationSettings);
-        if (selection is null) return;
-
-        await RunUiActionAsync(
-            "Creating project…",
-            async () =>
-            {
-                await _workspace.CreateAsync(selection.ProjectDirectory, selection.ProjectName);
-                RefreshProjectUi();
-                await RememberCurrentProjectAsync();
-            });
+        await _projectLifecycleCoordinator.CreateProjectFromDialogAsync();
     }
 
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
     {
-        var projectFilePath = _projectDialogs.SelectProjectToOpen(_applicationSettings);
-        if (projectFilePath is null) return;
-
-        await RunUiActionAsync(
-            "Opening project…",
-            async () =>
-            {
-                await _workspace.OpenAsync(projectFilePath);
-                RefreshProjectUi();
-                await RememberCurrentProjectAsync();
-            });
-    }
-
-    private async Task RememberCurrentProjectAsync()
-    {
-        if (_workspace.Location is null) return;
-
-        try
-        {
-            await _recentProjectTracker.RememberAsync(_applicationSettings, _workspace.Location.ProjectFilePath);
-        }
-        catch (Exception exception)
-        {
-            StatusText.Text += $" ReelForge could not remember this project for the next launch: {exception.Message}";
-        }
+        await _projectLifecycleCoordinator.OpenProjectFromDialogAsync();
     }
 
     private async void ImportAssets_Click(object sender, RoutedEventArgs e)
@@ -539,13 +453,15 @@ public partial class MainWindow : Window, IDisposable
         if (item.Anchor is not null && item.AnchorRevision is not null)
         {
             UpdateCompositionActionState();
-            if (!_restoringProjectUiState) await SaveProjectUiStateAsync("anchor", item.Anchor.Id);
+            if (!_projectLifecycleCoordinator.IsRestoringProjectUiState)
+                await _projectLifecycleCoordinator.SaveProjectUiStateAsync("anchor", item.Anchor.Id);
             await ShowSavedFramePreviewAsync(item, selectedProjectId);
             return;
         }
 
         if (item.Asset is not { } asset) return;
-        if (!_restoringProjectUiState) await SaveProjectUiStateAsync("asset", asset.Id);
+        if (!_projectLifecycleCoordinator.IsRestoringProjectUiState)
+            await _projectLifecycleCoordinator.SaveProjectUiStateAsync("asset", asset.Id);
 
         if (asset.StorageKind == AssetStorageKind.Virtual)
         {
@@ -1246,7 +1162,7 @@ public partial class MainWindow : Window, IDisposable
         RefreshProjectCollections();
         if (_workspace.Project.CurrentGenerationDraft is { } draft)
             _generationWorkspace.LoadDraft(draft);
-        RestoreProjectUiState();
+        _projectLifecycleCoordinator.RestoreProjectUiState();
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} media items";
         Title = $"{_workspace.Project.Name} — ReelForge";
         StatusText.Text = $"Opened {_workspace.Location!.ProjectFilePath}";
@@ -1336,6 +1252,36 @@ public partial class MainWindow : Window, IDisposable
         StatusText.Text = exception.Message;
         InspectorPanelControl.Text = $"{title}\n\n{exception}";
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private sealed class ProjectLifecyclePresentation(MainWindow window) : IProjectLifecycleCoordinatorHost
+    {
+        public ProjectWorkspaceKind ActiveWorkspace => window._activeWorkspace;
+
+        public Task RunUiActionAsync(string status, Func<Task> action) => window.RunUiActionAsync(status, action);
+
+        public void RefreshProjectUi() => window.RefreshProjectUi();
+
+        public void ApplyRestoredWorkspaceMode(ProjectWorkspaceKind workspace)
+        {
+            window._activeWorkspace = workspace;
+            window.GenerateWorkspaceButton.IsChecked = workspace == ProjectWorkspaceKind.Generate;
+            window.EditWorkspaceButton.IsChecked = workspace == ProjectWorkspaceKind.Edit;
+            window.ApplyWorkspaceMode();
+        }
+
+        public ProjectMediaListItem? FindProjectMediaItem(string mediaKind, Guid mediaId) =>
+            window._assets.FirstOrDefault(item =>
+                mediaKind == "asset" ? item.Asset?.Id == mediaId : item.Anchor?.Id == mediaId);
+
+        public void SelectProjectMediaItem(ProjectMediaListItem? item) =>
+            window.ProjectMediaPanelControl.SelectedItem = item;
+
+        public void SetStatus(string status) => window.StatusText.Text = status;
+
+        public void AppendStatus(string status) => window.StatusText.Text += status;
+
+        public void SetInspectorText(string text) => window.InspectorPanelControl.Text = text;
     }
 
     private sealed class ProjectMediaCommandPresentation(MainWindow window) : IProjectMediaCommandHost
