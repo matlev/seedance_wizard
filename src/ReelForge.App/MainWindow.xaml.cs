@@ -37,6 +37,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly PortableProjectStore _projectStore;
     private readonly ProjectMediaOperationsCoordinator _projectMediaOperationsCoordinator;
     private readonly ProjectMediaCommandCoordinator _projectMediaCommandCoordinator;
+    private readonly MediaImportCoordinator _mediaImportCoordinator;
     private readonly FfprobeMediaInspectionService _mediaInspector;
     private readonly PhysicalAssetSelectionPreparationService _physicalAssetSelectionPreparationService;
     private readonly ExactVideoFrameService _exactFrameService;
@@ -62,7 +63,6 @@ public partial class MainWindow : Window, IDisposable
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
     private CancellationTokenSource? _compositionRenderCancellation;
     private bool _disposed;
-    private bool _isMediaImportInProgress;
 
     public MainWindow()
     {
@@ -98,6 +98,9 @@ public partial class MainWindow : Window, IDisposable
         _projectMediaCommandCoordinator = new ProjectMediaCommandCoordinator(
             _projectMediaOperationsCoordinator,
             new ProjectMediaCommandPresentation(this));
+        _mediaImportCoordinator = new MediaImportCoordinator(
+            _projectMediaOperationsCoordinator,
+            new MediaImportPresentation(this));
         _physicalAssetSelectionPreparationService = new PhysicalAssetSelectionPreparationService(_workspace, _mediaInspector);
         _mediaPreviewCoordinator = new MediaPreviewCoordinator(
             _workspace, _mediaMaterializer, _exactFrameService, MediaPreviewPanelControl,
@@ -323,8 +326,9 @@ public partial class MainWindow : Window, IDisposable
     private async void ImportAssets_Click(object sender, RoutedEventArgs e)
     {
         if (!EnsureProjectOpen()) return;
+        if (!_mediaImportCoordinator.CanBeginImport) return;
         var fileNames = _projectDialogs.SelectMediaToImport();
-        if (fileNames.Count > 0) await ImportMediaFilesAsync(fileNames);
+        await _mediaImportCoordinator.ImportAsync(MediaImportInput.FromDialogSelection(fileNames));
     }
 
     private void MainWindow_PreviewDragEnter(object sender, DragEventArgs e)
@@ -350,24 +354,22 @@ public partial class MainWindow : Window, IDisposable
     {
         if (e.Data.GetDataPresent(ProjectMediaDragData.Format)) return;
         var droppedFiles = GetDroppedFiles(e.Data);
-        var supportedFiles = droppedFiles.Where(AssetImportService.IsSupportedMediaFile).ToArray();
-        var skippedCount = droppedFiles.Count - supportedFiles.Length;
-        var canImport = _workspace.Project is not null && !_isMediaImportInProgress && supportedFiles.Length > 0;
+        var input = MediaImportInput.AnalyzeExternalDrop(droppedFiles);
+        var canImport = _mediaImportCoordinator.CanImport(input);
 
         e.Effects = canImport ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
         HideMediaDropOverlay();
 
         if (!canImport) return;
-        await ImportMediaFilesAsync(supportedFiles, skippedCount);
+        await _mediaImportCoordinator.ImportAsync(input);
     }
 
     private void UpdateMediaDropFeedback(DragEventArgs e)
     {
         var droppedFiles = GetDroppedFiles(e.Data);
-        var supportedCount = droppedFiles.Count(AssetImportService.IsSupportedMediaFile);
-        var skippedCount = droppedFiles.Count - supportedCount;
-        var canImport = _workspace.Project is not null && !_isMediaImportInProgress && supportedCount > 0;
+        var input = MediaImportInput.AnalyzeExternalDrop(droppedFiles);
+        var canImport = _mediaImportCoordinator.CanImport(input);
 
         e.Effects = canImport ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
@@ -378,37 +380,11 @@ public partial class MainWindow : Window, IDisposable
             return;
         }
 
-        var mediaDescription = supportedCount == 1 ? "1 media file" : $"{supportedCount} media files";
-        var ignoredDescription = skippedCount == 0
+        var mediaDescription = input.FilePaths.Count == 1 ? "1 media file" : $"{input.FilePaths.Count} media files";
+        var ignoredDescription = input.SkippedCount == 0
             ? string.Empty
-            : $" {skippedCount} unsupported {(skippedCount == 1 ? "item" : "items")} will be skipped.";
+            : $" {input.SkippedCount} unsupported {(input.SkippedCount == 1 ? "item" : "items")} will be skipped.";
         ShowMediaDropOverlay($"Drop to add {mediaDescription} to {_workspace.Project!.Name}.{ignoredDescription}");
-    }
-
-    private async Task ImportMediaFilesAsync(IReadOnlyCollection<string> filePaths, int skippedCount = 0)
-    {
-        if (_workspace.Project is null || filePaths.Count == 0 || _isMediaImportInProgress) return;
-
-        _isMediaImportInProgress = true;
-        SetProjectActionsEnabled(false);
-        try
-        {
-            await RunUiActionAsync(
-                $"Importing {filePaths.Count} asset(s)…",
-                async () =>
-                {
-                    var imported = await _projectMediaOperationsCoordinator.ImportAsync(filePaths);
-                    RefreshProjectCollections();
-                    StatusText.Text = skippedCount == 0
-                        ? $"Imported {imported.Count} asset(s)."
-                        : $"Imported {imported.Count} asset(s); skipped {skippedCount} unsupported item(s).";
-                });
-        }
-        finally
-        {
-            _isMediaImportInProgress = false;
-            SetProjectActionsEnabled(true);
-        }
     }
 
     private void ShowMediaDropOverlay(string message)
@@ -1366,6 +1342,15 @@ public partial class MainWindow : Window, IDisposable
             window.InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
         public Task DeleteSavedFrameAsync(FrameAnchor anchor, string displayLabel) =>
             window.ConfirmAndRemoveSavedFrameAsync(anchor, displayLabel);
+    }
+
+    private sealed class MediaImportPresentation(MainWindow window) : IMediaImportCoordinatorHost
+    {
+        public bool HasOpenProject => window._workspace.Project is not null && window._workspace.Location is not null;
+        public Task RunUiActionAsync(string status, Func<Task> action) => window.RunUiActionAsync(status, action);
+        public void SetProjectActionsEnabled(bool enabled) => window.SetProjectActionsEnabled(enabled);
+        public void RefreshProjectMedia() => window.RefreshProjectCollections();
+        public void SetStatus(string status) => window.StatusText.Text = status;
     }
 
     private sealed class GenerationSubmissionPresentation(MainWindow window) : IGenerationSubmissionPresentation
