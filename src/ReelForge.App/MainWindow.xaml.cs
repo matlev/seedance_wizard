@@ -1270,76 +1270,21 @@ public partial class MainWindow : Window, IDisposable
         var hasExplicitSelection = selectedAssetId.HasValue;
         selectedAssetId ??= ProjectMediaPanelControl.SelectedItem?.Asset?.Id;
         var selectedAnchorId = ProjectMediaPanelControl.SelectedItem?.Anchor?.Id;
-        var existingChoices = _referenceChoices.ToList();
+        var projection = ProjectMediaProjectionBuilder.Build(
+            _workspace.Project,
+            _workspace.GetAbsoluteAssetPath,
+            LoadBitmap,
+            _referenceChoices);
         _assets.Clear();
         _referenceChoices.Clear();
 
-        var mediaItems = new List<ProjectMediaListItem>();
-        foreach (var asset in _workspace.Project.Assets)
-        {
-            var mediaItem = new ProjectMediaListItem(asset);
-            if (asset is { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Image } &&
-                File.Exists(_workspace.GetAbsoluteAssetPath(asset)))
-            {
-                try
-                {
-                    mediaItem.Thumbnail = LoadBitmap(_workspace.GetAbsoluteAssetPath(asset));
-                }
-                catch (Exception exception) when (exception is IOException or NotSupportedException)
-                {
-                    // The viewer reports unreadable image details when the item is explicitly selected.
-                }
-            }
-            mediaItems.Add(mediaItem);
-            var matching = existingChoices.Where(choice =>
-                choice.ObjectKind == GenerationReferenceObjectKind.Asset && choice.LogicalObjectId == asset.Id).ToArray();
-            if (matching.Length > 0)
-            {
-                foreach (var existing in matching)
-                {
-                    existing.UpdateAsset(asset, mediaItem.Thumbnail);
-                    _referenceChoices.Add(existing);
-                }
-            }
-            else
-            {
-                _referenceChoices.Add(new GenerationReferenceChoice(asset, _referenceChoices.Count, mediaItem.Thumbnail));
-            }
-        }
-
-        foreach (var anchor in _workspace.Project.Anchors.Where(anchor => !anchor.IsArchived))
-        {
-            if (anchor.CurrentRevisionId is not { } revisionId) continue;
-            var revision = _workspace.Project.AnchorRevisions.SingleOrDefault(candidate => candidate.Id == revisionId);
-            if (revision is null) continue;
-            var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == revision.SourceAssetId);
-            mediaItems.Add(new ProjectMediaListItem(anchor, revision));
-            var matching = existingChoices.Where(choice =>
-                choice.ObjectKind == GenerationReferenceObjectKind.FrameAnchor && choice.LogicalObjectId == anchor.Id).ToArray();
-            if (matching.Length > 0)
-            {
-                foreach (var existing in matching)
-                {
-                    existing.UpdateAnchor(anchor, revision, source?.EffectiveDisplayName);
-                    _referenceChoices.Add(existing);
-                }
-            }
-            else
-            {
-                _referenceChoices.Add(new GenerationReferenceChoice(
-                    anchor,
-                    revision,
-                    source?.EffectiveDisplayName,
-                    _referenceChoices.Count));
-            }
-        }
-
-
-        foreach (var item in mediaItems.OrderBy(item => item.GroupOrder).ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase))
+        foreach (var item in projection.MediaItems)
             _assets.Add(item);
+        foreach (var choice in projection.ReferenceChoices)
+            _referenceChoices.Add(choice);
 
         GenerationHistoryPanelControl.SetGenerations(
-            _workspace.Project.Generations.OrderByDescending(item => item.RequestedAt));
+            projection.GenerationHistory);
 
         ProjectTitleText.Text = $"{_workspace.Project.Name}  •  {_assets.Count} media items";
         RefreshEditWorkspaceState();
