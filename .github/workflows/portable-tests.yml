@@ -20,7 +20,13 @@ jobs:
           global-json-file: global.json
 
       - name: Restore portable tests
-        run: dotnet restore tests/ReelForge.Tests/ReelForge.Tests.csproj --verbosity minimal
+        run: >-
+          dotnet restore tests/ReelForge.Tests/ReelForge.Tests.csproj --verbosity minimal
+          && dotnet restore tests/ReelForge.Application.Tests/ReelForge.Application.Tests.csproj --verbosity minimal
+          && dotnet restore tests/ReelForge.Infrastructure.Tests/ReelForge.Infrastructure.Tests.csproj --verbosity minimal
 
-      - name: Test portable suite
-        run: dotnet test tests/ReelForge.Tests/ReelForge.Tests.csproj --configuration Release --no-restore --verbosity normal
+      - name: Test portable suites
+        run: >-
+          dotnet test tests/ReelForge.Tests/ReelForge.Tests.csproj --configuration Release --no-restore --verbosity normal
+          && dotnet test tests/ReelForge.Application.Tests/ReelForge.Application.Tests.csproj --configuration Release --no-restore --verbosity normal
+          && dotnet test tests/ReelForge.Infrastructure.Tests/ReelForge.Infrastructure.Tests.csproj --configuration Release --no-restore --verbosity normal
