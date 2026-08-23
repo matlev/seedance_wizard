@@ -56,12 +56,12 @@ public partial class MainWindow : Window, IDisposable
     private readonly GenerationContinuationCoordinator _generationContinuation;
     private readonly GenerationSubmissionCoordinator _generationSubmission;
     private readonly CompositionWorkspaceCoordinator _compositionWorkspace;
+    private readonly CompositionRenderCoordinator _compositionRenderCoordinator;
     private readonly MediaPreviewCoordinator _mediaPreviewCoordinator;
     private readonly FramePreparationCoordinator _framePreparationCoordinator;
     private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressProjectMediaSelection;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
-    private CancellationTokenSource? _compositionRenderCancellation;
     private bool _disposed;
 
     public MainWindow()
@@ -127,6 +127,11 @@ public partial class MainWindow : Window, IDisposable
             _exactFrameService,
             _audioExtractionEngine,
             _mediaInspector);
+        _compositionRenderCoordinator = new CompositionRenderCoordinator(
+            _workspace,
+            _mediaMaterializer,
+            _projectMediaOperationsCoordinator,
+            new CompositionRenderPresentation(this));
         _compositionWorkspace.StateChanged += CompositionWorkspace_StateChanged;
         _compositionWorkspace.RecipeMutationCommitted += CompositionWorkspace_RecipeMutationCommitted;
         _secretStore = _runtime.SecretStore;
@@ -182,7 +187,7 @@ public partial class MainWindow : Window, IDisposable
         _framePreparationCoordinator.StatusChanged -= FramePreparation_StatusChanged;
         _framePreparationCoordinator.SavedFramesProjected -= FramePreparation_SavedFramesProjected;
         _framePreparationCoordinator.Dispose();
-        _compositionRenderCancellation?.Cancel();
+        _compositionRenderCoordinator.Dispose();
         _mediaPreviewCoordinator.Dispose();
         _compositionWorkspace.StateChanged -= CompositionWorkspace_StateChanged;
         _compositionWorkspace.RecipeMutationCommitted -= CompositionWorkspace_RecipeMutationCommitted;
@@ -540,132 +545,17 @@ public partial class MainWindow : Window, IDisposable
 
     private async void PreviewComposition_Click(object sender, RoutedEventArgs e)
     {
-        if (_workspace.Project is null || _workspace.Location is null) return;
-        var projectId = _workspace.Project.Id;
-        var (composition, revision, _) = new WorkingCompositionService(_workspace).GetCurrent();
-        await RunCompositionRenderAsync(
-            "Rendering preview…",
-            "Composition preview render cancelled.",
-            async cancellationToken =>
-        {
-            MaterializedMediaLease? lease = null;
-            try
-            {
-                lease = await _mediaMaterializer.MaterializeAsync(
-                    _workspace.Project,
-                    _workspace.Location,
-                    new MaterializationRequest(
-                        new AssetMaterializationTarget(composition.Id, revision.Id),
-                        MaterializationPurpose.Preview),
-                    cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-                if (_workspace.Project?.Id != projectId)
-                {
-                    await lease.DisposeAsync();
-                    lease = null;
-                    return;
-                }
-                _mediaPreviewCoordinator.Clear();
-                _mediaPreviewCoordinator.OpenBakedCompositionPreview(
-                    lease,
-                    projectId,
-                    composition.Id,
-                    revision.Id);
-                lease = null;
-                UpdateCompositionActionState();
-                StatusText.Text = "Working Composition preview is ready.";
-            }
-            finally
-            {
-                if (lease is not null) await lease.DisposeAsync();
-            }
-        });
+        await _compositionRenderCoordinator.PreviewAsync();
     }
 
     private async void ExportComposition_Click(object sender, RoutedEventArgs e)
     {
-        if (_workspace.Project is null) return;
-        var (composition, revision, _) = new WorkingCompositionService(_workspace).GetCurrent();
-        var dialog = new SaveFileDialog
-        {
-            Title = "Export Working Composition",
-            Filter = "MP4 video|*.mp4",
-            DefaultExt = ".mp4",
-            AddExtension = true,
-            OverwritePrompt = true,
-            FileName = $"{MakeSafeFileName(_workspace.Project.Name)} composition.mp4",
-            InitialDirectory = Path.Combine(_workspace.Location!.RootDirectory, "exports")
-        };
-        if (dialog.ShowDialog(this) != true) return;
-
-        await RunCompositionRenderAsync(
-            "Exporting composition…",
-            "Composition export cancelled.",
-            async cancellationToken =>
-            {
-                var path = await _projectMediaOperationsCoordinator.ExportVirtualVideoAsync(
-                    composition,
-                    revision.Id,
-                    dialog.FileName,
-                    cancellationToken);
-                StatusText.Text = $"Exported Working Composition to {path}.";
-            });
+        await _compositionRenderCoordinator.ExportAsync();
     }
 
     private void CancelCompositionRender_Click(object sender, RoutedEventArgs e)
     {
-        if (_compositionRenderCancellation is null) return;
-        CancelCompositionRenderButton.IsEnabled = false;
-        CompositionRenderStatusText.Text = "Cancelling…";
-        StatusText.Text = "Cancelling composition render…";
-        _compositionRenderCancellation.Cancel();
-    }
-
-    private async Task RunCompositionRenderAsync(
-        string activeStatus,
-        string cancelledStatus,
-        Func<CancellationToken, Task> action)
-    {
-        if (_compositionRenderCancellation is not null) return;
-
-        using var cancellation = new CancellationTokenSource();
-        _compositionRenderCancellation = cancellation;
-        CompositionRenderStatusText.Text = activeStatus;
-        CompositionRenderIndicator.Visibility = Visibility.Visible;
-        CancelCompositionRenderButton.Visibility = Visibility.Visible;
-        CancelCompositionRenderButton.IsEnabled = true;
-        PreviewCompositionButton.IsEnabled = false;
-        ExportCompositionButton.IsEnabled = false;
-        StatusText.Text = activeStatus;
-        var previewWasHitTestVisible = MediaPreviewPanelControl.IsHitTestVisible;
-        var timelineWasHitTestVisible = CompositionTimelineControl.IsHitTestVisible;
-        IDisposable? auditionQuiescence = null;
-        try
-        {
-            MediaPreviewPanelControl.IsHitTestVisible = false;
-            CompositionTimelineControl.IsHitTestVisible = false;
-            auditionQuiescence = await _mediaPreviewCoordinator.PauseAndQuiesceAsync(cancellation.Token);
-            await action(cancellation.Token);
-        }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-        {
-            StatusText.Text = cancelledStatus;
-        }
-        catch (Exception exception)
-        {
-            ShowError("Composition render failed", exception);
-        }
-        finally
-        {
-            auditionQuiescence?.Dispose();
-            MediaPreviewPanelControl.IsHitTestVisible = previewWasHitTestVisible;
-            CompositionTimelineControl.IsHitTestVisible = timelineWasHitTestVisible;
-            if (ReferenceEquals(_compositionRenderCancellation, cancellation))
-                _compositionRenderCancellation = null;
-            CompositionRenderIndicator.Visibility = Visibility.Collapsed;
-            CancelCompositionRenderButton.Visibility = Visibility.Collapsed;
-            UpdateCompositionActionState();
-        }
+        _compositionRenderCoordinator.Cancel();
     }
 
     private bool IsWorkingCompositionSelected() =>
@@ -689,8 +579,10 @@ public partial class MainWindow : Window, IDisposable
 
     private void UpdateCompositionActionState()
     {
-        PreviewCompositionButton.IsEnabled = _compositionWorkspace.HasSegments && _compositionRenderCancellation is null;
-        ExportCompositionButton.IsEnabled = _compositionWorkspace.HasSegments && _compositionRenderCancellation is null;
+        PreviewCompositionButton.IsEnabled = _compositionWorkspace.HasSegments &&
+                                             !_compositionRenderCoordinator.IsRendering &&
+                                             IsWorkingCompositionSelected();
+        ExportCompositionButton.IsEnabled = _compositionWorkspace.HasSegments && !_compositionRenderCoordinator.IsRendering;
     }
 
     private static string MakeSafeFileName(string value)
@@ -1146,6 +1038,7 @@ public partial class MainWindow : Window, IDisposable
 
     private void ResetProjectSpecificUi()
     {
+        _compositionRenderCoordinator.ResetForProjectChange();
         ProjectMediaPanelControl.SelectedItem = null;
         GenerationHistoryPanelControl.ClearSelection();
         _generationWorkspace.Reset();
@@ -1439,6 +1332,102 @@ public partial class MainWindow : Window, IDisposable
         }
         public void UpdateCompositionPreviewInspector(ProjectAsset composition, MediaEncodingMetadata? encoding) =>
             window.InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(composition, encoding);
+    }
+
+    private sealed class CompositionRenderPresentation(MainWindow window) : ICompositionRenderHost
+    {
+        public bool IsCurrentCompositionTarget(CompositionRenderTarget target) =>
+            ReferenceEquals(window._workspace.Project, target.Project) &&
+            ReferenceEquals(window._workspace.Location, target.Location) &&
+            window._workspace.Project?.Id == target.ProjectId &&
+            window._workspace.Project.WorkingCompositionAssetId == target.Composition.Id &&
+            window._workspace.Project.Assets.SingleOrDefault(asset => asset.Id == target.Composition.Id)?.Virtual
+                ?.CurrentRecipeRevisionId == target.Revision.Id;
+
+        public bool CanAdoptBakedPreview(CompositionRenderTarget target) =>
+            IsCurrentCompositionTarget(target) &&
+            window.ProjectMediaPanelControl.SelectedItem is ProjectMediaListItem { Asset.Id: var selectedAssetId } &&
+            selectedAssetId == target.Composition.Id;
+
+        public object? CaptureProjectMediaSelectionIdentity() => window.ProjectMediaPanelControl.SelectedItem;
+
+        public bool IsSameProjectMediaSelection(object? selectionIdentity) =>
+            ReferenceEquals(window.ProjectMediaPanelControl.SelectedItem, selectionIdentity);
+
+        public string? PromptExportPath(CompositionRenderTarget target)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Title = "Export Working Composition",
+                Filter = "MP4 video|*.mp4",
+                DefaultExt = ".mp4",
+                AddExtension = true,
+                OverwritePrompt = true,
+                FileName = $"{MakeSafeFileName(target.Project.Name)} composition.mp4",
+                InitialDirectory = Path.Combine(target.Location.RootDirectory, "exports")
+            };
+            return dialog.ShowDialog(window) == true ? dialog.FileName : null;
+        }
+
+        public IDisposable SuppressPreviewInteractions() => new InteractionSuppressionLease(
+            window.MediaPreviewPanelControl,
+            window.CompositionTimelineControl);
+
+        public Task<IDisposable> PauseAndQuiescePreviewAsync(CancellationToken cancellationToken) =>
+            window._mediaPreviewCoordinator.PauseAndQuiesceAsync(cancellationToken);
+
+        public void AdoptBakedPreview(MaterializedMediaLease lease, CompositionRenderTarget target)
+        {
+            window._mediaPreviewCoordinator.Clear();
+            window._mediaPreviewCoordinator.OpenBakedCompositionPreview(
+                lease,
+                target.ProjectId,
+                target.Composition.Id,
+                target.Revision.Id);
+            window.InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(target.Composition, lease.Encoding);
+        }
+
+        public void SetRenderState(string? status, bool canCancel)
+        {
+            var visible = status is not null;
+            window.CompositionRenderStatusText.Text = status ?? string.Empty;
+            window.CompositionRenderIndicator.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            window.CancelCompositionRenderButton.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            window.CancelCompositionRenderButton.IsEnabled = visible && canCancel;
+        }
+
+        public void RefreshCompositionActions() => window.UpdateCompositionActionState();
+        public void SetStatus(string status) => window.StatusText.Text = status;
+        public void ShowError(string title, Exception exception) => window.ShowError(title, exception);
+
+        private sealed class InteractionSuppressionLease : IDisposable
+        {
+            private readonly MediaPreviewPanel _mediaPreview;
+            private readonly CompositionTimelineControl _compositionTimeline;
+            private readonly bool _previewWasHitTestVisible;
+            private readonly bool _timelineWasHitTestVisible;
+            private bool _disposed;
+
+            public InteractionSuppressionLease(
+                MediaPreviewPanel mediaPreview,
+                CompositionTimelineControl compositionTimeline)
+            {
+                _mediaPreview = mediaPreview;
+                _compositionTimeline = compositionTimeline;
+                _previewWasHitTestVisible = mediaPreview.IsHitTestVisible;
+                _timelineWasHitTestVisible = compositionTimeline.IsHitTestVisible;
+                _mediaPreview.IsHitTestVisible = false;
+                _compositionTimeline.IsHitTestVisible = false;
+            }
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _mediaPreview.IsHitTestVisible = _previewWasHitTestVisible;
+                _compositionTimeline.IsHitTestVisible = _timelineWasHitTestVisible;
+            }
+        }
     }
 
     private sealed class GenerationContinuationPresentation(MainWindow window) : IGenerationContinuationPresentation
