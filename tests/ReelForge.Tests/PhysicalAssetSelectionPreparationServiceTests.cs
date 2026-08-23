@@ -18,7 +18,11 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
         var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector);
         var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
 
-        var result = await service.PrepareAsync(asset, Guid.NewGuid(), isFfprobeAvailable: true);
+        var result = await service.PrepareAsync(
+            asset,
+            new VideoProject { Id = workspace.Project!.Id },
+            workspace.Location!,
+            isFfprobeAvailable: true);
 
         Assert.Equal(PhysicalAssetSelectionPreparationKind.Stale, result.Kind);
         Assert.Equal(0, inspector.CallCount);
@@ -32,7 +36,7 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
         var (workspace, asset, path) = await CreateWorkspaceWithAssetAsync(inspector, createFile: false);
         var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
 
-        var result = await service.PrepareAsync(asset, workspace.Project!.Id, isFfprobeAvailable: true);
+        var result = await service.PrepareAsync(asset, workspace.Project!, workspace.Location!, isFfprobeAvailable: true);
 
         Assert.False(File.Exists(path));
         Assert.Equal(PhysicalAssetSelectionPreparationKind.Missing, result.Kind);
@@ -49,7 +53,7 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
         var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector);
         var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
 
-        var result = await service.PrepareAsync(asset, workspace.Project!.Id, isFfprobeAvailable: false);
+        var result = await service.PrepareAsync(asset, workspace.Project!, workspace.Location!, isFfprobeAvailable: false);
 
         Assert.Equal(PhysicalAssetSelectionPreparationKind.Ready, result.Kind);
         Assert.Equal(0, inspector.CallCount);
@@ -64,7 +68,7 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
         var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector, existingEncoding);
         var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
 
-        var result = await service.PrepareAsync(asset, workspace.Project!.Id, isFfprobeAvailable: true);
+        var result = await service.PrepareAsync(asset, workspace.Project!, workspace.Location!, isFfprobeAvailable: true);
 
         Assert.Equal(PhysicalAssetSelectionPreparationKind.Ready, result.Kind);
         Assert.Equal(0, inspector.CallCount);
@@ -83,7 +87,7 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
         var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector);
         var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
 
-        var result = await service.PrepareAsync(asset, workspace.Project!.Id, isFfprobeAvailable: true);
+        var result = await service.PrepareAsync(asset, workspace.Project!, workspace.Location!, isFfprobeAvailable: true);
 
         Assert.Equal(PhysicalAssetSelectionPreparationKind.Ready, result.Kind);
         Assert.Equal(1, inspector.CallCount);
@@ -112,7 +116,7 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
             mediaType: MediaType.Audio);
         var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
 
-        var result = await service.PrepareAsync(asset, workspace.Project!.Id, isFfprobeAvailable: true);
+        var result = await service.PrepareAsync(asset, workspace.Project!, workspace.Location!, isFfprobeAvailable: true);
 
         Assert.Equal(PhysicalAssetSelectionPreparationKind.Ready, result.Kind);
         Assert.Equal(1, inspector.CallCount);
@@ -133,9 +137,10 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
         var inspector = new BlockingInspector();
         var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector);
         var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
-        var selectedProjectId = workspace.Project!.Id;
+        var selectedProject = workspace.Project!;
+        var selectedLocation = workspace.Location!;
 
-        var preparation = service.PrepareAsync(asset, selectedProjectId, isFfprobeAvailable: true);
+        var preparation = service.PrepareAsync(asset, selectedProject, selectedLocation, isFfprobeAvailable: true);
         await inspector.Started.Task;
         await workspace.CreateAsync(Path.Combine(_temporaryRoot, "other-project"), "Other project");
         inspector.Release.SetResult(inspector.Encoding);
@@ -150,16 +155,70 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ReopeningSameGuidProjectDuringInspectionReturnsStaleWithoutMutatingOldAsset()
+    {
+        var inspector = new BlockingInspector();
+        var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector);
+        var selectedProject = workspace.Project!;
+        var selectedLocation = workspace.Location!;
+        var projectFilePath = selectedLocation.ProjectFilePath;
+        var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
+
+        var preparation = service.PrepareAsync(asset, selectedProject, selectedLocation, isFfprobeAvailable: true);
+        await inspector.Started.Task;
+        await workspace.OpenAsync(projectFilePath);
+        inspector.Release.SetResult(inspector.Encoding);
+
+        var result = await preparation;
+
+        Assert.NotSame(selectedProject, workspace.Project);
+        Assert.NotSame(selectedLocation, workspace.Location);
+        Assert.Equal(selectedProject.Id, workspace.Project!.Id);
+        Assert.Equal(selectedLocation.ProjectFilePath, workspace.Location!.ProjectFilePath);
+        Assert.Equal(PhysicalAssetSelectionPreparationKind.Stale, result.Kind);
+        Assert.Null(asset.Encoding);
+        Assert.Null(asset.DurationSeconds);
+        Assert.Null(asset.Width);
+        Assert.Null(asset.Height);
+    }
+
+    [Fact]
+    public async Task CancellingSelectionDuringInspectionDoesNotMutateTheCurrentProjectAsset()
+    {
+        var inspector = new BlockingInspector();
+        var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector);
+        var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
+        using var cancellation = new CancellationTokenSource();
+
+        var preparation = service.PrepareAsync(
+            asset,
+            workspace.Project!,
+            workspace.Location!,
+            isFfprobeAvailable: true,
+            cancellation.Token);
+        await inspector.Started.Task;
+        cancellation.Cancel();
+        inspector.Release.SetResult(inspector.Encoding);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => preparation);
+        Assert.Null(asset.Encoding);
+        Assert.Null(asset.DurationSeconds);
+        Assert.Null(asset.Width);
+        Assert.Null(asset.Height);
+    }
+
+    [Fact]
     public async Task ProjectSwitchDuringSaveReturnsStale()
     {
         var store = new BlockingSaveProjectStore();
         var inspector = new RecordingInspector();
         var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector, store: store);
         var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
-        var selectedProjectId = workspace.Project!.Id;
+        var selectedProject = workspace.Project!;
+        var selectedLocation = workspace.Location!;
         store.BlockNextSave = true;
 
-        var preparation = service.PrepareAsync(asset, selectedProjectId, isFfprobeAvailable: true);
+        var preparation = service.PrepareAsync(asset, selectedProject, selectedLocation, isFfprobeAvailable: true);
         await store.SaveStarted.Task;
         await workspace.CreateAsync(Path.Combine(_temporaryRoot, "save-switch-project"), "Other project");
         store.ReleaseSave.SetResult();
@@ -168,6 +227,8 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
 
         Assert.Equal(PhysicalAssetSelectionPreparationKind.Stale, result.Kind);
         Assert.NotNull(asset.Encoding);
+        Assert.Contains(selectedProject, store.SavedProjects);
+        Assert.DoesNotContain(store.SavedProjects, project => ReferenceEquals(project, workspace.Project));
     }
 
     private async Task<(ProjectWorkspace Workspace, ProjectAsset Asset, string Path)> CreateWorkspaceWithAssetAsync(
@@ -257,6 +318,7 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
         public bool BlockNextSave { get; set; }
         public TaskCompletionSource SaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<VideoProject> SavedProjects { get; } = [];
 
         public Task<(VideoProject Project, ProjectLocation Location)> CreateAsync(
             string rootDirectory,
@@ -281,6 +343,7 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
                 await ReleaseSave.Task.ConfigureAwait(false);
             }
 
+            SavedProjects.Add(project);
             await _inner.SaveAsync(project, location, cancellationToken).ConfigureAwait(false);
         }
     }

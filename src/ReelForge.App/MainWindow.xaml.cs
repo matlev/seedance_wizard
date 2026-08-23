@@ -61,6 +61,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly FramePreparationCoordinator _framePreparationCoordinator;
     private readonly GenerationJobCoordinator _jobCoordinator;
     private bool _suppressProjectMediaSelection;
+    private CancellationTokenSource? _projectMediaSelectionCancellation;
     private ProjectWorkspaceKind _activeWorkspace = ProjectWorkspaceKind.Generate;
     private bool _disposed;
 
@@ -179,6 +180,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        CancelProjectMediaSelectionWork();
         _generationSubmission.Dispose();
         _generationWorkspace.ReferenceSelectionRequested -= GenerationWorkspace_ReferenceSelectionRequested;
         _generationWorkspace.Dispose();
@@ -423,12 +425,20 @@ public partial class MainWindow : Window, IDisposable
         ProjectMediaSelectionChangedEventArgs e)
     {
         if (_suppressProjectMediaSelection) return;
+        CancelProjectMediaSelectionWork();
         if (e.SelectedItem is not { } item)
         {
             return;
         }
 
-        var selectedProjectId = _workspace.Project?.Id;
+        var cancellation = new CancellationTokenSource();
+        _projectMediaSelectionCancellation = cancellation;
+        var selection = ProjectMediaSelectionIdentity.Capture(_workspace, item, cancellation.Token);
+        if (selection is null)
+        {
+            return;
+        }
+
         GenerationHistoryPanelControl.ClearSelection();
         ResetFrameWorkspace();
         if (item.Anchor is not null && item.AnchorRevision is not null)
@@ -436,32 +446,37 @@ public partial class MainWindow : Window, IDisposable
             UpdateCompositionActionState();
             if (!_projectLifecycleCoordinator.IsRestoringProjectUiState)
                 await _projectLifecycleCoordinator.SaveProjectUiStateAsync("anchor", item.Anchor.Id);
-            await ShowSavedFramePreviewAsync(item, selectedProjectId);
+            if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
+            await ShowSavedFramePreviewAsync(selection);
             return;
         }
 
         if (item.Asset is not { } asset) return;
         if (!_projectLifecycleCoordinator.IsRestoringProjectUiState)
             await _projectLifecycleCoordinator.SaveProjectUiStateAsync("asset", asset.Id);
+        if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
 
         if (asset.StorageKind == AssetStorageKind.Virtual)
         {
             InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
             ConfigureMediaPreparationFor(asset);
-            await ShowVirtualAssetPreviewAsync(asset, item, selectedProjectId);
+            await ShowVirtualAssetPreviewAsync(asset, selection);
             return;
         }
 
-        await RunUiActionAsync(
+        await RunProjectMediaSelectionActionAsync(
+            selection,
             $"Inspecting {asset.FileName}…",
-            async () =>
+            async cancellationToken =>
             {
                 var resolution = await _physicalAssetSelectionPreparationService.PrepareAsync(
                     asset,
-                    selectedProjectId,
-                    _mediaTools.FfprobePath is not null);
+                    selection.Project,
+                    selection.Location,
+                    _mediaTools.FfprobePath is not null,
+                    cancellationToken);
                 if (resolution.Kind == PhysicalAssetSelectionPreparationKind.Stale ||
-                    !IsCurrentProjectMediaSelection(item, selectedProjectId))
+                    !selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem))
                     return;
 
                 if (resolution.Kind == PhysicalAssetSelectionPreparationKind.Missing)
@@ -539,7 +554,7 @@ public partial class MainWindow : Window, IDisposable
             selectedItem.Asset?.Id == composition.Id)
         {
             _mediaPreviewCoordinator.Clear();
-            _ = _mediaPreviewCoordinator.OpenCompositionDraftAsync(composition, revision, _workspace.Project.Id);
+            _ = _mediaPreviewCoordinator.OpenCompositionDraftAsync(composition, revision);
         }
     }
 
@@ -657,23 +672,25 @@ public partial class MainWindow : Window, IDisposable
         CompositionTimelineControl.CancelExternalDrag();
 
 
-    private async Task ShowSavedFramePreviewAsync(ProjectMediaListItem item, Guid? selectedProjectId)
+    private async Task ShowSavedFramePreviewAsync(ProjectMediaSelectionIdentity selection)
     {
-        if (_workspace.Project is null || _workspace.Location is null ||
-            item.Anchor is not { } anchor || item.AnchorRevision is not { } revision) return;
+        if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
+        var item = selection.Item;
+        if (item.Anchor is not { } anchor || item.AnchorRevision is not { } revision) return;
 
-        await RunUiActionAsync($"Loading {item.DisplayName}…", async () =>
+        await RunProjectMediaSelectionActionAsync(selection, $"Loading {item.DisplayName}…", async cancellationToken =>
         {
+            MaterializedMediaLease? media = null;
             try
             {
-                await using var media = await _mediaMaterializer.MaterializeAsync(
-                        _workspace.Project,
-                        _workspace.Location,
-                        new MaterializationRequest(
-                            new AnchorMaterializationTarget(anchor.Id, revision.Id),
-                            MaterializationPurpose.Preview),
-                        CancellationToken.None);
-                if (_workspace.Project?.Id != selectedProjectId || ProjectMediaPanelControl.SelectedItem != item) return;
+                media = await _mediaMaterializer.MaterializeAsync(
+                    selection.Project,
+                    selection.Location,
+                    new MaterializationRequest(
+                        new AnchorMaterializationTarget(anchor.Id, revision.Id),
+                        MaterializationPurpose.Preview),
+                    cancellationToken);
+                if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
                 var thumbnail = LoadBitmap(media.Path);
                 item.Thumbnail = thumbnail;
                 foreach (var choice in _referenceChoices.Where(choice =>
@@ -688,23 +705,26 @@ public partial class MainWindow : Window, IDisposable
                     new SavedFrameListItem(anchor, revision, thumbnail, error: null));
                 StatusText.Text = $"Selected Saved Frame {item.DisplayName}.";
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                if (_workspace.Project?.Id != selectedProjectId) return;
+                if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
                 _mediaPreviewCoordinator.Clear();
                 MediaPreviewPanelControl.ShowPlaceholder($"Saved Frame preview unavailable\n\n{exception.Message}");
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
                     new SavedFrameListItem(anchor, revision, thumbnail: null, exception.Message));
                 StatusText.Text = $"Could not display {item.DisplayName}.";
             }
+            finally
+            {
+                if (media is not null) await media.DisposeAsync();
+            }
         });
     }
 
     private ProjectAsset? GetSelectedAsset() => ProjectMediaPanelControl.SelectedItem?.Asset;
-
-    private bool IsCurrentProjectMediaSelection(ProjectMediaListItem item, Guid? projectId) =>
-        _workspace.Project?.Id == projectId &&
-        ReferenceEquals(ProjectMediaPanelControl.SelectedItem, item);
 
     private void ClearProjectMediaSelectionAndPreview()
     {
@@ -803,44 +823,45 @@ public partial class MainWindow : Window, IDisposable
 
     private async Task ShowVirtualAssetPreviewAsync(
         ProjectAsset asset,
-        ProjectMediaListItem selectedItem,
-        Guid? selectedProjectId)
+        ProjectMediaSelectionIdentity selection)
     {
-        if (_workspace.Project is null || _workspace.Location is null) return;
+        if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
+        var selectedItem = selection.Item;
         if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
         {
             InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
-            var revision = _workspace.Project.RecipeRevisions.Single(candidate => candidate.Id == asset.Virtual.CurrentRecipeRevisionId);
+            var revision = selection.Project.RecipeRevisions.Single(candidate => candidate.Id == asset.Virtual.CurrentRecipeRevisionId);
             var restoreOutcome = await _mediaPreviewCoordinator.TryOpenRetainedCompositionPreviewAsync(
                     asset,
                     revision,
-                    selectedItem);
+                    selection);
             if (restoreOutcome is RetainedCompositionPreviewRestoreOutcome.Restored or
                 RetainedCompositionPreviewRestoreOutcome.Stale)
             {
                 return;
             }
-            if (!IsCurrentProjectMediaSelection(selectedItem, selectedProjectId)) return;
+            if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
             if (restoreOutcome == RetainedCompositionPreviewRestoreOutcome.Failed)
                 StatusText.Text = "Composition preview could not be restored; opening fast audition instead.";
-            await _mediaPreviewCoordinator.OpenCompositionDraftAsync(asset, revision, selectedProjectId, selectedItem);
+            await _mediaPreviewCoordinator.OpenCompositionDraftAsync(asset, revision, selection);
             return;
         }
         var kindName = asset.Virtual?.Kind == VirtualAssetKind.Composition
             ? "Working Composition"
             : "Saved Clip";
-        await RunUiActionAsync($"Preparing {asset.EffectiveDisplayName}…", async () =>
+        await RunProjectMediaSelectionActionAsync(selection, $"Preparing {asset.EffectiveDisplayName}…", async cancellationToken =>
         {
             MaterializedMediaLease? lease = null;
             try
             {
                 lease = await _mediaMaterializer.MaterializeAsync(
-                    _workspace.Project,
-                    _workspace.Location,
-                    new MaterializationRequest(
-                        new AssetMaterializationTarget(asset.Id, asset.Virtual?.CurrentRecipeRevisionId),
-                        MaterializationPurpose.Preview));
-                if (_workspace.Project?.Id != selectedProjectId || ProjectMediaPanelControl.SelectedItem != selectedItem)
+                    selection.Project,
+                    selection.Location,
+                        new MaterializationRequest(
+                            new AssetMaterializationTarget(asset.Id, asset.Virtual?.CurrentRecipeRevisionId),
+                        MaterializationPurpose.Preview),
+                    cancellationToken);
+                if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem))
                 {
                     await lease.DisposeAsync();
                     return;
@@ -856,9 +877,12 @@ public partial class MainWindow : Window, IDisposable
                 lease = null;
                 StatusText.Text = $"Selected {kindName} {asset.EffectiveDisplayName}.";
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                if (_workspace.Project?.Id != selectedProjectId) return;
+                if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
                 _mediaPreviewCoordinator.Clear();
                 MediaPreviewPanelControl.ShowPlaceholder($"{kindName} preview unavailable\n\n{exception.Message}");
                 StatusText.Text = $"Could not prepare {asset.EffectiveDisplayName}.";
@@ -1037,6 +1061,7 @@ public partial class MainWindow : Window, IDisposable
 
     private void ResetProjectSpecificUi()
     {
+        CancelProjectMediaSelectionWork();
         _compositionRenderCoordinator.ResetForProjectChange();
         ProjectMediaPanelControl.SelectedItem = null;
         GenerationHistoryPanelControl.ClearSelection();
@@ -1113,6 +1138,35 @@ public partial class MainWindow : Window, IDisposable
         {
             ShowError("Operation failed", exception);
         }
+    }
+
+    private async Task RunProjectMediaSelectionActionAsync(
+        ProjectMediaSelectionIdentity selection,
+        string status,
+        Func<CancellationToken, Task> action)
+    {
+        if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
+        StatusText.Text = status;
+        try
+        {
+            await action(selection.CancellationToken);
+        }
+        catch (OperationCanceledException) when (selection.CancellationToken.IsCancellationRequested)
+        {
+            // A newer Project Media selection superseded this operation.
+        }
+        catch (Exception exception)
+        {
+            if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
+            ShowError("Operation failed", exception);
+        }
+    }
+
+    private void CancelProjectMediaSelectionWork()
+    {
+        var cancellation = Interlocked.Exchange(ref _projectMediaSelectionCancellation, null);
+        if (cancellation is null) return;
+        cancellation.Cancel();
     }
 
     private void ShowError(string title, Exception exception)

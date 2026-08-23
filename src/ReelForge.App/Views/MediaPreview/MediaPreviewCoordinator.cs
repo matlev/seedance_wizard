@@ -49,7 +49,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         _preview = preview;
         _timeline = timeline;
         _host = host;
-        _audition = new CompositionAuditionController(workspace, materializer, preview);
+        _audition = new CompositionAuditionController(materializer, preview);
         _audition.PositionChanged += Audition_PositionChanged;
         _preview.VideoReady += Preview_VideoReady;
         _preview.PlaybackEnded += Preview_PlaybackEnded;
@@ -152,7 +152,7 @@ internal sealed class MediaPreviewCoordinator : IDisposable
 
         Clear();
         if (!_host.IsCompositionSelected(composition.Id)) return;
-        _ = OpenCompositionDraftAsync(composition, revision, _workspace.Project?.Id);
+        _ = OpenCompositionDraftAsync(composition, revision);
     }
 
     /// <summary>
@@ -163,12 +163,12 @@ internal sealed class MediaPreviewCoordinator : IDisposable
     public async Task<RetainedCompositionPreviewRestoreOutcome> TryOpenRetainedCompositionPreviewAsync(
         ProjectAsset composition,
         RecipeRevision revision,
-        ProjectMediaListItem selectedItem)
+        ProjectMediaSelectionIdentity selection)
     {
-        var project = _workspace.Project;
-        var location = _workspace.Location;
+        var project = selection.Project;
+        var location = selection.Location;
         if (!HasRetainedCompositionPreview(project, location, composition.Id, revision.Id) ||
-            project is null || location is null)
+            !IsSelectionCurrent(selection, composition.Id))
         {
             return RetainedCompositionPreviewRestoreOutcome.NotRetained;
         }
@@ -183,11 +183,12 @@ internal sealed class MediaPreviewCoordinator : IDisposable
                 lease = await _materializer.MaterializeAsync(
                     project,
                     location,
-                    new MaterializationRequest(
-                        new AssetMaterializationTarget(composition.Id, revision.Id),
-                        MaterializationPurpose.Preview));
+                        new MaterializationRequest(
+                            new AssetMaterializationTarget(composition.Id, revision.Id),
+                        MaterializationPurpose.Preview),
+                    selection.CancellationToken);
 
-                if (!IsRestoreCurrent(requestGeneration, project, location, composition, revision, selectedItem) ||
+                if (!IsRestoreCurrent(requestGeneration, project, location, composition, revision, selection) ||
                     !HasRetainedCompositionPreview(project, location, composition.Id, revision.Id))
                 {
                     outcome = RetainedCompositionPreviewRestoreOutcome.Stale;
@@ -202,9 +203,13 @@ internal sealed class MediaPreviewCoordinator : IDisposable
                 _host.SetStatus("Restored Working Composition preview.");
                 outcome = RetainedCompositionPreviewRestoreOutcome.Restored;
             }
+            catch (OperationCanceledException) when (selection.CancellationToken.IsCancellationRequested)
+            {
+                outcome = RetainedCompositionPreviewRestoreOutcome.Stale;
+            }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                if (!IsRestoreCurrent(requestGeneration, project, location, composition, revision, selectedItem))
+                if (!IsRestoreCurrent(requestGeneration, project, location, composition, revision, selection))
                 {
                     outcome = RetainedCompositionPreviewRestoreOutcome.Stale;
                     return;
@@ -226,25 +231,78 @@ internal sealed class MediaPreviewCoordinator : IDisposable
 
     public async Task OpenCompositionDraftAsync(
         ProjectAsset composition,
+        RecipeRevision revision)
+    {
+        var project = _workspace.Project;
+        var location = _workspace.Location;
+        if (project is null || location is null) return;
+        await OpenCompositionDraftCoreAsync(
+            composition,
+            revision,
+            project,
+            location,
+            () => ReferenceEquals(_workspace.Project, project) &&
+                  ReferenceEquals(_workspace.Location, location) &&
+                  _host.IsCompositionSelected(composition.Id),
+            CancellationToken.None);
+    }
+
+    public async Task OpenCompositionDraftAsync(
+        ProjectAsset composition,
         RecipeRevision revision,
-        Guid? projectId,
-        ProjectMediaListItem? expectedItem = null)
+        ProjectMediaSelectionIdentity selection)
+    {
+        if (!IsSelectionCurrent(selection, composition.Id)) return;
+        await OpenCompositionDraftCoreAsync(
+            composition,
+            revision,
+            selection.Project,
+            selection.Location,
+            () => IsSelectionCurrent(selection, composition.Id),
+            selection.CancellationToken);
+    }
+
+    private async Task OpenCompositionDraftCoreAsync(
+        ProjectAsset composition,
+        RecipeRevision revision,
+        VideoProject project,
+        ProjectLocation location,
+        Func<bool> isStillCurrent,
+        CancellationToken cancellationToken)
     {
         await _host.RunUiActionAsync("Preparing fast composition audition…", async () =>
         {
-            if (!IsCompositionSelectionCurrent(projectId, composition.Id, expectedItem)) return;
-            Clear();
-            var requestedPosition = _pendingTimelineSeekSeconds ?? 0;
-            _pendingTimelineSeekSeconds = null;
-            var result = await _audition.OpenAsync(composition, revision, requestedPosition,
-                () => IsCompositionSelectionCurrent(projectId, composition.Id, expectedItem));
-            if (result.IsStale || !IsCompositionSelectionCurrent(projectId, composition.Id, expectedItem)) return;
-            _host.SetStatus(result.AudioWarning is not null
-                ? $"Fast composition audition ready without independent audio: {result.AudioWarning}"
-                : result.HasAuditionAudio
-                    ? "Fast composition audition ready with independent audio clips. Use Preview composition to verify final mix fidelity and render continuity."
-                    : "Fast composition audition ready. Source video and source audio play at cuts; use Preview composition to verify the complete audio mix and final render.");
-            _host.PreviewStateChanged();
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!isStillCurrent()) return;
+                Clear();
+                var requestedPosition = _pendingTimelineSeekSeconds ?? 0;
+                _pendingTimelineSeekSeconds = null;
+                var result = await _audition.OpenAsync(
+                    composition,
+                    revision,
+                    project,
+                    location,
+                    requestedPosition,
+                    isStillCurrent,
+                    cancellationToken);
+                if (result.IsStale || !isStillCurrent()) return;
+                _host.SetStatus(result.AudioWarning is not null
+                    ? $"Fast composition audition ready without independent audio: {result.AudioWarning}"
+                    : result.HasAuditionAudio
+                        ? "Fast composition audition ready with independent audio clips. Use Preview composition to verify final mix fidelity and render continuity."
+                        : "Fast composition audition ready. Source video and source audio play at cuts; use Preview composition to verify the complete audio mix and final render.");
+                _host.PreviewStateChanged();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                if (isStillCurrent())
+                    _host.ShowError("Preparing composition audition failed", exception);
+            }
         });
     }
 
@@ -254,21 +312,16 @@ internal sealed class MediaPreviewCoordinator : IDisposable
         ProjectLocation location,
         ProjectAsset composition,
         RecipeRevision revision,
-        ProjectMediaListItem selectedItem) =>
+        ProjectMediaSelectionIdentity selection) =>
         _previewOperationGeneration == requestGeneration &&
         HasRetainedCompositionPreview(project, location, composition.Id, revision.Id) &&
-        ReferenceEquals(_workspace.Project, project) &&
-        ReferenceEquals(_workspace.Location, location) &&
-        IsCompositionSelectionCurrent(project.Id, composition.Id, selectedItem);
+        IsSelectionCurrent(selection, composition.Id);
 
-    private bool IsCompositionSelectionCurrent(
-        Guid? projectId,
-        Guid compositionId,
-        ProjectMediaListItem? expectedItem) =>
-        _workspace.Project?.Id == projectId &&
-        (expectedItem is null
-            ? _host.IsCompositionSelected(compositionId)
-            : _host.IsCompositionSelected(compositionId, expectedItem));
+    private bool IsSelectionCurrent(ProjectMediaSelectionIdentity selection, Guid compositionId) =>
+        !selection.CancellationToken.IsCancellationRequested &&
+        ReferenceEquals(_workspace.Project, selection.Project) &&
+        ReferenceEquals(_workspace.Location, selection.Location) &&
+        _host.IsCompositionSelected(compositionId, selection.Item);
 
     public void UpdateTimelinePlayback(double playbackSeconds) =>
         _timeline.UpdatePlayback(playbackSeconds, _preview.IsPlaying, IsPreviewActive, IsPlaybackEnabled);

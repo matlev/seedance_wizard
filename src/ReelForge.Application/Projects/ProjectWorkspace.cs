@@ -40,6 +40,29 @@ public sealed class ProjectWorkspace
         return _projectStore.SaveAsync(Project, Location!, cancellationToken);
     }
 
+    /// <summary>
+    /// Persists a captured project session only while it remains the workspace's exact current
+    /// session. Unlike <see cref="SaveAsync"/>, this method never redirects a late request to a
+    /// replacement project that happens to have the same logical identity.
+    /// </summary>
+    public async Task<bool> SaveIfCurrentAsync(
+        VideoProject expectedProject,
+        ProjectLocation expectedLocation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(expectedProject);
+        ArgumentNullException.ThrowIfNull(expectedLocation);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!ReferenceEquals(Project, expectedProject) || !ReferenceEquals(Location, expectedLocation))
+            return false;
+
+        expectedProject.Touch();
+        await _projectStore.SaveAsync(expectedProject, expectedLocation, cancellationToken).ConfigureAwait(false);
+        return !cancellationToken.IsCancellationRequested &&
+               ReferenceEquals(Project, expectedProject) &&
+               ReferenceEquals(Location, expectedLocation);
+    }
+
     public async Task<IReadOnlyList<ProjectAsset>> ImportAssetsAsync(
         IEnumerable<string> sourcePaths,
         CancellationToken cancellationToken = default)

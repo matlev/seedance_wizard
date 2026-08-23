@@ -22,24 +22,34 @@ public sealed class PhysicalAssetSelectionPreparationService
 
     public async Task<PhysicalAssetSelectionPreparationResult> PrepareAsync(
         ProjectAsset asset,
-        Guid? selectedProjectId,
+        VideoProject selectedProject,
+        ProjectLocation selectedLocation,
         bool isFfprobeAvailable,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(selectedProject);
+        ArgumentNullException.ThrowIfNull(selectedLocation);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        if (!IsSelectedProjectCurrent(selectedProjectId))
+        if (!IsSelectedProjectCurrent(selectedProject, selectedLocation))
             return PhysicalAssetSelectionPreparationResult.Stale;
 
         if (asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
             return PhysicalAssetSelectionPreparationResult.Ready;
 
-        var absolutePath = _workspace.GetAbsoluteAssetPath(asset);
+        var absolutePath = ProjectPathPolicy.ResolveContainedPath(selectedLocation, asset.Physical.RelativePath);
         if (!File.Exists(absolutePath))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsSelectedProjectCurrent(selectedProject, selectedLocation))
+                return PhysicalAssetSelectionPreparationResult.Stale;
+
             asset.Physical.Availability = PhysicalAssetAvailability.Missing;
-            await _workspace.SaveAsync(cancellationToken).ConfigureAwait(false);
-            return IsSelectedProjectCurrent(selectedProjectId)
+            var saved = await _workspace
+                .SaveIfCurrentAsync(selectedProject, selectedLocation, cancellationToken)
+                .ConfigureAwait(false);
+            return saved
                 ? PhysicalAssetSelectionPreparationResult.Missing
                 : PhysicalAssetSelectionPreparationResult.Stale;
         }
@@ -51,23 +61,27 @@ public sealed class PhysicalAssetSelectionPreparationService
             var encoding = await _mediaInspector
                 .InspectAsync(absolutePath, cancellationToken)
                 .ConfigureAwait(false);
-            if (!IsSelectedProjectCurrent(selectedProjectId))
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsSelectedProjectCurrent(selectedProject, selectedLocation))
                 return PhysicalAssetSelectionPreparationResult.Stale;
 
             asset.Encoding = encoding;
             asset.DurationSeconds = encoding.DurationSeconds;
             asset.Width = encoding.Video?.Width;
             asset.Height = encoding.Video?.Height;
-            await _workspace.SaveAsync(cancellationToken).ConfigureAwait(false);
-            if (!IsSelectedProjectCurrent(selectedProjectId))
+            var saved = await _workspace
+                .SaveIfCurrentAsync(selectedProject, selectedLocation, cancellationToken)
+                .ConfigureAwait(false);
+            if (!saved)
                 return PhysicalAssetSelectionPreparationResult.Stale;
         }
 
         return PhysicalAssetSelectionPreparationResult.Ready;
     }
 
-    private bool IsSelectedProjectCurrent(Guid? selectedProjectId) =>
-        selectedProjectId is not null && _workspace.Project?.Id == selectedProjectId;
+    private bool IsSelectedProjectCurrent(VideoProject selectedProject, ProjectLocation selectedLocation) =>
+        ReferenceEquals(_workspace.Project, selectedProject) &&
+        ReferenceEquals(_workspace.Location, selectedLocation);
 }
 
 public enum PhysicalAssetSelectionPreparationKind

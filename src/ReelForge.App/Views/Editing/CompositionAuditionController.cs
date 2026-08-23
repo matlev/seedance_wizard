@@ -8,10 +8,13 @@ namespace ReelForge.App.Views.Editing;
 
 public sealed class CompositionAuditionController : IDisposable
 {
-    private readonly ProjectWorkspace _workspace;
     private readonly RecipeMediaMaterializer _materializer;
     private readonly MediaPreviewPanel _preview;
     private CompositionAuditionSession? _session;
+    private VideoProject? _sessionProject;
+    private ProjectLocation? _sessionLocation;
+    private Func<bool>? _sessionIsCurrent;
+    private CancellationToken _sessionCancellationToken;
     private readonly SemaphoreSlim _auditionOpenGate = new(1, 1);
     private readonly SemaphoreSlim _segmentOpenGate = new(1, 1);
     private readonly LatestOperationSequence _openOperations = new();
@@ -23,11 +26,9 @@ public sealed class CompositionAuditionController : IDisposable
     private bool _disposed;
 
     public CompositionAuditionController(
-        ProjectWorkspace workspace,
         RecipeMediaMaterializer materializer,
         MediaPreviewPanel preview)
     {
-        _workspace = workspace;
         _materializer = materializer;
         _preview = preview;
     }
@@ -43,21 +44,24 @@ public sealed class CompositionAuditionController : IDisposable
     public async Task<CompositionAuditionOpenResult> OpenAsync(
         ProjectAsset composition,
         RecipeRevision revision,
+        VideoProject project,
+        ProjectLocation location,
         double requestedPosition,
         Func<bool> isStillCurrent,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(composition);
         ArgumentNullException.ThrowIfNull(revision);
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(location);
         ArgumentNullException.ThrowIfNull(isStillCurrent);
         cancellationToken.ThrowIfCancellationRequested();
-        if (_disposed || _quiescing || _workspace.Project is null || _workspace.Location is null ||
-            !isStillCurrent())
+        if (_disposed || _quiescing || !isStillCurrent())
             return CompositionAuditionOpenResult.Stale;
 
         var recipe = revision.Recipe as CompositionRecipe
             ?? throw new InvalidDataException("The Working Composition recipe is invalid.");
-        var plan = CompositionAuditionPlan.Create(_workspace.Project, recipe);
+        var plan = CompositionAuditionPlan.Create(project, recipe);
         using var operation = _openOperations.Begin(cancellationToken);
         MaterializedMediaLease? auditionAudio = null;
         CompositionAuditionSession? openingSession = null;
@@ -76,8 +80,8 @@ public sealed class CompositionAuditionController : IDisposable
             try
             {
                 auditionAudio = await _materializer.MaterializeCompositionAuditionAudioAsync(
-                    _workspace.Project,
-                    _workspace.Location,
+                    project,
+                    location,
                     composition.Id,
                     revision.Id,
                     plan.DurationSeconds,
@@ -94,6 +98,10 @@ public sealed class CompositionAuditionController : IDisposable
 
             openingSession = new CompositionAuditionSession(revision.Id, plan, requestedPosition);
             _session = openingSession;
+            _sessionProject = project;
+            _sessionLocation = location;
+            _sessionIsCurrent = isStillCurrent;
+            _sessionCancellationToken = cancellationToken;
             _preview.SetTimelineRange(0, plan.DurationSeconds);
             if (auditionAudio is not null)
             {
@@ -121,7 +129,8 @@ public sealed class CompositionAuditionController : IDisposable
                 auditionAudioWarning,
                 _preview.HasAuditionAudioLease);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !operation.IsCurrent)
+        catch (OperationCanceledException) when (
+            IsStaleSelectionOperation(operation.IsCurrent, isStillCurrent, cancellationToken))
         {
             return CompositionAuditionOpenResult.Stale;
         }
@@ -135,6 +144,7 @@ public sealed class CompositionAuditionController : IDisposable
                         ReferenceEquals(_session, openingSession))
                     {
                         _session = null;
+                        ClearSessionIdentity();
                         _preview.SetTimelineRange(0, 0);
                         if (auditionAudioAdopted) _preview.StopAuditionAudio();
                     }
@@ -348,7 +358,9 @@ public sealed class CompositionAuditionController : IDisposable
     {
         if (_disposed) return;
         CancelQueuedSeek();
+        _openOperations.Invalidate();
         _session = null;
+        ClearSessionIdentity();
         _advancing = false;
         _preview.StopAuditionAudio();
     }
@@ -359,6 +371,7 @@ public sealed class CompositionAuditionController : IDisposable
         _disposed = true;
         CancelQueuedSeek();
         _session = null;
+        ClearSessionIdentity();
         _openOperations.Dispose();
         // An invalidated opener may still unwind through its finally block and release this gate.
         // The controller therefore leaves both small synchronization primitives for GC ownership.
@@ -390,26 +403,47 @@ public sealed class CompositionAuditionController : IDisposable
         LatestOperationSequence.Operation operation,
         Func<bool>? isStillCurrent = null)
     {
-        if (_workspace.Project is null || _workspace.Location is null || _session is null ||
+        if (_session is null || _sessionProject is null || _sessionLocation is null ||
             segmentIndex < 0 || segmentIndex >= _session.Plan.Segments.Count)
             return false;
         await _segmentOpenGate.WaitAsync(operation.CancellationToken);
         try
         {
             var session = _session;
-            if (!operation.IsCurrent || isStillCurrent?.Invoke() == false ||
+            var project = _sessionProject;
+            var location = _sessionLocation;
+            var sessionCurrent = _sessionIsCurrent;
+            var sessionCancellationToken = _sessionCancellationToken;
+            if (!operation.IsCurrent || sessionCancellationToken.IsCancellationRequested ||
+                isStillCurrent?.Invoke() == false || sessionCurrent?.Invoke() == false ||
                 session is null || segmentIndex >= session.Plan.Segments.Count)
                 return false;
             var segment = session.Plan.Segments[segmentIndex];
             _preview.PauseAuditionAudio();
-            var lease = await _materializer.MaterializeAsync(
-                _workspace.Project,
-                _workspace.Location,
-                new MaterializationRequest(
-                    new AssetMaterializationTarget(segment.Source.AssetId, segment.Source.RecipeRevisionId),
-                    MaterializationPurpose.Preview),
-                operation.CancellationToken);
-            if (!operation.IsCurrent || isStillCurrent?.Invoke() == false ||
+            using var materializationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                operation.CancellationToken,
+                sessionCancellationToken);
+            MaterializedMediaLease lease;
+            try
+            {
+                lease = await _materializer.MaterializeAsync(
+                    project,
+                    location,
+                    new MaterializationRequest(
+                        new AssetMaterializationTarget(segment.Source.AssetId, segment.Source.RecipeRevisionId),
+                        MaterializationPurpose.Preview),
+                    materializationCancellation.Token);
+            }
+            catch (OperationCanceledException) when (
+                IsStaleSelectionOperation(operation.IsCurrent, sessionCurrent, sessionCancellationToken))
+            {
+                // Project Media selected something else while this segment was being prepared.
+                // MediaElement playback events call AdvanceAsync fire-and-forget, so stale
+                // selection cancellation must resolve as an ordinary unsuccessful advance.
+                return false;
+            }
+            if (!operation.IsCurrent || sessionCancellationToken.IsCancellationRequested ||
+                isStillCurrent?.Invoke() == false || sessionCurrent?.Invoke() == false ||
                 !ReferenceEquals(_session, session))
             {
                 await lease.DisposeAsync();
@@ -457,6 +491,27 @@ public sealed class CompositionAuditionController : IDisposable
 
     private void RaisePositionChanged(double positionSeconds) =>
         PositionChanged?.Invoke(this, new CompositionAuditionPositionChangedEventArgs(positionSeconds));
+
+    /// <summary>
+    /// Determines whether cancellation represents an obsolete Project Media selection rather
+    /// than a caller-visible failure. This keeps fire-and-forget playback advancement safe while
+    /// preserving cancellation requested by an unrelated caller.
+    /// </summary>
+    internal static bool IsStaleSelectionOperation(
+        bool isOperationCurrent,
+        Func<bool>? isStillCurrent,
+        CancellationToken selectionCancellationToken) =>
+        selectionCancellationToken.IsCancellationRequested ||
+        !isOperationCurrent ||
+        isStillCurrent?.Invoke() != true;
+
+    private void ClearSessionIdentity()
+    {
+        _sessionProject = null;
+        _sessionLocation = null;
+        _sessionIsCurrent = null;
+        _sessionCancellationToken = default;
+    }
 
     private sealed class QuiescenceLease(
         CompositionAuditionController owner,
