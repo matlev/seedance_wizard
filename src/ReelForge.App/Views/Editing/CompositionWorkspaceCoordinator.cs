@@ -88,6 +88,20 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
     /// </summary>
     public event EventHandler? RecipeMutationCommitted;
 
+    /// <summary>
+    /// Creates the project's initial Working Composition, selects it in Project Media,
+    /// and lets the normal projection refresh route update the editor.
+    /// </summary>
+    public async Task<ProjectAsset> CreateInitialCompositionAsync(
+        Guid sourceAssetId,
+        CancellationToken cancellationToken = default)
+    {
+        var composition = await new WorkingCompositionService(_workspace)
+            .CreateInitialAsync(sourceAssetId, cancellationToken);
+        _host.RefreshProjectMedia(composition.Id);
+        return composition;
+    }
+
     public void SetSelection(Guid? segmentId, Guid? audioClipId)
     {
         SelectedSegmentId = segmentId;
@@ -488,7 +502,7 @@ internal interface ICompositionWorkspaceHost
 {
     Task RunUiActionAsync(string status, Func<Task> action);
     void SetStatus(string status);
-    void RefreshProjectMedia();
+    void RefreshProjectMedia(Guid? selectedAssetId = null);
     void PausePreview();
     string? PromptDetachAudioFileName(string displayName);
     MediaSplitBehavior SplitBehavior { get; }

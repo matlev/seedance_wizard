@@ -109,6 +109,7 @@ public partial class MainWindow : Window, IDisposable
         _framePreparationCoordinator = new FramePreparationCoordinator(
             _workspace,
             _exactFrameService,
+            _mediaMaterializer,
             MediaPreparationPanelControl,
             MediaPreviewPanelControl,
             _mediaPreviewCoordinator.FrameNavigationGate);
@@ -151,7 +152,7 @@ public partial class MainWindow : Window, IDisposable
             _referenceChoices);
         _generationWorkspace.ReferenceSelectionRequested += GenerationWorkspace_ReferenceSelectionRequested;
         _generationContinuation = new GenerationContinuationCoordinator(
-            _workspace, _projectStore, _exactFrameService, new PhysicalAssetMaterializer(),
+            _workspace, _projectStore, _exactFrameService, _mediaMaterializer,
             new GenerationContinuationPresentation(this),
             draft => _generationWorkspace.LoadDraft(draft),
             () => _generationWorkspace.ProviderChoices,
@@ -516,9 +517,7 @@ public partial class MainWindow : Window, IDisposable
         if (GetSelectedAsset() is not { } source) return;
         await RunUiActionAsync("Creating Working Composition…", async () =>
         {
-            var composition = await new WorkingCompositionService(_workspace).CreateInitialAsync(source.Id);
-            RefreshProjectCollections(composition.Id);
-            RefreshEditWorkspaceState();
+            await _compositionWorkspace.CreateInitialCompositionAsync(source.Id);
             StatusText.Text = $"Working Composition started from {source.EffectiveDisplayName}.";
         });
     }
@@ -1354,7 +1353,8 @@ public partial class MainWindow : Window, IDisposable
     {
         public Task RunUiActionAsync(string status, Func<Task> action) => window.RunUiActionAsync(status, action);
         public void SetStatus(string status) => window.StatusText.Text = status;
-        public void RefreshProjectMedia() => window.RefreshProjectCollections(window._workspace.Project?.WorkingCompositionAssetId);
+        public void RefreshProjectMedia(Guid? selectedAssetId = null) =>
+            window.RefreshProjectCollections(selectedAssetId ?? window._workspace.Project?.WorkingCompositionAssetId);
         public void PausePreview() => window._mediaPreviewCoordinator.Pause();
         public MediaSplitBehavior SplitBehavior => window._applicationSettings.MediaTools.SplitBehavior;
         public string? PromptDetachAudioFileName(string displayName)

@@ -13,6 +13,7 @@ public sealed class FramePreparationCoordinator : IDisposable
 {
     private readonly ProjectWorkspace _workspace;
     private readonly ExactVideoFrameService _exactFrameService;
+    private readonly IMediaMaterializer _mediaMaterializer;
     private readonly MediaPreparationPanel _panel;
     private readonly MediaPreviewPanel _preview;
     private readonly SemaphoreSlim _navigationGate;
@@ -33,12 +34,14 @@ public sealed class FramePreparationCoordinator : IDisposable
     public FramePreparationCoordinator(
         ProjectWorkspace workspace,
         ExactVideoFrameService exactFrameService,
+        IMediaMaterializer mediaMaterializer,
         MediaPreparationPanel panel,
         MediaPreviewPanel preview,
         SemaphoreSlim navigationGate)
     {
         _workspace = workspace;
         _exactFrameService = exactFrameService;
+        _mediaMaterializer = mediaMaterializer;
         _panel = panel;
         _preview = preview;
         _navigationGate = navigationGate;
@@ -99,7 +102,7 @@ public sealed class FramePreparationCoordinator : IDisposable
         _panel.ShowContactFramesMessage("Reading exact presentation frames…");
         try
         {
-            await using var verifiedSource = await new PhysicalAssetMaterializer().MaterializeAsync(
+            await using var verifiedSource = await _mediaMaterializer.MaterializeAsync(
                 _workspace.Project!,
                 _workspace.Location!,
                 new MaterializationRequest(new AssetMaterializationTarget(asset.Id), MaterializationPurpose.Preview),

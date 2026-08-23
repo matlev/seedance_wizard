@@ -11,7 +11,7 @@ internal sealed class GenerationContinuationCoordinator
     private readonly ProjectWorkspace _workspace;
     private readonly IProjectStore _projectStore;
     private readonly ExactVideoFrameService _exactFrameService;
-    private readonly PhysicalAssetMaterializer _physicalAssetMaterializer;
+    private readonly IMediaMaterializer _mediaMaterializer;
     private readonly IGenerationContinuationPresentation _presentation;
     private readonly Action<GenerationDraft> _loadDraft;
     private readonly Func<IReadOnlyList<GenerationProviderChoice>> _providerChoices;
@@ -21,7 +21,7 @@ internal sealed class GenerationContinuationCoordinator
         ProjectWorkspace workspace,
         IProjectStore projectStore,
         ExactVideoFrameService exactFrameService,
-        PhysicalAssetMaterializer physicalAssetMaterializer,
+        IMediaMaterializer mediaMaterializer,
         IGenerationContinuationPresentation presentation,
         Action<GenerationDraft> loadDraft,
         Func<IReadOnlyList<GenerationProviderChoice>> providerChoices,
@@ -30,7 +30,7 @@ internal sealed class GenerationContinuationCoordinator
         _workspace = workspace;
         _projectStore = projectStore;
         _exactFrameService = exactFrameService;
-        _physicalAssetMaterializer = physicalAssetMaterializer;
+        _mediaMaterializer = mediaMaterializer;
         _presentation = presentation;
         _loadDraft = loadDraft;
         _providerChoices = providerChoices;
@@ -75,7 +75,7 @@ internal sealed class GenerationContinuationCoordinator
     {
         if (!IsOriginCurrent(origin)) return null;
 
-        await using var materialized = await _physicalAssetMaterializer.MaterializeAsync(
+        await using var materialized = await _mediaMaterializer.MaterializeAsync(
             origin.Project,
             origin.Location,
             new MaterializationRequest(
