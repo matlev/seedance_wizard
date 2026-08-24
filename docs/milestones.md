@@ -390,6 +390,10 @@ The six-suite topology is established in CI: Core (7), Application (77), Infrast
 
 The [manual regression acceptance matrix](manual-acceptance.md) is the active human smoke guide. Its accepted post-refactor corrections include restoring an unchanged baked preview after restart, PTS-aware frame stepping across audition cuts, and synchronizing viewer frame transport with Select Frame and Make Clip precision tools.
 
+## Post-Milestone 3 desktop 1.0 product definition
+
+The proposed [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) audits the current product, defines the minimum complete Free workflow and a first credible Pro candidate, and sequences the missing desktop capabilities by dependency. Its slices are deliberately not assigned milestone numbers until the owner resolves the listed product, compatibility, delivery, and performance decisions. Commerce, managed compute, release engineering, distribution, and macOS remain separate roadmap phases.
+
 ## Unscheduled Project Media bulk operations
 
 Large imports make one-item-at-a-time Project Media management impractical. A future productivity slice should add standard multi-selection and bulk commands without changing the underlying logical-media model.
