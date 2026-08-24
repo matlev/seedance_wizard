@@ -67,7 +67,11 @@ All project-media paths stored in the `.rfp` file are relative to the project ro
 
 ## Documentation
 
+- [Architecture constitution](ARCHITECTURE.md)
 - [Architecture](docs/architecture.md)
+- [Architecture governance](docs/architecture-governance.md)
+- [Architecture debt register](docs/architecture-debt.md)
+- [Architecture decision records](docs/adr/README.md)
 - [Milestone plan](docs/milestones.md)
 - [Manual regression acceptance matrix](docs/manual-acceptance.md)
 - [Contributor guidance](docs/contributor-guidance.md)

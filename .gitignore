@@ -5,6 +5,7 @@ obj/
 .dotnet-home/
 .nuget-packages/
 .localappdata/
+.build-localappdata/
 *.user
 *.suo
 appsettings.local.json

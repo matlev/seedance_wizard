@@ -28,20 +28,5 @@ jobs:
       - name: Build solution (Release)
         run: dotnet build ReelForge.sln --configuration Release --no-restore --verbosity minimal
 
-      - name: Test portable suite
-        run: dotnet test tests/ReelForge.Tests/ReelForge.Tests.csproj --configuration Release --no-restore --verbosity normal
-
-      - name: Test Core suite
-        run: dotnet test tests/ReelForge.Core.Tests/ReelForge.Core.Tests.csproj --configuration Release --no-restore --verbosity normal
-
-      - name: Test Application suite
-        run: dotnet test tests/ReelForge.Application.Tests/ReelForge.Application.Tests.csproj --configuration Release --no-restore --verbosity normal
-
-      - name: Test Infrastructure suite
-        run: dotnet test tests/ReelForge.Infrastructure.Tests/ReelForge.Infrastructure.Tests.csproj --configuration Release --no-restore --verbosity normal
-
-      - name: Test Windows platform suite
-        run: dotnet test tests/ReelForge.Platform.Windows.Tests/ReelForge.Platform.Windows.Tests.csproj --configuration Release --no-restore --verbosity normal
-
-      - name: Test WPF App suite
-        run: dotnet test tests/ReelForge.App.Tests/ReelForge.App.Tests.csproj --configuration Release --no-restore --verbosity normal
+      - name: Test solution
+        run: dotnet test ReelForge.sln --configuration Release --no-build --verbosity normal

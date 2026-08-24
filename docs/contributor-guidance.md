@@ -2,6 +2,8 @@
 
 Status: active contributor guidance
 
+For substantial-change preflight, completion architecture-impact reporting, ADR criteria, deliberate debt, and growth review signals, follow [architecture governance](architecture-governance.md). The normative dependency map is [ARCHITECTURE.md](../ARCHITECTURE.md); the existing architecture tests and CI workflows enforce its assembly boundaries.
+
 ## Dependency direction
 
 - Core owns domain concepts and invariants. It references no other ReelForge project.
