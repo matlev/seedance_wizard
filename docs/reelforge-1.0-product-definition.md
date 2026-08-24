@@ -292,17 +292,25 @@ These slices are dependency units, not preassigned milestone numbers. The high-r
 
 ### Gate 0 — distribution-realistic media capability and licensing feasibility
 
-Scope: a bounded decision spike before render, visual, text, or Pro-repair implementation. Define and pin an LGPL-compatible development/CI profile that is realistic for eventual free distribution, replacing today's accidental reliance on arbitrary developer installations and `libx264`. Evaluate candidate video and standalone-audio import, encode, re-encode, and export formats; required Free filters; text renderer and font fallback/embedding policy; captions and basic color; thread/concurrency behavior; and each proposed Pro continuity/repair operation independently. Also define an explicit enhanced local-tool profile whose discovered extras cannot become Free baseline dependencies. Record code/library/font license obligations and known patent/redistribution blockers while keeping selection, audit, build, signing, and packaging of the exact public binary in release engineering.
+The owner-approved [Gate 0 media capability charter](gate-0-media-capability-charter.md) is authoritative for execution and checkpoints.
+
+Scope: a bounded decision-and-proof phase before render, visual, text, or Pro-repair implementation. Define a platform-neutral semantic media capability contract, technically prove approved candidates on Windows, and identify an LGPL-compatible development/CI profile realistic for eventual free distribution. Replace today's accidental reliance on arbitrary developer installations and `libx264`; evaluate Free video/audio input, conversion, and delivery, required filters, text/font behavior, thread/concurrency policy, and preliminary Pro repair feasibility. The current development runtime is audit input only. macOS proof, exact public-binary selection/audit/build/signing/packaging, and user-facing editing behavior remain later work.
+
+Gate 0 may add fixtures, probes, manifests, CI, and the smallest reusable runtime capability discovery/validation component required to enforce the contract. It may not add editing features, speculative engine/plugin frameworks, or production behavior changes without separate approval.
+
+Checkpoint A: after the current dependency audit and candidate-profile research, stop and present the hard-coded assumptions, one or two recommended profiles, dependency risks, fixture/proof matrix, semantic manifest design, expected blockers, and any proposed reusable validation component. The owner selects which candidates may proceed to executable proof.
 
 Acceptance:
 
-- the approved development capability matrix names required encoders, decoders, containers, pixel/audio formats, filters, font/text behavior, thread policy, and failure messages without claiming that a public distribution binary is approved;
-- the matrix proposes a common Free video/audio conversion and delivery baseline, identifies optional enhanced local-tool profiles, and reports capability source and portability/support limits in data rather than scattered engine checks;
-- small fixtures prove transform, transition, basic color, title/caption burn-in, audio mixing, video re-encode, audio export, and delivery against the pinned LGPL-compatible development profile; CI detects profile drift or forbidden GPL/nonfree dependencies;
-- Match to Previous Clip, stabilization, deflicker, denoise, sharpen, format matching, and loudness matching each name a candidate engine/path, quality measure, resource model, fallback, and license state. Known blockers include GPL `libvidstab` and several GPL denoise filters; no bundle-level promise hides those distinctions;
+- `RequiredCapabilities` describes ReelForge semantics separately from `ObservedRuntimeCapabilities` and the concrete codecs, containers, filters, libraries, and build flags mapped by a runtime profile;
+- the approved development capability matrix proposes a common Free video/audio conversion and delivery baseline, identifies enhanced local-tool and optional Windows-acceleration profiles, and reports portability/support limits without claiming macOS proof or public-binary approval;
+- generated/licensed fixtures prove required operations through inspection, re-decode, representative independent playback, and visual/golden-frame validation where applicable;
+- named baseline, typical, stress, and long-form workloads produce repeatable responsiveness/resource metrics and proposed numeric thresholds on the reference Windows machine;
+- Match to Previous Clip, stabilization, deflicker, denoise, sharpen, format matching, and loudness matching each receive a preliminary `Proven`, `Conditional`, `Blocked`, or `Deferred` disposition without holding the Free baseline hostage;
 - any GPL, nonfree, patent, font, code/model/data, or external-library implication is visible to the later release-engineering/legal gate;
 - user-local enhanced capabilities are checked before work starts, labeled clearly, and never silently change creative meaning or become necessary to open a baseline Free project;
-- the Free contract is narrowed before implementation if a required path has no acceptable capability or license strategy.
+- CI detects deviation from the reviewed technical profile but never claims patent safety, legal compliance, or redistribution approval; and
+- a blocked mandatory path presents explicit owner options and consequences before dependent implementation; it never forces a weak or questionable workaround.
 
 Risk: Medium as a spike; it retires high-impact licensing and feasibility risk before high-cost implementation.
 

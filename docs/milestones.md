@@ -392,7 +392,7 @@ The [manual regression acceptance matrix](manual-acceptance.md) is the active hu
 
 ## Post-Milestone 3 desktop 1.0 product definition
 
-The accepted [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) audits the current product, defines the minimum complete Free workflow, stages the intended Pro continuity/repair value, and sequences missing desktop capabilities by dependency. Its slices remain deliberately unnumbered until Gate 0 and measured evidence resolve the exact media, engine, performance, and release contracts. Free desktop work, Pro features, Ingots/backend, beta packaging, production release engineering, distribution, and macOS remain separate roadmap workstreams even where a named release depends on several of them.
+The accepted [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) audits the current product, defines the minimum complete Free workflow, stages the intended Pro continuity/repair value, and sequences missing desktop capabilities by dependency. The owner-approved [Gate 0 media capability charter](gate-0-media-capability-charter.md) governs the first media decision-and-proof phase, including a mandatory owner checkpoint after the dependency audit and candidate-profile research. Its slices remain deliberately unnumbered until Gate 0 and measured evidence resolve the exact media, engine, performance, and release contracts. Free desktop work, Pro features, Ingots/backend, beta packaging, production release engineering, distribution, and macOS remain separate roadmap workstreams even where a named release depends on several of them.
 
 ## Unscheduled Project Media bulk operations
 
