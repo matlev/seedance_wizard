@@ -1,6 +1,6 @@
 # Gate 0 P2 proof-toolchain candidate
 
-Status: immutable candidate proposed for owner approval; identity inspection complete; no media proof executed
+Status: owner approved for G0.3 as third-party LGPLv3-path proof infrastructure; no media proof executed
 
 Observed: 2026-08-24
 
@@ -8,14 +8,14 @@ Authority: [Gate 0 Checkpoint A](gate-0-checkpoint-a.md)
 
 ## Candidate identity
 
-P2 is a third-party, broad LGPL-path proof input. It is not a proposed shipping binary and its presence in Gate 0 does not approve every compiled component for product use or public distribution.
+P2 is a third-party, broad LGPLv3-path proof input because the reviewed build uses `--enable-version3`. This is not GPL. P2 is not a proposed shipping binary, public-distribution approval, or approval to use every compiled component for product use.
 
 | Field | Pinned value |
 | --- | --- |
 | Profile | `P2.BtbnLgplShared.WindowsX64.20260820` |
 | Release | BtbN `autobuild-2026-08-20-13-45` |
 | Asset | `ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1.zip` |
-| Immutable URL | `https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-20-13-45/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1.zip` |
+| Content-pinned upstream URL | `https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-20-13-45/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1.zip` |
 | Archive size | `70,835,392` bytes |
 | Archive SHA-256 | `D311C8C7B86E06B54588E442652F963BAE165BD4D8393E73CC9EBB445B025547` |
 | FFmpeg source identity | `n8.1.2-44-g7c533d0f86`, commit `7c533d0f86f13a06ec93968f6194349665b3536a` |
@@ -24,6 +24,8 @@ P2 is a third-party, broad LGPL-path proof input. It is not a proposed shipping 
 | Compiler | GCC 15.2.0, crosstool-NG `1.28.0.23_185f348` |
 
 The archive digest reported by the GitHub release API matched the independently downloaded archive. The archive was inspected from a dedicated temporary directory; only identity commands were executed and no media was generated.
+
+The upstream daily release is content-pinned but not durably available under BtbN's retention policy. Before long-term CI reliance, ReelForge must either preserve this exact archive in project-controlled private artifact storage while retaining the upstream provenance and SHA-256, or re-pin to a monthly-retained BtbN release and regenerate this entire manifest. CI must fail visibly if the approved artifact is unavailable; it must never use `latest` or silently substitute another build.
 
 ## Runtime-closure manifest
 
@@ -73,6 +75,7 @@ A P2 pair is compatible only when all of these conditions hold:
 3. No unlisted application-local DLL can be loaded ahead of the verified runtime closure; CI uses a clean extraction and controlled process environment.
 4. Named ffprobe JSON parser-contract probes pass for program/library version reporting, stream/format inspection, rational time bases, and exact-frame timestamp fields.
 5. Required semantic capabilities map only to explicitly reviewed encoders, decoders, muxers, demuxers, filters, and protocols observed from this pair.
+6. Component presence remains separate from executed semantic proof. Listing an encoder, filter, or muxer is necessary evidence but does not prove a ReelForge capability.
 
 Any deviation rejects the pair. It does not fall back to a runner-installed or developer-installed executable.
 
@@ -80,16 +83,16 @@ Any deviation rejects the pair. It does not fall back to a runner-installed or d
 
 After owner approval, CI may:
 
-1. download only the immutable asset URL above;
+1. obtain the exact archive from the content-pinned upstream URL or its project-controlled private preservation, retaining original provenance;
 2. verify the exact archive size and SHA-256 before extraction;
 3. cache by the archive SHA-256, never by `latest` or a mutable version label;
 4. extract into a clean job-local directory;
 5. verify the complete runtime-closure manifest;
 6. execute the identity/build/parser probes and compare their normalized observations with this candidate; and
-7. execute only the separately approved G0.3 proof matrix.
+7. execute only the separately approved G0.3 proof matrix, with every command explicitly selecting or recording the concrete encoders, decoders, muxers, and filters used rather than relying on accidental auto-selection.
 
 CI success means only that the runtime matches this reviewed Gate 0 proof profile. This candidate is third-party evidence, not an FFmpeg-official Windows binary, a shipping selection, a legal conclusion, or a license/patent audit.
 
 ## Candidate limitation
 
-P2 can prove that the proposed Free capabilities work in a concrete Windows LGPL-path build. It cannot prove that ReelForge's eventual public runtime should contain this build's entire dependency set. A narrower controlled build remains desirable, but it is not reproducibly specified at Checkpoint A and therefore cannot enter executable proof yet.
+P2 can prove that the proposed Free capabilities work in a concrete Windows LGPLv3-path build. It cannot prove that ReelForge's eventual public runtime should contain this build's entire dependency set. A narrower controlled build remains desirable, but it is not reproducibly specified at Checkpoint A and therefore cannot enter executable proof yet.

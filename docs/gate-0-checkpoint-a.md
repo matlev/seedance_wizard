@@ -1,35 +1,35 @@
 # Gate 0 Checkpoint A decision packet
 
-Status: owner decision required; G0.1 and G0.2 complete; G0.3-G0.7 paused
+Status: owner approved with amendments; G0.1/G0.2 complete; G0.3 authorized
 
 Prepared: 2026-08-24
 
 Authority: [Gate 0 media capability charter](gate-0-media-capability-charter.md)
 
-## Decision requested
+## Approved decision
 
-The audit confirms that ReelForge cannot treat the current developer FFmpeg installation or current `libx264` commands as its Free baseline. The recommended next step is to prove one immutable LGPL-path candidate after owner approval:
+The audit confirms that ReelForge cannot treat the current developer FFmpeg installation or current `libx264` commands as its Free baseline. The owner approved one immutable LGPLv3-path candidate for executable proof:
 
-1. **P2 — Practical LGPL Free Candidate**, with the full Free proof matrix using open delivery and text dependencies. Its exact third-party archive, source and build identities, complete runtime-file hashes, observed configuration, pair rule, and CI acquisition procedure are recorded in the [P2 proof-toolchain candidate](gate-0-p2-proof-candidate.md).
+1. **P2 — Practical LGPLv3-path Free Candidate**, with the full Free proof matrix using open delivery and text dependencies. Its exact third-party archive, source and build identities, complete runtime-file hashes, observed configuration, pair rule, and CI acquisition procedure are recorded in the [P2 proof-toolchain candidate](gate-0-p2-proof-candidate.md).
 
-P1 remains useful as a future narrow control, but it is **blocked from executable proof** because an immutable Windows build environment, exact dependency closure, and resulting paired-binary manifest have not yet been established. Gate 0 does not substitute a loosely pinned MSYS2 environment or arbitrary local build.
+P1 remains useful as a future narrow control, but it is **blocked from executable proof** because an immutable Windows build environment, exact dependency closure, and resulting paired-binary manifest have not yet been established. Gate 0 does not substitute a loosely pinned MSYS2 environment or arbitrary local build. Do not spend another pre-G0.3 research unit on P1; revisit it only if P2 exposes dependency ambiguity or when narrow shipping-runtime design begins.
 
 The recommended Free delivery candidate for P2 is **WebM with VP9/Opus**, alongside WAV/PCM, FLAC, and FFV1/FLAC in Matroska for lossless proof/intermediate roles. P2 is a deliberately broad proof build, not the final bundled runtime: proof commands may use only owner-approved mapped components. Native AAC/M4A remains a conditional compatibility candidate because software availability does not settle patent or public-distribution policy. No acceptable platform-neutral H.264 encoder is selected at Checkpoint A.
 
 A separate, limited **W1 Windows compatibility probe** is recommended for Media Foundation H.264/AAC in MP4. W1 is optional acceleration/delivery evidence, not the platform-neutral baseline and not a redistribution or patent conclusion.
 
-The owner is asked to approve, amend, or reject:
+The owner approved the following dispositions:
 
 | Decision | Recommendation |
 | --- | --- |
-| Profiles entering executable proof | Approve the exact P2 candidate for the full Free proof matrix. Keep P1 blocked until a separately reviewable, reproducible build manifest exists. |
-| P2 proof-toolchain acquisition | Approve the immutable BtbN 2026-08-20 Windows x64 LGPL-shared asset and validation procedure in the [candidate manifest](gate-0-p2-proof-candidate.md) as third-party proof input only. If third-party proof input is unacceptable, P2 is blocked until a controlled source build is specified and approved. |
-| P1 proof-toolchain acquisition | Accept the blocked disposition for now, or direct Gate 0 to spend a separate research work unit producing an exact controlled-build manifest before G0.3. This decision does not authorize P1 proof without another owner review. |
-| Optional Windows compatibility evidence | Authorize a narrow W1 H.264/AAC Media Foundation probe on the reference system after P2 identity validation. |
-| Minimal reusable infrastructure | Approve the proposed observation/validation seam below for audit and CI reporting only. Do not migrate renderers or change user behavior in Gate 0. |
-| Fixture/proof matrix | Approve the proposed generated/licensed fixtures and later G0.3 proof coverage below. |
+| Profiles entering executable proof | Exact P2 candidate approved for the full Free proof matrix as third-party proof infrastructure only. P1 remains blocked. |
+| P2 proof-toolchain acquisition | Approved subject to durable private preservation before long-term CI reliance, or re-pinning to a monthly-retained build and regenerating the manifest. Hash verification is mandatory; no `latest` or silent substitution. |
+| P1 proof-toolchain acquisition | No additional P1 work before G0.3. Revisit only after P2 dependency ambiguity or during narrow shipping-runtime design. |
+| Optional Windows compatibility evidence | Narrow W1 H.264/AAC Media Foundation probe authorized after P2 identity validation, as optional Windows evidence only. |
+| Minimal reusable infrastructure | Proposed observation/validation seam approved for audit and CI reporting only. Do not migrate renderers or change user behavior in Gate 0. |
+| Fixture/proof matrix | F1-F6 approved, extended with exact VFR/non-zero-PTS/frame-identity and explicit multi-stream-selection fixtures. |
 
-Gate 0 stops here until these choices are approved. Approval of P2 cannot silently authorize a newer BtbN release, a `latest` URL, a different archive hash, or a later-selected source build.
+Approval of P2 cannot silently authorize a newer BtbN release, a `latest` URL, a different archive hash, or a later-selected source build. A blocked capability remains a valid Gate 0 result; portability, quality, reproducibility, and licensing boundaries must not be weakened merely to make a workflow pass.
 
 ## Executive findings
 
@@ -123,7 +123,7 @@ Value: P1 answers whether ReelForge's fundamental analysis, exactness, filter gr
 
 Risk: P1 requires a controlled source build and cannot satisfy the complete Free delivery or text contract by itself. The source target can be pinned to FFmpeg commit `7c533d0f86f13a06ec93968f6194349665b3536a`, but the exact Windows build-environment identity, dependency inputs, and output hashes are not yet established. P1 therefore remains blocked rather than pretending that an arbitrary MSYS2 installation is reproducible.
 
-### P2 — Practical LGPL Free Candidate (recommended)
+### P2 — Practical LGPLv3-path Free Candidate (approved)
 
 Purpose: prove the likely platform-neutral Free 1.0 contract on Windows. The exact proposed proof pair is `P2.BtbnLgplShared.WindowsX64.20260820`; its immutable acquisition and runtime evidence are in the [candidate manifest](gate-0-p2-proof-candidate.md).
 
@@ -145,7 +145,7 @@ Proposed delivery roles:
 
 | Role | Candidate | Current judgment |
 | --- | --- | --- |
-| Default open video proof | WebM, VP9, Opus | Strongest platform-neutral candidate; browser and VLC support are strong, Windows-native/WMP behavior must be measured. |
+| Open video proof | WebM, VP9, Opus | Approved P2 proof candidate; browser and VLC support are strong, Windows-native/WMP behavior must be measured. This is not the final ReelForge default-delivery contract. |
 | Lossless audio | WAV/PCM and FLAC | Strong candidates; Windows/browser/player behavior still tested empirically. |
 | Lossless video proof/intermediate | Matroska, FFV1, FLAC | Good proof and possible intermediate; not an ordinary consumer-delivery promise. |
 | Compatibility audio | Native AAC in M4A | Conditional on patent/distribution decision and independent playback proof. |
@@ -264,6 +264,8 @@ Checkpoint A approval is requested for only this scope:
 - an Infrastructure implementation beside `MediaToolDiscovery` that executes deterministic identity/component probes through `IExternalProcessRunner`, hashes both binaries, checks pairing/parser assumptions, and maps the evidence to the selected profile; and
 - initial use only by Gate 0 probes/tests/CI reporting.
 
+Observed component presence and executed semantic proof remain separate results. The seam may report that a component exists and that the pair matches P2, but only a successful approved proof operation can establish the corresponding ReelForge capability.
+
 Explicitly excluded before separate approval:
 
 - changing current discovery precedence or Settings UI;
@@ -288,6 +290,8 @@ No Gate 0 proof fixture has been added yet. The existing user-supplied H.264/AAC
 | F4 | Mono/stereo PCM WAV and FLAC at 32/44.1/48 kHz plus known peaks and phase. | Mix, pan, fades, waveform, lossless export, clipping/loudness analysis. |
 | F5 | Silent video and no-audio video. | Stream absence, generated silence, detach/extract errors, deterministic mix. |
 | F6 | Generated/repeated long-form recipe rather than a large committed binary. | Performance and 60-120 minute integrity without repository bloat. |
+| F7 | Deterministic variable-frame-rate source with non-zero starting PTS and visible, machine-checkable presentation-order/frame identities. | Exact timing, seek, trim, presentation order, and exact-frame identity. |
+| F8 | Small source with multiple distinguishable video and audio streams, including unambiguous stream markers/tones. | Explicit stream selection for inspection, decode, frame extraction, audio extraction, and export. |
 
 Preferred provenance approach:
 
@@ -296,7 +300,7 @@ Preferred provenance approach:
 - use only separately reviewed, hash-pinned, test-only fonts/assets where generation is insufficient; and
 - keep large performance media generated or cached outside Git.
 
-Later G0.3 proof checks process success, atomic output, ffprobe structure, timing, decode-again, deterministic frame/audio expectations, independent playback, and visual/golden comparisons. Planned but unimplemented features are exercised through bounded proof commands, not product UI or production command builders.
+Later G0.3 proof checks process success, atomic output, ffprobe structure, timing, decode-again, deterministic frame/audio expectations, independent playback, and visual/golden comparisons. Every proof command explicitly selects or records the concrete encoder, decoder, muxer, demuxer, and filters actually exercised; auto-selection cannot accidentally satisfy a requirement through an unreviewed component in broad P2. Planned but unimplemented features are exercised through bounded proof commands, not product UI or production command builders.
 
 ### Independent validation targets
 
