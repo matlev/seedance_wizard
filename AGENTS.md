@@ -39,6 +39,13 @@ Subagents must not stage, commit, or push changes unless the primary agent expli
 
 The primary agent may implement code directly when delegation would cost more coordination than the work itself, especially for small or tightly coupled changes.
 
+## Architecture lifecycle
+
+- Start from [ARCHITECTURE.md](ARCHITECTURE.md) for the normative dependency map; use [architecture governance](docs/architecture-governance.md) for substantial-change preflight, completion reporting, ADRs, and deliberate debt.
+- The primary agent completes the preflight before delegating a substantial change and resolves any architecture conflict before implementation.
+- A substantial completion reports architecture impact, applicable ADR/debt decisions, and architecture-test/manual-acceptance results.
+- If a requested implementation conflicts with the architectural constitution, stop and report the conflict rather than bypassing the boundary.
+
 ### Delegation rules
 
 - Resolve architectural ambiguity before handing implementation to a worker.
