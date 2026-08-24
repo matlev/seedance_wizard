@@ -16,6 +16,18 @@
   "compiler": "gcc 15.2.0 (crosstool-NG 1.28.0.23_185f348)",
   "target": "windows-x86_64-mingw-shared",
   "configuration": "--prefix=/ffbuild/prefix --pkg-config-flags=--static --pkg-config=pkg-config --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --target-os=mingw32 --enable-version3 --disable-debug --enable-shared --disable-static --disable-w32threads --enable-pthreads --enable-iconv --enable-zlib --enable-libxml2 --enable-libvmaf --enable-fontconfig --enable-libharfbuzz --enable-libfreetype --enable-libfribidi --enable-vulkan --enable-libshaderc --enable-libvorbis --disable-libxcb --disable-xlib --disable-libpulse --enable-gmp --enable-lzma --enable-liblcevc-dec --enable-opencl --enable-amf --enable-libaom --enable-libaribb24 --disable-avisynth --enable-chromaprint --enable-libdav1d --disable-libdavs2 --disable-libdvdread --disable-libdvdnav --disable-libfdk-aac --enable-ffnvcodec --enable-cuda-llvm --disable-frei0r --enable-libgme --enable-libkvazaar --enable-libaribcaption --enable-libass --enable-libbluray --enable-libjxl --enable-libmp3lame --enable-libopus --enable-libplacebo --enable-librist --enable-libssh --enable-libtheora --enable-libvpx --enable-libwebp --enable-libzmq --enable-lv2 --enable-libvpl --enable-openal --enable-liboapv --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libopenmpt --enable-librav1e --disable-librubberband --enable-schannel --enable-sdl2 --enable-libsnappy --enable-libsoxr --enable-libsrt --enable-libsvtav1 --enable-libtwolame --enable-libuavs3d --disable-libdrm --enable-vaapi --disable-libvidstab --enable-libvvenc --disable-whisper --disable-libx264 --disable-libx265 --disable-libxavs2 --disable-libxvid --enable-libzimg --enable-libzvbi --extra-cflags=-DLIBTWOLAME_STATIC --extra-cxxflags= --extra-libs=-lgomp --extra-ldflags=-pthread --extra-ldexeflags= --cc=x86_64-w64-mingw32-gcc --cxx=x86_64-w64-mingw32-g++ --ar=x86_64-w64-mingw32-gcc-ar --ranlib=x86_64-w64-mingw32-gcc-ranlib --nm=x86_64-w64-mingw32-gcc-nm --extra-version=20260820",
+  "primaryTool": {
+    "relativePath": "bin/ffmpeg.exe",
+    "sha256": "E41DBF0563AF8B07D8CF1818187500ACDF36AAAFB00186BA12A18C6C661F7EB0",
+    "versionLine": "ffmpeg version n8.1.2-44-g7c533d0f86-20260820 Copyright (c) 2000-2026 the FFmpeg developers",
+    "compiler": "gcc 15.2.0 (crosstool-NG 1.28.0.23_185f348)"
+  },
+  "inspectionTool": {
+    "relativePath": "bin/ffprobe.exe",
+    "sha256": "08AE7637A339009A23BA469AAFC282A16A98E02B2999E14EC1A6C1198FD77221",
+    "versionLine": "ffprobe version n8.1.2-44-g7c533d0f86-20260820 Copyright (c) 2007-2026 the FFmpeg developers",
+    "compiler": "gcc 15.2.0 (crosstool-NG 1.28.0.23_185f348)"
+  },
   "forbiddenConfigurationFlags": [
     "--enable-gpl",
     "--enable-nonfree"
@@ -38,13 +50,13 @@
     "--disable-libfdk-aac"
   ],
   "libraryVersions": {
-    "libavutil": "60.26.102",
-    "libavcodec": "62.28.102",
-    "libavformat": "62.12.102",
-    "libavdevice": "62.3.102",
-    "libavfilter": "11.14.102",
-    "libswscale": "9.5.102",
-    "libswresample": "6.3.102"
+    "libavutil": "60. 26.102 / 60. 26.102",
+    "libavcodec": "62. 28.102 / 62. 28.102",
+    "libavformat": "62. 12.102 / 62. 12.102",
+    "libavdevice": "62.  3.102 / 62.  3.102",
+    "libavfilter": "11. 14.102 / 11. 14.102",
+    "libswscale": "9.  5.102 /  9.  5.102",
+    "libswresample": "6.  3.102 /  6.  3.102"
   },
   "runtimeFiles": [
     { "path": "bin/avcodec-62.dll", "sha256": "C60553FB7CD910A8D67BB429EDD34C3EAC35ABBF2230EA8813BBED1949015BE9" },
@@ -71,5 +83,8 @@
       "unsharp", "volume", "waveform", "xfade"
     ]
   },
-  "parserContractVersion": "gate0.ffprobe-json.1"
+  "inspectionParserContract": {
+    "contractId": "ProgramVersion.Json.1",
+    "programVersion": "n8.1.2-44-g7c533d0f86-20260820"
+  }
 }
