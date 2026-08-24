@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "profileId": "P2.BtbnLgplShared.WindowsX64.20260820",
+  "licensePath": "LGPLv3-path",
+  "proofOnly": true,
+  "release": "autobuild-2026-08-20-13-45",
+  "upstreamUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-20-13-45/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1.zip",
+  "upstreamRetention": "daily-retention-limited",
+  "archiveName": "ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1.zip",
+  "archiveSize": 70835392,
+  "archiveSha256": "D311C8C7B86E06B54588E442652F963BAE165BD4D8393E73CC9EBB445B025547",
+  "archiveRoot": "ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1",
+  "ffmpegSourceCommit": "7c533d0f86f13a06ec93968f6194349665b3536a",
+  "btbnBuildCommit": "48576f197ad1c2afb2e0b8efe204919a1afbff54",
+  "version": "n8.1.2-44-g7c533d0f86-20260820",
+  "compiler": "gcc 15.2.0 (crosstool-NG 1.28.0.23_185f348)",
+  "target": "windows-x86_64-mingw-shared",
+  "configuration": "--prefix=/ffbuild/prefix --pkg-config-flags=--static --pkg-config=pkg-config --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --target-os=mingw32 --enable-version3 --disable-debug --enable-shared --disable-static --disable-w32threads --enable-pthreads --enable-iconv --enable-zlib --enable-libxml2 --enable-libvmaf --enable-fontconfig --enable-libharfbuzz --enable-libfreetype --enable-libfribidi --enable-vulkan --enable-libshaderc --enable-libvorbis --disable-libxcb --disable-xlib --disable-libpulse --enable-gmp --enable-lzma --enable-liblcevc-dec --enable-opencl --enable-amf --enable-libaom --enable-libaribb24 --disable-avisynth --enable-chromaprint --enable-libdav1d --disable-libdavs2 --disable-libdvdread --disable-libdvdnav --disable-libfdk-aac --enable-ffnvcodec --enable-cuda-llvm --disable-frei0r --enable-libgme --enable-libkvazaar --enable-libaribcaption --enable-libass --enable-libbluray --enable-libjxl --enable-libmp3lame --enable-libopus --enable-libplacebo --enable-librist --enable-libssh --enable-libtheora --enable-libvpx --enable-libwebp --enable-libzmq --enable-lv2 --enable-libvpl --enable-openal --enable-liboapv --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libopenmpt --enable-librav1e --disable-librubberband --enable-schannel --enable-sdl2 --enable-libsnappy --enable-libsoxr --enable-libsrt --enable-libsvtav1 --enable-libtwolame --enable-libuavs3d --disable-libdrm --enable-vaapi --disable-libvidstab --enable-libvvenc --disable-whisper --disable-libx264 --disable-libx265 --disable-libxavs2 --disable-libxvid --enable-libzimg --enable-libzvbi --extra-cflags=-DLIBTWOLAME_STATIC --extra-cxxflags= --extra-libs=-lgomp --extra-ldflags=-pthread --extra-ldexeflags= --cc=x86_64-w64-mingw32-gcc --cxx=x86_64-w64-mingw32-g++ --ar=x86_64-w64-mingw32-gcc-ar --ranlib=x86_64-w64-mingw32-gcc-ranlib --nm=x86_64-w64-mingw32-gcc-nm --extra-version=20260820",
+  "forbiddenConfigurationFlags": [
+    "--enable-gpl",
+    "--enable-nonfree"
+  ],
+  "requiredConfigurationFlags": [
+    "--enable-version3",
+    "--enable-shared",
+    "--disable-static",
+    "--enable-libvpx",
+    "--enable-libopus",
+    "--enable-libass",
+    "--enable-fontconfig",
+    "--enable-libfreetype",
+    "--enable-libfribidi",
+    "--enable-libharfbuzz",
+    "--disable-libx264",
+    "--disable-libx265",
+    "--disable-libvidstab",
+    "--disable-librubberband",
+    "--disable-libfdk-aac"
+  ],
+  "libraryVersions": {
+    "libavutil": "60.26.102",
+    "libavcodec": "62.28.102",
+    "libavformat": "62.12.102",
+    "libavdevice": "62.3.102",
+    "libavfilter": "11.14.102",
+    "libswscale": "9.5.102",
+    "libswresample": "6.3.102"
+  },
+  "runtimeFiles": [
+    { "path": "bin/avcodec-62.dll", "sha256": "C60553FB7CD910A8D67BB429EDD34C3EAC35ABBF2230EA8813BBED1949015BE9" },
+    { "path": "bin/avdevice-62.dll", "sha256": "448ADD5A0AC4C0A28664BB3622EC082E59384DFF53C5CE6D1912814F41AA6733" },
+    { "path": "bin/avfilter-11.dll", "sha256": "12BEF7EBC1742D95831DF04942ADEC2B380B0F14A438BDD26CD2DC515CB52D7F" },
+    { "path": "bin/avformat-62.dll", "sha256": "E7CB09BFC411814F9A46473F0594FB24FA366812270B7BC8F9E48DF9EA1CA1C2" },
+    { "path": "bin/avutil-60.dll", "sha256": "B81B619F150E0386662FDC647A17364734548C35D04F3BAB73ECA401F2DAAFB5" },
+    { "path": "bin/ffmpeg.exe", "sha256": "E41DBF0563AF8B07D8CF1818187500ACDF36AAAFB00186BA12A18C6C661F7EB0" },
+    { "path": "bin/ffplay.exe", "sha256": "7F363BE46A1034D07BCB4D2B336803893294832603CA92AE7501292916ADA081" },
+    { "path": "bin/ffprobe.exe", "sha256": "08AE7637A339009A23BA469AAFC282A16A98E02B2999E14EC1A6C1198FD77221" },
+    { "path": "bin/swresample-6.dll", "sha256": "E0F6C7D5DD2651DDDB959C8F48681F61B1466A44850AF36FE311A536B8600BD1" },
+    { "path": "bin/swscale-9.dll", "sha256": "110AA5706F2F813336AD8942607DE1498186EEE683C89C7DDBC9B8074173A3D1" }
+  ],
+  "approvedProofComponents": {
+    "encoders": ["ffv1", "flac", "libopus", "libvpx-vp9", "pcm_s16le", "png"],
+    "decoders": ["ffv1", "flac", "opus", "pcm_s16le", "png", "vp9"],
+    "muxers": ["flac", "image2", "matroska", "wav", "webm"],
+    "demuxers": ["concat", "flac", "image2", "matroska,webm", "wav"],
+    "filters": [
+      "adelay", "afade", "aformat", "alphamerge", "alphaextract", "amix", "apad", "aresample",
+      "asetpts", "atadenoise", "colorbalance", "colorchannelmixer", "colorspace", "concat", "crop",
+      "curves", "deflicker", "deshake", "drawtext", "format", "fps", "hue", "loudnorm", "nlmeans",
+      "overlay", "pad", "pan", "scale", "select", "setpts", "setsar", "showwaves", "subtitles",
+      "unsharp", "volume", "waveform", "xfade"
+    ]
+  },
+  "parserContractVersion": "gate0.ffprobe-json.1"
+}
