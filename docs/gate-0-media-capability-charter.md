@@ -1,6 +1,6 @@
 # Gate 0 media capability charter
 
-Status: owner and Project Manager approved; execution has not begun
+Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A owner decision pending
 
 Approved: 2026-08-24
 
@@ -303,6 +303,8 @@ The owner has approved the Gate 0 scope assumptions and clarifications in this c
 ### Checkpoint A
 
 The owner selects the one or two candidate profiles allowed to proceed to executable proof and approves any minimal reusable runtime-discovery/validation change.
+
+Current decision packet: [Gate 0 Checkpoint A](gate-0-checkpoint-a.md).
 
 ### Gate 0 exit
 

@@ -74,6 +74,7 @@ All project-media paths stored in the `.rfp` file are relative to the project ro
 - [Architecture decision records](docs/adr/README.md)
 - [ReelForge 1.0 product definition](docs/reelforge-1.0-product-definition.md)
 - [Gate 0 media capability charter](docs/gate-0-media-capability-charter.md)
+- [Gate 0 Checkpoint A decision packet](docs/gate-0-checkpoint-a.md)
 - [Milestone plan](docs/milestones.md)
 - [Manual regression acceptance matrix](docs/manual-acceptance.md)
 - [Contributor guidance](docs/contributor-guidance.md)
