@@ -376,7 +376,7 @@ Post-Milestone 3 editor work awaiting prioritization:
 
 Timeline editing must compose the same recipe graph and must not introduce authoritative intermediate paths into the `.rfp` project file.
 
-Future workspace UX should support detaching the composition timeline and Edit Tools into separate floating windows, then docking either surface back into the Edit workspace. The windows must share the same selection, composition, history, playback, and project state; floating a surface must never create a second editing session or media owner. Remember layout as machine-local, preferably per-project UI state, and restore off-screen windows safely when monitor topology changes. This capability is intentionally unscheduled beyond Milestone 2 and does not add layout data to `.rfp` files.
+The accepted Free desktop 1.0 plan promotes this workspace capability: detach the composition timeline and Edit Tools into separate floating windows, then dock either surface back into the Edit workspace. The windows share the same selection, composition, history, playback, and project state; floating a surface never creates a second editing session or media owner. Layout remains machine-local, preferably per-project UI state, restores off-screen windows safely when monitor topology changes, and does not add layout data to `.rfp` files.
 
 ## Milestone 3 — completed whole-codebase structural refactor
 
@@ -392,7 +392,7 @@ The [manual regression acceptance matrix](manual-acceptance.md) is the active hu
 
 ## Post-Milestone 3 desktop 1.0 product definition
 
-The proposed [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) audits the current product, defines the minimum complete Free workflow and a first credible Pro candidate, and sequences the missing desktop capabilities by dependency. Its slices are deliberately not assigned milestone numbers until the owner resolves the listed product, compatibility, delivery, and performance decisions. Commerce, managed compute, release engineering, distribution, and macOS remain separate roadmap phases.
+The accepted [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) audits the current product, defines the minimum complete Free workflow, stages the intended Pro continuity/repair value, and sequences missing desktop capabilities by dependency. Its slices remain deliberately unnumbered until Gate 0 and measured evidence resolve the exact media, engine, performance, and release contracts. Free desktop work, Pro features, Ingots/backend, beta packaging, production release engineering, distribution, and macOS remain separate roadmap workstreams even where a named release depends on several of them.
 
 ## Unscheduled Project Media bulk operations
 

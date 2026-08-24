@@ -205,6 +205,6 @@ The accepted [Business and packaging direction](business-and-packaging.md) resol
 - BYOK remains first-class for Free and Pro users;
 - optional local engines require separate packaging, hardware, license, support, and value decisions.
 
-The exact first-public-release set, Free/Pro boundary, titles/captions/transcription priority, hosted repair route, optional-engine packaging, telemetry/account policy, licensing model, and support baseline remain unresolved. Premium packaging must not weaken project readability, recipe/provenance integrity, access to existing edits, safe export, or provider independence.
+The accepted [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) now resolves the desktop Free feature contract, stages Pro candidates, requires manual text/captions in Free, targets a local continuity/repair bundle for the first Pro offer, and separates Free beta from Ingots/backend and production release engineering. Exact engine/runtime feasibility, the final Pro launch subset, pricing/entitlements, hosted repair, accounts, public packaging, and support remain gated. Premium packaging must not weaken project readability, recipe/provenance integrity, access to existing edits, safe export, or provider independence.
 
-No implementation or public tier promise follows from either research synthesis alone.
+No implementation or entitlement system follows from this research synthesis alone; the product definition and its evidence gates are authoritative for future scheduling.
