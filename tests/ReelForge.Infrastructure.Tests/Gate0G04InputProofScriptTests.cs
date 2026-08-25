@@ -25,6 +25,8 @@ public sealed class Gate0G04InputProofScriptTests
             "CaseById",
             "blocked-fixture-provenance",
             "executedSemanticProof",
+            "if (-not [bool]$oracleEvidence.passed)",
+            "oracleEvidence=$oracleEvidence",
             "$artifact['semanticProofPassed'] = $true",
             "semanticCapabilityProven=$false",
             "Get-G04ConcreteDemuxer",

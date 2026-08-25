@@ -27,6 +27,7 @@ public sealed class Gate0G04InputProofOracleTests
         Assert.Contains("'lc'='aac_low'", script, StringComparison.Ordinal);
         Assert.Contains("Get-G04Property $expect 'sampleEnvelope'", script, StringComparison.Ordinal);
         Assert.Contains("ReelForge.Gate0.ByteOracle", script, StringComparison.Ordinal);
+        Assert.Contains("failureReason=$failureReason", script, StringComparison.Ordinal);
         Assert.Contains("'strict complete decode'", script, StringComparison.Ordinal);
         Assert.DoesNotContain("exit code", script, StringComparison.OrdinalIgnoreCase);
     }
