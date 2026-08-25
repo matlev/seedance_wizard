@@ -41,7 +41,7 @@ It refuses relative paths, `PATH` discovery, missing files, and tools outside `A
 | F7 | VFR, non-zero PTS, and presentation identity | Per-frame PPM IDs and non-zero 1/90000 presentation timestamps |
 | F8 | Explicit video/audio stream selection | Distinguishable PPM and PCM primitives for two video and two audio streams |
 
-F3 must remain blocked until the project supplies a separately licensed Unicode-capable test font, including its provenance, license identifier, file hash, and pinned relative path. Do not substitute a system font.
+F3 uses the owner-approved, checked-in OFL-only proof-artifact stack in `artifacts/fonts`. Its exact release/archive provenance, retained bytes, license texts, roles, and locales are recorded in `font-proof-artifacts.json`. Run `Validate-FontProofArtifacts.ps1` before an F3 proof; it is offline and rejects missing, additional, path-escaping, reparse-point, resized, or hash-drifted files. System-font fallback and font/PATH discovery are prohibited. These retained files are project-controlled durable proof artifacts only, not shipping-runtime or public-distribution approval. Font presence remains insufficient evidence: F3 must render and inspect glyph selection, deterministic fallback, wrapping, captions/titles, and Arabic shaping. Color emoji remains optional and blocked.
 
 ## Later proof requirements
 

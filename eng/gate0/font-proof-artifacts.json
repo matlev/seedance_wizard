@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "profileId": "P2.BtbnLgplShared.WindowsX64.20260820",
+  "artifactSetId": "Gate0.F3.Noto.OflOnly.20260824",
+  "purpose": "Hash-pinned, project-controlled Gate 0 F3 proof artifacts for Unicode glyph rendering, deterministic fallback, and Arabic shaping. Font presence is not semantic capability proof.",
+  "scope": {
+    "retention": "The checked-in Git paths under eng/gate0/artifacts/fonts are durable project-controlled proof-artifact retention.",
+    "proofOnly": true,
+    "notShippingRuntime": true,
+    "notPublicDistributionApproval": true,
+    "systemFontFallbackProhibited": true,
+    "fontDiscoveryMode": "manifest-only-explicit-paths",
+    "networkAccessPermitted": false,
+    "pathDiscoveryPermitted": false,
+    "colorEmojiStatus": "optional-blocked"
+  },
+  "sourceArchives": [
+    {
+      "id": "NotoSans-v2.015",
+      "release": "2.015",
+      "officialReleaseUrl": "https://github.com/notofonts/latin-greek-cyrillic/releases/tag/NotoSans-v2.015",
+      "officialArchiveUrl": "https://github.com/notofonts/latin-greek-cyrillic/releases/download/NotoSans-v2.015/NotoSans-v2.015.zip",
+      "archiveFileName": "NotoSans-v2.015.zip",
+      "byteLength": 117491253,
+      "sha256": "0C34DF072A3FA7EFBB7CBF34950E1F971A4447CFFE365D3A359E2D4089B958F5"
+    },
+    {
+      "id": "NotoSansArabic-v2.013",
+      "release": "2.013",
+      "officialReleaseUrl": "https://github.com/notofonts/arabic/releases/tag/NotoSansArabic-v2.013",
+      "officialArchiveUrl": "https://github.com/notofonts/arabic/releases/download/NotoSansArabic-v2.013/NotoSansArabic-v2.013.zip",
+      "archiveFileName": "NotoSansArabic-v2.013.zip",
+      "byteLength": 18777381,
+      "sha256": "1301ACEAEA84C501CF2E6DCFB3182E2328C8EAE5725817FCB239672BDA7154F1"
+    },
+    {
+      "id": "NotoSansCJKsc-Sans2.004",
+      "release": "Sans2.004",
+      "officialReleaseUrl": "https://github.com/notofonts/noto-cjk/releases/tag/Sans2.004",
+      "officialArchiveUrl": "https://github.com/googlefonts/noto-cjk/releases/download/Sans2.004/08_NotoSansCJKsc.zip",
+      "archiveFileName": "08_NotoSansCJKsc-Sans2.004.zip",
+      "byteLength": 94523633,
+      "sha256": "A927E56F53BD6C3B920BC139C0B94AA36C7D9AD0CF009B159437A1A003581140"
+    }
+  ],
+  "licenses": [
+    {
+      "id": "OFL-1.1-NotoSans",
+      "spdx": "OFL-1.1",
+      "sourceArchiveId": "NotoSans-v2.015",
+      "sourceArchiveMemberPath": "OFL.txt",
+      "relativePath": "licenses/NotoSans-OFL.txt",
+      "byteLength": 4396,
+      "sha256": "CEE9892F9F0CC8FE882C9E9537EE6A89621D86EE7CEAF70B02E2B2B1C25C061A"
+    },
+    {
+      "id": "OFL-1.1-NotoSansArabic",
+      "spdx": "OFL-1.1",
+      "sourceArchiveId": "NotoSansArabic-v2.013",
+      "sourceArchiveMemberPath": "OFL.txt",
+      "relativePath": "licenses/NotoSansArabic-OFL.txt",
+      "byteLength": 4382,
+      "sha256": "A7A5A25EB188BF1CD96982030D53E23C33485C69B1044A562254226857EE13AF"
+    },
+    {
+      "id": "OFL-1.1-NotoSansCJKsc",
+      "spdx": "OFL-1.1",
+      "sourceArchiveId": "NotoSansCJKsc-Sans2.004",
+      "sourceArchiveMemberPath": "LICENSE",
+      "relativePath": "licenses/NotoSansCJKsc-OFL.txt",
+      "byteLength": 4301,
+      "sha256": "6A73F9541C2DE74158C0E7CF6B0A58EF774F5A780BF191F2D7EC9CC53EFE2BF2"
+    }
+  ],
+  "fonts": [
+    {
+      "id": "NotoSans-Regular",
+      "sourceArchiveId": "NotoSans-v2.015",
+      "sourceArchiveMemberPath": "NotoSans/hinted/ttf/NotoSans-Regular.ttf",
+      "relativePath": "NotoSans-Regular.ttf",
+      "byteLength": 621572,
+      "sha256": "478C558EA716033CD60C03438F628DFA75694DCF6B5F6D505A2F05FD2B4F3823",
+      "licenseId": "OFL-1.1-NotoSans",
+      "role": "Latin, punctuation, and diacritics primary face",
+      "locale": "und-Latn"
+    },
+    {
+      "id": "NotoSansArabic-Regular",
+      "sourceArchiveId": "NotoSansArabic-v2.013",
+      "sourceArchiveMemberPath": "NotoSansArabic/hinted/ttf/NotoSansArabic-Regular.ttf",
+      "relativePath": "NotoSansArabic-Regular.ttf",
+      "byteLength": 234892,
+      "sha256": "BDFF3E5659D67E67DEF05B33F749683B9376AE819D65D3DD62AC4640B3AAEF48",
+      "licenseId": "OFL-1.1-NotoSansArabic",
+      "role": "Arabic fallback face with required shaping evidence",
+      "locale": "ar"
+    },
+    {
+      "id": "NotoSansCJKsc-Regular",
+      "sourceArchiveId": "NotoSansCJKsc-Sans2.004",
+      "sourceArchiveMemberPath": "NotoSansCJKsc-Regular.otf",
+      "relativePath": "NotoSansCJKsc-Regular.otf",
+      "byteLength": 16437364,
+      "sha256": "2C76254F6FC379FDDFCE0A7E84FB5385BB135D3E399294F6EEB6680D0365B74B",
+      "licenseId": "OFL-1.1-NotoSansCJKsc",
+      "role": "Simplified Chinese fallback face",
+      "locale": "zh-Hans"
+    }
+  ],
+  "documentation": [
+    {
+      "relativePath": "README.md",
+      "byteLength": 1240,
+      "sha256": "21F1DBDC6BE10DD5306E468CF9594C4037715C79C01EF5C5C747CFF800B541F1"
+    }
+  ]
+}
