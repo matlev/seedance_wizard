@@ -223,6 +223,8 @@ The repeatable methodology records at least:
 
 Gate 0 compares candidate FFmpeg thread caps and concurrent-job limits, exercises 720p/1080p primary editing, and probes higher-resolution sources with draft-quality/proxy behavior. It proposes numeric acceptance thresholds for owner approval. Subjective smoothness remains useful manual evidence but cannot replace repeatable measurements.
 
+The bounded execution sequence and evidence semantics are defined in the [G0.5 calibration plan](gate-0-g0.5-calibration-plan.md). Short sequential calibration precedes a separate owner checkpoint for concurrent, application-host, stress, and 60–120-minute execution.
+
 ### G0.6 — non-blocking Pro continuity/repair feasibility
 
 Provide a preliminary disposition for:
