@@ -60,6 +60,7 @@ public sealed class Gate0P3JpegInputProofTests
         {
             "Test-Gate0ArtifactRetention.ps1", "Validate-P2Runtime.ps1", "p3-jpeg-proof-contract.json",
             "P3 cjpeg progressive fixture authoring", "p3-cjpeg-version", "Read-SofStructure", "Assert-ExactProgressive420Sof", "if($m-eq 0xDA){break}",
+            "$sof=(@($Sofs))[0]", "[string]$SourcePath", "'-of','json',$SourcePath",
             "exactly one SOF segment", "explicit image2 inspection", "-f','image2", "-c:v','mjpeg",
             "noautorotate", "RotateCw", "exact 90-clockwise", "Pinned baseline 4:2:0 JPEG hash mismatch",
             "outside the retained corpus", "reparse-point ancestor",
@@ -71,6 +72,7 @@ public sealed class Gate0P3JpegInputProofTests
             "executedSemanticProof=($semantic"
         }) Assert.Contains(required, script);
         Assert.DoesNotContain("Get-Command", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("[string]$Input", script, StringComparison.Ordinal);
         Assert.Contains("all input bytes after SOI remain byte-identical", File.ReadAllText(writerPath), StringComparison.Ordinal);
         Assert.DoesNotContain("libx264", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("System.Drawing", script, StringComparison.OrdinalIgnoreCase);
