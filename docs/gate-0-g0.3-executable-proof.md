@@ -1,6 +1,6 @@
 # Gate 0 G0.3 executable-proof results
 
-Status: executable proof complete for the currently approved mappings; owner decisions required before blocked mappings are re-proved or G0.4 selects a Free delivery contract
+Status: initial executable proof complete; [owner decisions approved](gate-0-g0.3-owner-decisions.md); bounded color and text re-proof authorized
 
 Date: 2026-08-24
 
@@ -90,10 +90,8 @@ W1 did not collect independent playback, hardware/driver selection, profiles, ra
 - Move the one-hour/30,000-boundary proof into the G0.5 long-form methodology so timestamp integrity and resource evidence are measured together.
 - Keep CI proof opt-in/manual until the approved P2 bytes have durable retention. Hash/version/configuration/closure drift remains a hard failure; no substitution is allowed.
 
-## Owner decisions required
+## Approved next work
 
-1. Approve or reject `colorlevels` + `hue` as the P2 basic-color mapping for a new bounded composite proof. Approval retains brightness, contrast, and saturation semantics; it does not select a production UI or exact creative parameter model.
-2. Approve the F3 contract as **Unicode glyph/fallback plus Arabic shaping**, using an exact OFL-only Noto Sans/Noto Sans Arabic/Noto Sans CJK stack, with color emoji separate and optional/blocked for Gate 0. The alternative is to require color emoji now and accept a larger four-font/runtime-compatibility proof.
-3. Confirm independent playback and long-form integrity may remain explicit G0.3/G0.5 completion gates while G0.4 delivery-format analysis proceeds, rather than forcing premature local-player installation or an unmeasured one-hour render in this slice.
+The owner approved all three decisions in the [G0.3 owner-decision record](gate-0-g0.3-owner-decisions.md): `colorlevels` plus `hue` for bounded basic-color proof; an exact OFL-only Noto font stack for Unicode fallback and Arabic-shaping proof with color emoji separate; and G0.4 analysis proceeding while independent playback and G0.5 long-form integrity remain explicit completion gates.
 
-No Free contract or default-delivery decision should be finalized until these decisions are recorded.
+The two blocked mappings may now be executed. G0.4 may compare and recommend delivery candidates, but the default Free delivery contract cannot be finalized until required independent-playback evidence is complete. Gate 0 cannot exit until playback and long-form gates are completed or explicitly dispositioned by the owner.
