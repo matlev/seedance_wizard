@@ -1,6 +1,6 @@
 # Gate 0 G0.3 executable-proof results
 
-Status: automated P2 semantic proof complete; 13 capabilities passed; independent playback remains a G0.3 completion gate; long-form integrity remains a G0.5 completion gate
+Status: automated P2 semantic proof complete; 13 capabilities passed; independent playback has partial executable evidence but remains a G0.3 completion gate; long-form integrity remains a G0.5 completion gate
 
 Date: 2026-08-24
 
@@ -55,10 +55,10 @@ The integrated live run produced 15 unique verdicts:
 | `Video.Export.OpenDelivery.Composition` | Passed | Normalized two-segment delivery retained six ordered F1-then-F2 identities across the boundary and stayed within duration tolerance. |
 | `Audio.Export.Standalone` | Passed | FLAC decoded byte-exactly; Ogg Opus retained structure, duration/sample count within declared padding tolerance, channels, and a 1000 Hz tone stronger than the declared comparison frequencies. |
 | `Text.Render.UnicodeTitlesAndCaptions` | Passed | Inventory-bound logical/layout/ASS inputs rendered Latin/diacritics, Simplified Chinese, and shaped Arabic in titles and wrapped captions using only the three pinned Noto faces. Same-provider absence and missing-CJK controls detected and rejected ambient DirectWrite fallback. Color emoji remained optional and unexecuted. |
-| `Delivery.Validate.IndependentPlayback` | **Not run** | Same-runtime inspection/decode cannot satisfy browser, VLC, or Windows-native playback validation. The reference system has Chrome, Edge, and Firefox but no VLC installation; no result was inferred. |
+| `Delivery.Validate.IndependentPlayback` | **Partial; completion gate open** | The [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md) passed both clean WebM routes in native Chromium controls, recorded both as blocked in optional Windows Media Player Legacy, and rejected both long MP4 corpus routes because short-artifact repetition required timestamp repairs. Standalone Chrome/Edge/Firefox, VLC, perceptual sync, and long MP4 controls remain open. |
 | `Project.LongForm.Integrity` | **Not run** | The optional duration-only F6 artifact is not sufficient to prove 30,000 boundaries, final timestamps, and first/final identities. Resource evidence belongs to G0.5. |
 
-Aggregate disposition: **incomplete with explicit gates**. Thirteen capabilities passed; independent playback and long-form integrity remain not run. There are no remaining automated P2 semantic blockers in the approved 15-capability matrix.
+Aggregate disposition: **incomplete with explicit gates**. Thirteen capabilities passed; independent playback is partial and long-form integrity remains not run. There are no remaining automated P2 semantic blockers in the approved 15-capability matrix.
 
 ## Important findings
 
@@ -87,7 +87,7 @@ W1 did not collect independent playback, hardware/driver selection, profiles, ra
 ## Remaining evidence work
 
 - Preserve the exact daily P2 archive in project-controlled private artifact storage or re-pin a monthly-retained BtbN build and regenerate the complete manifest before unattended CI depends on it.
-- Execute actual Chrome, Edge, Firefox, current VLC, and applicable Windows-native playback checks for local-file/HTTP open, seek, pause/resume, A/V sync, and EOF, recording exact environment state.
+- Complete the remaining standalone Chrome, Edge, Firefox, VLC, perceptual-sync, and long MP4 playback rows described in the [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md). The retained Chromium WebM and optional WMP Legacy results are partial evidence, not the finished matrix.
 - Move the one-hour/30,000-boundary proof into the G0.5 long-form methodology so timestamp integrity and resource evidence are measured together.
 - Keep CI proof opt-in/manual until the approved P2 bytes have durable retention. Hash/version/configuration/closure drift remains a hard failure; no substitution is allowed.
 
@@ -95,4 +95,4 @@ W1 did not collect independent playback, hardware/driver selection, profiles, ra
 
 The owner approved all three decisions in the [G0.3 owner-decision record](gate-0-g0.3-owner-decisions.md): `colorlevels` plus `hue` for bounded basic-color proof; an exact OFL-only Noto font stack for Unicode fallback and Arabic-shaping proof with color emoji separate; and G0.4 analysis proceeding while independent playback and G0.5 long-form integrity remain explicit completion gates.
 
-Both authorized mappings have now passed executable proof. G0.4 may compare and recommend delivery candidates, but the default Free delivery contract cannot be finalized until required independent-playback evidence is complete. Gate 0 cannot exit until playback and long-form gates are completed or explicitly dispositioned by the owner.
+Both authorized mappings have now passed executable proof. G0.4 may compare and recommend delivery candidates. Partial independent-playback evidence is now retained, but the default Free delivery contract cannot be finalized until the remaining playback rows are complete or explicitly dispositioned. Gate 0 cannot exit until playback and long-form gates are completed or explicitly dispositioned by the owner.

@@ -1,6 +1,6 @@
 # Gate 0 G0.4 executable delivery-proof results
 
-Status: bounded P2 and optional W1 output proof complete; 11 portable routes passed; two optional Windows routes passed; default delivery remains conditional pending independent playback
+Status: bounded P2 and optional W1 output proof complete; 11 portable routes passed; two optional Windows routes passed; independent playback partial; default delivery remains conditional
 
 Date: 2026-08-24
 
@@ -10,7 +10,7 @@ Authority: [Gate 0 G0.4 owner decisions](gate-0-g0.4-owner-decisions.md)
 
 The exact `P2.BtbnLgplShared.WindowsX64.20260820` proof profile executed every owner-authorized ordinary Free output route. All eleven portable proof capabilities passed their structural, explicit-component, decode-again, timing, explicit-map, and semantic oracles. The separate G0.3 F8 result remains the evidence for selection among distinguishable multiple video/audio streams. The W1 comparison passed paired and video-only H.264 MP4 using `h264_mf` with the same native AAC route used by P2.
 
-This is executable technical evidence, not a selected shipping runtime, redistribution approval, patent or legal conclusion, independent-playback result, performance contract, or final Free default. The H.264/AAC and MP3 product rows remain conditional until their retained gates pass.
+This is executable technical evidence, not a selected shipping runtime, redistribution approval, patent or legal conclusion, performance contract, or final Free default. The separate [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md) now retains partial player evidence without completing the playback matrix. The H.264/AAC and MP3 product rows remain conditional until their retained gates pass.
 
 ## Portable P2 verdicts
 
@@ -59,10 +59,10 @@ Gate 0 does not enable frame skipping merely to silence that warning: exact fram
 
 ## Remaining gates and work
 
-1. Execute independent playback for the approved MP4 and WebM artifacts in the approved browser, Windows-native, and VLC environments, recording exact versions and behavior. The default cannot be finalized before this evidence or an explicit owner disposition.
+1. Complete the remaining rows in the [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md): standalone Chrome/Edge/Firefox, VLC or owner disposition, perceptual sync, and a timestamp-clean long MP4 artifact produced by the approved measured G0.5 route. The default cannot be finalized before this evidence or an explicit owner disposition.
 2. Complete the capability-qualified/guaranteed-common input decode matrix. The input-tier model is approved, and F8 already proves explicit distinguishable stream selection, but the proposed common container/codec rows have not all received bounded decode fixtures.
 3. Use G0.5 to measure quality, performance, thread/concurrency limits, UI responsiveness, cancellation, cache/disk behavior, and long-form integrity together. Resolve the OpenH264 rate-control warning there.
 4. Preserve the exact daily P2 archive in durable project-controlled private artifact storage or re-pin a monthly-retained build before unattended CI depends on it.
 5. Keep exact public runtime selection, dependency/SBOM audit, legal review, signing, packaging, and distribution in release engineering.
 
-Gate 0 remains incomplete. Independent playback and G0.5 long-form/resource evidence remain explicit exit gates; the common-input matrix and durable P2 retention also remain open work.
+Gate 0 remains incomplete. Independent playback is partial and remains an explicit exit gate; G0.5 long-form/resource evidence, the common-input matrix, and durable P2 retention also remain open work.
