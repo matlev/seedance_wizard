@@ -107,6 +107,32 @@ public sealed class Gate0G04InputProofOracleTests
     }
 
     [Fact]
+    public void F7TerminalTimingRejectsAudioMaskedShortVideoAndAcceptsExactEnd()
+    {
+        var module = RepositoryPath("eng", "gate0", "input-proof", "Oracles.ps1");
+        var command = """
+            . '__MODULE__'
+            $timing=[pscustomobject]@{presentationPts=@(1000,1040,1120,1130,1200);terminalFrameDuration=800}
+            $prefix=@(1000,1040,1120,1130|ForEach-Object{[pscustomobject]@{pts=$_;duration=40}})
+            $short=@($prefix)+@([pscustomobject]@{pts=1200;duration=43})
+            $exact=@($prefix)+@([pscustomobject]@{pts=1200;duration=800})
+            [ordered]@{short=(Test-G04F7TerminalTiming $short $timing);exact=(Test-G04F7TerminalTiming $exact $timing)}|ConvertTo-Json -Depth 5 -Compress
+            """.Replace("__MODULE__", Escape(module), StringComparison.Ordinal);
+        var result = RunPowerShell(command);
+
+        Assert.Equal(0, result.ExitCode);
+        using var json = System.Text.Json.JsonDocument.Parse(result.Output);
+        var shortResult = json.RootElement.GetProperty("short");
+        Assert.False(shortResult.GetProperty("passed").GetBoolean());
+        Assert.Equal(43, shortResult.GetProperty("observedDuration").GetInt32());
+        Assert.Equal(1243, shortResult.GetProperty("observedEnd").GetInt32());
+        var exactResult = json.RootElement.GetProperty("exact");
+        Assert.True(exactResult.GetProperty("passed").GetBoolean());
+        Assert.Equal(800, exactResult.GetProperty("observedDuration").GetInt32());
+        Assert.Equal(2000, exactResult.GetProperty("observedEnd").GetInt32());
+    }
+
+    [Fact]
     public void OraclesDeriveLosslessPcmFromDeclaredRecipeAndCompareEveryByte()
     {
         var script = ReadScript();

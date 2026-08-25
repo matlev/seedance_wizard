@@ -52,6 +52,23 @@ function Get-G04ToneEvidence([byte[]]$Bytes,[int]$Rate,[int]$Channels) {
     $phase=if($Channels -eq 2 -and $leftSq -gt 0 -and $rightSq -gt 0){$cross/[math]::Sqrt($leftSq*$rightSq)}else{$null};return [ordered]@{samplesPerChannel=$samples;meanAbsoluteAmplitude=@($sum|%{$_/$samples});opposedPhaseCorrelation=$phase;rate=$Rate;channels=$Channels}
 }
 
+function Test-G04F7TerminalTiming([object[]]$Frames, [object]$Timing) {
+    if ($Frames.Count -eq 0) { throw 'F7 terminal timing requires at least one video frame.' }
+    $terminalFrame=$Frames[-1]
+    $terminalPts=[int64](Get-G04Property $terminalFrame 'pts' 0)
+    $observedDuration=[int64](Get-G04Property $terminalFrame 'duration' (Get-G04Property $terminalFrame 'pkt_duration' 0))
+    $observedEnd=$terminalPts+$observedDuration
+    $expectedDuration=[int64]$Timing.terminalFrameDuration
+    $expectedEnd=[int64]@($Timing.presentationPts)[-1]+$expectedDuration
+    return [ordered]@{
+        passed=($observedDuration -eq $expectedDuration -and $observedEnd -eq $expectedEnd)
+        observedDuration=$observedDuration
+        observedEnd=$observedEnd
+        expectedDuration=$expectedDuration
+        expectedEnd=$expectedEnd
+    }
+}
+
 function Invoke-G04OracleCommand([hashtable]$Context, [string]$Name, [string]$Executable, [string[]]$Arguments, [hashtable]$Components, [string]$CaseId) {
     $record = Invoke-G04RecordedCommand -Context $Context -Name $Name -Executable $Executable -Arguments $Arguments -Components $Components
     $null = Test-G04UndeclaredDiagnostics -Stderr ([string](Get-G04Property $record 'stderr' '')) -AllowedPatterns @()
@@ -268,20 +285,16 @@ function Test-G04CaseEvidence {
             for($i=1;$i -lt $pts.Count;$i++){$intervals += $pts[$i]-$pts[$i-1]}
             $expectedIntervals=@()
             for($i=1;$i -lt @($timing.presentationPts).Count;$i++){$expectedIntervals += [int64]$timing.presentationPts[$i]-[int64]$timing.presentationPts[$i-1]}
-            $terminalFrame=@($vframes)[-1]
-            $terminalFrameDuration=[int64](Get-G04Property $terminalFrame 'duration' (Get-G04Property $terminalFrame 'pkt_duration' 0))
-            $terminalPresentationEnd=[int64]$pts[-1]+$terminalFrameDuration
-            $expectedTerminalFrameDuration=[int64]$timing.terminalFrameDuration
-            $expectedTerminalPresentationEnd=[int64]@($timing.presentationPts)[-1]+$expectedTerminalFrameDuration
+            $terminal=Test-G04F7TerminalTiming $vframes $timing
             $expected.presentationPts=@($timing.presentationPts)
             $expected.preserveSignedNonZeroPts=$true
             $expected.intervals=$expectedIntervals
-            $expected.terminalFrameDuration=$expectedTerminalFrameDuration
-            $expected.terminalPresentationEnd=$expectedTerminalPresentationEnd
+            $expected.terminalFrameDuration=$terminal.expectedDuration
+            $expected.terminalPresentationEnd=$terminal.expectedEnd
             $observed.presentationPts=$pts
             $observed.presentationIntervals=$intervals
-            $observed.terminalFrameDuration=$terminalFrameDuration
-            $observed.terminalPresentationEnd=$terminalPresentationEnd
+            $observed.terminalFrameDuration=$terminal.observedDuration
+            $observed.terminalPresentationEnd=$terminal.observedEnd
             $observed.streamTimeBase=$videoStream.time_base
             $observed.containerDuration=$inspection.data.format.duration
             $threshold.timeBase=$timing.timeBase
@@ -297,8 +310,7 @@ function Test-G04CaseEvidence {
                 ($pts[0] -ne 0) -and
                 (($intervals -join ',') -eq (($expectedIntervals -join ','))) -and
                 ([string]$videoStream.time_base -eq [string]$timing.timeBase) -and
-                ($terminalFrameDuration -eq $expectedTerminalFrameDuration) -and
-                ($terminalPresentationEnd -eq $expectedTerminalPresentationEnd) -and
+                $terminal.passed -and
                 ([math]::Abs([double]$inspection.data.format.duration-[double]$timing.containerDurationSeconds) -le 0.02)
         }
         $paired=@($decodeEvidence|Where-Object type -eq 'audio');if($paired.Count){$audio=@($inspection.data.streams|Where-Object codec_type -eq 'audio')[0];$bytes=Get-G04RawBytes $paired[0].path;$passed=$passed -and (Assert-G04ExpectedAudioDecode $bytes $audio $Recipe $observed $threshold)}
