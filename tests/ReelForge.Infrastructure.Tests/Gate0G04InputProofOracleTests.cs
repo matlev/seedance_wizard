@@ -83,7 +83,9 @@ public sealed class Gate0G04InputProofOracleTests
             "Normalize-G04Profile", "constrainedbaseline", "profile0", "aaclc",
             "avg_frame_rate", "Get-G04ToneEvidence", "opposedPhaseCorrelation",
             "exactSampleCount", "Get-G04SofMarker", "presentationIntervals",
-            "streamTimeBase", "expectedAudioDecode", "-show_packets"
+            "streamTimeBase", "terminalFrameDuration", "terminalPresentationEnd",
+            "terminalFrameDurationTicks", "terminalPresentationEndTicks",
+            "expectedAudioDecode", "-show_packets"
         }) Assert.Contains(required, script, StringComparison.Ordinal);
 
         Assert.DoesNotContain("executed by runner", script, StringComparison.OrdinalIgnoreCase);

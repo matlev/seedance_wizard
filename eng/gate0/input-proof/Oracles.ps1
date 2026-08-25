@@ -259,7 +259,48 @@ function Test-G04CaseEvidence {
         if($null -ne $expectedFrames) { $threshold.exactFrameCount=$expectedFrames; $passed=$passed -and (@($inspection.data.frames | Where-Object media_type -eq 'video').Count -eq [int]$expectedFrames) }
         $f1Source = @($Recipe.sourceArtifacts | Where-Object { $_.variantId -eq 'F1-three-patterns' }) | Select-Object -First 1
         if ($null -ne $f1Source) { $f1References=Get-G04PpmReferenceFrames $Context ([string[]]@($f1Source.fileIds));$frameCount=@($inspection.data.frames|Where-Object media_type -eq 'video').Count;$cycle=for($i=0;$i-lt $frameCount;$i++){@('f1-pattern-000','f1-pattern-001','f1-pattern-002')[$i % 3]};$f1=Assert-G04FrameSequence (Get-G04RawVideoFrames $Case $ArtifactPath $Context "$($Case.id)-f1") $f1References @('f1-pattern-000','f1-pattern-001','f1-pattern-002') 20 $cycle;$threshold.f1MaximumMeanAbsoluteError=20;$threshold.f1DistinctIdentities=3;$observed.f1Identity=$f1;$passed=$passed -and $f1.passed }
-        if($Oracle.id -match 'F7') { $timing=$Recipe.presentationTiming; $vframes=@($inspection.data.frames|Where-Object media_type -eq 'video'); $videoStream=@($inspection.data.streams|Where-Object codec_type -eq 'video')[0]; $pts=@($vframes|ForEach-Object {[int64]$_.pts});$intervals=@();for($i=1;$i -lt $pts.Count;$i++){$intervals += $pts[$i]-$pts[$i-1]};$expectedIntervals=@();for($i=1;$i -lt @($timing.presentationPts).Count;$i++){$expectedIntervals += [int64]$timing.presentationPts[$i]-[int64]$timing.presentationPts[$i-1]}; $expected.presentationPts=@($timing.presentationPts);$expected.preserveSignedNonZeroPts=$true;$expected.intervals=$expectedIntervals;$observed.presentationPts=$pts;$observed.presentationIntervals=$intervals;$observed.streamTimeBase=$videoStream.time_base;$observed.containerDuration=$inspection.data.format.duration;$threshold.timeBase=$timing.timeBase;$threshold.containerDurationToleranceSeconds=0.02;$f7Source=@($Recipe.sourceArtifacts|Where-Object {$_.variantId -eq 'F7-vfr-offset'})|Select-Object -First 1;$f7=Assert-G04FrameSequence (Get-G04RawVideoFrames $Case $ArtifactPath $Context "$($Case.id)-f7") (Get-G04PpmReferenceFrames $Context ([string[]]@($f7Source.fileIds))) @('red','green','blue','white','black') 20 @('red','green','blue','white','black');$threshold.f7MaximumMeanAbsoluteError=20;$observed.f7Identity=$f7;$passed=$passed -and $f7.passed -and ($pts -join ',') -eq ((@($timing.presentationPts) -join ',')) -and ($pts[0] -ne 0) -and (($intervals -join ',') -eq (($expectedIntervals -join ','))) -and ([string]$videoStream.time_base -eq [string]$timing.timeBase) -and ([math]::Abs([double]$inspection.data.format.duration-[double]$timing.containerDurationSeconds) -le 0.02) }
+        if($Oracle.id -match 'F7') {
+            $timing=$Recipe.presentationTiming
+            $vframes=@($inspection.data.frames|Where-Object media_type -eq 'video')
+            $videoStream=@($inspection.data.streams|Where-Object codec_type -eq 'video')[0]
+            $pts=@($vframes|ForEach-Object {[int64]$_.pts})
+            $intervals=@()
+            for($i=1;$i -lt $pts.Count;$i++){$intervals += $pts[$i]-$pts[$i-1]}
+            $expectedIntervals=@()
+            for($i=1;$i -lt @($timing.presentationPts).Count;$i++){$expectedIntervals += [int64]$timing.presentationPts[$i]-[int64]$timing.presentationPts[$i-1]}
+            $terminalFrame=@($vframes)[-1]
+            $terminalFrameDuration=[int64](Get-G04Property $terminalFrame 'duration' (Get-G04Property $terminalFrame 'pkt_duration' 0))
+            $terminalPresentationEnd=[int64]$pts[-1]+$terminalFrameDuration
+            $expectedTerminalFrameDuration=[int64]$timing.terminalFrameDuration
+            $expectedTerminalPresentationEnd=[int64]@($timing.presentationPts)[-1]+$expectedTerminalFrameDuration
+            $expected.presentationPts=@($timing.presentationPts)
+            $expected.preserveSignedNonZeroPts=$true
+            $expected.intervals=$expectedIntervals
+            $expected.terminalFrameDuration=$expectedTerminalFrameDuration
+            $expected.terminalPresentationEnd=$expectedTerminalPresentationEnd
+            $observed.presentationPts=$pts
+            $observed.presentationIntervals=$intervals
+            $observed.terminalFrameDuration=$terminalFrameDuration
+            $observed.terminalPresentationEnd=$terminalPresentationEnd
+            $observed.streamTimeBase=$videoStream.time_base
+            $observed.containerDuration=$inspection.data.format.duration
+            $threshold.timeBase=$timing.timeBase
+            $threshold.terminalFrameDurationTicks=0
+            $threshold.terminalPresentationEndTicks=0
+            $threshold.containerDurationToleranceSeconds=0.02
+            $f7Source=@($Recipe.sourceArtifacts|Where-Object {$_.variantId -eq 'F7-vfr-offset'})|Select-Object -First 1
+            $f7=Assert-G04FrameSequence (Get-G04RawVideoFrames $Case $ArtifactPath $Context "$($Case.id)-f7") (Get-G04PpmReferenceFrames $Context ([string[]]@($f7Source.fileIds))) @('red','green','blue','white','black') 20 @('red','green','blue','white','black')
+            $threshold.f7MaximumMeanAbsoluteError=20
+            $observed.f7Identity=$f7
+            $passed=$passed -and $f7.passed -and
+                ($pts -join ',') -eq ((@($timing.presentationPts) -join ',')) -and
+                ($pts[0] -ne 0) -and
+                (($intervals -join ',') -eq (($expectedIntervals -join ','))) -and
+                ([string]$videoStream.time_base -eq [string]$timing.timeBase) -and
+                ($terminalFrameDuration -eq $expectedTerminalFrameDuration) -and
+                ($terminalPresentationEnd -eq $expectedTerminalPresentationEnd) -and
+                ([math]::Abs([double]$inspection.data.format.duration-[double]$timing.containerDurationSeconds) -le 0.02)
+        }
         $paired=@($decodeEvidence|Where-Object type -eq 'audio');if($paired.Count){$audio=@($inspection.data.streams|Where-Object codec_type -eq 'audio')[0];$bytes=Get-G04RawBytes $paired[0].path;$passed=$passed -and (Assert-G04ExpectedAudioDecode $bytes $audio $Recipe $observed $threshold)}
     } elseif($kind -eq 'audio') {
         $audio=@($inspection.data.streams|Where-Object codec_type -eq 'audio')[0];$entry=@($decodeEvidence|Where-Object type -eq 'audio')[0];$bytes=Get-G04RawBytes $entry.path;$samples=[int]($bytes.Length/(2*[int]$audio.channels));$observed.decodedSamplesPerChannel=$samples;$observed.tone=(Get-G04ToneEvidence $bytes ([int]$audio.sample_rate) ([int]$audio.channels))
