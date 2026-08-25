@@ -60,9 +60,9 @@ Gate 0 does not enable frame skipping merely to silence that warning: exact fram
 ## Remaining gates and work
 
 1. Complete the remaining rows in the [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md): standalone Chrome/Edge/Firefox, VLC or owner disposition, perceptual sync, and a timestamp-clean long MP4 artifact produced by the approved measured G0.5 route. The default cannot be finalized before this evidence or an explicit owner disposition.
-2. Execute the exact guaranteed-common/capability-qualified decode matrix authorized in the [G0.4 common-input owner decisions](gate-0-g0.4-input-owner-decisions.md). The input-tier model and exact rows are approved, and F8 already proves explicit distinguishable stream mapping, but the expanded container/codec cases, policy branches, and bounded fixtures have not yet executed.
+2. Disposition the corrected [G0.4 common-input proof result](gate-0-g0.4-input-proof-results.md): 171 exact rows passed, 83 failed, and 2 are blocked. Preserve the passed baseline while resolving F7 authoring, direct Matroska fixture provenance, and the two blocked JPEG fixture rows without weakening or silently substituting the approved contract.
 3. Use G0.5 to measure quality, performance, thread/concurrency limits, UI responsiveness, cancellation, cache/disk behavior, and long-form integrity together. Resolve the OpenH264 rate-control warning there.
 4. Preserve the exact daily P2 archive in durable project-controlled private artifact storage or re-pin a monthly-retained build before unattended CI depends on it.
 5. Keep exact public runtime selection, dependency/SBOM audit, legal review, signing, packaging, and distribution in release engineering.
 
-Gate 0 remains incomplete. Independent playback is partial and remains an explicit exit gate; G0.5 long-form/resource evidence, the common-input matrix, and durable P2 retention also remain open work.
+Gate 0 remains incomplete. Independent playback is partial and remains an explicit exit gate; common-input owner disposition, G0.5 long-form/resource evidence, and durable P2/evidence retention also remain open work.

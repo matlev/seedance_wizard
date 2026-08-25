@@ -1,10 +1,12 @@
 # Gate 0 G0.4 common-input proof proposal
 
-Status: approved for bounded executable proof; owner decisions recorded
+Status: approved and executed; 171 rows passed, 83 failed, and 2 are blocked; owner dispositions pending
 
 Date: 2026-08-25
 
 Authority: [Gate 0 media capability charter](gate-0-media-capability-charter.md), [Gate 0 Checkpoint A](gate-0-checkpoint-a.md), and [Gate 0 G0.4 owner decisions](gate-0-g0.4-owner-decisions.md)
+
+Execution results and the three remaining owner dispositions are recorded in [Gate 0 G0.4 common-input proof results](gate-0-g0.4-input-proof-results.md). This proposal remains the approved candidate scope; only exact rows that passed executable proof may enter the guaranteed-common baseline.
 
 ## Desired outcome
 
@@ -231,9 +233,4 @@ If target-user validation shows multilingual, commentary, or alternate-angle sel
 
 ## Work after approval
 
-1. Check in the exact proof contract and structural tests.
-2. Build the proof-only runner around the existing paired-runtime and fixture validation patterns.
-3. Produce and retain the bounded derived fixture corpus outside Git.
-4. Execute the full matrix against exact P2, retaining blocked rows without substitution.
-5. Independently review the scripts and evidence.
-6. Update G0.4 and canonical Gate 0 status with the exact verdicts and remaining product consequences.
+The exact contract, structural tests, proof-only runner, bounded local corpus, corrected full run, and independent review are complete. The result retains 171 passes, 83 failures, and 2 blocked rows without substitution. The remaining work is the owner disposition and bounded follow-up described in the [result record](gate-0-g0.4-input-proof-results.md), plus durable retention before unattended CI use.

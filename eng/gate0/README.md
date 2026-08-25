@@ -59,4 +59,6 @@ When a later G0.3 proof runner packages or transforms these primitives, it must 
 
 `Invoke-W1G04MediaFoundationProof.ps1` is the separate optional G0.4 comparison. It proves paired and video-only `h264_mf` MP4 on Windows while deliberately pairing W1 with the same native AAC route as P2. Hardware encoding is not forced, but the selected MFT implementation remains unobservable; W1 never establishes the portable baseline.
 
+`Invoke-P2G04InputProof.ps1` executes the owner-approved 256-row common-input contract in `g0.4-input-proof-contract.json`. It validates the exact P2 pair and fixture closure, authors only approved fixture routes, explicitly selects demuxers/decoders/streams, performs strict complete decode and semantic oracles, exercises S1-S7 selection and N1-N7 classification policy, and retains pass/fail/block evidence plus complete command and generated-artifact closure. Generated media and the large evidence file remain outside Git. The corrected canonical result and rerun identity are recorded in `docs/gate-0-g0.4-input-proof-results.md`.
+
 `P2.BtbnLgplShared.WindowsX64.20260820` is third-party LGPLv3-path proof infrastructure only. These fixture files do not select a shipping runtime, delivery contract, or legal conclusion.

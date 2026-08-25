@@ -1,10 +1,12 @@
 # Gate 0 G0.4 common-input owner decisions
 
-Status: approved; bounded common-input proof authorized
+Status: approved; bounded common-input proof executed with partial pass; follow-up dispositions pending
 
 Approved: 2026-08-25
 
 Authority: [Gate 0 media capability charter](gate-0-media-capability-charter.md) and [G0.4 common-input proof proposal](gate-0-g0.4-input-proof-proposal.md)
+
+The corrected executable result is recorded in [Gate 0 G0.4 common-input proof results](gate-0-g0.4-input-proof-results.md). The original candidate authorization remains authoritative, but failed or blocked rows did not enter guaranteed-common merely because they were listed here.
 
 ## Exact guaranteed-common matrix
 

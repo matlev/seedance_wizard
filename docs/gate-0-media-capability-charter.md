@@ -1,6 +1,6 @@
 # Gate 0 media capability charter
 
-Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed; G0.4 bounded output proof complete at 11 portable plus two optional W1 passes; independent playback partial; exact common-input proof authorized
+Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed; G0.4 bounded output proof complete at 11 portable plus two optional W1 passes; independent playback partial; common-input proof executed at 171 passed, 83 failed, and 2 blocked with owner disposition pending
 
 Approved: 2026-08-24
 
@@ -308,9 +308,9 @@ Current G0.3 results are recorded in [Gate 0 G0.3 executable-proof results](gate
 
 The [G0.4 Free media and delivery proposal](gate-0-g0.4-delivery-proposal.md) recommends H.264/AAC MP4 as the compatibility/default target if an acceptable route passes and retains proven VP9/Opus WebM as the open alternative. The owner approved its four decisions in the [G0.4 owner-decision record](gate-0-g0.4-owner-decisions.md), authorizing the bounded component proofs while retaining independent playback and all shipping/legal boundaries.
 
-The [G0.4 executable delivery-proof results](gate-0-g0.4-executable-proof.md) record eleven passed portable output routes and two passed optional W1 variants. The [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md) adds two native-Chromium WebM control passes, explicit MP4 long-corpus blocks, and optional WMP Legacy WebM blocks without finalizing the default or shipping route. Remaining playback rows, the common-input decode matrix, durable P2 retention, G0.5 quality/performance/long-form evidence, and release-engineering/legal work stay open. OpenH264's no-frame-skip bitrate warning remains an explicit G0.5 quality-policy finding.
+The [G0.4 executable delivery-proof results](gate-0-g0.4-executable-proof.md) record eleven passed portable output routes and two passed optional W1 variants. The [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md) adds two native-Chromium WebM control passes, explicit MP4 long-corpus blocks, and optional WMP Legacy WebM blocks without finalizing the default or shipping route. The corrected [common-input result](gate-0-g0.4-input-proof-results.md) retains 171 passes, 83 failures, and 2 blocked rows; F7 authoring, direct Matroska provenance, and two blocked JPEG fixture rows require owner disposition. Remaining playback rows, durable P2/evidence retention, G0.5 quality/performance/long-form evidence, and release-engineering/legal work stay open. OpenH264's no-frame-skip bitrate warning remains an explicit G0.5 quality-policy finding.
 
-The [G0.4 common-input proof proposal](gate-0-g0.4-input-proof-proposal.md) bounds candidate guarantees by exact container/codec/profile/timing cases, negative diagnostics, and deterministic video/audio stream-selection policy. The owner approved all four decisions in the [common-input owner-decision record](gate-0-g0.4-input-owner-decisions.md), including the narrow VP8/Vorbis and NVENC fixture-production lanes. No input row becomes guaranteed-common before executable proof passes.
+The [G0.4 common-input proof proposal](gate-0-g0.4-input-proof-proposal.md) bounds candidate guarantees by exact container/codec/profile/timing cases, negative diagnostics, and deterministic video/audio stream-selection policy. The owner approved all four decisions in the [common-input owner-decision record](gate-0-g0.4-input-owner-decisions.md), including the narrow VP8/Vorbis and NVENC fixture-production lanes. The corrected proof executed every row: exact passes may inform guaranteed-common, while failed and blocked rows remain outside it until explicitly dispositioned.
 
 Authoritative decision and amendments: [Gate 0 Checkpoint A](gate-0-checkpoint-a.md).
 
