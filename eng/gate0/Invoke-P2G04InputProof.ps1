@@ -183,7 +183,10 @@ try {
             }
             $oracle = $oracles[[string]$recipe.oracleProfileId]
             $oracleEvidence = Test-G04CaseEvidence -Case $case -Recipe $recipe -Oracle $oracle -ArtifactPath $artifact.path -Context $context
-            $artifact.semanticProofPassed = $true
+            # New-G04CaseArtifact returns an OrderedDictionary and stores that
+            # same instance in ArtifactsByCase. Index assignment is required
+            # so dependent stream-copy rows observe the semantic pass.
+            $artifact['semanticProofPassed'] = $true
             $context.Capabilities.Add([ordered]@{ capabilityId=$caseId; classification='guaranteed-common'; status='passed'; reason='Exact authored fixture passed fresh inspection, explicit native-decoder selection, strict complete decode, and its bound semantic oracle.'; executedSemanticProof=$true; fixtureRecipeId=[string]$recipe.id; artifact=(Get-G04FileEvidence $context $artifact.path); producerEvidence=$artifact.producerEvidence; oracleEvidence=$oracleEvidence; elapsedMilliseconds=([DateTimeOffset]::UtcNow-$started).TotalMilliseconds })
         }
         catch {

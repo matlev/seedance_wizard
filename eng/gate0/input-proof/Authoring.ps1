@@ -5,6 +5,10 @@ Set-StrictMode -Version Latest
 
 function Get-G04AuthoringValue {
     param([Parameter(Mandatory)][object]$Object, [Parameter(Mandatory)][string]$Name)
+    if ($Object -is [Collections.IDictionary]) {
+        if ($Object.Contains($Name)) { return $Object[$Name] }
+        return $null
+    }
     $property = $Object.PSObject.Properties[$Name]
     if ($null -eq $property) { return $null }
     return $property.Value

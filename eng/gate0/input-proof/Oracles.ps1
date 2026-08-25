@@ -163,7 +163,8 @@ function Assert-G04FrameSequence([byte[][]]$Frames, [byte[][]]$References, [stri
 function Assert-G04ExpectedAudioDecode([byte[]]$Bytes, [object]$Audio, [object]$Recipe, [Collections.IDictionary]$Observed, [Collections.IDictionary]$Threshold) {
     $tone = Get-G04ToneEvidence $Bytes ([int]$Audio.sample_rate) ([int]$Audio.channels); $Observed.audioTone = $tone
     $expect = Get-G04Property $Recipe 'expectedAudioDecode' @{}
-    if ($null -ne $expect.sampleEnvelope) { $Threshold.audioSampleTolerance=$expect.sampleEnvelope.tolerance; if ([math]::Abs($tone.samplesPerChannel-[int]$expect.sampleEnvelope.expected) -gt [int]$expect.sampleEnvelope.tolerance) { return $false } }
+    $sampleEnvelope = Get-G04Property $expect 'sampleEnvelope'
+    if ($null -ne $sampleEnvelope) { $Threshold.audioSampleTolerance=$sampleEnvelope.tolerance; if ([math]::Abs($tone.samplesPerChannel-[int]$sampleEnvelope.expected) -gt [int]$sampleEnvelope.tolerance) { return $false } }
     if (@($tone.meanAbsoluteAmplitude | Where-Object { $_ -gt 50 }).Count -ne [int]$Audio.channels) { return $false }
     if ([int]$Audio.channels -eq 2) { $Threshold.opposedPhaseMaximum=-0.60; if ($tone.opposedPhaseCorrelation -gt -0.60) { return $false } }
     return $true

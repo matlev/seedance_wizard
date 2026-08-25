@@ -3,6 +3,21 @@ namespace ReelForge.Infrastructure.Tests;
 public sealed class Gate0G04InputProofAuthoringTests
 {
     [Fact]
+    public void AuthoringPropertyReaderSupportsSemanticPassDictionaries()
+    {
+        var module = RepositoryPath("eng", "gate0", "input-proof", "Authoring.ps1");
+        var command = $". '{module.Replace("'", "''", StringComparison.Ordinal)}'; $record=[ordered]@{{semanticProofPassed=$true}}; if(-not (Get-G04AuthoringValue $record 'semanticProofPassed')){{exit 1}}";
+        var start = new System.Diagnostics.ProcessStartInfo("pwsh") { UseShellExecute = false };
+        start.ArgumentList.Add("-NoProfile");
+        start.ArgumentList.Add("-Command");
+        start.ArgumentList.Add(command);
+        using var process = System.Diagnostics.Process.Start(start) ?? throw new InvalidOperationException("Could not start PowerShell.");
+        process.WaitForExit();
+
+        Assert.Equal(0, process.ExitCode);
+    }
+
+    [Fact]
     public void AuthoringModuleBindsDirectlyToSharedCommonHelpers()
     {
         var source = File.ReadAllText(RepositoryPath("eng", "gate0", "input-proof", "Authoring.ps1"));
