@@ -59,6 +59,8 @@ public sealed class Gate0F7SettsExperimentTests
             "Validate-P2Runtime.ps1",
             "preflight-setts-list",
             "preflight-setts-help",
+            "packets_and_frames",
+            "ffprobe JSON lacks both split and combined packet/frame arrays",
             "The setts source commit mapping does not match exact P2",
             "requires the exact P2 LGPLv3 license path",
             "Compare-PacketStreams",

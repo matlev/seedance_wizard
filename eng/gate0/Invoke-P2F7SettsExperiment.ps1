@@ -142,7 +142,18 @@ function Invoke-JsonProbe([string] $Name, [string] $Demuxer, [string] $Path, [st
         '-show_data_hash', 'sha256', '-of', 'json', $Path
     ) ([ordered]@{ purpose = $Purpose; demuxer = $Demuxer; allStreams = $true; allFrames = $true; allPackets = $true; packetDataHash = 'sha256' })
     if ($result.record.exitCode -ne 0) { throw "$Purpose failed with exit code $($result.record.exitCode)." }
-    try { return [ordered]@{ record = $result.record; data = ($result.stdout | ConvertFrom-Json -Depth 30) } }
+    try {
+        $data = $result.stdout | ConvertFrom-Json -Depth 30
+        $combined = Get-Value $data 'packets_and_frames' $null
+        if ($null -ne $combined) {
+            $data | Add-Member -MemberType NoteProperty -Name packets -Value @($combined | Where-Object type -eq 'packet') -Force
+            $data | Add-Member -MemberType NoteProperty -Name frames -Value @($combined | Where-Object type -eq 'frame') -Force
+        }
+        if ($null -eq (Get-Value $data 'packets' $null) -or $null -eq (Get-Value $data 'frames' $null)) {
+            throw 'ffprobe JSON lacks both split and combined packet/frame arrays.'
+        }
+        return [ordered]@{ record = $result.record; data = $data }
+    }
     catch { throw "$Purpose did not return valid JSON: $($_.Exception.Message)" }
 }
 
