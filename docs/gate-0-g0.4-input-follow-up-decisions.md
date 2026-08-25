@@ -83,7 +83,7 @@ Direct MP4 and WebM F7 cases execute first. The direct-Matroska pilot resumes on
 
 ## Interim local retention amendment
 
-No external artifact backend will be configured during this unit. A project-controlled sibling directory named `ReelForge.Gate0Artifacts` may retain the corpus outside temporary storage. Because the source workspace is under the owner's private OneDrive tree, the local files also receive the separately synced private replica; this is interim local-plus-sync retention, not a production artifact repository.
+No external artifact backend will be configured during this unit. A project-controlled sibling directory named `ReelForge.Gate0Artifacts` may retain the corpus outside temporary storage. The owner's OneDrive client is intentionally disconnected, so this directory counts as one local copy only and must not be described as synced or backed up. A genuinely separate private copy remains required before the two-copy retention condition is complete. This is interim local retention, not a production artifact repository.
 
 The tracked repository manifest must use stable artifact IDs and relative filenames only, and record size, SHA-256, provenance, producer/runtime identity, license records, proof-run identity, and retention status. Heavy proof stays manual or opt-in, hosted CI may not depend on machine-local artifacts, and temporary-provider R2 remains prohibited for this corpus.
 
