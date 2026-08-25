@@ -67,6 +67,8 @@ public sealed class Gate0P3JpegInputProofTests
             "noImageEncoder=$true", "-show_frames", "-show_packets", "-show_data_hash", "progressivePath.partial",
             "P3 retained installer identity", "signerThumbprint", "timestampThumbprint", "not-run-shared-preflight",
             "Assert-ExactNewMediaOutput", "RetainedArtifact $p3.installerRelativePath", "streamCount", "packets.Count-ne 1",
+            "Normalize-FfprobePacketFrameShape", "packets_and_frames", "FFprobe JSON lacks both split and combined packet/frame arrays",
+            "FFprobe split packet/frame arrays must be both absent or both present",
             "$inspect=Inspect 'inspect-progressive-420' $progressivePath;$semantic[$progressive.id]=$true",
             "$inspectO=Inspect 'inspect-orientation-6' $orientationPath;$semantic[$orientation.id]=$true",
             "executedSemanticProof=($semantic"
@@ -76,6 +78,29 @@ public sealed class Gate0P3JpegInputProofTests
         Assert.Contains("all input bytes after SOI remain byte-identical", File.ReadAllText(writerPath), StringComparison.Ordinal);
         Assert.DoesNotContain("libx264", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("System.Drawing", script, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ProbeShapeNormalizationAcceptsCombinedOutputAndRejectsHybridSplitOutput()
+    {
+        var runnerPath = PathInRepo("eng", "gate0", "Invoke-P3JpegInputProof.ps1");
+        var quoted = runnerPath.Replace("'", "''", StringComparison.Ordinal);
+        var command = $$$"""
+            $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile('{{{quoted}}}',[ref]$tokens,[ref]$errors)
+            if($errors.Count){$errors|% Message;exit 10}
+            foreach($name in 'Value','Normalize-FfprobePacketFrameShape'){
+              $fn=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
+              if($null-eq$fn){exit 11};. ([scriptblock]::Create($fn.Extent.Text))
+            }
+            $combined='{"packets_and_frames":[{"type":"packet","data_hash":"SHA256:01"},{"type":"frame"}]}'|ConvertFrom-Json
+            $normalized=Normalize-FfprobePacketFrameShape $combined
+            if(@($normalized.packets).Count-ne 1-or@($normalized.frames).Count-ne 1){exit 12}
+            $hybrid='{"packets_and_frames":[{"type":"packet"},{"type":"frame"}],"packets":[{"type":"packet"}]}'|ConvertFrom-Json
+            try{Normalize-FfprobePacketFrameShape $hybrid|Out-Null;exit 13}catch{if($_.Exception.Message-notlike '*both absent or both present*'){exit 14}}
+            exit 0
+            """;
+        var result = RunPowerShell(command);
+        Assert.True(result.ExitCode == 0, $"Probe normalization contract failed with exit code {result.ExitCode}:{Environment.NewLine}{result.Output}");
     }
 
     [Fact]
