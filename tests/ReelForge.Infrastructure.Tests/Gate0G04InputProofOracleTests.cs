@@ -3,6 +3,17 @@ namespace ReelForge.Infrastructure.Tests;
 public sealed class Gate0G04InputProofOracleTests
 {
     [Fact]
+    public void OraclePropertyReaderSupportsRecordedCommandDictionaries()
+    {
+        var module = RepositoryPath("eng", "gate0", "input-proof", "Oracles.ps1");
+        var result = RunPowerShell($$""". '{{Escape(module)}}'; $record=[ordered]@{stdout='{"streams":[]}';stderr=''}; [ordered]@{stdout=(Get-G04Property $record 'stdout' 'missing');stderr=(Get-G04Property $record 'stderr' 'missing')} | ConvertTo-Json -Compress""");
+
+        Assert.Equal(0, result.ExitCode);
+        using var json = System.Text.Json.JsonDocument.Parse(result.Output);
+        Assert.Equal("{\"streams\":[]}", json.RootElement.GetProperty("stdout").GetString());
+        Assert.Equal(string.Empty, json.RootElement.GetProperty("stderr").GetString());
+    }
+    [Fact]
     public void OraclesRequireFreshInspectionStrictDiagnosticsAndConcreteCommands()
     {
         var script = ReadScript();
@@ -10,7 +21,11 @@ public sealed class Gate0G04InputProofOracleTests
         Assert.Contains("-show_format','-show_streams','-show_frames','-show_packets", script, StringComparison.Ordinal);
         Assert.Contains("Invoke-G04RecordedCommand -Context $Context", script, StringComparison.Ordinal);
         Assert.Contains("Test-G04UndeclaredDiagnostics -Stderr", script, StringComparison.Ordinal);
+        Assert.Contains("$null = Test-G04UndeclaredDiagnostics", script, StringComparison.Ordinal);
         Assert.Contains("'-xerror','-err_detect','explode'", script, StringComparison.Ordinal);
+        Assert.Contains("packets_and_frames", script, StringComparison.Ordinal);
+        Assert.Contains("'lc'='aac_low'", script, StringComparison.Ordinal);
+        Assert.Contains("ReelForge.Gate0.ByteOracle", script, StringComparison.Ordinal);
         Assert.Contains("'strict complete decode'", script, StringComparison.Ordinal);
         Assert.DoesNotContain("exit code", script, StringComparison.OrdinalIgnoreCase);
     }
@@ -83,7 +98,7 @@ public sealed class Gate0G04InputProofOracleTests
             "Get-G04RawVideoFrames", "scale=320:180:flags=bilinear", "Get-G04PpmReferenceFrames",
             "Assert-G04FrameSequence", "f1-pattern-000", "f1-pattern-001", "f1-pattern-002",
             "@('red','green','blue','white','black')", "f1MaximumMeanAbsoluteError", "f7MaximumMeanAbsoluteError",
-            "Reference frame identities are not visually distinct", "Remove-G04OracleArtifact $raw"
+            "Reference frame identities are not byte-distinct", "Remove-G04OracleArtifact $raw"
         }) Assert.Contains(required, script, StringComparison.Ordinal);
     }
 

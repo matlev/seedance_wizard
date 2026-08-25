@@ -65,7 +65,7 @@ public sealed class Gate0G04InputProofAuthoringTests
         Assert.Contains("-ac',[string]$input.rawChannels", source, StringComparison.Ordinal);
         Assert.Contains("aloop=loop=-1:size=$loopSamples", source, StringComparison.Ordinal);
         Assert.Contains("apad=whole_dur=2,atrim=duration=2", source, StringComparison.Ordinal);
-        Assert.Contains("if ($null -ne $video) { $args.AddRange([string[]]@('-t','2','-shortest')) }", source, StringComparison.Ordinal);
+        Assert.Contains("if ($null -ne $video) { $args.AddRange([string[]]@('-t','2')) }", source, StringComparison.Ordinal);
         Assert.Contains("Recipe $($Recipe.id) must declare exact audioEncoderOptions", source, StringComparison.Ordinal);
         Assert.Contains("timing.kind -eq 'vfr-nonzero-pts'", source, StringComparison.Ordinal);
         Assert.Contains("required NVENC GPU and driver identity could not be recorded", source, StringComparison.Ordinal);

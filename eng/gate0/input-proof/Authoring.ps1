@@ -177,6 +177,7 @@ function New-G04CaseArtifact {
     $sources = [Collections.Generic.List[string]]::new()
     $args = [Collections.Generic.List[string]]::new()
     $audioInputIndex = $null
+    $isVfr = $false
     $args.AddRange([string[]]@('-hide_banner','-xerror','-err_detect','explode'))
 
     if ($null -ne $image) {
@@ -214,8 +215,8 @@ function New-G04CaseArtifact {
             # F7 is intentionally assembled through a concat manifest: distinct presentation intervals,
             # signed non-zero PTS, terminal duration and the 2 s container duration are not approximated.
             $concat = Join-Path $Context.Work ("$($Case.id).f7.concat.txt")
-            # F7 truth: 90000, 93600, 100800, 101700, 108000 on a 1/90000 base.
-            # The final 72000/90000 terminal duration reaches the exact 2 s container end.
+            # F7 is authored on a fine 1/90000 filter base and normalized by
+            # each container to exact millisecond presentation timestamps.
             $durations = @('0.040000','0.080000','0.010000','0.070000','0.800000')
             $lines = for ($i=0; $i -lt $sourcePaths.Count; $i++) { @("file '$($sourcePaths[$i].Replace("'", "''"))'", "duration $($durations[$i])") }
             [IO.File]::WriteAllLines($concat, [string[]]$lines, [Text.UTF8Encoding]::new($false))
@@ -236,9 +237,9 @@ function New-G04CaseArtifact {
 
     if ($null -ne $video) {
         $isVfr = [string]$Case.timing.kind -eq 'vfr-nonzero-pts'
-        $vf = if ($isVfr) { "scale=$($video.width):$($video.height),format=$($video.pixelFormat),setpts=PTS" } else { "scale=$($video.width):$($video.height),fps=$($Case.timing.frameRate),format=$($video.pixelFormat)" }
+        $vf = if ($isVfr) { "scale=$($video.width):$($video.height),format=$($video.pixelFormat),settb=1/90000,setpts=if(eq(N\,0)\,90000\,if(eq(N\,1)\,93600\,if(eq(N\,2)\,100800\,if(eq(N\,3)\,101700\,108000))))" } else { "scale=$($video.width):$($video.height),fps=$($Case.timing.frameRate),format=$($video.pixelFormat)" }
         $args.AddRange([string[]]@('-vf',$vf))
-        if ($isVfr) { $args.AddRange([string[]]@('-vsync','vfr','-t','2')) }
+        if ($isVfr) { $args.AddRange([string[]]@('-fps_mode','passthrough','-enc_time_base:v','1/1000')) }
         $options = Assert-G04AuthoringVideoEncoderOptions -Recipe $Recipe -Required $false
         $args.AddRange([string[]]$options)
         if ($null -eq $audio) { $args.Add('-an') }
@@ -258,7 +259,8 @@ function New-G04CaseArtifact {
         }
         $args.AddRange([string[]]$audioOptions)
     }
-    if ($null -ne $video) { $args.AddRange([string[]]@('-t','2','-shortest')) }
+    if ($null -ne $video) { $args.AddRange([string[]]@('-t','2')) }
+    if ($isVfr -and [string]$Recipe.muxer -eq 'mp4') { $args.AddRange([string[]]@('-video_track_timescale','1000')) }
     $args.AddRange([string[]]@('-f',[string]$Recipe.muxer,'-y',$partial))
     for ($argumentIndex = 0; $argumentIndex -lt $args.Count; $argumentIndex++) {
         if ([string]::IsNullOrEmpty($args[$argumentIndex])) { throw "Recipe $($Recipe.id) constructed an empty command argument at index $argumentIndex." }

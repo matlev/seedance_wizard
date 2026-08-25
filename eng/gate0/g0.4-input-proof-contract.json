@@ -18602,7 +18602,7 @@
             "fps=preserve-F7-presentation-intervals",
             "format=yuv420p",
             "setpts=preserve-signed-nonzero-pts",
-            "set-terminal-frame-duration=72000/90000",
+            "set-terminal-frame-duration=800/1000",
             "container-duration=2s"
           ]
         },
@@ -18630,7 +18630,7 @@
         "fps=preserve-F7-presentation-intervals",
         "format=yuv420p",
         "setpts=preserve-signed-nonzero-pts",
-        "set-terminal-frame-duration=72000/90000",
+        "set-terminal-frame-duration=800/1000",
         "container-duration=2s",
         "aresample=44100",
         "channels=mono",
@@ -18654,15 +18654,15 @@
         "yuv420p"
       ],
       "presentationTiming": {
-        "timeBase": "1/90000",
+        "timeBase": "1/1000",
         "presentationPts": [
-          90000,
-          93600,
-          100800,
-          101700,
-          108000
+          1000,
+          1040,
+          1120,
+          1130,
+          1200
         ],
-        "terminalFrameDuration": 72000,
+        "terminalFrameDuration": 800,
         "containerDurationSeconds": 2
       },
       "expectedAudioDecode": {
@@ -18721,7 +18721,7 @@
             "fps=preserve-F7-presentation-intervals",
             "format=yuv420p",
             "setpts=preserve-signed-nonzero-pts",
-            "set-terminal-frame-duration=72000/90000",
+            "set-terminal-frame-duration=800/1000",
             "container-duration=2s"
           ]
         },
@@ -18749,7 +18749,7 @@
         "fps=preserve-F7-presentation-intervals",
         "format=yuv420p",
         "setpts=preserve-signed-nonzero-pts",
-        "set-terminal-frame-duration=72000/90000",
+        "set-terminal-frame-duration=800/1000",
         "container-duration=2s",
         "aresample=48000",
         "channels=mono",
@@ -18773,15 +18773,15 @@
         "yuv420p"
       ],
       "presentationTiming": {
-        "timeBase": "1/90000",
+        "timeBase": "1/1000",
         "presentationPts": [
-          90000,
-          93600,
-          100800,
-          101700,
-          108000
+          1000,
+          1040,
+          1120,
+          1130,
+          1200
         ],
-        "terminalFrameDuration": 72000,
+        "terminalFrameDuration": 800,
         "containerDurationSeconds": 2
       },
       "expectedAudioDecode": {
@@ -18840,7 +18840,7 @@
             "fps=preserve-F7-presentation-intervals",
             "format=yuv420p",
             "setpts=preserve-signed-nonzero-pts",
-            "set-terminal-frame-duration=72000/90000",
+            "set-terminal-frame-duration=800/1000",
             "container-duration=2s"
           ]
         },
@@ -18868,7 +18868,7 @@
         "fps=preserve-F7-presentation-intervals",
         "format=yuv420p",
         "setpts=preserve-signed-nonzero-pts",
-        "set-terminal-frame-duration=72000/90000",
+        "set-terminal-frame-duration=800/1000",
         "container-duration=2s",
         "aresample=44100",
         "channels=stereo",
@@ -18892,15 +18892,15 @@
         "yuv420p"
       ],
       "presentationTiming": {
-        "timeBase": "1/90000",
+        "timeBase": "1/1000",
         "presentationPts": [
-          90000,
-          93600,
-          100800,
-          101700,
-          108000
+          1000,
+          1040,
+          1120,
+          1130,
+          1200
         ],
-        "terminalFrameDuration": 72000,
+        "terminalFrameDuration": 800,
         "containerDurationSeconds": 2
       },
       "expectedAudioDecode": {
@@ -18959,7 +18959,7 @@
             "fps=preserve-F7-presentation-intervals",
             "format=yuv420p",
             "setpts=preserve-signed-nonzero-pts",
-            "set-terminal-frame-duration=72000/90000",
+            "set-terminal-frame-duration=800/1000",
             "container-duration=2s"
           ]
         },
@@ -18987,7 +18987,7 @@
         "fps=preserve-F7-presentation-intervals",
         "format=yuv420p",
         "setpts=preserve-signed-nonzero-pts",
-        "set-terminal-frame-duration=72000/90000",
+        "set-terminal-frame-duration=800/1000",
         "container-duration=2s",
         "aresample=48000",
         "channels=stereo",
@@ -19011,15 +19011,15 @@
         "yuv420p"
       ],
       "presentationTiming": {
-        "timeBase": "1/90000",
+        "timeBase": "1/1000",
         "presentationPts": [
-          90000,
-          93600,
-          100800,
-          101700,
-          108000
+          1000,
+          1040,
+          1120,
+          1130,
+          1200
         ],
-        "terminalFrameDuration": 72000,
+        "terminalFrameDuration": 800,
         "containerDurationSeconds": 2
       },
       "expectedAudioDecode": {
@@ -21067,7 +21067,7 @@
             "fps=preserve-F7-presentation-intervals",
             "format=yuv420p",
             "setpts=preserve-signed-nonzero-pts",
-            "set-terminal-frame-duration=72000/90000",
+            "set-terminal-frame-duration=800/1000",
             "container-duration=2s"
           ]
         },
@@ -21095,7 +21095,7 @@
         "fps=preserve-F7-presentation-intervals",
         "format=yuv420p",
         "setpts=preserve-signed-nonzero-pts",
-        "set-terminal-frame-duration=72000/90000",
+        "set-terminal-frame-duration=800/1000",
         "container-duration=2s",
         "aresample=48000",
         "channels=mono",
@@ -21109,15 +21109,15 @@
         "basis": "five F7 presentation frames"
       },
       "presentationTiming": {
-        "timeBase": "1/90000",
+        "timeBase": "1/1000",
         "presentationPts": [
-          90000,
-          93600,
-          100800,
-          101700,
-          108000
+          1000,
+          1040,
+          1120,
+          1130,
+          1200
         ],
-        "terminalFrameDuration": 72000,
+        "terminalFrameDuration": 800,
         "containerDurationSeconds": 2
       },
       "expectedAudioDecode": {
@@ -21180,7 +21180,7 @@
             "fps=preserve-F7-presentation-intervals",
             "format=yuv420p",
             "setpts=preserve-signed-nonzero-pts",
-            "set-terminal-frame-duration=72000/90000",
+            "set-terminal-frame-duration=800/1000",
             "container-duration=2s"
           ]
         },
@@ -21208,7 +21208,7 @@
         "fps=preserve-F7-presentation-intervals",
         "format=yuv420p",
         "setpts=preserve-signed-nonzero-pts",
-        "set-terminal-frame-duration=72000/90000",
+        "set-terminal-frame-duration=800/1000",
         "container-duration=2s",
         "aresample=48000",
         "channels=stereo",
@@ -21222,15 +21222,15 @@
         "basis": "five F7 presentation frames"
       },
       "presentationTiming": {
-        "timeBase": "1/90000",
+        "timeBase": "1/1000",
         "presentationPts": [
-          90000,
-          93600,
-          100800,
-          101700,
-          108000
+          1000,
+          1040,
+          1120,
+          1130,
+          1200
         ],
-        "terminalFrameDuration": 72000,
+        "terminalFrameDuration": 800,
         "containerDurationSeconds": 2
       },
       "expectedAudioDecode": {
@@ -25230,12 +25230,12 @@
       },
       "timing": {
         "preserveSignedNonZeroPts": true,
-        "timeBase": "1/90000",
+        "timeBase": "1/1000",
         "intervals": [
-          3600,
-          7200,
-          900,
-          6300
+          40,
+          80,
+          10,
+          70
         ]
       },
       "errorPolicy": {
