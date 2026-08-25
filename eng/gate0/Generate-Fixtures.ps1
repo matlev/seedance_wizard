@@ -14,7 +14,11 @@ param(
 
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+
+    # TEST ONLY: Production proof must use the checked-in fixture-source-inventory.json default.
+    [Parameter(HelpMessage = 'TEST ONLY. Overrides the checked-in inventory for negative generator tests; it is never an approved inventory.')]
+    [string]$FixtureSourceInventoryPath
 )
 
 Set-StrictMode -Version Latest
@@ -166,9 +170,151 @@ function Write-SinePcm16Le {
     }
 }
 
+function Get-ContainedRelativePath {
+    param(
+        [Parameter(Mandatory)][string]$Root,
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Description
+    )
+
+    $resolvedRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+    $prefix = "$resolvedRoot$([System.IO.Path]::DirectorySeparatorChar)"
+    if (-not $resolvedPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "$Description must resolve under '$resolvedRoot'."
+    }
+
+    $relativePath = [System.IO.Path]::GetRelativePath($resolvedRoot, $resolvedPath).Replace('\', '/')
+    if ([System.IO.Path]::IsPathRooted($relativePath) -or $relativePath -eq '..' -or $relativePath.StartsWith('../', [System.StringComparison]::Ordinal)) {
+        throw "$Description has an unsafe relative path '$relativePath'."
+    }
+
+    return $relativePath
+}
+
+function Get-OutputFileInventory {
+    param([Parameter(Mandatory)][string]$Root)
+
+    $files = Get-ChildItem -LiteralPath $Root -File -Recurse -Force | Sort-Object FullName
+    foreach ($file in $files) {
+        if ($file.Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint)) {
+            throw "Generated output must not contain reparse-point files: '$($file.FullName)'."
+        }
+    }
+
+    return @($files | ForEach-Object {
+        [ordered]@{
+            path = Get-ContainedRelativePath -Root $Root -Path $_.FullName -Description 'Generated output file'
+            length = $_.Length
+            sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToUpperInvariant()
+        }
+    })
+}
+
+function Read-ApprovedInventory {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not [System.IO.Path]::IsPathRooted($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw 'FixtureSourceInventoryPath must be an existing explicit rooted file path.'
+    }
+
+    $inventory = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable
+    if ($inventory.schemaVersion -ne 1 -or $inventory.inventoryVersion -ne 1) {
+        throw 'Fixture source inventory schemaVersion and inventoryVersion must both be 1.'
+    }
+    if ($inventory.profileId -ne 'P2.BtbnLgplShared.WindowsX64.20260820') {
+        throw 'Fixture source inventory profileId does not match the approved Gate 0 profile.'
+    }
+    if ($null -eq $inventory.files -or $inventory.files.Count -eq 0) {
+        throw 'Fixture source inventory must define at least one expected file.'
+    }
+
+    $paths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($file in $inventory.files) {
+        $path = [string]$file.path
+        if ([string]::IsNullOrWhiteSpace($path) -or [System.IO.Path]::IsPathRooted($path) -or $path.Contains('\') -or $path -eq '..' -or $path.StartsWith('../', [System.StringComparison]::Ordinal) -or $path.Contains('/../')) {
+            throw "Fixture source inventory contains unsafe path '$path'."
+        }
+        if ($file.length -lt 0 -or [string]::IsNullOrWhiteSpace([string]$file.sha256) -or ([string]$file.sha256) -notmatch '^[A-F0-9]{64}$') {
+            throw "Fixture source inventory has invalid metadata for '$path'."
+        }
+        if (-not $paths.Add($path)) {
+            throw "Fixture source inventory contains duplicate path '$path'."
+        }
+    }
+
+    return $inventory
+}
+
+function Assert-ApprovedInventoryMatch {
+    param(
+        [Parameter(Mandatory)][object]$ApprovedInventory,
+        [Parameter(Mandatory)][object[]]$ActualFiles
+    )
+
+    $expectedByPath = @{}
+    foreach ($expected in $ApprovedInventory.files) { $expectedByPath[[string]$expected.path] = $expected }
+    $actualByPath = @{}
+    foreach ($actual in $ActualFiles) { $actualByPath[[string]$actual.path] = $actual }
+
+    $missing = @($expectedByPath.Keys | Where-Object { -not $actualByPath.ContainsKey($_) } | Sort-Object)
+    $additional = @($actualByPath.Keys | Where-Object { -not $expectedByPath.ContainsKey($_) } | Sort-Object)
+    $drifted = @($expectedByPath.Keys | Where-Object {
+        $actualByPath.ContainsKey($_) -and (($expectedByPath[$_].length -ne $actualByPath[$_].length) -or ($expectedByPath[$_].sha256 -ne $actualByPath[$_].sha256))
+    } | Sort-Object)
+
+    if ($missing.Count -gt 0 -or $additional.Count -gt 0 -or $drifted.Count -gt 0) {
+        throw "Generated fixture output does not match the approved inventory. Missing: $($missing -join ', '). Additional: $($additional -join ', '). Drifted: $($drifted -join ', ')."
+    }
+}
+
+function Assert-SafeOutputDirectoryPreWrite {
+    param(
+        [Parameter(Mandatory)][string]$OutputPath,
+        [Parameter(Mandatory)][string]$RepositoryRoot
+    )
+
+    # Walk from the requested path to the nearest existing ancestor, then inspect
+    # every existing ancestor before any output directory or file is created.
+    $existingAncestor = $OutputPath
+    while (-not (Test-Path -LiteralPath $existingAncestor)) {
+        $parent = Split-Path -Parent $existingAncestor
+        if ([string]::IsNullOrWhiteSpace($parent) -or $parent.Equals($existingAncestor, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "OutputDirectory has no resolvable existing ancestor: '$OutputPath'."
+        }
+        $existingAncestor = $parent
+    }
+
+    $ancestor = $existingAncestor
+    while ($true) {
+        $item = Get-Item -LiteralPath $ancestor -Force
+        if ($item.Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint)) {
+            throw "OutputDirectory ancestor '$ancestor' is a reparse point. Reparse-point output paths are prohibited."
+        }
+
+        $parent = Split-Path -Parent $ancestor
+        if ([string]::IsNullOrWhiteSpace($parent) -or $parent.Equals($ancestor, [System.StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $ancestor = $parent
+    }
+
+    $resolvedExistingAncestor = (Resolve-Path -LiteralPath $existingAncestor).Path.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $repositoryPrefix = "$RepositoryRoot$([System.IO.Path]::DirectorySeparatorChar)"
+    if ($resolvedExistingAncestor.Equals($RepositoryRoot, [System.StringComparison]::OrdinalIgnoreCase) -or $resolvedExistingAncestor.StartsWith($repositoryPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "OutputDirectory resolves through an existing ancestor inside the repository: '$resolvedExistingAncestor'."
+    }
+}
+
 $scriptDirectory = Split-Path -Parent $PSCommandPath
 $manifestPath = Join-Path $scriptDirectory 'fixture-manifest.json'
 $truthPath = Join-Path $scriptDirectory 'expected-truths.json'
+$defaultInventoryPath = Join-Path $scriptDirectory 'fixture-source-inventory.json'
+if ([string]::IsNullOrWhiteSpace($FixtureSourceInventoryPath)) {
+    $FixtureSourceInventoryPath = $defaultInventoryPath
+}
+$usesTestOnlyInventoryOverride = -not [System.IO.Path]::GetFullPath($FixtureSourceInventoryPath).Equals([System.IO.Path]::GetFullPath($defaultInventoryPath), [System.StringComparison]::OrdinalIgnoreCase)
+$approvedInventory = Read-ApprovedInventory -Path $FixtureSourceInventoryPath
 
 if (-not [System.IO.Path]::IsPathRooted($ApprovedRuntimeRoot) -or -not (Test-Path -LiteralPath $ApprovedRuntimeRoot -PathType Container)) {
     throw 'ApprovedRuntimeRoot must be an existing explicit rooted directory.'
@@ -185,6 +331,7 @@ $outputIsInsideRepository = $resolvedOutput.StartsWith($repositoryPrefix, [Syste
 if ($outputEqualsRepository -or $outputIsInsideRepository) {
     throw 'OutputDirectory must be outside the repository so generated media cannot be committed.'
 }
+Assert-SafeOutputDirectoryPreWrite -OutputPath $resolvedOutput -RepositoryRoot $repositoryRoot
 
 $resolvedFfmpegPath = Resolve-ExplicitToolPath -Path $FfmpegPath -Name 'ffmpeg.exe' -RuntimeRoot $ApprovedRuntimeRoot
 $resolvedFfprobePath = Resolve-ExplicitToolPath -Path $FfprobePath -Name 'ffprobe.exe' -RuntimeRoot $ApprovedRuntimeRoot
@@ -267,16 +414,20 @@ Write-SinePcm16Le (Join-Path $resolvedOutput 'F8\f8-audio-one-880hz.pcm') 48000 
 [System.IO.File]::Copy($manifestPath, (Join-Path $resolvedOutput 'fixture-manifest.json'), $true)
 [System.IO.File]::Copy($truthPath, (Join-Path $resolvedOutput 'expected-truths.json'), $true)
 
-$sourceFiles = @(Get-ChildItem -LiteralPath $resolvedOutput -File -Recurse |
-    Where-Object Name -ne 'generated-fixture-report.json' |
-    Sort-Object FullName |
-    ForEach-Object {
-        [ordered]@{
-            path = [System.IO.Path]::GetRelativePath($resolvedOutput, $_.FullName).Replace('\', '/')
-            length = $_.Length
-            sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToUpperInvariant()
+$sourceFiles = Get-OutputFileInventory -Root $resolvedOutput
+Assert-ApprovedInventoryMatch -ApprovedInventory $approvedInventory -ActualFiles $sourceFiles
+
+$sourceSet = @($PSCommandPath, $manifestPath, $truthPath, $FixtureSourceInventoryPath | ForEach-Object {
+    [ordered]@{
+        path = if ([System.IO.Path]::GetFullPath($_).StartsWith("$repositoryRoot$([System.IO.Path]::DirectorySeparatorChar)", [System.StringComparison]::OrdinalIgnoreCase)) {
+            Get-ContainedRelativePath -Root $repositoryRoot -Path $_ -Description 'Generator source'
+        } else {
+            "external/$([System.IO.Path]::GetFileName($_))"
         }
-    })
+        length = (Get-Item -LiteralPath $_).Length
+        sha256 = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToUpperInvariant()
+    }
+})
 
 $generationReport = [ordered]@{
     schemaVersion = 1
@@ -288,6 +439,19 @@ $generationReport = [ordered]@{
         ffprobePath = $resolvedFfprobePath
     }
     externalMediaCommandsExecuted = $false
+    approvedInventory = [ordered]@{
+        approvalStatus = if ($usesTestOnlyInventoryOverride) { 'test-only override; not approved for Gate 0 proof' } else { 'checked-in approved inventory' }
+        testOnlyOverride = $usesTestOnlyInventoryOverride
+        schemaVersion = $approvedInventory.schemaVersion
+        inventoryVersion = $approvedInventory.inventoryVersion
+        path = if ([System.IO.Path]::GetFullPath($FixtureSourceInventoryPath).StartsWith("$repositoryRoot$([System.IO.Path]::DirectorySeparatorChar)", [System.StringComparison]::OrdinalIgnoreCase)) {
+            Get-ContainedRelativePath -Root $repositoryRoot -Path $FixtureSourceInventoryPath -Description 'Fixture source inventory'
+        } else {
+            "external/$([System.IO.Path]::GetFileName($FixtureSourceInventoryPath))"
+        }
+        sha256 = (Get-FileHash -LiteralPath $FixtureSourceInventoryPath -Algorithm SHA256).Hash.ToUpperInvariant()
+    }
+    generatorSourceSet = $sourceSet
     sourceFiles = $sourceFiles
 }
 [System.IO.File]::WriteAllText(
