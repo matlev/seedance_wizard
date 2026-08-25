@@ -167,6 +167,8 @@ The owner approved all four requested decisions in the [G0.4 owner-decision reco
 
 Independent playback remains a prerequisite to finalizing the default. A blocked H.264 or AAC route is a valid result and must return to the owner rather than weakening portability, reproducibility, quality, or licensing boundaries.
 
+The follow-on [G0.4 common-input proof proposal](gate-0-g0.4-input-proof-proposal.md) converts the approved two-tier input model into exact candidate rows, bounded fixtures, negative diagnostics, and a deterministic stream-selection policy. Its exact matrix and component expansions remain proposals until separately approved and executed.
+
 ## Licensing and source boundary
 
 FFmpeg's [legal guidance](https://ffmpeg.org/legal.html) and [component license list](https://ffmpeg.org/doxygen/trunk/md_LICENSE.html) distinguish the base LGPL path from GPL/nonfree components and warn separately about codec patents. OpenH264 source is BSD-licensed, while Cisco's distributed binary has additional [binary-license conditions](https://www.openh264.org/BINARY_LICENSE.txt). The [Opus license](https://github.com/xiph/opus/blob/main/COPYING), [libvpx license](https://chromium.googlesource.com/webm/libvpx/+/refs/heads/main/LICENSE), and [WebM patent grant](https://www.webmproject.org/license/bitstream/) make the open path promising but do not replace the project's exact dependency audit or qualified legal review.

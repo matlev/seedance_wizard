@@ -60,7 +60,7 @@ Gate 0 does not enable frame skipping merely to silence that warning: exact fram
 ## Remaining gates and work
 
 1. Complete the remaining rows in the [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md): standalone Chrome/Edge/Firefox, VLC or owner disposition, perceptual sync, and a timestamp-clean long MP4 artifact produced by the approved measured G0.5 route. The default cannot be finalized before this evidence or an explicit owner disposition.
-2. Complete the capability-qualified/guaranteed-common input decode matrix. The input-tier model is approved, and F8 already proves explicit distinguishable stream selection, but the proposed common container/codec rows have not all received bounded decode fixtures.
+2. Resolve the four owner decisions in the [G0.4 common-input proof proposal](gate-0-g0.4-input-proof-proposal.md), then execute its exact guaranteed-common/capability-qualified decode matrix. The input-tier model is approved, and F8 already proves explicit distinguishable stream mapping, but the proposed container/codec envelopes, policy branches, and bounded fixtures are not yet approved or executed.
 3. Use G0.5 to measure quality, performance, thread/concurrency limits, UI responsiveness, cancellation, cache/disk behavior, and long-form integrity together. Resolve the OpenH264 rate-control warning there.
 4. Preserve the exact daily P2 archive in durable project-controlled private artifact storage or re-pin a monthly-retained build before unattended CI depends on it.
 5. Keep exact public runtime selection, dependency/SBOM audit, legal review, signing, packaging, and distribution in release engineering.

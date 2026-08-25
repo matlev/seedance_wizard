@@ -1,6 +1,6 @@
 # Gate 0 media capability charter
 
-Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed; G0.4 bounded output proof complete at 11 portable plus two optional W1 passes; independent playback partial with completion gate open
+Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed; G0.4 bounded output proof complete at 11 portable plus two optional W1 passes; independent playback partial; exact common-input proposal awaiting owner decisions
 
 Approved: 2026-08-24
 
@@ -309,6 +309,8 @@ Current G0.3 results are recorded in [Gate 0 G0.3 executable-proof results](gate
 The [G0.4 Free media and delivery proposal](gate-0-g0.4-delivery-proposal.md) recommends H.264/AAC MP4 as the compatibility/default target if an acceptable route passes and retains proven VP9/Opus WebM as the open alternative. The owner approved its four decisions in the [G0.4 owner-decision record](gate-0-g0.4-owner-decisions.md), authorizing the bounded component proofs while retaining independent playback and all shipping/legal boundaries.
 
 The [G0.4 executable delivery-proof results](gate-0-g0.4-executable-proof.md) record eleven passed portable output routes and two passed optional W1 variants. The [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md) adds two native-Chromium WebM control passes, explicit MP4 long-corpus blocks, and optional WMP Legacy WebM blocks without finalizing the default or shipping route. Remaining playback rows, the common-input decode matrix, durable P2 retention, G0.5 quality/performance/long-form evidence, and release-engineering/legal work stay open. OpenH264's no-frame-skip bitrate warning remains an explicit G0.5 quality-policy finding.
+
+The [G0.4 common-input proof proposal](gate-0-g0.4-input-proof-proposal.md) now bounds candidate guarantees by exact container/codec/profile/timing cases, negative diagnostics, and deterministic video/audio stream-selection policy. It requests owner decisions on the exact row dispositions, VP8/Vorbis fixture components, a narrow NVENC-only H.264 Main/High fixture producer, and the future selection/persistence policy. No input row or additional component is promoted before those decisions and executable proof.
 
 Authoritative decision and amendments: [Gate 0 Checkpoint A](gate-0-checkpoint-a.md).
 
