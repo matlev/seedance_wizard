@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "proofId": "Gate0.G04.P3.JpegInput.20260825",
+  "proofOnly": true,
+  "statement": "Third-party fixture-production proof infrastructure only; it is not a shipping runtime, product behavior, bundling, redistribution, or public-distribution approval.",
+  "profiles": {
+    "p2": {
+      "profileId": "P2.BtbnLgplShared.WindowsX64.20260820",
+      "runtimeRelativePath": "p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1",
+      "nativeDecoderUnderTest": "mjpeg",
+      "inputDemuxer": "image2"
+    },
+    "p3": {
+      "profileId": "P3.LibjpegTurboCjpeg.WindowsX64.3.2.0",
+      "retentionGroupId": "P3.LibjpegTurboCjpeg.WindowsX64.3.2.0",
+      "installerRelativePath": "p3/libjpeg-turbo-3.2.0/libjpeg-turbo-3.2.0-vc-x64.exe",
+      "installerSha256": "662761D8BA8DAE04AEC74023EBAECEB856C2B56B9B59CFD180759D26300DDA42",
+      "installerSize": 2361008,
+      "upstreamRelease": "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/tag/3.2.0",
+      "licenseRelativePaths": [
+        "p3/libjpeg-turbo-3.2.0/extracted/doc/LICENSE.md",
+        "p3/libjpeg-turbo-3.2.0/extracted/doc/README.ijg"
+      ],
+      "authenticode": {
+        "status": "Valid",
+        "signerSubject": "CN=SignPath Foundation, O=SignPath Foundation, L=Lewes, S=Delaware, C=US",
+        "signerThumbprint": "1C539760AE21976C7ACFF383930DCA4221BC0460",
+        "timestampSubject": "CN=DigiCert SHA256 RSA4096 Timestamp Responder 2025 1, O=\"DigiCert, Inc.\", C=US",
+        "timestampThumbprint": "DD6230AC860A2D306BDA38B16879523007FB417E"
+      },
+      "binRelativePath": "p3/libjpeg-turbo-3.2.0/extracted/bin",
+      "cjpegRelativePath": "cjpeg.exe",
+      "closure": [
+        { "relativePath": "cjpeg.exe", "sha256": "97C382C511F6D597E97141F4064C8E67ED64617D1D51793C1DF183004E21BF0F", "size": 185856 },
+        { "relativePath": "jpeg62.dll", "sha256": "6DB16A1E3909AA2DDF25854A2E20C896D2703570D24BC83A52EB25940C0654A5", "size": 738304 }
+      ],
+      "role": "fixture-production-only"
+    }
+  },
+  "source": {
+    "ppmRelativePath": "fixtures/F1/f1-pattern-000.ppm",
+    "ppmSha256": "2F0A75C882C49BABF9A2B29B34DDECDCDABFFF05EF5097FF43BD91E96BC6D173",
+    "width": 320,
+    "height": 180
+  },
+  "cases": [
+    {
+      "id": "I-JPEG-PROGRESSIVE-420",
+      "producer": "P3 cjpeg",
+      "commandArguments": ["-quality", "90", "-dct", "int", "-progressive", "-sample", "2x2,1x1,1x1"],
+      "requiredSofMarker": "C2",
+      "requiredSof": {
+        "marker": "C2",
+        "precision": 8,
+        "components": [
+          { "id": 1, "name": "Y", "horizontalSampling": 2, "verticalSampling": 2 },
+          { "id": 2, "name": "Cb", "horizontalSampling": 1, "verticalSampling": 1 },
+          { "id": 3, "name": "Cr", "horizontalSampling": 1, "verticalSampling": 1 }
+        ]
+      },
+      "output": "progressive-420.jpg"
+    },
+    {
+      "id": "I-JPEG-EXIF-ORIENTATION",
+      "producer": "repository-owned deterministic APP1/TIFF byte writer",
+      "baselineRelativePath": "proofs/g0.4-input-corrected/media/I-JPEG-BASELINE-420.jpg",
+      "baselineSha256": "04F7B24A5C630F58A16DB75706E15F30658B9521D42395F007912E0A75EFE617",
+      "output": "baseline-420-orientation-6.jpg",
+      "orientation": 6,
+      "app1Placement": "immediately after SOI",
+      "preservation": "all baseline JPEG bytes after SOI are byte-identical"
+    }
+  ],
+  "oracles": {
+    "jpegVisual": { "maximumMeanAbsoluteError": 18 },
+    "orientation": {
+      "noAutorotate": "native decoded raster is byte-identical to the separately pinned baseline native decoded raster",
+      "autorotate": "native decoded raster is the exact 90-clockwise rotation of the noautorotate raster",
+      "displayedWidth": 180,
+      "displayedHeight": 320
+    }
+  },
+  "boundaries": [
+    "Use only the retained exact P2 runtime and retained exact P3 cjpeg/jpeg62 closure.",
+    "No system tool, PATH discovery, font discovery, fallback producer, or extra producer is permitted.",
+    "The progressive row uses cjpeg only. The orientation row uses no image encoder and inserts exactly one minimal APP1/TIFF orientation=6 segment after SOI.",
+    "Component presence is not capability proof; each row requires explicit image2 inspection and explicit native P2 mjpeg strict decode evidence.",
+    "A failed or blocked row remains retained as evidence and is not substituted or silently repaired."
+  ]
+}
