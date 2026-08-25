@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-25T21:52:47.4321567+00:00",
+  "generatedUtc": "2026-08-25T22:39:55.7983347+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -15370,12 +15370,170 @@
           "sha256": "3ECF44CF6D5A878C69A0BD18C9C44777EFE8BD990C04C4F371383D2FAF1E1640"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G04.F7.Setts.20260825",
+      "provenance": "Bounded proof-only F7 setts experiment, including the canonical muxer-rewrite block and superseded pre-execution source-inspection run.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/f7-setts-20260825/corrected/runtime-identity.json",
+        "artifact:proofs/f7-setts-20260825/contract/f7-setts-experiment-contract.json",
+        "artifact:proofs/f7-setts-20260825/harness/Invoke-P2F7SettsExperiment.ps1"
+      ],
+      "licenseRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/f7-setts-20260825/corrected/f7-setts-experiment-evidence.json",
+        "artifact:proofs/f7-setts-20260825/superseded-preexecution/f7-setts-experiment-evidence.json"
+      ],
+      "fileCount": 23,
+      "totalBytes": 555889,
+      "files": [
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/contract/f7-setts-experiment-contract.json",
+          "filename": "proofs/f7-setts-20260825/contract/f7-setts-experiment-contract.json",
+          "size": 4202,
+          "sha256": "C55506EA14DD697C6EAAAA11AA9ABE2E6BB0BD148C0B8AC05DCFA253C627CF4C"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/f7-setts-experiment-evidence.json",
+          "filename": "proofs/f7-setts-20260825/corrected/f7-setts-experiment-evidence.json",
+          "size": 15180,
+          "sha256": "1835D0D38993141539197AD34B2ACF138E63B61EE3F109837C36A5D11C43A13E"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/inspect-source-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stderr.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/inspect-source-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/inspect-source-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stdout.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/inspect-source-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stdout.txt",
+          "size": 114472,
+          "sha256": "6237D7C2DFD64149F930CA008AD6DC8DBC7ACA046C147F3667A3BBCB0920B73B"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/inspect-target-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stderr.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/inspect-target-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/inspect-target-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stdout.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/inspect-target-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stdout.txt",
+          "size": 114450,
+          "sha256": "1B5BAAF5BE6FD30B4D2DB8DA95EA0E54C732A61F15AF478A860596C837B2772E"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/preflight-setts-help.stderr.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/preflight-setts-help.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/preflight-setts-help.stdout.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/preflight-setts-help.stdout.txt",
+          "size": 643,
+          "sha256": "C4F53B5A7E07CBDA6CADF3BF4A4BDC9E5FF5DD9DCF632CA39AF8F1ACF79AF0C6"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/preflight-setts-list.stderr.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/preflight-setts-list.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/preflight-setts-list.stdout.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/preflight-setts-list.stdout.txt",
+          "size": 735,
+          "sha256": "E27949C39BE73F75ED7CE22C3AA312FCAE836796C614EFE604422F4F5591456B"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/setts-remux-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stderr.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/setts-remux-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stderr.txt",
+          "size": 1933,
+          "sha256": "DCC0DDE24D5CF54CC0E41E5F9621CD13C419B22C14F0E911759B12413B155C92"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/logs/setts-remux-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stdout.txt",
+          "filename": "proofs/f7-setts-20260825/corrected/logs/setts-remux-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/media/V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.setts.mp4",
+          "filename": "proofs/f7-setts-20260825/corrected/media/V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.setts.mp4",
+          "size": 47331,
+          "sha256": "D043E9DB256E6F832F61B5195A8B7CAE9A08CF5ED45FD6CEE28D70D9EAABF54D"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/corrected/runtime-identity.json",
+          "filename": "proofs/f7-setts-20260825/corrected/runtime-identity.json",
+          "size": 49320,
+          "sha256": "11B68A1B14EF143BBC9D892E1D0B63DC11FD789B7922E82A011AB72E28CA67AE"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/harness/Invoke-P2F7SettsExperiment.ps1",
+          "filename": "proofs/f7-setts-20260825/harness/Invoke-P2F7SettsExperiment.ps1",
+          "size": 31031,
+          "sha256": "F713407CED9840ACF3ADA3640A5A4E67552A686E182675617B3B98C183D031DB"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/superseded-preexecution/f7-setts-experiment-evidence.json",
+          "filename": "proofs/f7-setts-20260825/superseded-preexecution/f7-setts-experiment-evidence.json",
+          "size": 11422,
+          "sha256": "503BF3DDC5C6A18135AC28596B9E9913A700079949C39770B4A6A3AE12ABB37B"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/superseded-preexecution/logs/inspect-source-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stderr.txt",
+          "filename": "proofs/f7-setts-20260825/superseded-preexecution/logs/inspect-source-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/superseded-preexecution/logs/inspect-source-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stdout.txt",
+          "filename": "proofs/f7-setts-20260825/superseded-preexecution/logs/inspect-source-V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET.stdout.txt",
+          "size": 114472,
+          "sha256": "6237D7C2DFD64149F930CA008AD6DC8DBC7ACA046C147F3667A3BBCB0920B73B"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/superseded-preexecution/logs/preflight-setts-help.stderr.txt",
+          "filename": "proofs/f7-setts-20260825/superseded-preexecution/logs/preflight-setts-help.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/superseded-preexecution/logs/preflight-setts-help.stdout.txt",
+          "filename": "proofs/f7-setts-20260825/superseded-preexecution/logs/preflight-setts-help.stdout.txt",
+          "size": 643,
+          "sha256": "C4F53B5A7E07CBDA6CADF3BF4A4BDC9E5FF5DD9DCF632CA39AF8F1ACF79AF0C6"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/superseded-preexecution/logs/preflight-setts-list.stderr.txt",
+          "filename": "proofs/f7-setts-20260825/superseded-preexecution/logs/preflight-setts-list.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/superseded-preexecution/logs/preflight-setts-list.stdout.txt",
+          "filename": "proofs/f7-setts-20260825/superseded-preexecution/logs/preflight-setts-list.stdout.txt",
+          "size": 735,
+          "sha256": "E27949C39BE73F75ED7CE22C3AA312FCAE836796C614EFE604422F4F5591456B"
+        },
+        {
+          "artifactId": "Gate0.G04.F7.Setts.20260825/superseded-preexecution/runtime-identity.json",
+          "filename": "proofs/f7-setts-20260825/superseded-preexecution/runtime-identity.json",
+          "size": 49320,
+          "sha256": "ADB7431089DA66BC09D10E2CE8B0A0187B9925E136D1CEFF14A96B0F2C8AAE2E"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 5,
-    "fileCount": 2541,
-    "totalBytes": 453086511
+    "groupCount": 6,
+    "fileCount": 2564,
+    "totalBytes": 453642400
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

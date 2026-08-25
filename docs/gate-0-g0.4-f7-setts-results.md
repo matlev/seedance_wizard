@@ -27,8 +27,14 @@ This is a truthful blocked result, not a process-exit failure, payload rewrite, 
 | Result counts | 0 passed; 1 blocked; 5 not run |
 | First blocked case | `V-MP4-H264-MAIN-AAC-MONO-44100-VFR_OFFSET` |
 | Block reason | Video packet PTS changed during the `setts` stream-copy/mux path. |
+| Retained group | `Gate0.G04.F7.Setts.20260825` |
+| Retained path | `proofs/f7-setts-20260825` |
+| Retained group closure | 23 files; 555,889 bytes |
+| Corpus manifest after append | `6A7FE3FC4DA666F808EDBED6CA255A39FD6B2331C7B1D8D1D0586E81B184121A` |
 
 An earlier pre-execution run is retained as superseded evidence with SHA-256 `503BF3DDC5C6A18135AC28596B9E9913A700079949C39770B4A6A3AE12ABB37B`. FFprobe 8.1 emitted a combined `packets_and_frames` collection where the first harness revision expected separate collections. That run stopped during source inspection, before any `setts` remux command executed. The normalization defect was corrected and covered by focused tests before the canonical run above.
+
+Both runs, their logs, runtime identities, the output MP4, and exact contract/harness snapshots are now copied and hash-verified in the approved sibling artifact root. The full retained corpus verifies as 6 groups, 2,564 files, and 453,642,400 bytes. This remains one local copy only; disconnected OneDrive is not a second copy or backup, and hosted CI remains ineligible to depend on it.
 
 ## Exact component mapping
 

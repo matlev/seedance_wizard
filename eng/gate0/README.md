@@ -69,6 +69,8 @@ When a later G0.3 proof runner packages or transforms these primitives, it must 
 
 `Test-Gate0ArtifactRetention.ps1` revalidates the retained root against that tracked relative-path manifest. It checks every size and SHA-256, group totals, scoped provenance/license/proof references, the exact physical root, reparse-point absence, and equality of the tracked and retained manifest copies. Run it before any proof uses the retained corpus and immediately before deleting temporary producer infrastructure.
 
+`Add-Gate0RetainedProof.ps1` appends one new immutable proof group to an existing verified corpus. It stages and hashes the payload outside the retained root, requires a non-empty artifact-bound proof identity, preserves every existing manifest group, and uses an exclusive lock plus a recoverable transaction journal across the retained and tracked manifest copies. Canonical forward-slash paths, exact sibling-root containment, scoped reparse checks, and deterministic crash-boundary recovery are enforced. Its production root cannot be overridden; fault injection is available only in an isolated copied test repository under the system temporary root.
+
 This is one verified local copy only. The owner's OneDrive client is intentionally disconnected, so the directory is neither synced nor backed up. The required separate private copy remains outstanding. Heavy proof therefore remains manual or opt-in, hosted CI must not depend on this machine-local root, and the temporary-provider R2 path is prohibited.
 
 `P2.BtbnLgplShared.WindowsX64.20260820` is third-party LGPLv3-path proof infrastructure only. These fixture files do not select a shipping runtime, delivery contract, or legal conclusion.
