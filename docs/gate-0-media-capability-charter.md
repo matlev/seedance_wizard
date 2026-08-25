@@ -1,6 +1,6 @@
 # Gate 0 media capability charter
 
-Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; G0.3 authorized
+Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; G0.3 executed with explicit blockers and owner decisions pending
 
 Approved: 2026-08-24
 
@@ -303,6 +303,8 @@ The owner has approved the Gate 0 scope assumptions and clarifications in this c
 ### Checkpoint A
 
 The owner approved `P2.BtbnLgplShared.WindowsX64.20260820` as third-party LGPLv3-path proof infrastructure for the full Free proof matrix, authorized the scoped W1 probe and minimal paired-runtime observation/validation seam, approved fixtures F1-F6 plus exact-timing and explicit multi-stream-selection fixtures, and kept P1 blocked. P2 is not a selected shipping runtime, public-distribution approval, final default-delivery contract, or approval to use every compiled component.
+
+G0.3 results and the next owner decisions are recorded in [Gate 0 G0.3 executable-proof results](gate-0-g0.3-executable-proof.md). Eleven reviewed semantic capabilities passed, composite/basic color and Unicode text remain blocked, and independent playback plus long-form integrity remain not run. No fixture result is treated as a capability verdict.
 
 Authoritative decision and amendments: [Gate 0 Checkpoint A](gate-0-checkpoint-a.md).
 

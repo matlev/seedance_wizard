@@ -1,6 +1,8 @@
 # Gate 0 fixture primitives
 
-This directory defines deterministic, authored input primitives for the Gate 0 media proof matrix. It is deliberately not a media-proof harness and does not contain generated media. The generator writes raw PPM, RGBA, PCM, recipe, and timestamp-truth files to a caller-supplied temporary directory; it never writes generated assets into the repository.
+This directory defines deterministic authored inputs and the opt-in executable Gate 0 media-proof harness. It does not contain generated media. The generator writes raw PPM, RGBA, PCM, recipe, and timestamp-truth files to a caller-supplied temporary directory; every proof runner likewise keeps generated media and evidence outside the repository.
+
+The checked-in `fixture-source-inventory.json` is the independent byte oracle for generated primitives. Generation fails before reporting if a file is missing, additional, drifted, path-escaping, or reached through a reparse point. A caller-supplied inventory override is test-only and is never eligible as approved Gate 0 proof input.
 
 ## Inputs and truth
 
@@ -44,5 +46,11 @@ F3 must remain blocked until the project supplies a separately licensed Unicode-
 ## Later proof requirements
 
 When a later G0.3 proof runner packages or transforms these primitives, it must record the exact command and explicitly select every concrete decoder, encoder, muxer, demuxer, and filter named by the fixture plan. Auto-selection is not evidence. A successful process exit alone is not evidence either: the later runner must inspect, decode, and compare the output against `expected-truths.json`.
+
+## Executable proof
+
+`Invoke-P2FullProof.ps1` is the aggregate G0.3 entry point. It validates the exact paired P2 runtime, generates inventory-bound fixtures, runs the fixture, edit/timing, visual, and delivery lanes, and emits exactly one verdict for each capability in `semantic-proof-contract.json`. The aggregate remains incomplete while any required capability is blocked or not run.
+
+`Invoke-W1MediaFoundationProbe.ps1` is a separate optional Windows-only probe. Its result must never establish portable project meaning or a shipping/licensing conclusion.
 
 `P2.BtbnLgplShared.WindowsX64.20260820` is third-party LGPLv3-path proof infrastructure only. These fixture files do not select a shipping runtime, delivery contract, or legal conclusion.
