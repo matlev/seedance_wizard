@@ -322,6 +322,15 @@ public sealed class Gate0G04InputProofContractTests
             Assert.Equal("F8 explicit multi-stream semantic proof", recipe.GetProperty("baseExecutableEvidence").GetString());
         });
 
+        foreach (var vorbis in recipes.Where(recipe => recipe.GetProperty("id").GetString()!.StartsWith("R-A-OGG_VORBIS-", StringComparison.Ordinal)))
+        {
+            var source = vorbis.GetProperty("sourceArtifacts")[0];
+            Assert.Equal(System.Text.Json.JsonValueKind.Object, source.GetProperty("declaredFormat").ValueKind);
+            Assert.True(source.GetProperty("declaredFormat").GetProperty("sampleRate").GetInt32() > 0);
+            Assert.True(source.GetProperty("declaredFormat").GetProperty("channels").GetString() is "mono" or "stereo");
+            Assert.DoesNotContain(source.GetProperty("transforms").EnumerateArray().Select(value => value.GetString()), value => value!.Contains("declared-", StringComparison.Ordinal));
+        }
+
         using var inventory = System.Text.Json.JsonDocument.Parse(File.ReadAllText(RepositoryPath("eng", "gate0", "fixture-source-inventory.json")));
         var inventoryPaths = inventory.RootElement.GetProperty("files").EnumerateArray().Select(file => file.GetProperty("path").GetString()).ToHashSet(StringComparer.Ordinal);
         foreach (var fileId in recipes.SelectMany(recipe => recipe.GetProperty("sourceArtifacts").EnumerateArray()).SelectMany(artifact => artifact.GetProperty("fileIds").EnumerateArray()).Select(file => file.GetString()))

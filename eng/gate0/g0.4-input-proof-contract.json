@@ -24191,17 +24191,20 @@
             "F4/f4-mono-44100-1000hz.pcm"
           ],
           "variantId": "F4-declared-audio",
-          "declaredFormat": "PCM F4",
+          "declaredFormat": {
+            "sampleRate": 44100,
+            "channels": "mono"
+          },
           "transforms": [
-            "aresample=declared-rate",
-            "channels=declared-layout",
+            "aresample=44100",
+            "channels=mono",
             "channel-layout=identity"
           ]
         }
       ],
       "transforms": [
-        "aresample=declared-rate",
-        "channels=declared-layout",
+        "aresample=44100",
+        "channels=mono",
         "channel-layout=identity"
       ],
       "expectedAudioDecode": {
@@ -24239,17 +24242,20 @@
             "F4/f4-mono-44100-1000hz.pcm"
           ],
           "variantId": "F4-declared-audio",
-          "declaredFormat": "PCM F4",
+          "declaredFormat": {
+            "sampleRate": 44100,
+            "channels": "mono"
+          },
           "transforms": [
-            "aresample=declared-rate",
-            "channels=declared-layout",
+            "aresample=48000",
+            "channels=mono",
             "channel-layout=identity"
           ]
         }
       ],
       "transforms": [
-        "aresample=declared-rate",
-        "channels=declared-layout",
+        "aresample=48000",
+        "channels=mono",
         "channel-layout=identity"
       ],
       "expectedAudioDecode": {
@@ -24287,17 +24293,20 @@
             "F4/f4-stereo-48000-1000hz-opposed.pcm"
           ],
           "variantId": "F4-declared-audio",
-          "declaredFormat": "PCM F4",
+          "declaredFormat": {
+            "sampleRate": 48000,
+            "channels": "stereo"
+          },
           "transforms": [
-            "aresample=declared-rate",
-            "channels=declared-layout",
+            "aresample=44100",
+            "channels=stereo",
             "channel-layout=identity"
           ]
         }
       ],
       "transforms": [
-        "aresample=declared-rate",
-        "channels=declared-layout",
+        "aresample=44100",
+        "channels=stereo",
         "channel-layout=identity"
       ],
       "expectedAudioDecode": {
@@ -24335,17 +24344,20 @@
             "F4/f4-stereo-48000-1000hz-opposed.pcm"
           ],
           "variantId": "F4-declared-audio",
-          "declaredFormat": "PCM F4",
+          "declaredFormat": {
+            "sampleRate": 48000,
+            "channels": "stereo"
+          },
           "transforms": [
-            "aresample=declared-rate",
-            "channels=declared-layout",
+            "aresample=48000",
+            "channels=stereo",
             "channel-layout=identity"
           ]
         }
       ],
       "transforms": [
-        "aresample=declared-rate",
-        "channels=declared-layout",
+        "aresample=48000",
+        "channels=stereo",
         "channel-layout=identity"
       ],
       "expectedAudioDecode": {
