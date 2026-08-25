@@ -18,7 +18,7 @@ public sealed class Gate0G04InputProofOracleTests
     {
         var script = ReadScript();
 
-        Assert.Contains("-show_format','-show_streams','-show_frames','-show_packets", script, StringComparison.Ordinal);
+        Assert.Contains("-show_format','-show_streams','-show_frames','-show_packets','-show_data_hash','sha256", script, StringComparison.Ordinal);
         Assert.Contains("Invoke-G04RecordedCommand -Context $Context", script, StringComparison.Ordinal);
         Assert.Contains("Test-G04UndeclaredDiagnostics -Stderr", script, StringComparison.Ordinal);
         Assert.Contains("$null = Test-G04UndeclaredDiagnostics", script, StringComparison.Ordinal);
@@ -125,7 +125,8 @@ public sealed class Gate0G04InputProofOracleTests
         {
             "Assert-G04RemuxIdentity", "Context.CaseById", "Context.ArtifactsByCase",
             "sourceCaseId", "Get-G04ComparableStreamStructure", "streamStructureEqual",
-            "timingEqual", "sourceSha256", "targetSha256", "streamCopyOnly"
+            "timingEqual", "sourceSha256", "targetSha256", "streamCopyPayloads",
+            "independentCompleteDecode", "packetDataHash='sha256'", "streamCopyOnly"
         }) Assert.Contains(required, script, StringComparison.Ordinal);
     }
 

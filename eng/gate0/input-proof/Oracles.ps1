@@ -60,7 +60,7 @@ function Invoke-G04OracleCommand([hashtable]$Context, [string]$Name, [string]$Ex
 
 function Get-G04Probe([object]$Case, [string]$ArtifactPath, [hashtable]$Context) {
     $demuxer = Get-G04ConcreteDemuxer ([string]$Case.requiredComponents.demuxer)
-    $record = Invoke-G04OracleCommand $Context ("inspect-" + $Case.id) $Context.Ffprobe @('-v','error','-f',$demuxer,'-show_format','-show_streams','-show_frames','-show_packets','-of','json',$ArtifactPath) @{ purpose='fresh content inspection'; demuxer=$demuxer; allStreams=$true; allFrames=$true; allPackets=$true } $Case.id
+    $record = Invoke-G04OracleCommand $Context ("inspect-" + $Case.id) $Context.Ffprobe @('-v','error','-f',$demuxer,'-show_format','-show_streams','-show_frames','-show_packets','-show_data_hash','sha256','-of','json',$ArtifactPath) @{ purpose='fresh content inspection'; demuxer=$demuxer; allStreams=$true; allFrames=$true; allPackets=$true; packetDataHash='sha256' } $Case.id
     $text = [string](Get-G04Property $record 'stdout' '')
     if ([string]::IsNullOrWhiteSpace($text)) { throw "Fresh ffprobe inspection returned no JSON for $($Case.id)." }
     try { $data = $text | ConvertFrom-Json } catch { throw "Fresh ffprobe inspection JSON is invalid for $($Case.id): $($_.Exception.Message)" }
@@ -211,21 +211,33 @@ function Test-G04NumericSequenceEqual([object[]]$Left, [object[]]$Right, [double
     }
     return $true
 }
+function Get-G04PacketPayloadEvidence([object]$Probe, [int]$StreamIndex) {
+    $hashes = @($Probe.packets | Where-Object { [int](Get-G04Property $_ 'stream_index' -1) -eq $StreamIndex } | ForEach-Object {
+        $hash = [string](Get-G04Property $_ 'data_hash')
+        if ([string]::IsNullOrWhiteSpace($hash) -or -not $hash.StartsWith('SHA256:',[StringComparison]::OrdinalIgnoreCase)) { throw "Packet payload hash is missing for stream $StreamIndex." }
+        $hash.ToUpperInvariant()
+    })
+    if ($hashes.Count -eq 0) { throw "No packet payload hashes were observed for stream $StreamIndex." }
+    $bytes = [Text.Encoding]::UTF8.GetBytes(($hashes -join "`n"))
+    return [ordered]@{ streamIndex=$StreamIndex; packetCount=$hashes.Count; packetSha256=$hashes; aggregateSha256=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)) }
+}
 function Assert-G04RemuxIdentity([object]$Case, [object]$Recipe, [string]$ArtifactPath, [hashtable]$Context) {
     $sourceId = [string]$Case.fixtureProduction.sourceCaseId; if ([string]::IsNullOrWhiteSpace($sourceId) -or -not $Context.CaseById.ContainsKey($sourceId)) { throw "Remux case $($Case.id) has no resolved source case." }
     $sourceCase=$Context.CaseById[$sourceId]; $sourcePath=Get-G04ArtifactPath $Context $sourceId; $sourceProbe=Get-G04Probe $sourceCase $sourcePath $Context; $targetProbe=Get-G04Probe $Case $ArtifactPath $Context
     $sourceStructure=Get-G04ComparableStreamStructure $sourceProbe.data; $targetStructure=Get-G04ComparableStreamStructure $targetProbe.data; $streamStructureEqual=(($sourceStructure|ConvertTo-Json -Depth 10 -Compress) -eq ($targetStructure|ConvertTo-Json -Depth 10 -Compress))
     $sourceTimeline=Get-G04ComparablePresentationTimeline $sourceProbe.data; $targetTimeline=Get-G04ComparablePresentationTimeline $targetProbe.data
-    $sourceTimelineShape = @($sourceTimeline | ForEach-Object { "$($_.streamIndex):$($_.mediaType)" }) -join ','
-    $targetTimelineShape = @($targetTimeline | ForEach-Object { "$($_.streamIndex):$($_.mediaType)" }) -join ','
-    $timelineShapeEqual = $sourceTimelineShape -eq $targetTimelineShape
-    $presentationEqual=Test-G04NumericSequenceEqual @($sourceTimeline.presentationSeconds) @($targetTimeline.presentationSeconds) 0.001
-    $durationEqual=Test-G04NumericSequenceEqual @($sourceTimeline.durationSeconds) @($targetTimeline.durationSeconds) 0.001
+    $timelineShapeEqual=$true;$presentationEqual=$true;$durationEqual=$true
+    foreach($streamIndex in @($sourceStructure.index)) {
+        $sourceStreamTimeline=@($sourceTimeline|Where-Object streamIndex -eq $streamIndex);$targetStreamTimeline=@($targetTimeline|Where-Object streamIndex -eq $streamIndex)
+        $timelineShapeEqual=$timelineShapeEqual -and (($sourceStreamTimeline.mediaType -join ',') -eq ($targetStreamTimeline.mediaType -join ','))
+        $presentationEqual=$presentationEqual -and (Test-G04NumericSequenceEqual @($sourceStreamTimeline.presentationSeconds) @($targetStreamTimeline.presentationSeconds) 0.001)
+        $durationEqual=$durationEqual -and (Test-G04NumericSequenceEqual @($sourceStreamTimeline.durationSeconds) @($targetStreamTimeline.durationSeconds) 0.001)
+    }
     $sourceDuration=[double](Get-G04Property $sourceProbe.data.format 'duration' 0);$targetDuration=[double](Get-G04Property $targetProbe.data.format 'duration' 0);$containerDurationEqual=[math]::Abs($sourceDuration-$targetDuration) -le 0.002
     $timingEqual=$timelineShapeEqual -and $presentationEqual -and $durationEqual -and $containerDurationEqual
-    $maps=Get-G04StreamMaps $sourceCase; $decoded=[Collections.Generic.List[object]]::new(); $hashesEqual=$true
-    for($i=0;$i -lt $maps.Count;$i++){ $sourceRaw=Join-Path $Context.Work "$($Case.id)-source-$i.raw";$targetRaw=Join-Path $Context.Work "$($Case.id)-target-$i.raw";try{$kind=if(@($sourceCase.streams)[$i].type -eq 'audio'){'audio'}else{'video'};$output=if($kind -eq 'audio'){@('-f','s16le','-acodec','pcm_s16le')}else{@('-fps_mode','passthrough','-f','rawvideo','-pix_fmt','rgb24')};Invoke-G04StrictDecode $sourceCase $sourcePath $Context $maps[$i] $sourceRaw $output|Out-Null;Invoke-G04StrictDecode $Case $ArtifactPath $Context $maps[$i] $targetRaw $output|Out-Null;$left=Get-G04RawBytes $sourceRaw;$right=Get-G04RawBytes $targetRaw;$leftHash=Get-G04Sha256 $left;$rightHash=Get-G04Sha256 $right;$equal=($leftHash -eq $rightHash) -and (Test-G04ByteIdentity $left $right);$hashesEqual=$hashesEqual -and $equal;$decoded.Add([ordered]@{map=$maps[$i];sourceSha256=$leftHash;targetSha256=$rightHash;equal=$equal})}finally{Remove-G04OracleArtifact $sourceRaw;Remove-G04OracleArtifact $targetRaw}}
-    return [ordered]@{passed=($streamStructureEqual -and $timingEqual -and $hashesEqual);sourceCaseId=$sourceId;sourceStructure=$sourceStructure;targetStructure=$targetStructure;streamStructureEqual=$streamStructureEqual;timingEqual=$timingEqual;timing=[ordered]@{sourceTimeline=$sourceTimeline;targetTimeline=$targetTimeline;timelineShapeEqual=$timelineShapeEqual;presentationEqual=$presentationEqual;durationEqual=$durationEqual;containerDurationEqual=$containerDurationEqual;toleranceSeconds=0.001};decodedStreams=@($decoded);sourceProbe=$sourceProbe.record;targetProbe=$targetProbe.record}
+    $payloads=[Collections.Generic.List[object]]::new();$hashesEqual=$true
+    foreach($streamIndex in @($sourceStructure.index)){$sourcePayload=Get-G04PacketPayloadEvidence $sourceProbe.data $streamIndex;$targetPayload=Get-G04PacketPayloadEvidence $targetProbe.data $streamIndex;$equal=$sourcePayload.aggregateSha256 -eq $targetPayload.aggregateSha256;$hashesEqual=$hashesEqual -and $equal;$payloads.Add([ordered]@{streamIndex=$streamIndex;packetCount=$sourcePayload.packetCount;sourceSha256=$sourcePayload.aggregateSha256;targetSha256=$targetPayload.aggregateSha256;equal=$equal;sourcePacketSha256=$sourcePayload.packetSha256;targetPacketSha256=$targetPayload.packetSha256})}
+    return [ordered]@{passed=($streamStructureEqual -and $timingEqual -and $hashesEqual);sourceCaseId=$sourceId;sourceStructure=$sourceStructure;targetStructure=$targetStructure;streamStructureEqual=$streamStructureEqual;timingEqual=$timingEqual;timing=[ordered]@{sourceTimeline=$sourceTimeline;targetTimeline=$targetTimeline;timelineShapeEqual=$timelineShapeEqual;presentationEqual=$presentationEqual;durationEqual=$durationEqual;containerDurationEqual=$containerDurationEqual;toleranceSeconds=0.001};streamCopyPayloads=@($payloads);independentCompleteDecode='Source case passed its bound semantic proof before remux authoring; target case passed explicit strict complete decode before this packet-payload identity oracle.';sourceProbe=$sourceProbe.record;targetProbe=$targetProbe.record}
 }
 
 function Test-G04CaseEvidence {
