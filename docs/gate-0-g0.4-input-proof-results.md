@@ -1,10 +1,12 @@
 # Gate 0 G0.4 common-input proof results
 
-Status: bounded proof executed; 171 exact rows passed, 83 failed, and 2 are blocked; owner disposition required before the common-input contract is closed
+Status: bounded proof executed; 171 exact rows passed, 83 failed, and 2 are blocked; three follow-up dispositions approved with execution guardrails
 
 Date: 2026-08-25
 
 Authority: [Gate 0 G0.4 common-input owner decisions](gate-0-g0.4-input-owner-decisions.md) and [common-input proof proposal](gate-0-g0.4-input-proof-proposal.md)
+
+The owner approved all three proposed dispositions with pilot, provenance, and retention amendments in the [G0.4 common-input follow-up decision record](gate-0-g0.4-input-follow-up-decisions.md). This result remains the baseline until fresh approved evidence changes an exact row.
 
 ## Outcome
 
@@ -91,17 +93,17 @@ All seven selection-policy cases produced the approved result. S1-S5 and S7 pass
 
 The eight classification cases also produced the approved dispositions: misleading extension and multi-stream/capability-qualified cases passed their policy branches; corrupt/truncated, no-usable-media, and protected cases were rejected; missing decoder was blocked; and an invalid paired runtime was runtime-unavailable. These synthetic policy cases invoked no media command and do not count as decoder evidence.
 
-## Owner dispositions requested
+## Approved follow-up dispositions
 
 ### 1. Preserve and re-author F7
 
-**Recommendation:** authorize one bounded fixture-authoring correction that must preserve the currently approved five frame identities, PTS sequence, intervals, non-zero start, `1/1000` time base, 800-tick terminal duration, and tick-2000 presentation end. It may adjust only the proof recipe using already approved components. If those semantics cannot be represented without adding a sentinel frame, changing the contract, or using a new component, stop and return a narrower proposal for owner approval.
+**Approved with guardrails:** one bounded fixture-authoring correction must preserve the currently approved five frame identities, PTS sequence, intervals, non-zero start, `1/1000` time base, 800-tick terminal duration, and tick-2000 presentation end. It may adjust only the proof recipe using already approved components. If those semantics cannot be represented without adding a sentinel frame, changing the contract, or using a new component, execution stops and returns a narrower proposal for owner approval.
 
 Without this authorization, the six direct F7 rows and all six dependent Matroska rows remain outside guaranteed-common.
 
 ### 2. Replace remux-derived Matroska provenance with direct fixture production
 
-**Recommendation:** authorize a bounded direct-Matroska fixture lane using only the exact P2 proof components already approved for the corresponding encoded sources: `libopenh264` for Baseline H.264, fixture-only `h264_nvenc` for Main/High H.264, native `aac`/`pcm_s16le`, `libvpx-vp9`/`libopus`, fixture-only `libvpx` VP8/`libvorbis`, and the explicit `matroska` muxer. Native `h264`, `aac`, `pcm_s16le`, `vp9`, `opus`, `vp8`, and `vorbis` remain the decoders under test. Each direct fixture must bind raw authored truth, producer identity, exact command, artifact hash, and a fresh strict complete-decode oracle.
+**Approved with a pilot gate:** the bounded direct-Matroska fixture lane may use only the exact P2 proof components already approved for the corresponding encoded sources: `libopenh264` for Baseline H.264, fixture-only `h264_nvenc` for Main/High H.264, native `aac`/`pcm_s16le`, `libvpx-vp9`/`libopus`, fixture-only `libvpx` VP8/`libvorbis`, and the explicit `matroska` muxer. Native `h264`, `aac`, `pcm_s16le`, `vp9`, `opus`, `vp8`, and `vorbis` remain the decoders under test. A representative six-family pilot must pass before expansion. Each direct fixture binds raw authored truth, producer identity, exact command, artifact hash, timing evidence, and a fresh strict complete-decode oracle.
 
 This authorization would not make any producer a shipping dependency or export capability. If direct production still cannot meet timing truth, the affected rows remain failed or capability-qualified; the oracle is not weakened.
 
@@ -109,7 +111,7 @@ Without this authorization, the truthful smallest baseline is the 32 passed Matr
 
 ### 3. Add a deterministic JPEG proof producer
 
-**Recommendation:** authorize `P3.LibjpegTurboCjpeg.WindowsX64.3.2.0` as third-party fixture-production proof infrastructure only. The proposed official VC x64 asset is `libjpeg-turbo-3.2.0-vc-x64.exe`, published with SHA-256 `662761D8BA8DAE04AEC74023EBAECEB856C2B56B9B59CFD180759D26300DDA42`. Exact archive/executable closure, source provenance, signatures where available, and applicable IJG/Modified BSD license texts must be retained before execution. `cjpeg -progressive` with explicit 4:2:0 sampling would author the progressive row; a repository-owned deterministic APP1/EXIF byte writer would add only the orientation tag to a hash-pinned JPEG for the orientation row. The native P2 `mjpeg` decoder remains the capability under test.
+**Approved with provenance preflight:** `P3.LibjpegTurboCjpeg.WindowsX64.3.2.0` may act as third-party fixture-production proof infrastructure only. The exact official VC x64 asset is `libjpeg-turbo-3.2.0-vc-x64.exe`, with expected SHA-256 `662761D8BA8DAE04AEC74023EBAECEB856C2B56B9B59CFD180759D26300DDA42`. Archive/executable closure, official source and release provenance, available digital signature, and applicable IJG/Modified BSD materials must be verified and retained before execution. `cjpeg -progressive` with explicit 4:2:0 sampling may author only the progressive row; a repository-owned deterministic APP1/EXIF byte writer may add only the orientation tag to a separately hash-pinned JPEG. The native P2 `mjpeg` decoder remains the capability under test.
 
 Official libjpeg-turbo documentation identifies progressive encoding and explicit sampling controls, and its license record describes the IJG and Modified BSD obligations for `cjpeg`: [usage](https://github.com/libjpeg-turbo/libjpeg-turbo/blob/3.2.0/doc/usage.txt), [release](https://github.com/libjpeg-turbo/libjpeg-turbo/releases/tag/3.2.0), and [license](https://github.com/libjpeg-turbo/libjpeg-turbo/blob/3.2.0/LICENSE.md). This is not a shipping, bundling, redistribution, or release-runtime approval.
 
@@ -117,4 +119,4 @@ Without this authorization, the two blocked JPEG rows remain capability-qualifie
 
 ## Gate status
 
-G0.4 common-input execution is complete as a truthful partial result, but its candidate matrix is not fully approved as the final guaranteed-common contract. The 171 passed rows may inform the smallest baseline; the 83 failed and 2 blocked rows require the dispositions above or explicit narrowing. Independent playback, durable artifact retention, and G0.5 quality/performance/long-form work remain separate open Gate 0 exit conditions.
+G0.4 common-input execution is complete as a truthful partial result, and the bounded follow-up is authorized under the separate decision record. The 171 passed rows remain valid evidence; the 83 failed and 2 blocked rows stay unchanged until fresh approved evidence passes. Independent playback, verified durable artifact retention, and G0.5 quality/performance/long-form work remain separate open Gate 0 exit conditions.

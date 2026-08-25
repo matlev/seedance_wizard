@@ -1,12 +1,14 @@
 # Gate 0 G0.4 common-input owner decisions
 
-Status: approved; bounded common-input proof executed with partial pass; follow-up dispositions pending
+Status: approved; bounded common-input proof executed with partial pass; follow-up dispositions approved with guardrails
 
 Approved: 2026-08-25
 
 Authority: [Gate 0 media capability charter](gate-0-media-capability-charter.md) and [G0.4 common-input proof proposal](gate-0-g0.4-input-proof-proposal.md)
 
 The corrected executable result is recorded in [Gate 0 G0.4 common-input proof results](gate-0-g0.4-input-proof-results.md). The original candidate authorization remains authoritative, but failed or blocked rows did not enter guaranteed-common merely because they were listed here.
+
+The subsequent F7, direct-Matroska, deterministic-JPEG, and durable-retention guardrails are authoritative in the [G0.4 common-input follow-up decision record](gate-0-g0.4-input-follow-up-decisions.md).
 
 ## Exact guaranteed-common matrix
 
