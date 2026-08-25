@@ -18,6 +18,23 @@ function Assert-NoReparsePoints([string] $Root) {
         throw "The retained artifact root contains a reparse point: $($reparsePoints[0].FullName)"
     }
 }
+function Assert-NoReparsePointAncestors([string] $Path, [string] $StopAt) {
+    $current = Get-Item -LiteralPath $Path -Force
+    $resolvedStop = [IO.Path]::GetFullPath($StopAt).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    while ($null -ne $current) {
+        if (($current.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "The retained artifact root has a reparse-point ancestor: $($current.FullName)"
+        }
+        if ($current.FullName.TrimEnd([IO.Path]::DirectorySeparatorChar).Equals($resolvedStop, [StringComparison]::OrdinalIgnoreCase)) { return }
+        $current = if ($current -is [IO.DirectoryInfo]) { $current.Parent } else { $current.Directory }
+    }
+}
+function Assert-SafeRelativePath([string] $Value, [string] $Label) {
+    if ([string]::IsNullOrWhiteSpace($Value) -or [IO.Path]::IsPathRooted($Value) -or $Value.Contains('\')) { throw "Unsafe $Label." }
+    foreach ($segment in $Value.Replace('\', '/').Split('/')) {
+        if ([string]::IsNullOrEmpty($segment) -or $segment -in @('.', '..')) { throw "Unsafe $Label." }
+    }
+}
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $resolvedManifestPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'artifact-retention-manifest.json'))
@@ -36,6 +53,7 @@ if (-not (Test-Path -LiteralPath $resolvedManifestPath -PathType Leaf)) {
 
 $resolvedArtifactRoot = (Get-Item -LiteralPath $candidateArtifactRoot -Force).FullName.TrimEnd([IO.Path]::DirectorySeparatorChar)
 Assert-NoReparsePoints $resolvedArtifactRoot
+Assert-NoReparsePointAncestors $resolvedArtifactRoot ([IO.Path]::GetDirectoryName($repositoryRoot))
 $manifest = Get-Content -LiteralPath $resolvedManifestPath -Raw | ConvertFrom-Json -Depth 20
 
 if ($manifest.schemaVersion -ne 1 -or $manifest.artifactSetId -ne 'Gate0.InterimCorpus.20260825') {
@@ -63,9 +81,7 @@ foreach ($group in @($manifest.groups)) {
         if (-not $artifactIds.Add($artifactId)) {
             throw "Duplicate artifact ID: $artifactId"
         }
-        if ([IO.Path]::IsPathRooted($relative) -or $relative.StartsWith('..')) {
-            throw "Unsafe or machine-specific artifact filename: $($file.filename)"
-        }
+        Assert-SafeRelativePath ([string] $file.filename) 'artifact filename'
         if (-not $filenames.Add([string] $file.filename)) {
             throw "Duplicate retained filename: $($file.filename)"
         }
@@ -110,15 +126,15 @@ foreach ($group in $allGroups) {
             }
         }
         elseif ($value.StartsWith('repository:', [StringComparison]::Ordinal)) {
-            $relativeRepositoryPath = $value.Substring('repository:'.Length).Replace('/', [IO.Path]::DirectorySeparatorChar)
-            if ([IO.Path]::IsPathRooted($relativeRepositoryPath) -or $relativeRepositoryPath.StartsWith('..')) {
-                throw "Unsafe repository reference: $value"
-            }
+            $portableRepositoryPath = $value.Substring('repository:'.Length)
+            Assert-SafeRelativePath $portableRepositoryPath 'repository reference'
+            $relativeRepositoryPath = $portableRepositoryPath.Replace('/', [IO.Path]::DirectorySeparatorChar)
             $repositoryPath = [IO.Path]::GetFullPath((Join-Path $repositoryRoot $relativeRepositoryPath))
             if (-not $repositoryPath.StartsWith("$repositoryRoot$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::OrdinalIgnoreCase) -or
                 -not (Test-Path -LiteralPath $repositoryPath -PathType Leaf)) {
                 throw "Repository reference is missing or escaped the repository: $value"
             }
+            Assert-NoReparsePointAncestors $repositoryPath $repositoryRoot
         }
         elseif ($value.StartsWith('manifest:', [StringComparison]::Ordinal)) {
             if ($value -ne 'manifest:p3Authenticode' -and $value -ne 'manifest:p3-proof-status-incomplete') {
