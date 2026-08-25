@@ -1,6 +1,6 @@
 # Gate 0 G0.4 Free media and delivery proposal
 
-Status: [owner decisions approved](gate-0-g0.4-owner-decisions.md); bounded delivery-format proof authorized; no default delivery contract finalized
+Status: [owner decisions approved](gate-0-g0.4-owner-decisions.md); [bounded delivery-format proof complete](gate-0-g0.4-executable-proof.md); no default delivery contract finalized
 
 Date: 2026-08-24
 
@@ -39,15 +39,21 @@ The existing materialization, cancellation, atomic-output, caching, and metadata
 - paired inspection and explicit VP9/Opus decode-again;
 - frame identity/order, geometry, duration, and audio structure within declared tolerances;
 - standalone FLAC with byte-exact PCM reconstruction; and
-- standalone Ogg Opus with declared duration/sample-padding and frequency-preservation evidence.
+- standalone Ogg Opus with declared duration/sample-padding and frequency-preservation evidence;
+- paired and video-only H.264/AAC MP4 through `libopenh264` plus native AAC, including AAC-LC, `faststart`, ordered frame identity, paired stereo-frequency semantics, and explicit decode-again;
+- paired and video-only VP9/Opus WebM with bounded Segment-level Cues evidence;
+- standalone M4A AAC-LC, MP3, Ogg Opus, WAV PCM, and FLAC with explicit demuxer/decoder and two-channel timing/frequency/phase or lossless oracles; and
+- PNG exact-pixel and JPEG tolerance-based image delivery.
+
+The complete eleven-route result and its retained limitations are recorded in [Gate 0 G0.4 executable delivery-proof results](gate-0-g0.4-executable-proof.md). Executable success does not remove the conditional status of H.264/AAC or MP3.
 
 ### Narrow optional Windows evidence
 
-The W1 probe created and decoded H.264/AAC MP4 through the exact P2 build's `h264_mf` and `aac_mf` wrappers on the reference Windows system. This establishes only a working wrapper path on that environment. It does not establish portability, exact software-versus-hardware behavior, quality/rate control, independent playback, packaging, patents, or redistribution.
+The original W1 probe created and decoded H.264/AAC MP4 through the exact P2 build's `h264_mf` and `aac_mf` wrappers. The approved G0.4 comparison instead passed paired and video-only MP4 through `h264_mf` plus the same native AAC route used by P2. Hardware encoding was not forced, but the concrete Media Foundation implementation remained unobservable. These results establish only working wrapper paths on the tested environment. They do not establish portability, exact hardware-versus-software behavior, final quality/rate control, independent playback, packaging, patents, or redistribution.
 
 ### Presence only, not semantic proof
 
-The exact P2 runtime lists native AAC, `libopenh264`, `libmp3lame`, PCM/WAV, PNG, MJPEG/JPEG, WebP, and three AV1 encoders. Those listings do not authorize execution or establish ReelForge semantics. Checkpoint A requires a dependency disposition before additional P2 components enter proof commands.
+WebP, AV1 encoders, and other broad-P2 components not named in the G0.4 contract remain presence-only. A listing does not authorize execution or establish ReelForge semantics. Checkpoint A still requires a dependency disposition before an additional P2 component enters proof commands.
 
 ## Candidate video delivery matrix
 
@@ -68,10 +74,10 @@ All ordinary formats below are proposed as Free. A format is not made Pro merely
 
 | Candidate | User purpose | Evidence/status | Proposed disposition |
 | --- | --- | --- | --- |
-| M4A AAC-LC | Default compact audio and Apple/mobile compatibility. | Current commands and W1 exist; exact approved P2/native route and playback remain unproven. Patent review remains separate. | **Conditional Free default.** |
-| MP3 | Broad legacy/device/publishing interchange. | `libmp3lame` presence only; dependency and semantic proof required. | **Conditional Free compatibility export.** |
+| M4A AAC-LC | Default compact audio and Apple/mobile compatibility. | Native AAC-LC passed the bounded P2 encode/inspect/decode/timing/stereo-semantic proof. Independent playback, shipping-runtime selection, and patent review remain open. | **Conditional Free default.** |
+| MP3 | Broad legacy/device/publishing interchange. | `libmp3lame` plus the native MP3 decoder passed the bounded P2 timing/stereo-semantic proof. Independent playback, shipping-runtime selection, and patent review remain open. | **Conditional Free compatibility export.** |
 | Ogg Opus | Open, efficient compressed audio. | Passed P2 semantic proof. | **Guaranteed Free open alternative.** |
-| WAV PCM | Widely accepted uncompressed/lossless interchange; large files. | Native PCM/WAV components present; bounded semantic/playback proof still required. | **Required Free lossless/interchange option.** |
+| WAV PCM | Widely accepted uncompressed/lossless interchange; large files. | Native PCM/WAV passed bounded byte-exact decoded-PCM proof with ordinary RIFF (`rf64=never`). Independent playback and the greater-than-4-GB/RF64 policy remain open. | **Required Free lossless/interchange option.** |
 | FLAC | Compact lossless archival/interchange. | Passed byte-exact P2 proof; native-player support is not universal. | **Free lossless option with compatibility labeling.** |
 
 The minimum Free contract remains complete even if M4A or MP3 is temporarily blocked: Ogg Opus plus WAV/FLAC provides open compressed and lossless workflows. However, external-beta usability would be materially better if M4A and MP3 pass the approved dependency and playback gates.

@@ -55,4 +55,8 @@ When a later G0.3 proof runner packages or transforms these primitives, it must 
 
 `Invoke-W1MediaFoundationProbe.ps1` is a separate optional Windows-only probe. Its result must never establish portable project meaning or a shipping/licensing conclusion.
 
+`Invoke-P2G04DeliveryProof.ps1` is the separate owner-authorized G0.4 output matrix. It consumes generated F1/F4 fixtures and `g0.4-delivery-proof-contract.json`, records exact command-token components and runtime/dependency identity for eleven output routes, and proves paired/video-only MP4 and WebM, five audio outputs, PNG, and JPEG. It does not modify or join the completed G0.3 aggregate.
+
+`Invoke-W1G04MediaFoundationProof.ps1` is the separate optional G0.4 comparison. It proves paired and video-only `h264_mf` MP4 on Windows while deliberately pairing W1 with the same native AAC route as P2. Hardware encoding is not forced, but the selected MFT implementation remains unobservable; W1 never establishes the portable baseline.
+
 `P2.BtbnLgplShared.WindowsX64.20260820` is third-party LGPLv3-path proof infrastructure only. These fixture files do not select a shipping runtime, delivery contract, or legal conclusion.
