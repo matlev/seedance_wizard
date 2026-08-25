@@ -72,3 +72,21 @@ The current temporary local path is not durable retention. A configured upload t
 These approvals authorize fixture production and proof correction only. They do not change current import behavior, persistence, render commands, the guaranteed-common contract, shipping-runtime selection, public-distribution policy, or legal conclusions.
 
 The existing 171 passed rows remain valid evidence. Every failed or blocked row retains that disposition until fresh evidence executed under this record changes it.
+
+## F7 `setts` experiment amendment
+
+One narrow proof-only use of FFmpeg's `setts` bitstream filter is approved after the first bounded re-authoring attempt showed that the approved concat/setpts components could not carry the terminal duration through both direct encoders.
+
+Before execution, the proof must verify `setts` presence in exact P2, record its component/source/license disposition, and add it only to the experiment's proof-runtime mapping. The experiment preserves the five identities, exact PTS and DTS behavior, `1/1000` time base, signed non-zero start, every non-terminal packet duration, and encoded payload/frame identity. It must identify the terminal presentation packet robustly rather than assuming packet order equals presentation order. Only that packet may receive duration 800 and end at tick 2000.
+
+Direct MP4 and WebM F7 cases execute first. The direct-Matroska pilot resumes only if they pass. A muxer rewrite, sentinel requirement, new component requirement, or semantic change stops the experiment with a blocked result. `setts` remains fixture-authoring proof infrastructure and does not enter product behavior, shipping-runtime selection, or the public media contract.
+
+## Interim local retention amendment
+
+No external artifact backend will be configured during this unit. A project-controlled sibling directory named `ReelForge.Gate0Artifacts` may retain the corpus outside temporary storage. Because the source workspace is under the owner's private OneDrive tree, the local files also receive the separately synced private replica; this is interim local-plus-sync retention, not a production artifact repository.
+
+The tracked repository manifest must use stable artifact IDs and relative filenames only, and record size, SHA-256, provenance, producer/runtime identity, license records, proof-run identity, and retention status. Heavy proof stays manual or opt-in, hosted CI may not depend on machine-local artifacts, and temporary-provider R2 remains prohibited for this corpus.
+
+## P3 cleanup amendment
+
+The temporary libjpeg-turbo installation may be removed only after both JPEG proofs succeed and the exact installer, executable/DLL hashes, release/source provenance, license materials, generated fixtures, producer manifests, and final evidence have been retained and verified against the tracked manifest.

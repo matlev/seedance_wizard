@@ -6,7 +6,7 @@ Date: 2026-08-25
 
 Authority: [Gate 0 G0.4 common-input owner decisions](gate-0-g0.4-input-owner-decisions.md) and [common-input proof proposal](gate-0-g0.4-input-proof-proposal.md)
 
-The owner approved all three proposed dispositions with pilot, provenance, and retention amendments in the [G0.4 common-input follow-up decision record](gate-0-g0.4-input-follow-up-decisions.md). This result remains the baseline until fresh approved evidence changes an exact row.
+The owner approved all three proposed dispositions and later added a narrow `setts` experiment, interim sibling-retention policy, and conditional P3-cleanup rules in the [G0.4 common-input follow-up decision record](gate-0-g0.4-input-follow-up-decisions.md). This result remains the baseline until fresh approved evidence changes an exact row.
 
 ## Outcome
 
