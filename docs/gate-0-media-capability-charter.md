@@ -1,6 +1,6 @@
 # Gate 0 media capability charter
 
-Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed and two retained not-run gates
+Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed and two retained not-run gates; G0.4 conditional proposal ready for owner review
 
 Approved: 2026-08-24
 
@@ -305,6 +305,8 @@ The owner has approved the Gate 0 scope assumptions and clarifications in this c
 The owner approved `P2.BtbnLgplShared.WindowsX64.20260820` as third-party LGPLv3-path proof infrastructure for the full Free proof matrix, authorized the scoped W1 probe and minimal paired-runtime observation/validation seam, approved fixtures F1-F6 plus exact-timing and explicit multi-stream-selection fixtures, and kept P1 blocked. P2 is not a selected shipping runtime, public-distribution approval, final default-delivery contract, or approval to use every compiled component.
 
 Current G0.3 results are recorded in [Gate 0 G0.3 executable-proof results](gate-0-g0.3-executable-proof.md). All 13 automated P2 semantic capabilities passed, including the owner-approved basic-color and Unicode text mappings. Independent playback and long-form integrity remain explicitly not run and retain their G0.3/G0.5 completion-gate status. G0.4 analysis may proceed, but it may not finalize the default Free delivery contract before playback evidence. No fixture result is treated as a capability verdict.
+
+The conditional [G0.4 Free media and delivery proposal](gate-0-g0.4-delivery-proposal.md) recommends H.264/AAC MP4 as the compatibility/default target if an acceptable route passes, retains proven VP9/Opus WebM as the open alternative, proposes ordinary Free audio/image breadth, and requests authorization for the next bounded component proofs. It does not finalize the default or approve a shipping runtime.
 
 Authoritative decision and amendments: [Gate 0 Checkpoint A](gate-0-checkpoint-a.md).
 
