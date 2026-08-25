@@ -61,4 +61,12 @@ When a later G0.3 proof runner packages or transforms these primitives, it must 
 
 `Invoke-P2G04InputProof.ps1` executes the owner-approved 256-row common-input contract in `g0.4-input-proof-contract.json`. It validates the exact P2 pair and fixture closure, authors only approved fixture routes, explicitly selects demuxers/decoders/streams, performs strict complete decode and semantic oracles, exercises S1-S7 selection and N1-N7 classification policy, and retains pass/fail/block evidence plus complete command and generated-artifact closure. Generated media and the large evidence file remain outside Git. The corrected canonical result and rerun identity are recorded in `docs/gate-0-g0.4-input-proof-results.md`.
 
+## Interim proof-artifact retention
+
+`Preserve-Gate0Artifacts.ps1` creates the one approved local corpus root: the `ReelForge.Gate0Artifacts` sibling of this repository. It refuses any other destination, an existing destination, and source or retained reparse points. The first preservation run copies and independently verifies the exact P2 archive/runtime, F1-F8 fixture corpus, corrected G0.4 evidence closure, P3 producer closure, and immutable contract/provenance snapshots. It atomically replaces only `artifact-retention-manifest.json` in this directory, then places a hash-identical copy at the retained root.
+
+`Test-Gate0ArtifactRetention.ps1` revalidates the retained root against that tracked relative-path manifest. It checks every size and SHA-256, group totals, scoped provenance/license/proof references, the exact physical root, reparse-point absence, and equality of the tracked and retained manifest copies. Run it before any proof uses the retained corpus and immediately before deleting temporary producer infrastructure.
+
+This is one verified local copy only. The owner's OneDrive client is intentionally disconnected, so the directory is neither synced nor backed up. The required separate private copy remains outstanding. Heavy proof therefore remains manual or opt-in, hosted CI must not depend on this machine-local root, and the temporary-provider R2 path is prohibited.
+
 `P2.BtbnLgplShared.WindowsX64.20260820` is third-party LGPLv3-path proof infrastructure only. These fixture files do not select a shipping runtime, delivery contract, or legal conclusion.
