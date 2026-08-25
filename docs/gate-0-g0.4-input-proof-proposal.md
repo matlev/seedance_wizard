@@ -1,6 +1,6 @@
 # Gate 0 G0.4 common-input proof proposal
 
-Status: proposed bounded proof; exact matrix, two component expansions, and stream-selection policy require owner approval before execution
+Status: approved for bounded executable proof; owner decisions recorded
 
 Date: 2026-08-25
 
@@ -196,11 +196,13 @@ Every retained verdict binds the exact contract, P2 runtime evidence, source/der
 7. The runner writes truthful structured evidence on both pass and failure, rejects repository/stale output, and retains exact artifact closure.
 8. Independent review finds no guarantee inferred from extension, component presence, same-runtime output success, or concealed timestamp/error repair.
 
-## Owner decisions required before execution
+## Owner decisions
+
+The owner approved all four decisions as proposed in the [G0.4 common-input owner-decision record](gate-0-g0.4-input-owner-decisions.md). The recommendations below are retained as the approved rationale and scope.
 
 ### 1. Exact guaranteed-common matrix
 
-**Recommendation:** approve, move to capability-qualified, or reject each candidate row and bounded envelope above. The earlier owner decision approved the two-tier model, not these exact rows.
+**Approved:** the exact candidate rows and bounded envelopes above enter executable proof. The earlier owner decision approved the two-tier model; this decision approves the exact rows.
 
 - Narrowing H.264/AAC or ordinary PNG/JPEG would block common phone, camera, browser, and AI-generator sources from the portable guarantee. Baseline-only H.264 is not recommended as credible ordinary support.
 - Moving VP8/Vorbis or Ogg Vorbis to capability-qualified would mainly affect older WebM/Ogg sources while preserving the VP9/Opus open path.
@@ -211,19 +213,19 @@ Approval prevents an unbounded “any MKV/MP4” promise; amendment is valid whe
 
 ### 2. VP8/Vorbis proof-component expansion
 
-**Recommendation:** authorize P2 `libvpx` in VP8 encoder mode and `libvorbis` solely to author deterministic VP8/Vorbis input fixtures, with native P2 `vp8`/`vorbis` as the decoders under test. This is proof infrastructure only and does not approve a shipping dependency, export contract, public distribution, or every component compiled into P2.
+**Approved:** P2 `libvpx` in VP8 encoder mode and `libvorbis` may solely author deterministic VP8/Vorbis input fixtures, with native P2 `vp8`/`vorbis` as the decoders under test. This is proof infrastructure only and does not approve a shipping dependency, export contract, public distribution, or every component compiled into P2.
 
 If not approved, WebM VP8/Vorbis and Ogg Vorbis remain capability-qualified rather than guaranteed-common.
 
 ### 3. H.264 Main/High fixture producer
 
-**Recommendation:** authorize the narrow NVENC fixture-production lane described above. A producer failure or unavailable driver is a valid blocked result and returns for a different fixture-provenance decision; it does not weaken the H.264 input envelope or promote W1/NVENC into the portable baseline.
+**Approved:** the narrow NVENC fixture-production lane described above may produce retained H.264 Main/High inputs. A producer failure or unavailable driver is a valid blocked result and returns for a different fixture-provenance decision; it does not weaken the H.264 input envelope or promote W1/NVENC into the portable baseline.
 
 If not approved, Gate 0 can immediately prove only Constrained Baseline H.264 and must leave the ordinary H.264 common-input contract incomplete pending another approved, hash-pinned Main/High fixture source.
 
 ### 4. Deterministic stream-selection policy
 
-**Recommendation:** approve the default-disposition/lowest-index/fail-on-unusable-default policy and S1-S7 proof cases above. Later implementation persists separate resolved video and audio selections bound to the asset hash, revalidates them before every dependent operation, and never silently reselects under a different runtime profile. No 1.0 alternate-stream selection UI is proposed.
+**Approved:** the default-disposition/lowest-index/fail-on-unusable-default policy and S1-S7 proof cases above. Later implementation persists separate resolved video and audio selections bound to the asset hash, revalidates them before every dependent operation, and never silently reselects under a different runtime profile. No 1.0 alternate-stream selection UI is proposed.
 
 If target-user validation shows multilingual, commentary, or alternate-angle selection is common, the UI/persistence override moves into the Free 1.0 contract rather than being silently deferred.
 
