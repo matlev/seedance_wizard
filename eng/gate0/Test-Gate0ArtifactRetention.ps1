@@ -147,6 +147,19 @@ if ($trackedManifestSha256 -ne $localManifestSha256) {
     throw 'The retained manifest copy does not match the tracked manifest.'
 }
 
+$actualRelativeFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+foreach ($item in @(Get-ChildItem -LiteralPath $resolvedArtifactRoot -Force -File -Recurse)) {
+    $relative = [IO.Path]::GetRelativePath($resolvedArtifactRoot, $item.FullName).Replace('\', '/')
+    [void] $actualRelativeFiles.Add($relative)
+}
+$expectedRelativeFiles = [Collections.Generic.HashSet[string]]::new($retainedPaths, [StringComparer]::OrdinalIgnoreCase)
+[void] $expectedRelativeFiles.Add('artifact-retention-manifest.json')
+if (-not $actualRelativeFiles.SetEquals($expectedRelativeFiles)) {
+    $unexpected = @($actualRelativeFiles | Where-Object { -not $expectedRelativeFiles.Contains($_) } | Sort-Object)
+    $missing = @($expectedRelativeFiles | Where-Object { -not $actualRelativeFiles.Contains($_) } | Sort-Object)
+    throw "The retained root contains an unmanifested or missing file. Unexpected: $($unexpected -join ', '); missing: $($missing -join ', ')."
+}
+
 [pscustomobject]@{
     artifactSetId = [string] $manifest.artifactSetId
     status = 'verified'

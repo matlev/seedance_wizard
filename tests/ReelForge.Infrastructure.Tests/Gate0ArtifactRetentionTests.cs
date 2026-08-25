@@ -118,6 +118,7 @@ public sealed class Gate0ArtifactRetentionTests
             "Repository reference is missing or escaped the repository",
             "Proof-run identity is missing",
             "The retained artifact root contains a reparse point",
+            "The retained root contains an unmanifested or missing file",
         }) Assert.Contains(required, validation);
 
         foreach (var path in new[] { preservationPath, validationPath })
