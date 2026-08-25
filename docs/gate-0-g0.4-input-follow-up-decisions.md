@@ -1,6 +1,6 @@
 # Gate 0 G0.4 common-input follow-up decisions
 
-Status: approved for bounded execution with pilot, provenance, and retention guardrails
+Status: bounded F7 experiment executed and blocked; Matroska pilot remains blocked; P3 proof remains authorized
 
 Approved: 2026-08-25
 
@@ -80,6 +80,8 @@ One narrow proof-only use of FFmpeg's `setts` bitstream filter is approved after
 Before execution, the proof must verify `setts` presence in exact P2, record its component/source/license disposition, and add it only to the experiment's proof-runtime mapping. The experiment preserves the five identities, exact PTS and DTS behavior, `1/1000` time base, signed non-zero start, every non-terminal packet duration, and encoded payload/frame identity. It must identify the terminal presentation packet robustly rather than assuming packet order equals presentation order. Only that packet may receive duration 800 and end at tick 2000.
 
 Direct MP4 and WebM F7 cases execute first. The direct-Matroska pilot resumes only if they pass. A muxer rewrite, sentinel requirement, new component requirement, or semantic change stops the experiment with a blocked result. `setts` remains fixture-authoring proof infrastructure and does not enter product behavior, shipping-runtime selection, or the public media contract.
+
+The experiment is complete with a blocked result. The first direct MP4 case preserved packet payloads but rewrote every video PTS to its DTS, so the unique PTS-1200 packet was not assigned the required terminal duration. The approved stop condition prevented every remaining direct case and the Matroska pilot from running. See the [F7 `setts` experiment results](gate-0-g0.4-f7-setts-results.md). No expression variant or other continuation is authorized by this record.
 
 ## Interim local retention amendment
 

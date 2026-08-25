@@ -1,6 +1,6 @@
 # Gate 0 G0.4 common-input proof results
 
-Status: bounded proof executed; 171 exact rows passed, 83 failed, and 2 are blocked; three follow-up dispositions approved with execution guardrails
+Status: bounded proof executed; 171 exact rows passed, 83 failed, and 2 are blocked; F7 follow-up executed and blocked
 
 Date: 2026-08-25
 
@@ -36,7 +36,7 @@ The corrected retained evidence is:
 | Generated-artifact closure records | 2,228 |
 | Local evidence path | `C:\Users\azure\AppData\Local\Temp\ReelForge-Gate0-G04-Input-20260825-corrected\g0.4-input-proof-evidence.json` |
 
-The local temporary path is not durable project-controlled artifact storage. The approved P2 archive, producer-sensitive fixture bytes, and this evidence must be retained durably before unattended CI depends on them.
+The canonical evidence has since been copied and hash-verified in the approved project-controlled sibling artifact root. It remains one local copy only: the owner's OneDrive client is intentionally disconnected, and no separately backed-up private copy is configured. Hosted CI must not depend on it.
 
 ## Verdict summary
 
@@ -101,6 +101,8 @@ The eight classification cases also produced the approved dispositions: misleadi
 
 Without this authorization, the six direct F7 rows and all six dependent Matroska rows remain outside guaranteed-common.
 
+**Executed and blocked:** the initial approved re-authoring components could not carry the terminal duration. The later approved proof-only `setts` experiment then preserved packet payloads but rewrote video PTS to DTS on its first direct MP4 case. The remaining direct cases and Matroska pilot did not run under the approved stop rule. See the [F7 `setts` experiment results](gate-0-g0.4-f7-setts-results.md).
+
 ### 2. Replace remux-derived Matroska provenance with direct fixture production
 
 **Approved with a pilot gate:** the bounded direct-Matroska fixture lane may use only the exact P2 proof components already approved for the corresponding encoded sources: `libopenh264` for Baseline H.264, fixture-only `h264_nvenc` for Main/High H.264, native `aac`/`pcm_s16le`, `libvpx-vp9`/`libopus`, fixture-only `libvpx` VP8/`libvorbis`, and the explicit `matroska` muxer. Native `h264`, `aac`, `pcm_s16le`, `vp9`, `opus`, `vp8`, and `vorbis` remain the decoders under test. A representative six-family pilot must pass before expansion. Each direct fixture binds raw authored truth, producer identity, exact command, artifact hash, timing evidence, and a fresh strict complete-decode oracle.
@@ -119,4 +121,4 @@ Without this authorization, the two blocked JPEG rows remain capability-qualifie
 
 ## Gate status
 
-G0.4 common-input execution is complete as a truthful partial result, and the bounded follow-up is authorized under the separate decision record. The 171 passed rows remain valid evidence; the 83 failed and 2 blocked rows stay unchanged until fresh approved evidence passes. Independent playback, verified durable artifact retention, and G0.5 quality/performance/long-form work remain separate open Gate 0 exit conditions.
+G0.4 common-input execution is complete as a truthful partial result. The bounded F7 follow-up is also complete with a blocked result; the direct-Matroska pilot remains blocked, while deterministic JPEG proof remains independently authorized. The 171 passed rows remain valid evidence; the 83 failed and 2 blocked rows stay unchanged until fresh approved evidence passes. Independent playback, a separately backed-up second artifact copy, and G0.5 quality/performance/long-form work remain separate open Gate 0 exit conditions.
