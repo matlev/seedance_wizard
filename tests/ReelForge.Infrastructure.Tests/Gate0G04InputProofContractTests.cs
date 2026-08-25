@@ -13,6 +13,21 @@ public sealed class Gate0G04InputProofContractTests
     private static readonly string[] ExpectedNvencEvidenceFields = ["p2RuntimeIdentity", "osIdentity", "gpuIdentity", "driverIdentity", "exactCommand", "rawSourceHashes", "outputHash", "profile", "level", "pixelFormat", "timingMetadata"];
     private static readonly int[] ExpectedVideoDecodedFrameCounts = [5, 48, 50, 60, 120];
     private static readonly int[] ExpectedVfrPairedAudioSampleCounts = [88200, 96000];
+    private static readonly Dictionary<string, string[]> ExpectedAudioEncoderOptions = new()
+    {
+        ["aac|mono"] = ["-c:a", "aac", "-profile:a", "aac_low", "-b:a", "96k"],
+        ["aac|stereo"] = ["-c:a", "aac", "-profile:a", "aac_low", "-b:a", "192k"],
+        ["mp3|mono"] = ["-c:a", "libmp3lame", "-b:a", "96k"],
+        ["mp3|stereo"] = ["-c:a", "libmp3lame", "-b:a", "192k"],
+        ["opus|mono"] = ["-c:a", "libopus", "-b:a", "64k", "-vbr", "off", "-compression_level", "10", "-frame_duration", "20"],
+        ["opus|stereo"] = ["-c:a", "libopus", "-b:a", "128k", "-vbr", "off", "-compression_level", "10", "-frame_duration", "20"],
+        ["vorbis|mono"] = ["-c:a", "libvorbis", "-q:a", "4"],
+        ["vorbis|stereo"] = ["-c:a", "libvorbis", "-q:a", "4"],
+        ["pcm_s16le|mono"] = ["-c:a", "pcm_s16le", "-rf64", "never"],
+        ["pcm_s16le|stereo"] = ["-c:a", "pcm_s16le", "-rf64", "never"],
+        ["flac|mono"] = ["-c:a", "flac", "-compression_level", "5"],
+        ["flac|stereo"] = ["-c:a", "flac", "-compression_level", "5"]
+    };
 
     [Fact]
     public void ContractEnumeratesEveryApprovedGuaranteedCommonCaseWithoutExpansionSyntax()
@@ -235,6 +250,34 @@ public sealed class Gate0G04InputProofContractTests
         {
             if (recipe.GetProperty("status").GetString() == "resolved") Assert.Contains("h264_nvenc", recipe.GetProperty("encoderOptions").EnumerateArray().Select(value => value.GetString()));
         });
+        foreach (var sourceCase in cases.Where(@case => @case.GetProperty("container").GetString() != "MATROSKA" && @case.GetProperty("streams").EnumerateArray().Any(stream => stream.GetProperty("type").GetString() == "audio")))
+        {
+            var audioStream = sourceCase.GetProperty("streams").EnumerateArray().Single(stream => stream.GetProperty("type").GetString() == "audio");
+            var key = audioStream.GetProperty("codec").GetString() + "|" + audioStream.GetProperty("channels").GetString();
+            var recipe = recipes.Single(candidate => candidate.GetProperty("id").GetString() == sourceCase.GetProperty("fixtureProduction").GetProperty("recipeId").GetString());
+            Assert.Equal(ExpectedAudioEncoderOptions[key], recipe.GetProperty("audioEncoderOptions").EnumerateArray().Select(option => option.GetString()));
+            if (audioStream.GetProperty("codec").GetString() == "vorbis") Assert.Contains("pinned fixture identity", recipe.GetProperty("audioEncoderOptionsPurpose").GetString(), StringComparison.OrdinalIgnoreCase);
+        }
+        foreach (var pairedVideoCase in cases.Where(@case => @case.GetProperty("family").GetString() == "video" && @case.GetProperty("container").GetString() != "MATROSKA" && @case.GetProperty("streams").EnumerateArray().Any(stream => stream.GetProperty("type").GetString() == "audio")))
+        {
+            var audioStream = pairedVideoCase.GetProperty("streams").EnumerateArray().Single(stream => stream.GetProperty("type").GetString() == "audio");
+            var recipe = recipes.Single(candidate => candidate.GetProperty("id").GetString() == pairedVideoCase.GetProperty("fixtureProduction").GetProperty("recipeId").GetString());
+            var audio = recipe.GetProperty("expectedAudioDecode");
+            var samples = audioStream.GetProperty("sampleRate").GetInt32() * 2;
+            Assert.Equal(2000, audio.GetProperty("contentDurationMilliseconds").GetInt32());
+            Assert.Equal(samples, audio.GetProperty("postTransformExpectedSampleCount").GetInt32());
+            if (audioStream.GetProperty("codec").GetString() == "pcm_s16le")
+            {
+                Assert.Equal(samples, audio.GetProperty("exactSampleCount").GetInt32());
+                Assert.Equal(0, audio.GetProperty("durationToleranceMilliseconds").GetInt32());
+            }
+            else
+            {
+                Assert.Equal(samples, audio.GetProperty("sampleEnvelope").GetProperty("expected").GetInt32());
+                Assert.Equal(3072, audio.GetProperty("codecDelayToleranceSamples").GetInt32());
+                Assert.Equal(60, audio.GetProperty("durationToleranceMilliseconds").GetInt32());
+            }
+        }
         Assert.All(recipes.Where(recipe => recipe.GetProperty("status").GetString() == "unresolved-producer"), recipe =>
         {
             Assert.Equal("blocked-fixture-provenance", recipe.GetProperty("proofDisposition").GetString());
