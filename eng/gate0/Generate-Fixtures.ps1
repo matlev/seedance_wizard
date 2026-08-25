@@ -393,13 +393,18 @@ Write-Ppm (Join-Path $resolvedOutput 'F2\f2-portrait-360x640-30000_1001fps.ppm')
 Write-SinePcm16Le (Join-Path $resolvedOutput 'F2\f2-44100-mono-330hz.pcm') 44100 1 ([double[]](330)) ([double[]](0)) 250
 Write-SinePcm16Le (Join-Path $resolvedOutput 'F2\f2-48000-stereo-660hz.pcm') 48000 2 ([double[]](660, 660)) ([double[]](0, 0)) 250
 
-# F3: alpha source, an authored basic-color oracle, and a text specification.
-# The approved font artifacts still require separate rendered semantic proof.
+# F3: alpha source, basic-color oracle, and inventory-bound text proof inputs.
+# These are authored outside Git by this deterministic generator.  The text
+# proof consumes the logical/layout/ASS primitives rather than synthesising
+# an unrecorded subtitle document at execution time.
 Write-Rgba (Join-Path $resolvedOutput 'F3\f3-alpha-magenta-50pct.rgba') 320 180 ([byte[]](255, 0, 255, 128))
 Write-F3ColorOraclePpm (Join-Path $resolvedOutput 'F3\f3-basic-color-oracle.ppm')
+Write-Ppm (Join-Path $resolvedOutput 'F3\f3-text-background.ppm') 320 180 ([byte[]](24, 31, 42))
 $f3TextSpecification = [ordered]@{
     fixtureId = 'F3'
     unicodeText = 'ReelForge — 你好 — مرحبا'
+    titleText = 'ReelForge — 你好 — مرحبا'
+    captionText = 'A reproducible caption with diacritics: café — 你好 — مرحبا'
     optionalBlockedColorEmoji = '🎬'
     fontPrerequisite = [ordered]@{
         id = 'Font.Licensed.UnicodeTestFont'
@@ -408,6 +413,55 @@ $f3TextSpecification = [ordered]@{
     }
 }
 [System.IO.File]::WriteAllText((Join-Path $resolvedOutput 'F3\f3-unicode-text.json'), ($f3TextSpecification | ConvertTo-Json -Depth 4), [System.Text.UTF8Encoding]::new($false))
+$f3LayoutSpecification = [ordered]@{
+    fixtureId = 'F3'
+    canvas = [ordered]@{ width = 320; height = 180; safeInsetPixels = 18 }
+    title = [ordered]@{ region = 'top-safe'; anchor = 'top-center'; x = 160; y = 24; maximumWidth = 284; expectedLineBands = 1 }
+    caption = [ordered]@{ region = 'bottom-safe'; anchor = 'bottom-center'; x = 160; y = 156; maximumWidth = 264; expectedLineBands = 2 }
+    textRuns = @(
+        [ordered]@{ family = 'Noto Sans'; text = 'ReelForge — '; role = 'latin-punctuation-diacritics' },
+        [ordered]@{ family = 'Noto Sans CJK SC'; text = '你好'; role = 'simplified-chinese' },
+        [ordered]@{ family = 'Noto Sans'; text = ' — '; role = 'latin-punctuation' },
+        [ordered]@{ family = 'Noto Sans Arabic'; text = 'مرحبا'; role = 'arabic' }
+    )
+    titleText = 'ReelForge — 你好 — مرحبا'
+    captionText = 'A reproducible caption with diacritics: café — 你好 — مرحبا'
+}
+[System.IO.File]::WriteAllText((Join-Path $resolvedOutput 'F3\f3-text-layout.json'), ($f3LayoutSpecification | ConvertTo-Json -Depth 6), [System.Text.UTF8Encoding]::new($false))
+$f3Ass = @"
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 320
+PlayResY: 180
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Title,Noto Sans,24,&H00FFFFFF,&H000000FF,&H0018202A,&H0018202A,0,0,0,0,100,100,0,0,1,1,0,8,18,18,18,1
+Style: Caption,Noto Sans,18,&H00FFFFFF,&H000000FF,&H0018202A,&H0018202A,0,0,0,0,100,100,0,0,1,1,0,2,28,28,18,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+Dialogue: 0,0:00:00.00,0:00:01.00,Title,,0,0,0,,{\an8\pos(160,24)\q0}{\fnNoto Sans}ReelForge — {\fnNoto Sans CJK SC}你好{\fnNoto Sans} — {\fnNoto Sans Arabic}مرحبا
+Dialogue: 0,0:00:00.00,0:00:01.00,Caption,,0,0,0,,{\an2\pos(160,156)\q0}{\fnNoto Sans}A reproducible caption with diacritics: café — {\fnNoto Sans CJK SC}你好{\fnNoto Sans} — {\fnNoto Sans Arabic}مرحبا
+"@
+[System.IO.File]::WriteAllText((Join-Path $resolvedOutput 'F3\f3-unicode-proof.ass'), $f3Ass.TrimStart([Environment]::NewLine.ToCharArray()), [System.Text.UTF8Encoding]::new($false))
+$f3ArabicAss = @"
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 320
+PlayResY: 180
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Arabic,Noto Sans Arabic,28,&H00FFFFFF,&H000000FF,&H0018202A,&H0018202A,0,0,0,0,100,100,0,0,1,1,0,5,18,18,18,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+Dialogue: 0,0:00:00.00,0:00:01.00,Arabic,,0,0,0,,{\an5\pos(160,90)}{\fnNoto Sans Arabic}مرحبا
+"@
+[System.IO.File]::WriteAllText((Join-Path $resolvedOutput 'F3\f3-arabic-shaping-oracle.ass'), $f3ArabicAss.TrimStart([Environment]::NewLine.ToCharArray()), [System.Text.UTF8Encoding]::new($false))
 
 # F4 and F8: distinguishable PCM primitives.
 Write-SinePcm16Le (Join-Path $resolvedOutput 'F4\f4-mono-32000-1000hz.pcm') 32000 1 ([double[]](1000)) ([double[]](0)) 500

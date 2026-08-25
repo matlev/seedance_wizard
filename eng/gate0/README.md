@@ -34,7 +34,7 @@ It refuses relative paths, `PATH` discovery, missing files, and tools outside `A
 | --- | --- | --- |
 | F1 | Baseline color, frame IDs, and sync tones | PPM frame IDs; stereo 440/880 Hz PCM; fixed 25 fps timing |
 | F2 | Mismatched dimensions, frame rates, pixels, and audio | Discrete PPM/PCM source property matrix |
-| F3 | Alpha and Unicode text | RGBA overlay plus Unicode text specification; blocked pending a pinned licensed test font |
+| F3 | Alpha and Unicode text | RGBA overlay; inventory-bound Unicode logical/layout/ASS primitives; pinned OFL font manifest |
 | F4 | WAV/FLAC audio variants | 32/44.1/48 kHz PCM tone primitives, known peak/phase, and expected lossless facts |
 | F5 | Silent/no-audio media | Opaque PPM source plus authored digital-silence PCM and explicit no-audio truths |
 | F6 | Long-form integrity recipe | Compact generated 60-minute repeat recipe and source cadence facts |
@@ -50,6 +50,8 @@ When a later G0.3 proof runner packages or transforms these primitives, it must 
 ## Executable proof
 
 `Invoke-P2FullProof.ps1` is the aggregate G0.3 entry point. It validates the exact paired P2 runtime, generates inventory-bound fixtures, runs the fixture, edit/timing, visual, and delivery lanes, and emits exactly one verdict for each capability in `semantic-proof-contract.json`. The aggregate remains incomplete while any required capability is blocked or not run.
+
+`Invoke-P2TextProof.ps1` is the F3 semantic lane. It first validates the checked-in font-artifact manifest and fixture inventory, then renders the generated ASS source with explicit Latin/CJK/Arabic family runs, `ass` complex shaping, explicit `fontsdir`, image2/PPM input selection, and rawvideo output. Positive proof rejects every `fontselect` target outside the three approved Noto target names. Its missing-CJK control must reject ambient fallback; that rejected output is negative evidence only. DirectWrite automatic fallback is therefore not used as capability evidence. The complex render is compared to a reviewed SHA-256 golden, repeated for determinism, and distinguished from simple Arabic shaping. Color emoji remains optional and is absent from the required render.
 
 `Invoke-W1MediaFoundationProbe.ps1` is a separate optional Windows-only probe. Its result must never establish portable project meaning or a shipping/licensing conclusion.
 

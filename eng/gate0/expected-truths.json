@@ -40,8 +40,18 @@
         ]
       },
       "unicodeText": "ReelForge — 你好 — مرحبا",
+      "titleText": "ReelForge — 你好 — مرحبا",
+      "captionText": "A reproducible caption with diacritics: café — 你好 — مرحبا",
       "optionalBlockedColorEmoji": "🎬",
-      "fontPrerequisite": { "id": "Font.Licensed.UnicodeTestFont", "status": "approved-artifacts-ready-for-proof" }
+      "fontPrerequisite": { "id": "Font.Licensed.UnicodeTestFont", "status": "approved-artifacts-ready-for-proof" },
+      "textProof": {
+        "canvas": { "width": 320, "height": 180, "safeInsetPixels": 18 },
+        "approvedFontTargets": ["NotoSans-Regular", "NotoSansArabic-Regular", "NotoSansCJKsc-Regular"],
+        "title": { "region": "top-safe", "expectedLineBands": 1 },
+        "caption": { "region": "bottom-safe", "expectedLineBands": 2 },
+        "arabic": { "requiresShaping": "complex", "requiresSimpleVsComplexDistinction": true },
+        "colorEmoji": "optional-blocked"
+      }
     },
     "F4": {
       "variants": [

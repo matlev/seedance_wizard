@@ -57,19 +57,23 @@ $fixtureRoot = Join-Path $output 'fixtures'
 $editOutput = Join-Path $output 'edit-timing'
 $visualOutput = Join-Path $output 'visual'
 $deliveryOutput = Join-Path $output 'delivery'
+$textOutput = Join-Path $output 'text'
 
 & (Join-Path $PSScriptRoot 'Invoke-P2EditTimingProof.ps1') -RuntimeRoot $runtime -FixtureRoot $fixtureRoot -OutputDirectory $editOutput
 & (Join-Path $PSScriptRoot 'Invoke-P2VisualProof.ps1') -RuntimeRoot $runtime -FixtureRoot $fixtureRoot -OutputDirectory $visualOutput
 & (Join-Path $PSScriptRoot 'Invoke-P2DeliveryProof.ps1') -RuntimeRoot $runtime -FixtureRoot $fixtureRoot -OutputDirectory $deliveryOutput
+& (Join-Path $PSScriptRoot 'Invoke-P2TextProof.ps1') -RuntimeRoot $runtime -FixtureRoot $fixtureRoot -OutputDirectory $textOutput
 
 $fixtureEvidencePath = Join-Path $output 'semantic-proof-evidence.json'
 $editEvidencePath = Join-Path $editOutput 'p2-edit-timing-proof.json'
 $visualEvidencePath = Join-Path $visualOutput 'visual-proof-evidence.json'
 $deliveryEvidencePath = Join-Path $deliveryOutput 'delivery-proof-evidence.json'
+$textEvidencePath = Join-Path $textOutput 'text-proof-evidence.json'
 $fixtureEvidence = Read-RequiredJson $fixtureEvidencePath 'Fixture proof evidence'
 $editEvidence = Read-RequiredJson $editEvidencePath 'Edit/timing proof evidence'
 $visualEvidence = Read-RequiredJson $visualEvidencePath 'Visual proof evidence'
 $deliveryEvidence = Read-RequiredJson $deliveryEvidencePath 'Delivery proof evidence'
+$textEvidence = Read-RequiredJson $textEvidencePath 'Text proof evidence'
 
 if (@($fixtureEvidence.capabilityVerdicts).Count -ne 0) {
     throw 'Fixture proof evidence must not contain semantic capability verdicts.'
@@ -93,8 +97,12 @@ foreach ($proof in @($visualEvidence.semanticProofs)) {
 foreach ($proof in @($deliveryEvidence.semanticProofs)) {
     Add-Verdict $verdicts ([string]$proof.capabilityId) ([string]$proof.status) 'delivery' $proof
 }
+if ($textEvidence.capabilityId -ne 'Text.Render.UnicodeTitlesAndCaptions' -or $textEvidence.status -ne 'passed') {
+    throw 'Text proof evidence did not contain the required passed Unicode text capability verdict.'
+}
+Add-Verdict $verdicts 'Text.Render.UnicodeTitlesAndCaptions' 'passed' 'text' $textEvidence
 
-foreach ($capability in @($contract.capabilities | Where-Object id -in @('Text.Render.UnicodeTitlesAndCaptions', 'Delivery.Validate.IndependentPlayback', 'Project.LongForm.Integrity'))) {
+foreach ($capability in @($contract.capabilities | Where-Object id -in @('Delivery.Validate.IndependentPlayback', 'Project.LongForm.Integrity'))) {
     Add-Verdict $verdicts ([string]$capability.id) ([string]$capability.status) 'contract-pending' $capability
 }
 
@@ -106,8 +114,8 @@ if ($verdicts.Count -ne 15 -or $missing.Count -ne 0 -or $unexpected.Count -ne 0)
 }
 
 $nonPassing = @($verdicts | Where-Object status -ne 'passed')
-$aggregateStatus = if ($nonPassing.Count -eq 0) { 'complete' } else { 'incomplete-with-explicit-blockers' }
-$evidenceFiles = @(@($fixtureEvidencePath, $editEvidencePath, $visualEvidencePath, $deliveryEvidencePath) | ForEach-Object {
+$aggregateStatus = if ($nonPassing.Count -eq 0) { 'complete' } else { 'incomplete-with-explicit-gates' }
+$evidenceFiles = @(@($fixtureEvidencePath, $editEvidencePath, $visualEvidencePath, $deliveryEvidencePath, $textEvidencePath) | ForEach-Object {
     [ordered]@{
         path = [IO.Path]::GetRelativePath($output, $_).Replace('\', '/')
         length = (Get-Item -LiteralPath $_).Length

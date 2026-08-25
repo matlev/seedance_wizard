@@ -44,7 +44,7 @@
     {
       "id": "F3",
       "name": "Alpha, basic-color oracle, and Unicode text",
-      "sourcePrimitives": ["rgba", "ppm-basic-color-oracle", "unicode-text-specification"],
+      "sourcePrimitives": ["rgba", "ppm-basic-color-oracle", "unicode-text-specification", "unicode-layout-specification", "unicode-ass-document", "ppm-text-background"],
       "truthReference": "fixtures.F3",
       "blockedPrerequisites": [
         {
@@ -60,7 +60,7 @@
         "encoders": ["ffv1"],
         "muxers": ["matroska"],
         "demuxers": [],
-        "filters": ["crop", "scale", "format", "overlay", "colorlevels", "hue", "drawtext"],
+        "filters": ["crop", "scale", "format", "overlay", "colorlevels", "hue", "ass"],
         "explicitSelectionsRequired": true
       }
     },

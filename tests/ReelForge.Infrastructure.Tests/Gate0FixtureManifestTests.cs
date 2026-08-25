@@ -118,7 +118,7 @@ public sealed class Gate0FixtureManifestTests
 
         var f3 = manifest.RootElement.GetProperty("fixtures").EnumerateArray().Single(fixture => fixture.GetProperty("id").GetString() == "F3");
         Assert.Contains("ppm-basic-color-oracle", f3.GetProperty("sourcePrimitives").EnumerateArray().Select(value => value.GetString()));
-        Assert.Equal(["crop", "scale", "format", "overlay", "colorlevels", "hue", "drawtext"], f3.GetProperty("plannedPackaging").GetProperty("filters").EnumerateArray().Select(value => value.GetString()));
+        Assert.Equal(["crop", "scale", "format", "overlay", "colorlevels", "hue", "ass"], f3.GetProperty("plannedPackaging").GetProperty("filters").EnumerateArray().Select(value => value.GetString()));
         var fontRequirement = f3.GetProperty("blockedPrerequisites")[0];
         Assert.Equal("Font.Licensed.UnicodeTestFont", fontRequirement.GetProperty("id").GetString());
         Assert.Equal("approved-artifacts-ready-for-proof", fontRequirement.GetProperty("status").GetString());

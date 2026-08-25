@@ -102,10 +102,10 @@ public sealed class Gate0P2SemanticProofScriptTests
             "P2 is third-party LGPLv3-path proof infrastructure because the reviewed build uses --enable-version3. It is not a selected shipping runtime, public-distribution approval, or approval to use every component compiled into the archive.",
             contract.RootElement.GetProperty("runtimeScope").GetString());
         var text = capabilities.Single(capability => capability.GetProperty("id").GetString() == "Text.Render.UnicodeTitlesAndCaptions");
-        Assert.Equal("approved-proof-pending", text.GetProperty("status").GetString());
-        Assert.Contains("Executable rendered proof", text.GetProperty("requiredBlocker").GetString());
+        Assert.Equal("approved-for-executable-proof", text.GetProperty("status").GetString());
         Assert.Equal("eng/gate0/font-proof-artifacts.json", text.GetProperty("approvedFontManifest").GetString());
         Assert.True(text.GetProperty("optionalBlockedColorEmoji").GetBoolean());
+        Assert.Equal("ass", text.GetProperty("components").GetProperty("filter").GetString());
         var composite = capabilities.Single(capability => capability.GetProperty("id").GetString() == "Video.Composite.TransformAlphaAndColor");
         Assert.False(composite.TryGetProperty("status", out _));
         Assert.Equal(["F3", "F5"], composite.GetProperty("fixtures").EnumerateArray().Select(fixture => fixture.GetString()));

@@ -14,12 +14,13 @@ public sealed class Gate0P2FullProofScriptTests
         Assert.Contains("Invoke-P2EditTimingProof.ps1", script);
         Assert.Contains("Invoke-P2VisualProof.ps1", script);
         Assert.Contains("Invoke-P2DeliveryProof.ps1", script);
+        Assert.Contains("Invoke-P2TextProof.ps1", script);
         Assert.Contains("exactly 15 unique reviewed capability IDs", script);
         Assert.Contains("fixtureEvidence.capabilityVerdicts", script);
         Assert.Contains("fixtureEvidence.inspectionReadiness", script);
         Assert.Contains("dedicated reviewed inspection-readiness record", script);
         Assert.DoesNotContain("mediaFixtureProofs", script);
-        Assert.Contains("incomplete-with-explicit-blockers", script);
+        Assert.Contains("incomplete-with-explicit-gates", script);
         Assert.Contains("Text.Render.UnicodeTitlesAndCaptions", script);
         Assert.Contains("Delivery.Validate.IndependentPlayback", script);
         Assert.Contains("Project.LongForm.Integrity", script);
@@ -41,7 +42,7 @@ public sealed class Gate0P2FullProofScriptTests
         Assert.True(result.ExitCode == 0, result.StandardError);
         using var evidence = JsonDocument.Parse(File.ReadAllText(Path.Combine(output, "p2-full-proof-evidence.json")));
         var root = evidence.RootElement;
-        Assert.Equal("incomplete-with-explicit-blockers", root.GetProperty("aggregateStatus").GetString());
+        Assert.Equal("incomplete-with-explicit-gates", root.GetProperty("aggregateStatus").GetString());
         var verdicts = root.GetProperty("capabilityVerdicts").EnumerateArray().ToArray();
         Assert.Equal(15, verdicts.Length);
         Assert.Equal(15, verdicts.Select(v => v.GetProperty("capabilityId").GetString()).Distinct().Count());
@@ -54,7 +55,7 @@ public sealed class Gate0P2FullProofScriptTests
         Assert.Equal(3, inspectionDetails.GetProperty("acceptance").GetArrayLength());
         Assert.Equal("1/1000", inspectionDetails.GetProperty("fixtures").GetProperty("F7").GetProperty("containerTimeBase").GetString());
         Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Video.Composite.TransformAlphaAndColor" && v.GetProperty("status").GetString() == "passed");
-        Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Text.Render.UnicodeTitlesAndCaptions" && v.GetProperty("status").GetString() == "approved-proof-pending");
+        Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Text.Render.UnicodeTitlesAndCaptions" && v.GetProperty("status").GetString() == "passed");
         Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Delivery.Validate.IndependentPlayback" && v.GetProperty("status").GetString() == "not-run");
         Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Project.LongForm.Integrity" && v.GetProperty("status").GetString() == "not-run");
     }

@@ -105,11 +105,13 @@
       "id": "Text.Render.UnicodeTitlesAndCaptions",
       "required": true,
       "fixtures": ["F3"],
-      "status": "approved-proof-pending",
-      "requiredBlocker": "Executable rendered proof of Unicode glyph selection, deterministic fallback, wrapping, title/caption placement, and Arabic shaping has not yet run.",
+      "status": "approved-for-executable-proof",
       "approvedFontManifest": "eng/gate0/font-proof-artifacts.json",
       "optionalBlockedColorEmoji": true,
-      "prohibitedFallback": "Do not use system fonts or claim shaping support from component presence."
+      "prohibitedFallback": "Do not use system fonts or claim shaping support from component presence.",
+      "components": { "inputDemuxer": "image2", "decoder": "ppm", "filter": "ass", "filterOptions": ["fontsdir", "shaping=complex"], "encoder": "rawvideo", "muxer": "rawvideo", "streamSelectors": ["0:v:0"] },
+      "oracle": { "complexRenderSha256": "553388ADF0479FA593051370685AEB34C36F916B5729E6D7D857C3BA572677BD", "approvedFontTargets": ["NotoSans-Regular", "NotoSansArabic-Regular", "NotoSansCJKsc-Regular"], "titleLineBands": 1, "captionLineBands": 2, "safeInsetPixels": 18 },
+      "acceptance": ["explicit controlled run mapping selects only the exact approved target font allowlist", "actual title/caption rendering uses inventory-bound logical/layout/ASS inputs", "fixed-geometry wrapping and title/caption safe regions are independently measured", "Arabic ass shaping=complex output is distinct from the simple shaping control", "complex output repeat SHA-256 matches the reviewed golden", "missing-CJK negative control rejects ambient fallback"]
     },
     {
       "id": "Delivery.Validate.IndependentPlayback",
