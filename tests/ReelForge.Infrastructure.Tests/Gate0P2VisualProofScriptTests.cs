@@ -20,8 +20,14 @@ public sealed class Gate0P2VisualProofScriptTests
         Assert.Contains("Audio.Waveform.Generate", script);
         Assert.Contains("showwavespic", script);
         Assert.Contains("xfade", script);
-        Assert.Contains("candidateMappingPendingOwnerApproval", script);
-        Assert.Contains("no composite command was executed", script);
+        Assert.Contains("colorlevels=romin=0.1:gomin=0.1:bomin=0.1:romax=1:gomax=1:bomax=1", script);
+        Assert.Contains("colorlevels=romin=0.2:gomin=0.2:bomin=0.2:romax=0.8:gomax=0.8:bomax=0.8", script);
+        Assert.Contains("hue=s=0", script);
+        Assert.Contains("Assert-RepeatedHash", script);
+        Assert.Contains("[0:v:0]format=rgb24[base]", script);
+        Assert.Contains("[1:v:0]crop=80:60:0:0", script);
+        Assert.Contains("'-map','0:v:0','-vf'", script);
+        Assert.Contains("outputFilterMap='[out]'", script);
         Assert.Contains("rawvideo", script);
         Assert.Contains("ffv1", script);
         Assert.Contains("matroska", script);
@@ -133,10 +139,29 @@ public sealed class Gate0P2VisualProofScriptTests
         var proofs = evidence.RootElement.GetProperty("semanticProofs").EnumerateArray().ToArray();
 
         var composite = proofs.Single(proof => proof.GetProperty("capabilityId").GetString() == "Video.Composite.TransformAlphaAndColor");
-        Assert.Equal("blocked", composite.GetProperty("status").GetString());
-        Assert.Empty(composite.GetProperty("commands").EnumerateArray());
-        var candidateFilters = composite.GetProperty("details").GetProperty("candidateMappingPendingOwnerApproval").GetProperty("filters").EnumerateArray().Select(value => value.GetString()).ToArray();
-        Assert.Equal(["colorlevels", "hue"], candidateFilters);
+        Assert.Equal("passed", composite.GetProperty("status").GetString());
+        var compositeSelection = composite.GetProperty("details").GetProperty("componentSelection");
+        Assert.Equal(["crop", "scale", "format", "overlay", "colorlevels", "hue"], compositeSelection.GetProperty("filters").EnumerateArray().Select(value => value.GetString()).ToArray());
+        Assert.Equal(["0:v:0", "1:v:0"], compositeSelection.GetProperty("inputStreamSelectors").EnumerateArray().Select(value => value.GetString()).ToArray());
+        Assert.Equal("[out]", compositeSelection.GetProperty("outputFilterMap").GetString());
+        Assert.Equal("0:v:0", compositeSelection.GetProperty("colorInputStreamSelector").GetString());
+        var compositeCommands = composite.GetProperty("commands").EnumerateArray().ToArray();
+        var alphaCommands = compositeCommands.Where(command => command.GetProperty("step").GetString()!.StartsWith("encode-composite-alpha", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(2, alphaCommands.Length);
+        Assert.All(alphaCommands, command =>
+        {
+            var arguments = command.GetProperty("arguments").EnumerateArray().Select(value => value.GetString()).ToArray();
+            Assert.Contains("[0:v:0]format=rgb24[base];[1:v:0]crop=80:60:0:0,scale=160:120:flags=neighbor,format=rgba[overlay];[base][overlay]overlay=x=80:y=30:format=rgb,format=rgb24[out]", arguments);
+            Assert.True(HasExactMap(arguments, "[out]"));
+        });
+        var basicColorCommands = compositeCommands.Where(command => command.GetProperty("step").GetString()!.StartsWith("encode-basic-color-", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(6, basicColorCommands.Length);
+        Assert.All(basicColorCommands, command => Assert.True(HasExactMap(command.GetProperty("arguments").EnumerateArray().Select(value => value.GetString()).ToArray(), "0:v:0")));
+        Assert.Equal(64, composite.GetProperty("details").GetProperty("alphaOverlay").GetProperty("repeatSha256").GetString()!.Length);
+        Assert.Equal(64, composite.GetProperty("details").GetProperty("brightness").GetProperty("repeatSha256").GetString()!.Length);
+        Assert.Equal(64, composite.GetProperty("details").GetProperty("contrast").GetProperty("repeatSha256").GetString()!.Length);
+        Assert.Equal(64, composite.GetProperty("details").GetProperty("saturation").GetProperty("repeatSha256").GetString()!.Length);
+        Assert.True(composite.GetProperty("details").GetProperty("saturation").GetProperty("outputChannelDelta").GetInt32() <= 3);
 
         var transition = proofs.Single(proof => proof.GetProperty("capabilityId").GetString() == "Video.Transition.CrossDissolveAndBlack");
         Assert.Equal("passed", transition.GetProperty("status").GetString());
@@ -207,6 +232,9 @@ public sealed class Gate0P2VisualProofScriptTests
     }
 
     private static string PowerShellLiteral(string value) => $"'{value.Replace("'", "''", StringComparison.Ordinal)}'";
+
+    private static bool HasExactMap(string?[] arguments, string streamSpecifier) =>
+        arguments.Zip(arguments.Skip(1)).Any(pair => pair.First == "-map" && pair.Second == streamSpecifier);
 }
 
 public sealed class Gate0VisualEvidenceFactAttribute : FactAttribute

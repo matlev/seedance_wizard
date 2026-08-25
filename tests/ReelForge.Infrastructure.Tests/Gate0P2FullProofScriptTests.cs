@@ -53,8 +53,8 @@ public sealed class Gate0P2FullProofScriptTests
         Assert.Equal(["F1", "F7", "F8"], inspectionDetails.GetProperty("fixtureIds").EnumerateArray().Select(value => value.GetString()));
         Assert.Equal(3, inspectionDetails.GetProperty("acceptance").GetArrayLength());
         Assert.Equal("1/1000", inspectionDetails.GetProperty("fixtures").GetProperty("F7").GetProperty("containerTimeBase").GetString());
-        Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Video.Composite.TransformAlphaAndColor" && v.GetProperty("status").GetString() == "blocked");
-        Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Text.Render.UnicodeTitlesAndCaptions" && v.GetProperty("status").GetString() == "blocked");
+        Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Video.Composite.TransformAlphaAndColor" && v.GetProperty("status").GetString() == "passed");
+        Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Text.Render.UnicodeTitlesAndCaptions" && v.GetProperty("status").GetString() == "approved-proof-pending");
         Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Delivery.Validate.IndependentPlayback" && v.GetProperty("status").GetString() == "not-run");
         Assert.Contains(verdicts, v => v.GetProperty("capabilityId").GetString() == "Project.LongForm.Integrity" && v.GetProperty("status").GetString() == "not-run");
     }

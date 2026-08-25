@@ -77,7 +77,7 @@
     "demuxers": ["concat", "flac", "image2", "matroska,webm", "wav"],
     "filters": [
       "adelay", "afade", "aformat", "alphamerge", "alphaextract", "amix", "apad", "aresample",
-      "asetpts", "atadenoise", "colorbalance", "colorchannelmixer", "colorspace", "concat", "crop",
+      "asetpts", "atadenoise", "colorbalance", "colorchannelmixer", "colorlevels", "colorspace", "concat", "crop",
       "curves", "deflicker", "deshake", "drawtext", "format", "fps", "hue", "loudnorm", "nlmeans",
       "overlay", "pad", "pan", "scale", "select", "setpts", "setsar", "showwaves", "subtitles",
       "unsharp", "volume", "waveform", "xfade"

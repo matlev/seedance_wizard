@@ -187,17 +187,16 @@ function Read-RgbFrames([string]$Path, [int]$Width, [int]$Height) {
     $bytes = [IO.File]::ReadAllBytes($Path); $frameBytes = $Width * $Height * 3
     if ($bytes.Length -eq 0 -or $bytes.Length % $frameBytes -ne 0) { throw "Raw RGB output '$Path' has invalid geometry." }
     $frames = [Collections.Generic.List[byte[]]]::new()
-    for ($offset = 0; $offset -lt $bytes.Length; $offset += $frameBytes) { $frame = [byte[]]::new($frameBytes); [Buffer]::BlockCopy($bytes, $offset, $frame, 0, $frameBytes); $frames.Add($frame) }
-    return $frames
+    for ($offset = 0; $offset -lt $bytes.Length; $offset += $frameBytes) { $frame = [byte[]]::new($frameBytes); [Buffer]::BlockCopy($bytes, $offset, $frame, 0, $frameBytes); [void]$frames.Add($frame) }
+    return ,$frames
 }
 
 function Pixel([byte[]]$Frame, [int]$Width, [int]$X, [int]$Y) {
     $offset = (($Y * $Width) + $X) * 3
     return [PSCustomObject]@{ R=[int]$Frame[$offset]; G=[int]$Frame[$offset + 1]; B=[int]$Frame[$offset + 2] }
 }
-function Assert-RgbNear([object[]]$Actual, [int[]]$Expected, [int]$Tolerance, [string]$Name) {
-    $actualChannels = @($Actual.R, $Actual.G, $Actual.B)
-    for ($i=0; $i -lt 3; $i++) { if ([Math]::Abs([int]$actualChannels[$i] - $Expected[$i]) -gt $Tolerance) { throw "$Name did not match its RGB oracle." } }
+function Assert-RgbNear([object]$Actual, [int]$ExpectedR, [int]$ExpectedG, [int]$ExpectedB, [int]$Tolerance, [string]$Name) {
+    if ([Math]::Abs([int]$Actual.R - $ExpectedR) -gt $Tolerance -or [Math]::Abs([int]$Actual.G - $ExpectedG) -gt $Tolerance -or [Math]::Abs([int]$Actual.B - $ExpectedB) -gt $Tolerance) { throw "$Name did not match its RGB oracle." }
 }
 function Test-RgbExact([object]$Rgb, [int[]]$Expected) { return $Rgb.R -eq $Expected[0] -and $Rgb.G -eq $Expected[1] -and $Rgb.B -eq $Expected[2] }
 function Get-ArtifactBinding([string]$Path) {
@@ -213,6 +212,12 @@ function Get-ArtifactBindings() {
 function Get-ExecutionFailureClassification([Exception]$Exception) {
     if ($Exception.Message -match 'oracle') { return 'invalid-oracle' }
     return 'execution-failed'
+}
+function Assert-RepeatedHash([string]$First, [string]$Second, [string]$Name) {
+    $firstHash = (Get-FileHash -LiteralPath $First -Algorithm SHA256).Hash.ToUpperInvariant()
+    $secondHash = (Get-FileHash -LiteralPath $Second -Algorithm SHA256).Hash.ToUpperInvariant()
+    if ($firstHash -ne $secondHash) { throw "$Name repeat-hash oracle failed." }
+    return $firstHash
 }
 function Write-CapabilityProof([string]$CapabilityId, [string]$Status, [string]$Summary, [int]$CommandStart, [object]$Details) {
     $proof = [ordered]@{ schemaVersion=1; capabilityId=$CapabilityId; status=$Status; executedSemanticProof=($Status -eq 'passed'); summary=$Summary; commands=@($commands | Select-Object -Skip $CommandStart); details=$Details }
@@ -244,6 +249,9 @@ $fixtureInventoryPath = Join-Path $PSScriptRoot 'fixture-source-inventory.json'
 if (-not (Test-Path -LiteralPath $fixtureInventoryPath -PathType Leaf)) { throw 'The checked-in fixture source inventory is required.' }
 $fixtureValidation = Test-FixtureReport $fixtures $fixtureInventoryPath
 Assert-ConsumedInputsInventoried @(
+    'F3/f3-alpha-magenta-50pct.rgba',
+    'F3/f3-basic-color-oracle.ppm',
+    'F5/f5-silent-yellow.ppm',
     'F4/f4-stereo-48000-1000hz-opposed.pcm',
     'F5/f5-digital-silence-48000-mono.pcm',
     'F7/f7-red.ppm',
@@ -251,12 +259,52 @@ Assert-ConsumedInputsInventoried @(
     'F7/f7-black.ppm'
 ) $fixtureValidation
 
-# Composite deliberately remains unexecuted. The owner has not approved a complete LGPLv3-path
-# brightness/contrast/saturation mapping, so proving a convenient subset would be misleading.
+# Composite: the owner-approved P2 mapping uses colorlevels for brightness and
+# contrast observations and hue for saturation. These are proof-only filter
+# selections, not permanent domain or UI parameter concepts.
 $start = $commands.Count
 $compositeContract = @($capabilities | Where-Object { $_.id -eq 'Video.Composite.TransformAlphaAndColor' })[0]
-if ($compositeContract.status -ne 'blocked') { throw 'Composite proof must not execute without an explicit owner-approved full basic-color mapping.' }
-Write-CapabilityProof 'Video.Composite.TransformAlphaAndColor' 'blocked' 'The authoritative contract blocks this capability pending an owner-approved complete basic-color mapping; no composite command was executed.' $start @{ blockedBy=@($compositeContract.blockedBy); approvedFilters=@($compositeContract.components.approvedFilters); candidateMappingPendingOwnerApproval=$compositeContract.candidateMappingPendingOwnerApproval; streamSelectors=@($compositeContract.components.streamSelectors) }
+if (@($compositeContract.components.approvedFilters | Where-Object { $_ -eq 'colorlevels' }).Count -ne 1 -or @($compositeContract.components.approvedFilters | Where-Object { $_ -eq 'hue' }).Count -ne 1) { throw 'Composite proof requires the owner-approved colorlevels and hue mapping.' }
+try {
+    $overlayArguments = @('-hide_banner','-loop','1','-framerate','25','-f','image2','-c:v','ppm','-i',(Join-Path $fixtures 'F5\f5-silent-yellow.ppm'),'-f','rawvideo','-pixel_format','rgba','-video_size','320x180','-framerate','25','-i',(Join-Path $fixtures 'F3\f3-alpha-magenta-50pct.rgba'),'-filter_complex','[0:v:0]format=rgb24[base];[1:v:0]crop=80:60:0:0,scale=160:120:flags=neighbor,format=rgba[overlay];[base][overlay]overlay=x=80:y=30:format=rgb,format=rgb24[out]','-map','[out]','-frames:v','1','-c:v','rawvideo','-pix_fmt','rgb24','-f','rawvideo')
+    $overlayA = New-AtomicRaw 'composite-alpha-a.rgb' $overlayArguments; $overlayB = New-AtomicRaw 'composite-alpha-b.rgb' $overlayArguments
+    $overlayFrame = (Read-RgbFrames $overlayA 320 180)[0]
+    Assert-RgbNear (Pixel $overlayFrame 320 20 20) 255 255 0 2 'Composite opaque exterior'
+    Assert-RgbNear (Pixel $overlayFrame 320 120 60) 255 127 128 ([int]$compositeContract.oracle.alphaBlendChannelTolerance) 'Composite alpha interior'
+    $overlayHash = Assert-RepeatedHash $overlayA $overlayB 'Composite alpha'
+
+    $colorInput = Join-Path $fixtures 'F3\f3-basic-color-oracle.ppm'
+    $brightnessArguments = @('-hide_banner','-f','image2','-c:v','ppm','-i',$colorInput,'-map','0:v:0','-vf','format=rgb24,colorlevels=romin=0.1:gomin=0.1:bomin=0.1:romax=1:gomax=1:bomax=1,format=rgb24','-frames:v','1','-c:v','rawvideo','-pix_fmt','rgb24','-f','rawvideo')
+    $brightnessA = New-AtomicRaw 'basic-color-brightness-a.rgb' $brightnessArguments; $brightnessB = New-AtomicRaw 'basic-color-brightness-b.rgb' $brightnessArguments
+    $brightnessFrame = (Read-RgbFrames $brightnessA 320 180)[0]
+    $brightness = $compositeContract.oracle.colorLevelsBrightness
+    Assert-RgbNear (Pixel $brightnessFrame 320 40 90) 140 140 140 ([int]$brightness.channelTolerance) 'Brightness colorlevels'
+    $brightnessHash = Assert-RepeatedHash $brightnessA $brightnessB 'Brightness colorlevels'
+
+    $contrastArguments = @('-hide_banner','-f','image2','-c:v','ppm','-i',$colorInput,'-map','0:v:0','-vf','format=rgb24,colorlevels=romin=0.2:gomin=0.2:bomin=0.2:romax=0.8:gomax=0.8:bomax=0.8,format=rgb24','-frames:v','1','-c:v','rawvideo','-pix_fmt','rgb24','-f','rawvideo')
+    $contrastA = New-AtomicRaw 'basic-color-contrast-a.rgb' $contrastArguments; $contrastB = New-AtomicRaw 'basic-color-contrast-b.rgb' $contrastArguments
+    $contrastFrame = (Read-RgbFrames $contrastA 320 180)[0]
+    $contrast = $compositeContract.oracle.colorLevelsContrast
+    Assert-RgbNear (Pixel $contrastFrame 320 120 90) 89 89 89 ([int]$contrast.channelTolerance) 'Contrast low colorlevels'
+    Assert-RgbNear (Pixel $contrastFrame 320 200 90) 166 166 166 ([int]$contrast.channelTolerance) 'Contrast high colorlevels'
+    $contrastHash = Assert-RepeatedHash $contrastA $contrastB 'Contrast colorlevels'
+
+    $saturationArguments = @('-hide_banner','-f','image2','-c:v','ppm','-i',$colorInput,'-map','0:v:0','-vf','format=rgb24,hue=s=0,format=rgb24','-frames:v','1','-c:v','rawvideo','-pix_fmt','rgb24','-f','rawvideo')
+    $saturationA = New-AtomicRaw 'basic-color-saturation-a.rgb' $saturationArguments; $saturationB = New-AtomicRaw 'basic-color-saturation-b.rgb' $saturationArguments
+    $saturationFrame = (Read-RgbFrames $saturationA 320 180)[0]
+    $saturation = $compositeContract.oracle.hueSaturation
+    [int[]]$source = @(200,100,50); $actual = Pixel $saturationFrame 320 280 90
+    $actualDelta = [Math]::Max([Math]::Abs($actual.R - $actual.G), [Math]::Max([Math]::Abs($actual.R - $actual.B), [Math]::Abs($actual.G - $actual.B)))
+    $sourceDelta = [Math]::Max([Math]::Abs($source[0] - $source[1]), [Math]::Max([Math]::Abs($source[0] - $source[2]), [Math]::Abs($source[1] - $source[2])))
+    if ($actualDelta -gt [int]$saturation.maximumChannelDelta -or ($sourceDelta - $actualDelta) -lt [int]$saturation.minimumSourceChannelDeltaReduction) { throw 'Saturation hue oracle failed to reduce the authored source chroma by the declared bound.' }
+    $saturationHash = Assert-RepeatedHash $saturationA $saturationB 'Saturation hue'
+
+    Write-CapabilityProof 'Video.Composite.TransformAlphaAndColor' 'passed' 'Explicit crop/scale/alpha-overlay plus separate owner-approved colorlevels brightness/contrast and hue saturation visual-oracle proofs passed with declared tolerances and repeat hashes.' $start @{ fixtures=@('F3','F5'); componentSelection=@{inputDemuxers=@('image2','rawvideo');decoders=@('ppm','rawvideo');filters=@('crop','scale','format','overlay','colorlevels','hue');encoder='rawvideo';muxer='rawvideo';inputStreamSelectors=@('0:v:0','1:v:0');outputFilterMap='[out]';colorInputStreamSelector='0:v:0'}; alphaOverlay=@{output=$overlayA;outsidePixel=(Pixel $overlayFrame 320 20 20);insidePixel=(Pixel $overlayFrame 320 120 60);repeatSha256=$overlayHash;inputStreamSelectors=@('0:v:0','1:v:0');outputFilterMap='[out]'}; brightness=@{filter=$brightness.filter;output=$brightnessA;pixel=(Pixel $brightnessFrame 320 40 90);repeatSha256=$brightnessHash;inputStreamSelector='0:v:0'}; contrast=@{filter=$contrast.filter;output=$contrastA;lowPixel=(Pixel $contrastFrame 320 120 90);highPixel=(Pixel $contrastFrame 320 200 90);repeatSha256=$contrastHash;inputStreamSelector='0:v:0'}; saturation=@{filter=$saturation.filter;output=$saturationA;pixel=$actual;sourceChannelDelta=$sourceDelta;outputChannelDelta=$actualDelta;repeatSha256=$saturationHash;inputStreamSelector='0:v:0'} }
+} catch {
+    $classification = Get-ExecutionFailureClassification $_.Exception
+    $executionFailures.Add("Video.Composite.TransformAlphaAndColor: $classification")
+    Write-CapabilityProof 'Video.Composite.TransformAlphaAndColor' $classification 'Composite execution did not complete; this is not an approved contract block.' $start @{ classification=$classification; error=$_.Exception.Message; requiredFilters=@('crop','scale','format','overlay','colorlevels','hue') }
+}
 
 # Transition: declared 25 fps source inputs and xfade endpoints/intermediate, then a two-stage dip via a literal black source.
 $start = $commands.Count

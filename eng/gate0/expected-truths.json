@@ -28,8 +28,20 @@
     },
     "F3": {
       "overlay": { "width": 320, "height": 180, "pixelFormat": "rgba", "opacity": 0.5, "color": "#FF00FF" },
-      "unicodeText": "ReelForge — 你好 — مرحبا — 🎬",
-      "fontPrerequisite": { "id": "Font.Licensed.UnicodeTestFont", "status": "blocked" }
+      "basicColorOracle": {
+        "width": 320,
+        "height": 180,
+        "pixelFormat": "rgb24",
+        "regionsLeftToRight": [
+          { "id": "brightness-neutral", "rgb": [128, 128, 128] },
+          { "id": "contrast-low-neutral", "rgb": [64, 64, 64] },
+          { "id": "contrast-high-neutral", "rgb": [192, 192, 192] },
+          { "id": "saturation-color", "rgb": [200, 100, 50] }
+        ]
+      },
+      "unicodeText": "ReelForge — 你好 — مرحبا",
+      "optionalBlockedColorEmoji": "🎬",
+      "fontPrerequisite": { "id": "Font.Licensed.UnicodeTestFont", "status": "approved-artifacts-ready-for-proof" }
     },
     "F4": {
       "variants": [

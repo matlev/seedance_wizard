@@ -43,14 +43,14 @@
     },
     {
       "id": "F3",
-      "name": "Alpha plus Unicode text",
-      "sourcePrimitives": ["rgba", "unicode-text-specification"],
+      "name": "Alpha, basic-color oracle, and Unicode text",
+      "sourcePrimitives": ["rgba", "ppm-basic-color-oracle", "unicode-text-specification"],
       "truthReference": "fixtures.F3",
       "blockedPrerequisites": [
         {
           "id": "Font.Licensed.UnicodeTestFont",
-          "status": "blocked",
-          "reason": "No separately licensed, hash-pinned Unicode test font has been supplied. A system font must not be substituted.",
+          "status": "approved-artifacts-ready-for-proof",
+          "reason": "Approved pinned OFL-only font artifacts are ready for executable proof. A system font must not be substituted; font presence is not a text-capability proof.",
           "requiredEvidence": ["font license identifier", "font provenance", "SHA-256", "pinned relative path"]
         }
       ],
@@ -60,7 +60,7 @@
         "encoders": ["ffv1"],
         "muxers": ["matroska"],
         "demuxers": [],
-        "filters": ["format", "overlay", "drawtext"],
+        "filters": ["crop", "scale", "format", "overlay", "colorlevels", "hue", "drawtext"],
         "explicitSelectionsRequired": true
       }
     },

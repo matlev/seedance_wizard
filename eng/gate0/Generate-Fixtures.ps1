@@ -137,6 +137,34 @@ function Write-Rgba {
     [System.IO.File]::WriteAllBytes($Path, $bytes)
 }
 
+function Write-F3ColorOraclePpm {
+    param([Parameter(Mandatory)][string]$Path)
+
+    # Four authored, full-frame regions deliberately separate the visual
+    # semantics exercised by the approved P2 proof.  The values are not a UI
+    # parameter model; they are stable source primitives for independent
+    # brightness, contrast, and saturation observations.
+    $width = 320
+    $height = 180
+    $header = [System.Text.Encoding]::ASCII.GetBytes("P6`n$width $height`n255`n")
+    $bytes = New-Object byte[] ($header.Length + ($width * $height * 3))
+    [System.Buffer]::BlockCopy($header, 0, $bytes, 0, $header.Length)
+    [byte[][]]$regions = @(
+        [byte[]](128, 128, 128), # brightness source
+        [byte[]](64, 64, 64),    # contrast low source
+        [byte[]](192, 192, 192), # contrast high source
+        [byte[]](200, 100, 50)   # saturation source
+    )
+    for ($y = 0; $y -lt $height; $y++) {
+        for ($x = 0; $x -lt $width; $x++) {
+            $region = [Math]::Min(3, [int][Math]::Floor($x * 4 / $width))
+            $offset = $header.Length + (($y * $width + $x) * 3)
+            [System.Buffer]::BlockCopy($regions[$region], 0, $bytes, $offset, 3)
+        }
+    }
+    [System.IO.File]::WriteAllBytes($Path, $bytes)
+}
+
 function Write-SinePcm16Le {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -365,14 +393,17 @@ Write-Ppm (Join-Path $resolvedOutput 'F2\f2-portrait-360x640-30000_1001fps.ppm')
 Write-SinePcm16Le (Join-Path $resolvedOutput 'F2\f2-44100-mono-330hz.pcm') 44100 1 ([double[]](330)) ([double[]](0)) 250
 Write-SinePcm16Le (Join-Path $resolvedOutput 'F2\f2-48000-stereo-660hz.pcm') 48000 2 ([double[]](660, 660)) ([double[]](0, 0)) 250
 
-# F3: alpha source only. Text remains blocked until a licensed, pinned test font exists.
+# F3: alpha source, an authored basic-color oracle, and a text specification.
+# The approved font artifacts still require separate rendered semantic proof.
 Write-Rgba (Join-Path $resolvedOutput 'F3\f3-alpha-magenta-50pct.rgba') 320 180 ([byte[]](255, 0, 255, 128))
+Write-F3ColorOraclePpm (Join-Path $resolvedOutput 'F3\f3-basic-color-oracle.ppm')
 $f3TextSpecification = [ordered]@{
     fixtureId = 'F3'
-    unicodeText = 'ReelForge — 你好 — مرحبا — 🎬'
+    unicodeText = 'ReelForge — 你好 — مرحبا'
+    optionalBlockedColorEmoji = '🎬'
     fontPrerequisite = [ordered]@{
         id = 'Font.Licensed.UnicodeTestFont'
-        status = 'blocked'
+        status = 'approved-artifacts-ready-for-proof'
         systemFontFallback = 'prohibited'
     }
 }

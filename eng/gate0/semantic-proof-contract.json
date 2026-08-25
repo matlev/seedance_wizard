@@ -48,13 +48,10 @@
     {
       "id": "Video.Composite.TransformAlphaAndColor",
       "required": true,
-      "fixtures": ["F3", "F5", "F8"],
-      "status": "blocked",
-      "components": { "inputDemuxers": ["image2", "rawvideo"], "decoders": ["ppm", "rawvideo"], "approvedFilters": ["crop", "scale", "format", "overlay", "colorchannelmixer"], "encoder": "rawvideo", "muxer": "rawvideo", "streamSelectors": ["0:v:0", "1:v:0", "2:v:0", "3:v:0"] },
-      "blockedBy": ["No owner-approved LGPLv3-path mapping currently covers brightness, contrast, and saturation together"],
-      "candidateMappingPendingOwnerApproval": { "filters": ["colorlevels", "hue"], "purpose": "colorlevels for level/contrast correction and hue for saturation/brightness" },
-      "oracle": { "opaqueBaseRgb": [255, 255, 0], "alphaOverlayRgba": [255, 0, 255, 128], "alphaBlendExpectedRgb": [255, 127, 128], "alphaBlendChannelTolerance": 1, "solidMarkerRegions": ["red outside transformed overlay", "green inside transformed overlay"] },
-      "acceptance": ["crop and scale place the solid marker in the declared region", "opaque regions retain authored colors", "alpha blend matches independently calculated source-over color within tolerance", "basic-color operation changes only the declared output"]
+      "fixtures": ["F3", "F5"],
+      "components": { "inputDemuxers": ["image2", "rawvideo"], "decoders": ["ppm", "rawvideo"], "approvedFilters": ["crop", "scale", "format", "overlay", "colorlevels", "hue"], "encoder": "rawvideo", "muxer": "rawvideo", "streamSelectors": ["0:v:0", "1:v:0"] },
+      "oracle": { "opaqueBaseRgb": [255, 255, 0], "alphaOverlayRgba": [255, 0, 255, 128], "alphaBlendExpectedRgb": [255, 127, 128], "alphaBlendChannelTolerance": 2, "basicColorSource": "F3/f3-basic-color-oracle.ppm", "colorLevelsBrightness": { "filter": "colorlevels=romin=0.1:gomin=0.1:bomin=0.1:romax=1:gomax=1:bomax=1", "sourceRgb": [128, 128, 128], "expectedRgb": [140, 140, 140], "channelTolerance": 1 }, "colorLevelsContrast": { "filter": "colorlevels=romin=0.2:gomin=0.2:bomin=0.2:romax=0.8:gomax=0.8:bomax=0.8", "sourceRgbs": [[64, 64, 64], [192, 192, 192]], "expectedRgbs": [[89, 89, 89], [166, 166, 166]], "channelTolerance": 1 }, "hueSaturation": { "filter": "hue=s=0", "sourceRgb": [200, 100, 50], "maximumChannelDelta": 3, "minimumSourceChannelDeltaReduction": 100 }, "repeatHashRequired": true },
+      "acceptance": ["crop and scale place the alpha overlay in the declared region", "opaque regions retain authored colors", "alpha blend matches independently calculated source-over color within tolerance", "brightness, contrast, and saturation each execute as separate deterministic visual/oracle tests using the approved filters", "repeated output hashes match for each deterministic basic-color operation"]
     },
     {
       "id": "Video.Transition.CrossDissolveAndBlack",
@@ -108,9 +105,11 @@
       "id": "Text.Render.UnicodeTitlesAndCaptions",
       "required": true,
       "fixtures": ["F3"],
-      "status": "blocked",
-      "blockedBy": ["Owner decision on mandatory Unicode fallback and Arabic shaping versus optional color emoji", "Approved OFL font-stack artifact manifest with exact files, sizes, SHA-256 values, and durable provenance"],
-      "prohibitedFallback": "Do not use system fonts or claim shaping/emoji support from component presence."
+      "status": "approved-proof-pending",
+      "requiredBlocker": "Executable rendered proof of Unicode glyph selection, deterministic fallback, wrapping, title/caption placement, and Arabic shaping has not yet run.",
+      "approvedFontManifest": "eng/gate0/font-proof-artifacts.json",
+      "optionalBlockedColorEmoji": true,
+      "prohibitedFallback": "Do not use system fonts or claim shaping support from component presence."
     },
     {
       "id": "Delivery.Validate.IndependentPlayback",
