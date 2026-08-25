@@ -1,6 +1,6 @@
 # Gate 0 G0.4 common-input proof results
 
-Status: bounded proof executed; 171 exact rows passed, 83 failed, and 2 are blocked; F7 follow-up executed and blocked
+Status: bounded proof and P3 JPEG follow-up executed; 173 exact rows passed and 83 failed; F7 follow-up executed and blocked
 
 Date: 2026-08-25
 
@@ -10,9 +10,9 @@ The owner approved all three proposed dispositions and later added a narrow `set
 
 ## Outcome
 
-The exact `P2.BtbnLgplShared.WindowsX64.20260820` profile executed the approved 256-row common-input matrix. The run retained 171 passes, 83 failures, and 2 blocked fixture-provenance rows. It did not silently substitute a component, repair timestamps, infer support from an extension or component listing, or promote a failed candidate into the guaranteed-common contract.
+The exact `P2.BtbnLgplShared.WindowsX64.20260820` profile executed the approved 256-row common-input matrix. The corrected base run retained 171 passes, 83 failures, and 2 blocked fixture-provenance rows. The later approved [P3 JPEG proof](gate-0-g0.4-p3-jpeg-results.md) executed those two exact blocked rows and passed both, producing the current aggregate of 173 passes and 83 failures. Neither run silently substituted a component, repaired timestamps, inferred support from an extension or component listing, or promoted a failed candidate without fresh approved evidence.
 
-The strongest result is the direct bounded baseline: 103 of 109 non-Matroska video cases, all 30 audio cases, and 6 of 8 image cases passed fresh inspection, explicit native-decoder selection, strict complete decode, and their bound semantic oracles. Thirty-two exact Matroska cases also passed. The remaining rows expose three fixture/provenance decisions and real stream-copy timing incompatibilities that must be dispositioned rather than hidden.
+The strongest result is the direct bounded baseline: 103 of 109 non-Matroska video cases, all 30 audio cases, and all 8 image cases passed fresh inspection, explicit native-decoder selection, strict complete decode, and their bound semantic oracles. Thirty-two exact Matroska cases also passed. The remaining failures are the six direct F7 terminal-duration cases and 77 Matroska cases; their timing/provenance problems remain explicit rather than hidden.
 
 This remains proof and product-contract evidence only. It changes no production import behavior, persistence, render command, UI, shipping-runtime selection, public-distribution policy, performance guarantee, or customer hardware floor.
 
@@ -26,7 +26,8 @@ The corrected retained evidence is:
 | --- | --- |
 | Run | `2026-08-25T13:07:52.5737053-07:00` through `2026-08-25T13:24:03.0707443-07:00` |
 | Status | `completed-with-failures` |
-| Counts | 256 total; 171 passed; 83 failed; 2 blocked; 0 runtime-unavailable |
+| Current aggregate | 256 total; 173 passed; 83 failed; 0 blocked; 0 runtime-unavailable |
+| Corrected base run | 171 passed; 83 failed; 2 blocked |
 | Contract SHA-256 | `FAD245D5664B49D52565834F01C0430E36CEFFEAB235A7E6BBA460AA5C599BD0` |
 | Fixture-source inventory SHA-256 | `EF53040D51229F25FA5C965E415DD62AA93E98623E36BE7CC9942DA2F4DC1595` |
 | Retained fixture report SHA-256 | `C10C84827C7D45567EFB92506F86AB0EC8176A20B94D0AFC5E134D64D657D16F` |
@@ -45,7 +46,7 @@ The canonical evidence has since been copied and hash-verified in the approved p
 | MP4, MOV, and WebM video | 103 | 6 | 0 | Every exact direct row passed except the six F7 terminal-duration variants. |
 | Matroska video | 32 | 77 | 0 | Thirty-two exact rows passed; 71 executed remux rows failed timing preservation and 6 F7-dependent rows did not execute after their source rows failed. |
 | Audio | 30 | 0 | 0 | Every exact WAV, FLAC, MP3, M4A AAC-LC, ADTS AAC-LC, Ogg Opus, and Ogg Vorbis row passed. |
-| Images | 6 | 0 | 2 | All three PNG rows and three JPEG rows passed; progressive JPEG and EXIF-orientation provenance remain blocked. |
+| Images | 8 | 0 | 0 | All three PNG and five JPEG rows passed after the approved P3 follow-up executed the two provenance-blocked rows. |
 
 ### Passed Matroska rows
 
@@ -85,7 +86,7 @@ The proof rejected these rows even though packet bytes survived stream copy. Fou
 
 ### JPEG fixture provenance
 
-`I-JPEG-PROGRESSIVE-420` and `I-JPEG-EXIF-ORIENTATION` are blocked before execution because the contract has no approved deterministic producer. No ordinary baseline JPEG result was substituted. The three passed JPEG rows are baseline 4:2:0, baseline 4:2:2, and the 8000x5000 boundary case.
+The approved [P3 JPEG proof](gate-0-g0.4-p3-jpeg-results.md) resolved the two fixture-provenance blocks with fresh executable evidence. Exact retained `cjpeg` authored progressive 4:2:0 with an explicit C2/sampling oracle; the repository-owned APP1 writer authored orientation=6 without re-encoding. P2 native `mjpeg` passed explicit inspection, strict decode, visual identity, byte-preservation, and exact displayed-orientation oracles. The five exact JPEG rows are now passed; this does not make P3 a shipping dependency or broaden the JPEG envelope.
 
 ## Selection and classification policy evidence
 
@@ -113,12 +114,12 @@ Without this authorization, the truthful smallest baseline is the 32 passed Matr
 
 ### 3. Add a deterministic JPEG proof producer
 
-**Approved with provenance preflight:** `P3.LibjpegTurboCjpeg.WindowsX64.3.2.0` may act as third-party fixture-production proof infrastructure only. The exact official VC x64 asset is `libjpeg-turbo-3.2.0-vc-x64.exe`, with expected SHA-256 `662761D8BA8DAE04AEC74023EBAECEB856C2B56B9B59CFD180759D26300DDA42`. Archive/executable closure, official source and release provenance, available digital signature, and applicable IJG/Modified BSD materials must be verified and retained before execution. `cjpeg -progressive` with explicit 4:2:0 sampling may author only the progressive row; a repository-owned deterministic APP1/EXIF byte writer may add only the orientation tag to a separately hash-pinned JPEG. The native P2 `mjpeg` decoder remains the capability under test.
+**Executed and passed:** `P3.LibjpegTurboCjpeg.WindowsX64.3.2.0` acted only as third-party fixture-production proof infrastructure. The exact official VC x64 asset, installer/executable closure, upstream provenance, Authenticode identity, and IJG/Modified BSD materials were verified before execution. Both authorized rows passed the native P2 `mjpeg` semantic proof and are retained under manifest SHA-256 `8FC6FF0C427BF345EE54AD0198F85B6890356A12548C9D6A912C57EC9E937785`. See the [P3 JPEG results](gate-0-g0.4-p3-jpeg-results.md).
 
 Official libjpeg-turbo documentation identifies progressive encoding and explicit sampling controls, and its license record describes the IJG and Modified BSD obligations for `cjpeg`: [usage](https://github.com/libjpeg-turbo/libjpeg-turbo/blob/3.2.0/doc/usage.txt), [release](https://github.com/libjpeg-turbo/libjpeg-turbo/releases/tag/3.2.0), and [license](https://github.com/libjpeg-turbo/libjpeg-turbo/blob/3.2.0/LICENSE.md). This is not a shipping, bundling, redistribution, or release-runtime approval.
 
-Without this authorization, the two blocked JPEG rows remain capability-qualified rather than guaranteed-common.
+The result applies only to the exact approved JPEG contract. It does not approve arbitrary JPEG variants or P3 for shipping, bundling, redistribution, or product encoding.
 
 ## Gate status
 
-G0.4 common-input execution is complete as a truthful partial result. The bounded F7 follow-up is also complete with a blocked result; the direct-Matroska pilot remains blocked, while deterministic JPEG proof remains independently authorized. The 171 passed rows remain valid evidence; the 83 failed and 2 blocked rows stay unchanged until fresh approved evidence passes. Independent playback, a separately backed-up second artifact copy, and G0.5 quality/performance/long-form work remain separate open Gate 0 exit conditions.
+G0.4 common-input execution and the deterministic JPEG follow-up are complete. The bounded F7 follow-up is complete with a blocked result, and the direct-Matroska pilot remains blocked by its required corrected F7 case. The current aggregate is 173 passed and 83 failed. Independent playback, a separately backed-up second artifact copy, and G0.5 quality/performance/long-form work remain separate open Gate 0 exit conditions.

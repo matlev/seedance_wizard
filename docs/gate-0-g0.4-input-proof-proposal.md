@@ -1,6 +1,6 @@
 # Gate 0 G0.4 common-input proof proposal
 
-Status: approved and executed; 171 rows passed, 83 failed, and 2 are blocked; owner dispositions pending
+Status: approved and executed; P3 follow-up complete; current aggregate 173 passed and 83 failed
 
 Date: 2026-08-25
 
@@ -233,4 +233,4 @@ If target-user validation shows multilingual, commentary, or alternate-angle sel
 
 ## Work after approval
 
-The exact contract, structural tests, proof-only runner, bounded local corpus, corrected full run, and independent review are complete. The result retains 171 passes, 83 failures, and 2 blocked rows without substitution. The remaining work is the owner disposition and bounded follow-up described in the [result record](gate-0-g0.4-input-proof-results.md), plus durable retention before unattended CI use.
+The exact contract, structural tests, proof-only runner, bounded local corpus, corrected full run, and independent review are complete. The approved P3 follow-up passed the two fixture-provenance rows that were initially blocked, producing the current 173-pass, 83-failure aggregate without substitution. The F7 correction is blocked, so the required direct-Matroska pilot remains blocked. See the [result record](gate-0-g0.4-input-proof-results.md) and [P3 JPEG results](gate-0-g0.4-p3-jpeg-results.md). A separate private artifact copy remains required before unattended CI use.

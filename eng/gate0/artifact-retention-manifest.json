@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-25T22:39:55.7983347+00:00",
+  "generatedUtc": "2026-08-25T22:55:26.6849581+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -15528,12 +15528,358 @@
           "sha256": "ADB7431089DA66BC09D10E2CE8B0A0187B9925E136D1CEFF14A96B0F2C8AAE2E"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G04.P3.JpegInput.20260825",
+      "provenance": "Validated bounded P3 progressive-420 and EXIF-orientation input proof; includes two superseded harness-defect runs, exact proof outputs, commands, runtime identity, generated fixtures, and repository snapshots at commits 86e1085, dd84a27, and 42c90f8.",
+      "producerRuntimeIdentity": [
+        "artifact:p3/libjpeg-turbo-3.2.0/libjpeg-turbo-3.2.0-vc-x64.exe",
+        "artifact:p3/libjpeg-turbo-3.2.0/extracted/bin/cjpeg.exe",
+        "artifact:p3/libjpeg-turbo-3.2.0/extracted/bin/jpeg62.dll",
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/bin/ffmpeg.exe",
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/bin/ffprobe.exe",
+        "manifest:p3Authenticode"
+      ],
+      "licenseRecords": [
+        "artifact:p3/libjpeg-turbo-3.2.0/extracted/doc/LICENSE.md",
+        "artifact:p3/libjpeg-turbo-3.2.0/extracted/doc/README.ijg"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/p3-jpeg-20260825/validated/p3-jpeg-input-proof-evidence.json",
+        "artifact:proofs/p3-jpeg-20260825/superseded-initial-harness/p3-jpeg-input-proof-evidence.json",
+        "artifact:proofs/p3-jpeg-20260825/superseded-ffprobe-shape/p3-jpeg-input-proof-evidence.json",
+        "artifact:proofs/p3-jpeg-20260825/repository-snapshots/eng/gate0/p3-jpeg-proof-contract.json",
+        "artifact:proofs/p3-jpeg-20260825/repository-snapshots/eng/gate0/Invoke-P3JpegInputProof.ps1",
+        "artifact:proofs/p3-jpeg-20260825/repository-snapshots/eng/gate0/Write-ExifOrientation.ps1"
+      ],
+      "fileCount": 53,
+      "totalBytes": 1019791,
+      "files": [
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/repository-snapshots/eng/gate0/Invoke-P3JpegInputProof.ps1",
+          "filename": "proofs/p3-jpeg-20260825/repository-snapshots/eng/gate0/Invoke-P3JpegInputProof.ps1",
+          "size": 27818,
+          "sha256": "562440CA4C34DDDEE7C646D1DDFEB82774BA8CD9B7C3870FF2323B064D1A13E7"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/repository-snapshots/eng/gate0/p3-jpeg-proof-contract.json",
+          "filename": "proofs/p3-jpeg-20260825/repository-snapshots/eng/gate0/p3-jpeg-proof-contract.json",
+          "size": 4380,
+          "sha256": "4AAD84D046C7B7A082634DF9C7F3EA49747853DA7FF73880536C61F9F26E072F"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/repository-snapshots/eng/gate0/Write-ExifOrientation.ps1",
+          "filename": "proofs/p3-jpeg-20260825/repository-snapshots/eng/gate0/Write-ExifOrientation.ps1",
+          "size": 3680,
+          "sha256": "5914840E3983600A1F9667BAB6AB14454B445535780A6DC093B0029A992447CD"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/repository-snapshots/tests/ReelForge.Infrastructure.Tests/Gate0P3JpegInputProofTests.cs",
+          "filename": "proofs/p3-jpeg-20260825/repository-snapshots/tests/ReelForge.Infrastructure.Tests/Gate0P3JpegInputProofTests.cs",
+          "size": 11188,
+          "sha256": "D435973581443FFE78735204A5772BDD9AEB5C05A7D2B5946A6831B3020E3493"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/logs/inspect-orientation-6.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/logs/inspect-orientation-6.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/logs/inspect-orientation-6.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/logs/inspect-orientation-6.stdout.txt",
+          "size": 3686,
+          "sha256": "84CB3ABF58607B0E6B464AD684FEEC8EA60008A87546149A61B67DED4FA0C6BE"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/logs/inspect-progressive-420.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/logs/inspect-progressive-420.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/logs/inspect-progressive-420.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/logs/inspect-progressive-420.stdout.txt",
+          "size": 3321,
+          "sha256": "093FBC04095AAA2790BB2E36E02696689FAB36B8FA483AA102A859BD0CE39797"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/logs/p3-cjpeg-progressive-420.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/logs/p3-cjpeg-progressive-420.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/logs/p3-cjpeg-progressive-420.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/logs/p3-cjpeg-progressive-420.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/logs/p3-cjpeg-version.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/logs/p3-cjpeg-version.stderr.txt",
+          "size": 46,
+          "sha256": "106D89638760925085041C2AC50ECE430B6E076AC40286D62FC839F5FD90580C"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/logs/p3-cjpeg-version.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/logs/p3-cjpeg-version.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/logs/write-exif-orientation-6.operation.json",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/logs/write-exif-orientation-6.operation.json",
+          "size": 403,
+          "sha256": "4D1669D669C09E070FF707D22DF2ED9DE5D9A4C3C67275139090C8FF14A3404C"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/media/baseline-420-orientation-6.jpg",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/media/baseline-420-orientation-6.jpg",
+          "size": 5214,
+          "sha256": "A020131E12BD3E7A2210916FB8F24B2B261687320A52F6A5A75813CF82138CD7"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/media/progressive-420.jpg",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/media/progressive-420.jpg",
+          "size": 6099,
+          "sha256": "F9F34A9F0651066BFAD6646AB1E601FAFBFFBDDEBDB6A9FED45725857B5035F2"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/p3-jpeg-input-proof-evidence.json",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/p3-jpeg-input-proof-evidence.json",
+          "size": 17173,
+          "sha256": "33EF3F3E32F2CA16F962B84D6FA46991A2A101B91657A12FE354FFEC79DCD9FC"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-ffprobe-shape/runtime-identity.json",
+          "filename": "proofs/p3-jpeg-20260825/superseded-ffprobe-shape/runtime-identity.json",
+          "size": 49320,
+          "sha256": "997D65B86037EF3A6E969C43DEC859BB2E1B3EBBA445B016DFE4ED8DF894055A"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/inspect-orientation-6.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/logs/inspect-orientation-6.stderr.txt",
+          "size": 129,
+          "sha256": "5C7366884002F409DEC19804ABB8509D88F66B96FAFE466CC77C434E50BC21ED"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/inspect-orientation-6.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/logs/inspect-orientation-6.stdout.txt",
+          "size": 8,
+          "sha256": "5E6510D6F9B52E78BE1A51958964211463800E000E3CE278DDEC2480E2A405DC"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/p3-cjpeg-progressive-420.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/logs/p3-cjpeg-progressive-420.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/p3-cjpeg-progressive-420.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/logs/p3-cjpeg-progressive-420.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/p3-cjpeg-version.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/logs/p3-cjpeg-version.stderr.txt",
+          "size": 46,
+          "sha256": "106D89638760925085041C2AC50ECE430B6E076AC40286D62FC839F5FD90580C"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/p3-cjpeg-version.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/logs/p3-cjpeg-version.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/write-exif-orientation-6.operation.json",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/logs/write-exif-orientation-6.operation.json",
+          "size": 403,
+          "sha256": "4D1669D669C09E070FF707D22DF2ED9DE5D9A4C3C67275139090C8FF14A3404C"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/media/baseline-420-orientation-6.jpg",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/media/baseline-420-orientation-6.jpg",
+          "size": 5214,
+          "sha256": "A020131E12BD3E7A2210916FB8F24B2B261687320A52F6A5A75813CF82138CD7"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/media/progressive-420.jpg.partial",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/media/progressive-420.jpg.partial",
+          "size": 6099,
+          "sha256": "F9F34A9F0651066BFAD6646AB1E601FAFBFFBDDEBDB6A9FED45725857B5035F2"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/p3-jpeg-input-proof-evidence.json",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/p3-jpeg-input-proof-evidence.json",
+          "size": 15048,
+          "sha256": "5A8DB2AB23C3B7AAD1EFF0A8A967AA0C1F3583FBF0F644A4888F247793695CBC"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/runtime-identity.json",
+          "filename": "proofs/p3-jpeg-20260825/superseded-initial-harness/runtime-identity.json",
+          "size": 49320,
+          "sha256": "ABF77525856B80C96CD6DF91F31252258D66EB5E79722307E6BF57394617932F"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/decode-baseline-420-noautorotate.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/decode-baseline-420-noautorotate.stderr.txt",
+          "size": 1199,
+          "sha256": "332346DE2B096AE50188738BE493C996FE3756DBD1D40A2237F296F546DB6E41"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/decode-baseline-420-noautorotate.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/decode-baseline-420-noautorotate.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/decode-orientation-6-autorotate.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/decode-orientation-6-autorotate.stderr.txt",
+          "size": 1236,
+          "sha256": "9788F1E1081DC53850F5DBBD737711A93E902C3B1EB1E7B50ABB382DC372346B"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/decode-orientation-6-autorotate.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/decode-orientation-6-autorotate.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/decode-orientation-6-noautorotate.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/decode-orientation-6-noautorotate.stderr.txt",
+          "size": 1238,
+          "sha256": "EF131E297A73D30E64DEDEC5F561A6CB2134F64752A68FF37A4B8793E0137A4C"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/decode-orientation-6-noautorotate.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/decode-orientation-6-noautorotate.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/decode-progressive-420-noautorotate.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/decode-progressive-420-noautorotate.stderr.txt",
+          "size": 1221,
+          "sha256": "F3F7DBD32AE20E96B5D242CDD184F50108A9F3743146585E488B392D628DB071"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/decode-progressive-420-noautorotate.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/decode-progressive-420-noautorotate.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/inspect-orientation-6.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/inspect-orientation-6.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/inspect-orientation-6.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/inspect-orientation-6.stdout.txt",
+          "size": 3686,
+          "sha256": "84CB3ABF58607B0E6B464AD684FEEC8EA60008A87546149A61B67DED4FA0C6BE"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/inspect-progressive-420.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/inspect-progressive-420.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/inspect-progressive-420.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/inspect-progressive-420.stdout.txt",
+          "size": 3321,
+          "sha256": "093FBC04095AAA2790BB2E36E02696689FAB36B8FA483AA102A859BD0CE39797"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/p3-cjpeg-progressive-420.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/p3-cjpeg-progressive-420.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/p3-cjpeg-progressive-420.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/p3-cjpeg-progressive-420.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/p3-cjpeg-version.stderr.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/p3-cjpeg-version.stderr.txt",
+          "size": 46,
+          "sha256": "106D89638760925085041C2AC50ECE430B6E076AC40286D62FC839F5FD90580C"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/p3-cjpeg-version.stdout.txt",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/p3-cjpeg-version.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/logs/write-exif-orientation-6.operation.json",
+          "filename": "proofs/p3-jpeg-20260825/validated/logs/write-exif-orientation-6.operation.json",
+          "size": 403,
+          "sha256": "4D1669D669C09E070FF707D22DF2ED9DE5D9A4C3C67275139090C8FF14A3404C"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/media/baseline-420-orientation-6.jpg",
+          "filename": "proofs/p3-jpeg-20260825/validated/media/baseline-420-orientation-6.jpg",
+          "size": 5214,
+          "sha256": "A020131E12BD3E7A2210916FB8F24B2B261687320A52F6A5A75813CF82138CD7"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/media/progressive-420.jpg",
+          "filename": "proofs/p3-jpeg-20260825/validated/media/progressive-420.jpg",
+          "size": 6099,
+          "sha256": "F9F34A9F0651066BFAD6646AB1E601FAFBFFBDDEBDB6A9FED45725857B5035F2"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/p3-jpeg-input-proof-evidence.json",
+          "filename": "proofs/p3-jpeg-20260825/validated/p3-jpeg-input-proof-evidence.json",
+          "size": 47014,
+          "sha256": "679F5C79CFBA9C5FEBC3DB70714D867D7E9FBD8305F3129663C13A1E2FD88F45"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/runtime-identity.json",
+          "filename": "proofs/p3-jpeg-20260825/validated/runtime-identity.json",
+          "size": 49319,
+          "sha256": "B99FB4CA5493A4066A48B1397EDACB84BD001B3B3082F76CB80897B86CDF327F"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/work/decode-baseline-420-noautorotate.rgb24",
+          "filename": "proofs/p3-jpeg-20260825/validated/work/decode-baseline-420-noautorotate.rgb24",
+          "size": 172800,
+          "sha256": "69970788978F3A9D6D1DFD089DE8EAA8BEA6FDBC9A38C433A8FDC69659387E88"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/work/decode-orientation-6-autorotate.rgb24",
+          "filename": "proofs/p3-jpeg-20260825/validated/work/decode-orientation-6-autorotate.rgb24",
+          "size": 172800,
+          "sha256": "4438291C23F425F41EFCF0B84AE1B5912601E61FC2751D1C7CED36B382AF77A9"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/work/decode-orientation-6-noautorotate.rgb24",
+          "filename": "proofs/p3-jpeg-20260825/validated/work/decode-orientation-6-noautorotate.rgb24",
+          "size": 172800,
+          "sha256": "69970788978F3A9D6D1DFD089DE8EAA8BEA6FDBC9A38C433A8FDC69659387E88"
+        },
+        {
+          "artifactId": "Gate0.G04.P3.JpegInput.20260825/validated/work/decode-progressive-420-noautorotate.rgb24",
+          "filename": "proofs/p3-jpeg-20260825/validated/work/decode-progressive-420-noautorotate.rgb24",
+          "size": 172800,
+          "sha256": "00CCDD114E68CAFBCCA286AAEC61E1EB56F4491ED9A4C62C73B46DBBC24365C2"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 6,
-    "fileCount": 2564,
-    "totalBytes": 453642400
+    "groupCount": 7,
+    "fileCount": 2617,
+    "totalBytes": 454662191
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

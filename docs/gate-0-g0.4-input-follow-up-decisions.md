@@ -1,6 +1,6 @@
 # Gate 0 G0.4 common-input follow-up decisions
 
-Status: bounded F7 experiment executed and blocked; Matroska pilot remains blocked; P3 proof remains authorized
+Status: bounded F7 experiment executed and blocked; Matroska pilot remains blocked; P3 JPEG proof executed and passed
 
 Approved: 2026-08-25
 
@@ -65,13 +65,13 @@ Before unattended CI or later Gate 0 work depends on the corpus, project-control
 - environment and producer identities; and
 - applicable license and provenance records.
 
-The current temporary local path is not durable retention. A configured upload target and successful verified preservation are required; a local copy or documented intent is insufficient.
+This original external-store condition is superseded for the current bounded unit by the interim local-retention amendment below. The sibling corpus is an approved first local copy only; a separate private copy remains required for the two-copy condition.
 
 ## Retained boundary
 
 These approvals authorize fixture production and proof correction only. They do not change current import behavior, persistence, render commands, the guaranteed-common contract, shipping-runtime selection, public-distribution policy, or legal conclusions.
 
-The existing 171 passed rows remain valid evidence. Every failed or blocked row retains that disposition until fresh evidence executed under this record changes it.
+The existing 171 passed rows remain valid evidence. Every failed or blocked row retains that disposition until fresh evidence executed under this record changes it. The later P3 execution supplied that fresh evidence for the two blocked JPEG rows, producing the current 173-passed, 83-failed aggregate.
 
 ## F7 `setts` experiment amendment
 
@@ -92,3 +92,5 @@ The tracked repository manifest must use stable artifact IDs and relative filena
 ## P3 cleanup amendment
 
 The temporary libjpeg-turbo installation may be removed only after both JPEG proofs succeed and the exact installer, executable/DLL hashes, release/source provenance, license materials, generated fixtures, producer manifests, and final evidence have been retained and verified against the tracked manifest.
+
+Both JPEG rows passed and their complete proof closure is retained under [P3 JPEG results](gate-0-g0.4-p3-jpeg-results.md). Cleanup has not occurred because the sibling corpus is still the only verified copy; the separately backed-up private copy remains outstanding.

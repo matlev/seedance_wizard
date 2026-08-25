@@ -60,7 +60,7 @@ Gate 0 does not enable frame skipping merely to silence that warning: exact fram
 ## Remaining gates and work
 
 1. Complete the remaining rows in the [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md): standalone Chrome/Edge/Firefox, VLC or owner disposition, perceptual sync, and a timestamp-clean long MP4 artifact produced by the approved measured G0.5 route. The default cannot be finalized before this evidence or an explicit owner disposition.
-2. Disposition the corrected [G0.4 common-input proof result](gate-0-g0.4-input-proof-results.md): 171 exact rows passed, 83 failed, and 2 are blocked. Preserve the passed baseline while resolving F7 authoring, direct Matroska fixture provenance, and the two blocked JPEG fixture rows without weakening or silently substituting the approved contract.
+2. Preserve the corrected [G0.4 common-input proof result](gate-0-g0.4-input-proof-results.md): the approved P3 follow-up passed both previously blocked JPEG rows, producing 173 exact passes and 83 failures. F7 authoring is blocked, and the direct-Matroska pilot remains blocked by its required corrected F7 case.
 3. Use G0.5 to measure quality, performance, thread/concurrency limits, UI responsiveness, cancellation, cache/disk behavior, and long-form integrity together. Resolve the OpenH264 rate-control warning there.
 4. Preserve the exact daily P2 archive in durable project-controlled private artifact storage or re-pin a monthly-retained build before unattended CI depends on it.
 5. Keep exact public runtime selection, dependency/SBOM audit, legal review, signing, packaging, and distribution in release engineering.

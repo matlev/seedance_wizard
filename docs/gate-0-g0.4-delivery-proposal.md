@@ -167,7 +167,7 @@ The owner approved all four requested decisions in the [G0.4 owner-decision reco
 
 Independent playback remains a prerequisite to finalizing the default. A blocked H.264 or AAC route is a valid result and must return to the owner rather than weakening portability, reproducibility, quality, or licensing boundaries.
 
-The follow-on [G0.4 common-input proof proposal](gate-0-g0.4-input-proof-proposal.md) converts the approved two-tier input model into exact candidate rows, bounded fixtures, negative diagnostics, and a deterministic stream-selection policy. The owner approved its exact matrix, two narrow fixture-component expansions, and stream policy in the [common-input decision record](gate-0-g0.4-input-owner-decisions.md). The corrected [executable result](gate-0-g0.4-input-proof-results.md) retains 171 passes, 83 failures, and 2 blocked rows; only exact passes may enter guaranteed-common, and the remaining rows require owner disposition.
+The follow-on [G0.4 common-input proof proposal](gate-0-g0.4-input-proof-proposal.md) converts the approved two-tier input model into exact candidate rows, bounded fixtures, negative diagnostics, and a deterministic stream-selection policy. The owner approved its exact matrix, two narrow fixture-component expansions, and stream policy in the [common-input decision record](gate-0-g0.4-input-owner-decisions.md). The corrected [executable result](gate-0-g0.4-input-proof-results.md) plus the approved P3 follow-up retain 173 passes and 83 failures; only exact passes may enter guaranteed-common.
 
 ## Licensing and source boundary
 

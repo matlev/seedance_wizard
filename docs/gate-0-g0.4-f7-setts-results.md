@@ -34,7 +34,7 @@ This is a truthful blocked result, not a process-exit failure, payload rewrite, 
 
 An earlier pre-execution run is retained as superseded evidence with SHA-256 `503BF3DDC5C6A18135AC28596B9E9913A700079949C39770B4A6A3AE12ABB37B`. FFprobe 8.1 emitted a combined `packets_and_frames` collection where the first harness revision expected separate collections. That run stopped during source inspection, before any `setts` remux command executed. The normalization defect was corrected and covered by focused tests before the canonical run above.
 
-Both runs, their logs, runtime identities, the output MP4, and exact contract/harness snapshots are now copied and hash-verified in the approved sibling artifact root. The full retained corpus verifies as 6 groups, 2,564 files, and 453,642,400 bytes. This remains one local copy only; disconnected OneDrive is not a second copy or backup, and hosted CI remains ineligible to depend on it.
+Both runs, their logs, runtime identities, the output MP4, and exact contract/harness snapshots were copied and hash-verified in the approved sibling artifact root. At the F7 append checkpoint, the corpus contained 6 groups, 2,564 files, and 453,642,400 bytes. The later [P3 JPEG result](gate-0-g0.4-p3-jpeg-results.md) records the current 7-group corpus totals. This remains one local copy only; disconnected OneDrive is not a second copy or backup, and hosted CI remains ineligible to depend on it.
 
 ## Exact component mapping
 
@@ -67,7 +67,7 @@ The source presentation order remains the approved `1000,1040,1120,1130,1200`. I
 - The six direct F7 rows remain outside the guaranteed-common matrix.
 - The six F7-dependent Matroska rows remain failed or capability-qualified.
 - The approved direct-Matroska pilot remains blocked because its required corrected F7 case does not exist.
-- The existing 171 passed common-input rows remain valid evidence and are not weakened.
+- The existing 171 base-run passes remain valid evidence and are not weakened; the independent P3 follow-up later raised the aggregate to 173 passes without changing this blocked F7 result.
 - `setts` does not enter ReelForge product behavior, the portable project contract, shipping-runtime selection, export capability, or public-distribution policy.
 
 The experiment established that this duration-only expression is insufficient on the exact P2 MP4 path. A possible narrower investigation would have to be separately approved and prove explicit PTS/DTS preservation rather than relying on omitted options. Gate 0 must not assume that such a variant will work, and no further experiment is authorized by this result.
