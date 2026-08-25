@@ -59,4 +59,3 @@ Each defect was independently reviewed, corrected without changing an approved m
 The approved sibling corpus now verifies as 7 groups, 2,617 files, and 454,662,191 bytes. It retains the exact P3 installer, executable/DLL closure, Authenticode record, release/source provenance, IJG and Modified BSD license materials, all three proof runs, generated JPEGs and decoded rasters, commands/logs, exact runtime identity, and repository snapshots.
 
 This remains one local copy. The disconnected OneDrive path is not a backup, hosted CI must not depend on it, and the required separately backed-up private copy remains incomplete. No temporary P3 installation or retained producer data has been removed.
-
