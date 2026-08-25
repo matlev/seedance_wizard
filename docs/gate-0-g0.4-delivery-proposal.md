@@ -1,6 +1,6 @@
 # Gate 0 G0.4 Free media and delivery proposal
 
-Status: conditional proposal ready for owner review; no default delivery contract finalized
+Status: [owner decisions approved](gate-0-g0.4-owner-decisions.md); bounded delivery-format proof authorized; no default delivery contract finalized
 
 Date: 2026-08-24
 
@@ -155,12 +155,9 @@ Recommended sequence:
 7. use G0.5 to set quality, performance, resource, thread, and concurrency defaults; and
 8. implement the approved engine-neutral profile seam in the desktop 1.0 feature slice without selecting or packaging the public runtime.
 
-## Owner decisions requested
+## Owner decisions
 
-1. **External-beta compatibility:** approve H.264/AAC MP4 as a mandatory compatibility/default target for external beta, while retaining VP9/Opus WebM as the guaranteed open alternative. Recommended: **approve**.
-2. **Free breadth:** approve the proposed ordinary Free outputs: two video families; M4A, MP3, Ogg Opus, WAV, and FLAC audio; and PNG/JPEG images. Recommended: **approve**, with conditional rows remaining unavailable until their gates pass.
-3. **Input tiers:** approve the guaranteed-common versus capability-qualified input model and require content/runtime preflight rather than extension-only support claims. Recommended: **approve**.
-4. **Next bounded proof:** authorize P2 proof use of native AAC, `libopenh264`, `libmp3lame`, PCM/WAV, PNG, and MJPEG/JPEG only for the stated G0.4 matrix, plus a W1 comparison using `h264_mf` with the exact available AAC route. Video proof must cover both paired H.264/AAC MP4 and video-only/omit-audio MP4; open-delivery proof must add its corresponding video-only control. Audio-only formats remain separate outputs. This is proof authorization, not shipping or legal approval. Recommended: **approve**.
+The owner approved all four requested decisions in the [G0.4 owner-decision record](gate-0-g0.4-owner-decisions.md): H.264/AAC MP4 as the conditional external-beta compatibility/default target; VP9/Opus WebM as the open alternative; the proposed ordinary Free output breadth; the guaranteed-common versus capability-qualified input model; and the next bounded component proofs with paired and video-only delivery variants.
 
 Independent playback remains a prerequisite to finalizing the default. A blocked H.264 or AAC route is a valid result and must return to the owner rather than weakening portability, reproducibility, quality, or licensing boundaries.
 

@@ -1,6 +1,6 @@
 # Gate 0 media capability charter
 
-Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed and two retained not-run gates; G0.4 conditional proposal ready for owner review
+Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed and two retained not-run gates; G0.4 decisions approved and bounded delivery proof authorized
 
 Approved: 2026-08-24
 
@@ -306,7 +306,7 @@ The owner approved `P2.BtbnLgplShared.WindowsX64.20260820` as third-party LGPLv3
 
 Current G0.3 results are recorded in [Gate 0 G0.3 executable-proof results](gate-0-g0.3-executable-proof.md). All 13 automated P2 semantic capabilities passed, including the owner-approved basic-color and Unicode text mappings. Independent playback and long-form integrity remain explicitly not run and retain their G0.3/G0.5 completion-gate status. G0.4 analysis may proceed, but it may not finalize the default Free delivery contract before playback evidence. No fixture result is treated as a capability verdict.
 
-The conditional [G0.4 Free media and delivery proposal](gate-0-g0.4-delivery-proposal.md) recommends H.264/AAC MP4 as the compatibility/default target if an acceptable route passes, retains proven VP9/Opus WebM as the open alternative, proposes ordinary Free audio/image breadth, and requests authorization for the next bounded component proofs. It does not finalize the default or approve a shipping runtime.
+The [G0.4 Free media and delivery proposal](gate-0-g0.4-delivery-proposal.md) recommends H.264/AAC MP4 as the compatibility/default target if an acceptable route passes and retains proven VP9/Opus WebM as the open alternative. The owner approved its four decisions in the [G0.4 owner-decision record](gate-0-g0.4-owner-decisions.md), authorizing the bounded component proofs while retaining independent playback and all shipping/legal boundaries.
 
 Authoritative decision and amendments: [Gate 0 Checkpoint A](gate-0-checkpoint-a.md).
 
