@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "profileId": "Free.Baseline.Gate0.Proposed.1",
+  "runtimeProfileId": "P2.BtbnLgplShared.WindowsX64.20260820",
+  "status": "approved-for-executable-proof-not-product-or-shipping-contract",
+  "runtimeScope": "P2 is third-party LGPLv3-path proof infrastructure because the reviewed build uses --enable-version3. It is not a selected shipping runtime, public-distribution approval, or approval to use every component compiled into the archive.",
+  "componentSelectionPolicy": "Every command must explicitly select or record every concrete demuxer, decoder, encoder, muxer, filter, and stream selector used. Presence is not semantic proof.",
+  "deliveryPolicy": "WebM VP9/Opus is an open-delivery proof candidate only, not the final ReelForge default.",
+  "capabilities": [
+    {
+      "id": "Media.Inspect.StructureAndTiming",
+      "required": true,
+      "fixtures": ["F1", "F7", "F8"],
+      "components": { "inspectionTool": "ffprobe", "demuxersRecordedFromOutput": ["matroska,webm"], "decodersRecordedFromStreams": ["ffv1", "flac"], "streamSelectors": ["0:v:0", "0:a:0", "0:v:1", "0:a:1"] },
+      "acceptance": ["JSON parses", "stream count and order match authored truths", "container time bases are recorded and normalized presentation timestamps match authored timing truths", "F8 selectors identify distinguishable streams"]
+    },
+    {
+      "id": "Video.Frame.ExtractExact",
+      "required": true,
+      "fixtures": ["F1"],
+      "components": { "demuxer": "matroska", "decoder": "ffv1", "filters": ["select", "format"], "encoder": "rawvideo", "muxer": "rawvideo", "streamSelectors": ["0:v:0"] },
+      "acceptance": ["select frame ordinal 1", "decoded rgb24 bytes equal authored f1-pattern-001 pixels", "no extra frame is emitted"]
+    },
+    {
+      "id": "Timeline.Trim.Exact",
+      "required": true,
+      "fixtures": ["F1"],
+      "components": { "demuxer": "matroska", "decoders": ["ffv1", "flac"], "filters": ["trim", "atrim", "setpts", "asetpts"], "encoders": ["ffv1", "flac"], "muxer": "matroska", "streamSelectors": ["0:v:0", "0:a:0"] },
+      "oracle": { "sourceFrameOrdinals": [1, 2], "sourceAudioStartSamplePerChannel": 1920, "sourceAudioEndSamplePerChannelExclusive": 5760, "durationMilliseconds": 80 },
+      "acceptance": ["decoded frames equal authored frames 1 and 2 in order", "decoded PCM equals the authored interleaved sample slice", "output timestamps start at zero and are monotonic"]
+    },
+    {
+      "id": "Timeline.Concat.NormalizeAndContinueTimestamps",
+      "required": true,
+      "fixtures": ["F1", "F2"],
+      "components": { "inputDemuxers": ["matroska", "image2", "s16le"], "decoders": ["ffv1", "flac", "ppm", "pcm_s16le"], "filters": ["scale", "pad", "format", "fps", "aresample", "aformat", "setpts", "asetpts", "concat"], "encoders": ["ffv1", "flac"], "muxer": "matroska", "streamSelectors": ["0:v:0", "0:a:0", "1:v:0", "2:a:0"] },
+      "oracle": { "targetWidth": 640, "targetHeight": 360, "targetFrameRate": "25/1", "targetAudioSampleRate": 48000, "targetAudioChannels": 2, "segmentDurationMilliseconds": 120, "segmentCount": 2, "expectedFrameCount": 6, "expectedDurationMilliseconds": 240 },
+      "acceptance": ["both inputs are explicitly normalized", "concat succeeds only after normalization", "six decoded frames span both authored visual identities", "A/V timestamps start at zero, remain monotonic, and cross the 120 ms boundary without a backwards jump"]
+    },
+    {
+      "id": "Audio.Mix.Deterministic",
+      "required": true,
+      "fixtures": ["F8"],
+      "components": { "demuxer": "s16le", "decoder": "pcm_s16le", "filters": ["aformat", "amix"], "encoder": "pcm_s16le", "muxer": "wav", "streamSelectors": ["0:a:0", "1:a:0"] },
+      "oracle": { "sampleRate": 48000, "channels": 1, "durationMilliseconds": 250, "frequenciesHz": [440, 880], "mixNormalization": false, "sampleTolerance": 1 },
+      "acceptance": ["decoded samples equal the independently summed and int16-clamped source samples within tolerance", "both source frequencies remain present", "duration and sample count match"]
+    },
+    {
+      "id": "Video.Composite.TransformAlphaAndColor",
+      "required": true,
+      "fixtures": ["F3", "F5", "F8"],
+      "status": "blocked",
+      "components": { "inputDemuxers": ["image2", "rawvideo"], "decoders": ["ppm", "rawvideo"], "approvedFilters": ["crop", "scale", "format", "overlay", "colorchannelmixer"], "encoder": "rawvideo", "muxer": "rawvideo", "streamSelectors": ["0:v:0", "1:v:0", "2:v:0", "3:v:0"] },
+      "blockedBy": ["No owner-approved LGPLv3-path mapping currently covers brightness, contrast, and saturation together"],
+      "candidateMappingPendingOwnerApproval": { "filters": ["colorlevels", "hue"], "purpose": "colorlevels for level/contrast correction and hue for saturation/brightness" },
+      "oracle": { "opaqueBaseRgb": [255, 255, 0], "alphaOverlayRgba": [255, 0, 255, 128], "alphaBlendExpectedRgb": [255, 127, 128], "alphaBlendChannelTolerance": 1, "solidMarkerRegions": ["red outside transformed overlay", "green inside transformed overlay"] },
+      "acceptance": ["crop and scale place the solid marker in the declared region", "opaque regions retain authored colors", "alpha blend matches independently calculated source-over color within tolerance", "basic-color operation changes only the declared output"]
+    },
+    {
+      "id": "Video.Transition.CrossDissolveAndBlack",
+      "required": true,
+      "fixtures": ["F7"],
+      "components": { "demuxer": "image2", "decoder": "ppm", "filters": ["format", "setpts", "xfade"], "encoder": "ffv1", "muxer": "matroska", "streamSelectorsBySubproof": { "crossDissolve": ["0:v:0", "1:v:0"], "dipThroughBlack": ["0:v:0", "1:v:0", "2:v:0"] } },
+      "oracle": { "frameRate": "25/1", "transitionDurationMilliseconds": 80, "crossDissolveEndpoints": [[255, 0, 0], [0, 255, 0]], "blackTransitionRequired": true, "channelTolerance": 2 },
+      "acceptance": ["cross-dissolve contains an intermediate blend and reaches both authored endpoints", "dip-to/from-black contains a black midpoint and returns to the authored endpoint", "frame count and timestamps are deterministic"]
+    },
+    {
+      "id": "Audio.Waveform.Generate",
+      "required": true,
+      "fixtures": ["F4", "F5"],
+      "components": { "demuxer": "s16le", "decoder": "pcm_s16le", "filters": ["aformat", "showwavespic", "format"], "encoder": "rawvideo", "muxer": "rawvideo", "streamSelectors": ["0:a:0"] },
+      "oracle": { "width": 320, "height": 120, "pixelFormat": "rgb24", "sourceDurationMilliseconds": 500, "mustContainBackgroundAndWavePixels": true },
+      "acceptance": ["exact output byte length matches geometry", "known tone output has independently bounded wave pixels", "digital-silence output has no wave excursion", "tone and silence outputs differ", "repeated execution against identical input produces the same SHA-256"]
+    },
+    {
+      "id": "Preview.GenerateDraftProxy",
+      "required": true,
+      "fixtures": ["F2"],
+      "components": { "inputDemuxers": ["image2", "s16le"], "decoders": ["ppm", "pcm_s16le"], "filters": ["scale", "pad", "format", "fps", "aresample", "aformat"], "encoders": ["libvpx-vp9", "libopus"], "muxer": "webm", "outputDecoders": ["vp9", "opus"], "streamSelectors": ["0:v:0", "1:a:0"] },
+      "oracle": { "maximumWidth": 320, "maximumHeight": 180, "frameRate": "15/1", "audioSampleRate": 48000, "audioChannels": 2 },
+      "acceptance": ["proxy dimensions do not exceed the declared draft target", "display aspect is preserved by scale/pad", "paired inspection confirms VP9/Opus WebM", "explicit decode-again succeeds"]
+    },
+    {
+      "id": "Video.Export.OpenDelivery.SelectedMedia",
+      "required": true,
+      "fixtures": ["F1"],
+      "components": { "demuxer": "matroska", "decoders": ["ffv1", "flac"], "filters": ["scale", "format", "aresample", "aformat"], "encoders": ["libvpx-vp9", "libopus"], "muxer": "webm", "outputDecoders": ["vp9", "opus"], "streamSelectors": ["0:v:0", "0:a:0"] },
+      "oracle": { "container": "matroska,webm", "videoCodec": "vp9", "audioCodec": "opus", "frameCount": 3, "videoWidth": 320, "videoHeight": 180, "audioSampleRate": 48000, "audioChannels": 2, "maximumVisualMeanAbsoluteError": 18 },
+      "acceptance": ["paired inspection matches the declared structure", "explicit VP9 and Opus decode-again succeeds", "decoded frame identities/order remain distinguishable", "visual error stays within the declared proof tolerance"]
+    },
+    {
+      "id": "Video.Export.OpenDelivery.Composition",
+      "required": true,
+      "fixtures": ["F1", "F2"],
+      "components": { "inputDemuxers": ["matroska", "image2", "s16le"], "decoders": ["ffv1", "flac", "ppm", "pcm_s16le"], "filters": ["scale", "pad", "format", "fps", "aresample", "aformat", "setpts", "asetpts", "concat"], "encoders": ["libvpx-vp9", "libopus"], "muxer": "webm", "outputDecoders": ["vp9", "opus"], "streamSelectors": ["0:v:0", "0:a:0", "1:v:0", "2:a:0"] },
+      "oracle": { "container": "matroska,webm", "videoCodec": "vp9", "audioCodec": "opus", "expectedDurationMilliseconds": 240, "durationToleranceMilliseconds": 25 },
+      "acceptance": ["composition normalization/concat semantics survive delivery encoding", "paired inspection and explicit decode-again succeed", "both segment visual identities remain present in order"]
+    },
+    {
+      "id": "Audio.Export.Standalone",
+      "required": true,
+      "fixtures": ["F4"],
+      "components": { "inputDemuxer": "s16le", "decoder": "pcm_s16le", "filters": ["aformat", "aresample"], "outputs": [{ "encoder": "flac", "muxer": "flac", "decoder": "flac", "lossless": true }, { "encoder": "libopus", "muxer": "ogg", "decoder": "opus", "lossless": false }], "streamSelectors": ["0:a:0"] },
+      "oracle": { "sampleRate": 48000, "channels": 2, "durationMilliseconds": 500, "losslessOutputMustBeByteExact": true, "lossyOutputMustPreserveFrequencyHz": 1000, "lossyComparisonFrequenciesHz": [500, 750, 1250, 1500] },
+      "acceptance": ["FLAC decode equals authored PCM bytes", "Ogg Opus inspection and explicit decode-again succeed", "Opus output preserves duration and channel count, and 1000 Hz remains stronger than the declared comparison frequencies"]
+    },
+    {
+      "id": "Text.Render.UnicodeTitlesAndCaptions",
+      "required": true,
+      "fixtures": ["F3"],
+      "status": "blocked",
+      "blockedBy": ["Owner decision on mandatory Unicode fallback and Arabic shaping versus optional color emoji", "Approved OFL font-stack artifact manifest with exact files, sizes, SHA-256 values, and durable provenance"],
+      "prohibitedFallback": "Do not use system fonts or claim shaping/emoji support from component presence."
+    },
+    {
+      "id": "Delivery.Validate.IndependentPlayback",
+      "required": true,
+      "fixtures": ["F1", "F7"],
+      "status": "not-run",
+      "execution": "manual-or-separately-automated",
+      "requiredTargets": ["Chrome", "Edge", "Firefox", "current VLC", "Windows native playback where applicable"],
+      "acceptance": ["actual playback from local file and HTTP where relevant", "open and seek", "pause and resume", "A/V synchronization", "end-of-file behavior", "exact player, OS, and codec-pack state recorded"],
+      "boundary": "Paired FFmpeg inspection and decode-again cannot satisfy this requirement. macOS remains research evidence only."
+    },
+    {
+      "id": "Project.LongForm.Integrity",
+      "required": true,
+      "fixtures": ["F6"],
+      "status": "not-run",
+      "execution": "opt-in",
+      "components": { "demuxer": "matroska", "decoders": ["ffv1", "flac"], "filters": ["setpts", "asetpts", "concat"], "encoders": ["ffv1", "flac"], "muxer": "matroska", "streamSelectors": ["0:v:0", "0:a:0"] },
+      "oracle": { "durationSeconds": 3600, "segmentCount": 30000, "segmentDurationMilliseconds": 120 },
+      "acceptance": ["output duration is within one source-frame duration of one hour", "timestamps remain monotonic through the final segment", "first and final authored identities match", "resource metrics are deferred to G0.5"]
+    }
+  ]
+}
