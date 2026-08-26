@@ -17,7 +17,8 @@
   "retention": {
     "groupId": "Gate0.G05.WpfMeasurementAdapter.NoMedia.20260826.Final",
     "localVerified": true,
-    "r2VerificationPending": true,
+    "r2VerificationPending": false,
+    "r2ResultSummary": "eng/gate0/g0.5-r2-retention-result-summary.json",
     "artifacts": [
       { "filename": "dispatcher-probes.ndjson", "size": 337853, "sha256": "61ACD2FA30167A647814036ABE7A5DAE4FA07DCAE1B6B64857C217FA7849604E" },
       { "filename": "evidence.json", "size": 8312, "sha256": "237C38B7EA8A99DC3BE865F4EB25BE0D6BE1C24CCEB1CA45D6236C7DD549000D" },
@@ -66,13 +67,9 @@
     "wpfMediaScenarioComplete": false,
     "humanWholeSystemObservationComplete": false,
     "cancellationEvidenceComplete": false,
-    "preMatrixSmokeAuthorized": false
+    "preMatrixSmokeAuthorized": true
   },
-  "remainingBeforePreMatrixSmoke": [
-    "complete R2 byte verification of the current Gate 0 corpus",
-    "verified second private copy of the current Gate 0 corpus",
-    "resource retention-capacity and free-space preflight"
-  ],
+  "remainingBeforePreMatrixSmoke": [],
   "supersededAttempts": [
     {
       "runId": "g05-no-media-control-20260826-f4d39ac",

@@ -85,10 +85,11 @@ public sealed class Gate0G05Stage2SmokePreflightTests
     {
         using var result = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-stage2-smoke-preflight-result-summary.json")));
         var root = result.RootElement;
-        Assert.Equal("passed-r2-verification-pending", root.GetProperty("status").GetString());
+        Assert.Equal("passed-r2-verification-complete-smoke-authorized", root.GetProperty("status").GetString());
         Assert.True(root.GetProperty("execution").GetProperty("noMediaInvoked").GetBoolean());
         Assert.Equal(JsonValueKind.Number, root.GetProperty("hostObservation").GetProperty("currentCpuUtilizationPercent").ValueKind);
-        Assert.False(root.GetProperty("disposition").GetProperty("preMatrixSmokeAuthorized").GetBoolean());
+        Assert.True(root.GetProperty("disposition").GetProperty("completeR2ByteVerificationComplete").GetBoolean());
+        Assert.True(root.GetProperty("disposition").GetProperty("preMatrixSmokeAuthorized").GetBoolean());
 
         using var retention = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "artifact-retention-manifest.json")));
         var expectedGroupId = root.GetProperty("retention").GetProperty("authoritativeGroupId").GetString();

@@ -109,7 +109,8 @@ public sealed class Gate0G05WpfMeasurementAdapterTests
         var disposition = root.GetProperty("disposition");
         Assert.True(disposition.GetProperty("noMediaControlComplete").GetBoolean());
         Assert.False(disposition.GetProperty("wpfMediaScenarioComplete").GetBoolean());
-        Assert.False(disposition.GetProperty("preMatrixSmokeAuthorized").GetBoolean());
+        Assert.True(disposition.GetProperty("preMatrixSmokeAuthorized").GetBoolean());
+        Assert.Empty(root.GetProperty("remainingBeforePreMatrixSmoke").EnumerateArray());
     }
 
     private static string Read(string filename) => File.ReadAllText(PathInRepo("eng", "gate0", "ReelForge.Gate0.WpfMeasurementAdapter", filename));

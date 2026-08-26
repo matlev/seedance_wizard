@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "resultId": "Gate0.G05.Stage2SmokePreflight.20260826",
-  "status": "passed-r2-verification-pending",
+  "status": "passed-r2-verification-complete-smoke-authorized",
   "authority": "docs/gate-0-g0.5-stage2-owner-decisions.md",
   "execution": {
     "repositoryCommit": "7b3f7b2",
@@ -47,7 +47,8 @@
     "sourceManifestSha256": "AF4A7312E5182F82E2A022C1FF1CC0B9EF53FC914790C5B1D462E41107032477",
     "logicalArtifactCount": 3971,
     "logicalArtifactBytes": 996626827,
-    "r2VerificationPending": true
+    "r2VerificationPending": false,
+    "r2ResultSummary": "eng/gate0/g0.5-r2-retention-result-summary.json"
   },
   "supersededAttempts": [
     {
@@ -68,12 +69,13 @@
   ],
   "disposition": {
     "resourcePreflightComplete": true,
-    "completeR2ByteVerificationComplete": false,
-    "preMatrixSmokeAuthorized": false
+    "completeR2ByteVerificationComplete": true,
+    "preMatrixSmokeAuthorized": true
   },
   "nonClaims": [
     "This is a point-in-time owner-reference-host resource preflight, not a public minimum-hardware contract.",
     "No media component was invoked and no current ReelForge product behavior was exercised.",
-    "The pass does not replace complete R2 byte verification or authorize the pre-matrix smoke, full Stage 2 matrix, WPF media scenarios, or long-form proof."
+    "Pre-matrix smoke authorization derives from this resource pass together with the separately completed R2 gate and prior owner decision; neither gate alone authorizes media.",
+    "The full Stage 2 matrix and long-form proof remain unauthorized."
   ]
 }

@@ -3,3 +3,4 @@ eng/gate0/g0.5-stage2-smoke-preflight-contract.json text eol=lf
 eng/gate0/g0.5-stage2-workload-contract.json text eol=lf
 eng/gate0/g0.5-stage2-preparation-result-summary.json text eol=lf
 eng/gate0/g0.5-stage2-smoke-preflight-result-summary.json text eol=lf
+eng/gate0/g0.5-r2-retention-result-summary.json text eol=lf
