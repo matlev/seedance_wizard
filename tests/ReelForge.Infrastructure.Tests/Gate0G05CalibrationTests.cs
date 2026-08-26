@@ -30,8 +30,14 @@ public sealed class Gate0G05CalibrationTests
     {
         using var summaryDocument = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-calibration-result-summary.json")));
         var summary = summaryDocument.RootElement;
-        Assert.Equal("completed-with-failures-owner-checkpoint-required", summary.GetProperty("status").GetString());
+        Assert.Equal("completed-with-failures-owner-decisions-approved-stage2-blocked", summary.GetProperty("status").GetString());
         Assert.Equal("exploratory-not-acceptance", summary.GetProperty("statisticsClassification").GetString());
+        Assert.Equal("approved-with-guardrails", summary.GetProperty("ownerDecisionStatus").GetString());
+        Assert.Equal("docs/gate-0-g0.5-stage1-owner-decisions.md", summary.GetProperty("ownerDecisionRecord").GetString());
+        Assert.Equal(3, summary.GetProperty("authorizedPreparationUnits").GetArrayLength());
+        Assert.Equal("conditionally-authorized-after-prerequisites-currently-blocked", summary.GetProperty("preMatrixSmokeExecutionDisposition").GetString());
+        Assert.Equal(5, summary.GetProperty("preMatrixSmokeExecutionPrerequisites").GetArrayLength());
+        Assert.Equal(3, summary.GetProperty("fullStage2ExecutionPrerequisites").GetArrayLength());
         Assert.False(summary.GetProperty("stage2ExecutionAuthorized").GetBoolean());
         Assert.Empty(summary.GetProperty("installationsUsedOrRequested").EnumerateArray());
         Assert.Equal(16, summary.GetProperty("measuredCells").GetArrayLength());

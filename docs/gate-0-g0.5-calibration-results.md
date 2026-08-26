@@ -1,6 +1,6 @@
 # Gate 0 G0.5 Stage 1 calibration results
 
-Status: Stage 1 completed with failures; retained and revalidated; owner checkpoint required before Stage 2.
+Status: Stage 1 completed with failures; retained and revalidated; [owner decisions approved with guardrails](gate-0-g0.5-stage1-owner-decisions.md); Stage 2 execution blocked pending prerequisites.
 
 ## Decision summary
 
@@ -148,15 +148,17 @@ These are candidate 1.0 reference-machine thresholds, not conclusions from Stage
 
 The owner may amend these after product/PM review. They intentionally do not define a public hardware floor or promise full-resolution real-time 4K editing.
 
-## Owner decisions required
+## Owner decisions and execution guardrails
 
-1. **Lossy audio oracle:** authorize a bounded correction unit that retains exact sample rate, channel count, decoded length/timing, channel identity, and tone dominance, then researches a reproducible lossy-quality measure such as RMS error/SNR plus correlation. It must propose thresholds from approved source/codec evidence; it may not simply raise peak delta to 9,015. This is the recommended decision.
-2. **Thread candidates:** approve MP4 `one` if the route is admitted, WebM `one` plus `half-logical`, and removal of `auto`/`full-logical` from Stage 2.
-3. **Workload contract:** authorize a bounded design unit for the versioned, deterministic Stage 2 workload/oracle contract described under 2A. The contract returns for review before execution.
-4. **Application-host boundary:** approve the recommended P2-only WPF measurement adapter, or instead require a separate production runtime-profile mapping/ADR before application-host evidence. The adapter would not be current product render-path proof.
-5. **Measured matrix:** approve, amend, or reject 2A–2C as a design target, including the concurrency-one default, bounded concurrency-two comparison, 60-minute primary long-form duration, attempt counts, and disk ceiling. Execution still waits for the versioned contract and application-host boundary.
-6. **Product thresholds:** approve or amend the proposed WPF responsiveness, preview startup, cancellation, memory, and integrity thresholds. In particular, decide whether forced termination is acceptable only as a fallback or may count as the initial 1.0 cancellation mechanism.
+The owner approved all six decisions with clarifications in the [G0.5 Stage 1 owner-decision record](gate-0-g0.5-stage1-owner-decisions.md). That record is authoritative for preparation-unit scope, corrected-audio requirements, workload design, the P2 WPF boundary, thresholds, smoke gates, artifact-copy requirements, and Stage 2 execution prerequisites.
+
+1. **Lossy audio oracle approved:** bounded correction retains the exact structural/timing/semantic checks and proposes evidence-based lossy-quality thresholds before rerun; it may not simply raise peak delta to 9,015. AAC and Opus require consistent revalidation.
+2. **Thread candidates approved:** MP4 `one` if admitted, WebM `one` plus `half-logical`, and no Stage 2 `auto`/`full-logical` rows.
+3. **Workload-contract design approved:** the bounded versioned, deterministic Stage 2 workload/oracle contract returns for review before execution.
+4. **Application-host boundary approved:** use the proof-only P2 Windows WPF measurement adapter. It is not current product render-path evidence, and Gate 0 does not introduce production runtime-profile mapping.
+5. **Measured design target approved:** 2A–2C keeps concurrency one by default, compares two only within bounds, uses a 60-minute primary long-form duration, and enforces smoke, disk, artifact-copy, and sizing gates before execution.
+6. **Provisional thresholds approved:** the WPF responsiveness, preview startup, cancellation, memory, storage, and zero-integrity-deviation thresholds apply on the reference machine. Forced termination may pass initial 1.0 user cancellation only when every responsiveness, cleanup, state-consistency, and integrity requirement passes, and remains reported as a fallback.
 
 No installation was used or requested for Stage 1. No installation is proposed for the bounded audio-oracle correction or Stage 2 design work. If later independent playback requires a player installation, work stops for the separate purpose-and-lifespan approval checkpoint required by the owner.
 
-Stage 2, application-host changes, concurrent proof, and long-form execution remain blocked until these decisions are recorded.
+The bounded audio-oracle correction, versioned workload-contract design, and P2 WPF boundary documentation are authorized. Stage 2 application-host measurement, concurrent proof, full 2A matrix, and long-form execution remain blocked until the decision record's prerequisites are satisfied.

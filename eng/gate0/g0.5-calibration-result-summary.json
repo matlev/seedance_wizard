@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "resultId": "Gate0.G05.Calibration.Stage1.20260826",
-  "status": "completed-with-failures-owner-checkpoint-required",
+  "status": "completed-with-failures-owner-decisions-approved-stage2-blocked",
   "contractId": "Gate0.G05.Calibration.V1",
   "profileId": "P2.BtbnLgplShared.WindowsX64.20260820",
   "proofRunId": "g05-calibration-20260826T002913397Z-189786ac",
@@ -73,13 +73,25 @@
     { "route": "mp4-openh264-aac", "status": "forced-termination-evidence", "activeProgressMs": 764, "requestMs": 1266, "requestToExitMs": 17, "partialBytes": 524336, "partialDisposition": "removed-unvalidated", "peakWorkingSetMiB": 64.8 },
     { "route": "webm-vp9-opus", "status": "forced-termination-evidence", "activeProgressMs": 785, "requestMs": 1316, "requestToExitMs": 27, "partialBytes": 0, "partialDisposition": "removed-unvalidated", "peakWorkingSetMiB": 315.1 }
   ],
-  "ownerDecisionsRequired": [
-    "lossy-audio-oracle-semantics",
-    "stage2-thread-policy-candidates",
-    "stage2-versioned-workload-contract",
-    "application-host-p2-execution-boundary",
-    "stage2-measured-matrix-and-concurrency",
-    "application-responsiveness-and-cancellation-thresholds"
+  "ownerDecisionStatus": "approved-with-guardrails",
+  "ownerDecisionRecord": "docs/gate-0-g0.5-stage1-owner-decisions.md",
+  "authorizedPreparationUnits": [
+    "lossy-audio-oracle-correction-and-consistent-revalidation",
+    "versioned-stage2-workload-oracle-contract-design",
+    "proof-only-p2-windows-wpf-adapter-boundary-documentation"
+  ],
+  "preMatrixSmokeExecutionDisposition": "conditionally-authorized-after-prerequisites-currently-blocked",
+  "preMatrixSmokeExecutionPrerequisites": [
+    "corrected-audio-oracle-approved-and-applied-to-aac-and-opus",
+    "versioned-workload-oracle-contract-owner-approved",
+    "proof-only-p2-windows-wpf-adapter-boundary-documented",
+    "second-private-artifact-copy-verified",
+    "applicable-smoke-resource-retention-capacity-and-free-space-preflight-passes"
+  ],
+  "fullStage2ExecutionPrerequisites": [
+    "every-admitted-1080p-typical-smoke-case-passes-complete-oracle-and-retention",
+    "application-host-adapter-workload-and-claim-boundary-approved-before-2b",
+    "long-form-sizing-dry-run-approved-before-2c"
   ],
   "stage2ExecutionAuthorized": false,
   "installationsUsedOrRequested": []

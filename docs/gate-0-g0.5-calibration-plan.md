@@ -1,10 +1,10 @@
 # Gate 0 G0.5 calibration plan
 
-Status: Stage 1 completed with failures; owner checkpoint required before Stage 2; no performance contract has been approved.
+Status: Stage 1 completed with failures; [owner checkpoint approved with guardrails](gate-0-g0.5-stage1-owner-decisions.md); bounded correction/design authorized; Stage 2 execution blocked.
 
 This plan turns the approved G0.5 methodology into two deliberately separate proof stages. The first stage builds and runs a short calibration harness. Its results select a tractable measured matrix and expose bad assumptions. The second stage performs the representative, concurrent, application-host, and 60–120-minute evidence only after an owner checkpoint.
 
-The retained Stage 1 evidence, measured cells, blocked MP4 audio-oracle result, and proposed Stage 2 decisions are recorded in the [G0.5 Stage 1 calibration results](gate-0-g0.5-calibration-results.md).
+The retained Stage 1 evidence, measured cells, and blocked MP4 audio-oracle result are recorded in the [G0.5 Stage 1 calibration results](gate-0-g0.5-calibration-results.md). The [owner-decision record](gate-0-g0.5-stage1-owner-decisions.md) authorizes bounded correction and contract-design work while keeping Stage 2 execution behind explicit audio, workload, adapter, retention, smoke, and sizing gates.
 
 G0.5 remains proof and product-contract work. It does not select a shipping runtime, establish a public hardware minimum, approve redistribution, change project meaning, or make Windows-only measurement mechanisms portable requirements.
 

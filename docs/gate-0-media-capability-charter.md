@@ -1,6 +1,6 @@
 # Gate 0 media capability charter
 
-Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed; G0.4 bounded output proof complete at 11 portable plus two optional W1 passes; independent playback partial; common-input proof and P3 JPEG follow-up executed at 173 passed and 83 failed; G0.5 Stage 1 completed with failures and awaits its owner checkpoint
+Status: owner and Project Manager approved; G0.1/G0.2 complete; Checkpoint A approved with amendments; automated G0.3 P2 matrix complete at 13 passed; G0.4 bounded output proof complete at 11 portable plus two optional W1 passes; independent playback partial; common-input proof and P3 JPEG follow-up executed at 173 passed and 83 failed; G0.5 Stage 1 completed with failures and owner decisions approved with guardrails
 
 Approved: 2026-08-24
 
@@ -223,7 +223,7 @@ The repeatable methodology records at least:
 
 Gate 0 compares candidate FFmpeg thread caps and concurrent-job limits, exercises 720p/1080p primary editing, and probes higher-resolution sources with draft-quality/proxy behavior. It proposes numeric acceptance thresholds for owner approval. Subjective smoothness remains useful manual evidence but cannot replace repeatable measurements.
 
-The bounded execution sequence and evidence semantics are defined in the [G0.5 calibration plan](gate-0-g0.5-calibration-plan.md). Its [Stage 1 results](gate-0-g0.5-calibration-results.md) retain 24 complete VP9/Opus passes and 24 OpenH264/AAC failures at an incorrectly transposed lossy-audio oracle. The MP4 route remains blocked, and Stage 2 concurrent, application-host, stress, and long-form work remains unauthorized pending the owner checkpoint.
+The bounded execution sequence and evidence semantics are defined in the [G0.5 calibration plan](gate-0-g0.5-calibration-plan.md). Its [Stage 1 results](gate-0-g0.5-calibration-results.md) retain 24 complete VP9/Opus passes and 24 OpenH264/AAC failures at an incorrectly transposed lossy-audio oracle. The [owner-decision record](gate-0-g0.5-stage1-owner-decisions.md) authorizes bounded audio-oracle correction, versioned workload design, and proof-only P2 WPF boundary documentation. The MP4 route remains blocked, and Stage 2 execution waits on all recorded prerequisites.
 
 ### G0.6 — non-blocking Pro continuity/repair feasibility
 
