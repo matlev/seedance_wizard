@@ -44,4 +44,4 @@ These are requests to the named FFmpeg components, not a process-wide CPU cap an
 
 ## Remaining approvals and external prerequisite
 
-Owner approval is required for this exact contract, including the proposed marker-atlas fixture, before any smoke. The marker bytes must then be generated, hash-verified, and added to retained source closure. Separately, the current Gate 0 corpus needs a verified private second copy. The disconnected OneDrive directory is one local copy and does not satisfy that requirement; a genuinely separate private location or backend must be selected before execution.
+Owner approval is required for this exact contract, including the proposed marker-atlas fixture, before any smoke. The marker bytes must then be generated, hash-verified, and added to retained source closure. The dedicated private `reelforge-artifacts` R2 bucket is the approved second-copy target under the [durable artifact-retention contract](gate-0-artifact-retention.md). The prerequisite remains incomplete until the current source inventory, including the approved marker, is retrieved from R2 and independently verified by size and SHA-256.

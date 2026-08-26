@@ -24,4 +24,8 @@
     <ProjectReference Include="..\..\src\ReelForge.Infrastructure\ReelForge.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\..\eng\gate0\Gate0ArtifactR2Client.cs" Link="Gate0ArtifactR2Client.cs" />
+  </ItemGroup>
+
 </Project>

@@ -130,7 +130,7 @@ The bounded 1080p typical smoke cases become authorized without expanding into t
 1. the corrected audio oracle and proposed thresholds are approved and applied consistently to AAC and Opus;
 2. the versioned workload/oracle contract returns for owner review and approval;
 3. the proof-only P2 Windows WPF adapter boundary is documented;
-4. a verified second private copy of the current Gate 0 artifact corpus is complete; and
+4. the current Gate 0 artifact corpus has been uploaded to the dedicated private `reelforge-artifacts` R2 bucket and independently retrieved and hash-verified under the [durable retention contract](gate-0-artifact-retention.md); and
 5. the applicable smoke resource, retention-capacity, and free-space preflight passes.
 
 Every attempted smoke run is retained. A failed or blocked smoke is a valid result and does not authorize repeated route rows.

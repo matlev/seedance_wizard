@@ -244,13 +244,13 @@ $manifest = [ordered]@{
     storage = [ordered]@{
         rootName = 'ReelForge.Gate0Artifacts'
         pathPolicy = 'Project-controlled sibling directory; manifest paths are relative and machine-independent.'
-        classification = 'interim-local-only'
+        classification = 'local-working-copy-r2-retention-pending'
         productionArtifactRepository = $false
         hostedCiEligible = $false
         heavyProofMode = 'manual-or-opt-in'
         separatelyBackedUpPrivateCopyVerified = $false
         twoCopyRetentionCondition = 'incomplete'
-        secondCopyBlocker = 'The owner intentionally keeps OneDrive disconnected; no separate private artifact location is configured.'
+        secondCopyBlocker = 'The dedicated private reelforge-artifacts R2 bucket is configured as the durable target, but SecretStore credentials and independently verified remote bytes are not yet present.'
         temporaryProviderR2Permitted = $false
     }
     anchors = $expected

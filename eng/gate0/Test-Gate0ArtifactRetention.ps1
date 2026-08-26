@@ -62,7 +62,7 @@ if ($manifest.schemaVersion -ne 1 -or $manifest.artifactSetId -ne 'Gate0.Interim
 if ($manifest.storage.rootName -ne 'ReelForge.Gate0Artifacts' -or $manifest.storage.productionArtifactRepository -or $manifest.storage.hostedCiEligible) {
     throw 'The tracked manifest does not preserve the approved interim-only storage boundary.'
 }
-if ($manifest.storage.classification -ne 'interim-local-only' -or $manifest.storage.separatelyBackedUpPrivateCopyVerified) {
+if ($manifest.storage.classification -ne 'local-working-copy-r2-retention-pending' -or $manifest.storage.separatelyBackedUpPrivateCopyVerified) {
     throw 'The tracked manifest must describe one local retained copy, not a synced or separately backed-up copy.'
 }
 

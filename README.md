@@ -76,6 +76,7 @@ All project-media paths stored in the `.rfp` file are relative to the project ro
 - [Gate 0 media capability charter](docs/gate-0-media-capability-charter.md)
 - [Gate 0 Checkpoint A decision packet](docs/gate-0-checkpoint-a.md)
 - [Gate 0 G0.5 Stage 2 planning packet](docs/gate-0-g0.5-stage2-workload-proposal.md)
+- [Gate 0 durable artifact retention](docs/gate-0-artifact-retention.md)
 - [Milestone plan](docs/milestones.md)
 - [Manual regression acceptance matrix](docs/manual-acceptance.md)
 - [Contributor guidance](docs/contributor-guidance.md)

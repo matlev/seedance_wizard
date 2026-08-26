@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "Gate0.DurableR2Retention.V1",
+  "sourceInventory": {
+    "path": "eng/gate0/artifact-retention-manifest.json",
+    "artifactSetId": "Gate0.InterimCorpus.20260825",
+    "sha256": "D3597F16034DE00F0DE852CFB566B9CF7A0ECA3E2158205AAC5F81C49743C603",
+    "logicalArtifactCount": 3007,
+    "logicalArtifactBytes": 517763820
+  },
+  "storage": {
+    "provider": "cloudflare-r2",
+    "bucketName": "reelforge-artifacts",
+    "privateBucket": true,
+    "automaticDeletionLifecycle": false,
+    "objectKeyLayout": "objects/sha256/<first-two-lowercase-hex>/<full-lowercase-sha256>",
+    "authoritativeIdentity": "sha256-content-addressed-object-key",
+    "temporaryProviderReferenceStorage": false,
+    "productionReleaseStorage": false,
+    "ordinaryPullRequestWriteAccess": false,
+    "hostedCiCredentialRequired": false
+  },
+  "credentialContract": {
+    "provider": "Microsoft.PowerShell.SecretStore",
+    "vaultName": "ReelForgeEngineering",
+    "secretNames": [
+      "ReelForge.Engineering.R2.AccountId",
+      "ReelForge.Engineering.R2.AccessKeyId",
+      "ReelForge.Engineering.R2.SecretAccessKey"
+    ],
+    "credentialsCommitted": false
+  },
+  "status": {
+    "retentionCondition": "incomplete",
+    "secondPrivateCopyVerified": false,
+    "verifiedLogicalArtifactCount": 0,
+    "verifiedLogicalArtifactBytes": 0,
+    "verifiedDistinctObjectCount": 0,
+    "verifiedDistinctObjectBytes": 0,
+    "lastRemoteVerificationUtc": null,
+    "blocker": "R2 credentials are not configured and no object has completed independent remote byte verification."
+  },
+  "artifacts": [],
+  "limitations": [
+    "This manifest is the tracked durable-retention status for the curated local source inventory; it is not a public-distribution manifest.",
+    "An upload response, HEAD response, ETag, or object listing is insufficient. Every remote-verified record requires a retrieved byte stream matching the source size and SHA-256.",
+    "Normal hosted CI validates structure without credentials or network access. Hosted CI does not currently read or write the bucket.",
+    "No presigned URL, authorization header, credential, absolute local path, user media, provider secret, or payment data may be recorded here."
+  ]
+}

@@ -21,7 +21,7 @@ public sealed class Gate0ArtifactRetentionTests
 
         var storage = root.GetProperty("storage");
         Assert.Equal("ReelForge.Gate0Artifacts", storage.GetProperty("rootName").GetString());
-        Assert.Equal("interim-local-only", storage.GetProperty("classification").GetString());
+        Assert.Equal("local-working-copy-r2-retention-pending", storage.GetProperty("classification").GetString());
         Assert.False(storage.GetProperty("productionArtifactRepository").GetBoolean());
         Assert.False(storage.GetProperty("hostedCiEligible").GetBoolean());
         Assert.False(storage.GetProperty("separatelyBackedUpPrivateCopyVerified").GetBoolean());
@@ -238,7 +238,7 @@ public sealed class Gate0ArtifactRetentionTests
                 schemaVersion = 1,
                 artifactSetId = "Gate0.InterimCorpus.20260825",
                 generatedUtc = "2026-08-25T00:00:00.0000000+00:00",
-                storage = new { rootName = "ReelForge.Gate0Artifacts", classification = "interim-local-only", productionArtifactRepository = false, hostedCiEligible = false, separatelyBackedUpPrivateCopyVerified = false, twoCopyRetentionCondition = "incomplete" },
+                storage = new { rootName = "ReelForge.Gate0Artifacts", classification = "local-working-copy-r2-retention-pending", productionArtifactRepository = false, hostedCiEligible = false, separatelyBackedUpPrivateCopyVerified = false, twoCopyRetentionCondition = "incomplete" },
                 anchors = new { },
                 p3Authenticode = new { },
                 groups = new List<object> { new { groupId = "Baseline", provenance = "test", producerRuntimeIdentity = Array.Empty<string>(), licenseRecords = Array.Empty<string>(), proofRunIdentity = new List<string> { "artifact:baseline/evidence.txt" }, fileCount = 1, totalBytes = 8, files = new List<object> { new { artifactId = "Baseline/evidence.txt", filename = "baseline/evidence.txt", size = 8, sha256 = baselineHash } } } },
@@ -452,7 +452,7 @@ public sealed class Gate0ArtifactRetentionTests
             schemaVersion = 1,
             artifactSetId = "Gate0.InterimCorpus.20260825",
             generatedUtc = "2026-08-25T00:00:00.0000000+00:00",
-            storage = new { rootName = "ReelForge.Gate0Artifacts", classification = "interim-local-only", productionArtifactRepository = false, hostedCiEligible = false, separatelyBackedUpPrivateCopyVerified = false, twoCopyRetentionCondition = "incomplete" },
+            storage = new { rootName = "ReelForge.Gate0Artifacts", classification = "local-working-copy-r2-retention-pending", productionArtifactRepository = false, hostedCiEligible = false, separatelyBackedUpPrivateCopyVerified = false, twoCopyRetentionCondition = "incomplete" },
             anchors = new { },
             p3Authenticode = new { },
             limitations = Array.Empty<string>(),
