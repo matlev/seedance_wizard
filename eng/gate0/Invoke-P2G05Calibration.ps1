@@ -108,6 +108,32 @@ function Get-PpmPixels([string] $Path) {
     if($tokens[0]-ne'P6'-or$tokens[1]-ne'320'-or$tokens[2]-ne'180'-or$tokens[3]-ne'255'){throw 'F1 PPM geometry oracle failed.'};while($offset-lt$bytes.Length-and$bytes[$offset]-in 9,10,13,32){$offset++};$pixels=[byte[]]::new($bytes.Length-$offset);[Array]::Copy($bytes,$offset,$pixels,0,$pixels.Length);$pixels
 }
 function Get-Mae([byte[]] $Expected,[byte[]] $Actual){if($Expected.Length-ne$Actual.Length){throw 'Visual oracle bytes have unequal lengths.'};[double]$sum=0;for($i=0;$i-lt$Expected.Length;$i++){$sum+=[Math]::Abs([int]$Expected[$i]-[int]$Actual[$i])};$sum/$Expected.Length}
+function New-VisualOracleInterop {
+    if (-not ('ReelForge.Gate0.VisualOracle' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+namespace ReelForge.Gate0 {
+  public static class VisualOracle {
+    public static double[] AssertIdentityCycle(byte[][] expected, byte[] actual, int frameBytes, int frameCount, double maximumMeanAbsoluteError) {
+      if (expected == null || expected.Length != 3) throw new InvalidOperationException("Visual oracle requires exactly three authored identity frames.");
+      for (int identity = 0; identity < expected.Length; identity++) if (expected[identity] == null || expected[identity].Length != frameBytes) throw new InvalidOperationException("Visual oracle authored frame size mismatch.");
+      if (actual == null || actual.Length != checked(frameBytes * frameCount)) throw new InvalidOperationException("Full frame identity decode length oracle failed.");
+      double[] matchingMae = new double[frameCount];
+      for (int frame = 0; frame < frameCount; frame++) {
+        long[] sums = new long[3]; int offset = frame * frameBytes;
+        for (int b = 0; b < frameBytes; b++) { int value = actual[offset + b]; for (int identity = 0; identity < 3; identity++) sums[identity] += Math.Abs(value - expected[identity][b]); }
+        int match = frame % 3; double matchMae = (double)sums[match] / frameBytes; double otherMae = Math.Min((double)sums[(match + 1) % 3] / frameBytes, (double)sums[(match + 2) % 3] / frameBytes);
+        if (matchMae > maximumMeanAbsoluteError || matchMae >= otherMae) throw new InvalidOperationException($"Frame identity-cycle oracle failed at decoded frame {frame}: matching MAE {matchMae}, nearest other MAE {otherMae}.");
+        matchingMae[frame] = matchMae;
+      }
+      return matchingMae;
+    }
+  }
+}
+'@
+    }
+}
+function Assert-VisualIdentityCycle([byte[][]] $Expected,[byte[]] $Actual,[int] $FrameBytes=172800,[int] $FrameCount=200,[double] $MaximumMeanAbsoluteError=18) { New-VisualOracleInterop;[ReelForge.Gate0.VisualOracle]::AssertIdentityCycle($Expected,$Actual,$FrameBytes,$FrameCount,$MaximumMeanAbsoluteError) }
 function Get-TonePower([byte[]] $Bytes,[int] $Frequency,[int] $Channel){$samples=[int]($Bytes.Length/4);[double]$re=0;[double]$im=0;for($n=0;$n-lt$samples;$n++){[int16]$v=[BitConverter]::ToInt16($Bytes,(($n*2+$Channel)*2));$a=2*[Math]::PI*$Frequency*$n/48000;$re+=$v*[Math]::Cos($a);$im-=$v*[Math]::Sin($a)};$re*$re+$im*$im}
 function Assert-IndexedFrameTimestamps([object[]] $Frames,[int64] $TimeBaseNumerator,[int64] $TimeBaseDenominator) { if($Frames.Count-ne200){throw "Frame-count oracle failed: expected 200, observed $($Frames.Count)."};for($index=0;$index-lt200;$index++){$pts=[int64]$Frames[$index].best_effort_timestamp;$expectedMilliseconds=[int64]$index*40;if(($pts*1000*$TimeBaseNumerator)-ne($expectedMilliseconds*$TimeBaseDenominator)){throw "Frame timestamp oracle failed at frame ${index}: integer/rational PTS does not equal $expectedMilliseconds ms."}} }
 function New-AudioOracleInterop {
@@ -119,17 +145,17 @@ namespace ReelForge.Gate0 {
     public static int AssertLoopingStereoS16(byte[] expectedLoop, byte[] actual, int expectedSamplesPerChannel, int maximumAbsoluteDelta) {
       if (expectedLoop == null || expectedLoop.Length == 0 || expectedLoop.Length % 4 != 0) throw new InvalidOperationException("Retained PCM truth must contain complete stereo s16le sample frames.");
       if (actual == null || actual.Length != checked(expectedSamplesPerChannel * 4)) throw new InvalidOperationException($"Audio sample-count oracle failed: expected exactly {expectedSamplesPerChannel} samples per channel, observed {(actual == null ? 0 : actual.Length / 4)}.");
-      int sourceSamples = expectedLoop.Length / 4, observedMaximum = 0;
+      int sourceSamples = expectedLoop.Length / 4, observedMaximum = 0, maximumSample = -1, maximumChannel = -1;
       for (int sample = 0; sample < expectedSamplesPerChannel; sample++) {
         int expectedFrameOffset = (sample % sourceSamples) * 4, actualFrameOffset = sample * 4;
         for (int channel = 0; channel < 2; channel++) {
           short expected = BitConverter.ToInt16(expectedLoop, expectedFrameOffset + channel * 2);
           short observed = BitConverter.ToInt16(actual, actualFrameOffset + channel * 2);
           int delta = Math.Abs((int)observed - expected);
-          if (delta > observedMaximum) observedMaximum = delta;
-          if (delta > maximumAbsoluteDelta) throw new InvalidOperationException($"Audio waveform oracle failed at sample {sample}, channel {channel}: absolute delta {delta} exceeds {maximumAbsoluteDelta}.");
+          if (delta > observedMaximum) { observedMaximum = delta; maximumSample = sample; maximumChannel = channel; }
         }
       }
+      if (observedMaximum > maximumAbsoluteDelta) throw new InvalidOperationException($"Audio waveform oracle failed: maximum absolute delta {observedMaximum} at sample {maximumSample}, channel {maximumChannel} exceeds {maximumAbsoluteDelta}.");
       return observedMaximum;
     }
   }
@@ -196,7 +222,7 @@ function Invoke-IndependentOracle([string] $Ffmpeg, [string] $Ffprobe, [string] 
     # Fresh explicit demux/decode evidence. This proof checks every decoded frame;
     # media payload comparisons intentionally remain outside product services.
     $forcedDemuxer=if($Route.container-eq'mp4'){'mp4'}else{'webm'};$probeArguments=@('-v','error','-f',$forcedDemuxer,'-show_streams','-show_frames','-show_packets','-show_format','-of','json',$Path);$probe=& $Ffprobe @probeArguments 2>&1;if($LASTEXITCODE -ne 0){throw 'Independent explicit ffprobe inspection failed.'};$parsed=$probe|Out-String|ConvertFrom-Json;$video=@($parsed.streams|Where-Object codec_type -eq 'video');$audio=@($parsed.streams|Where-Object codec_type -eq 'audio');if($video.Count-ne 1-or$audio.Count-ne 1-or$video[0].codec_name-ne$Route.outputDecoders[0]-or$audio[0].codec_name-ne$Route.outputDecoders[1]-or[int]$video[0].width-ne$Row.width-or[int]$video[0].height-ne$Row.height){throw 'Independent stream/container oracle failed.'};Assert-StreamDescriptor $video[0] $audio[0] $Row $Route|Out-Null;$frames=@(Get-ProbedVideoFrames $parsed);$parts=([string]$video[0].time_base).Split('/');if($parts.Count-ne2){throw 'Video time-base oracle failed.'};Assert-IndexedFrameTimestamps $frames ([int64]$parts[0]) ([int64]$parts[1]);if([Math]::Abs(([double]$parsed.format.duration*1000)-8000)-gt60){throw 'Container presentation-end duration oracle failed.'}
-    $videoRaw=Join-Path $Work 'oracle-video.rgb';$videoDecodeArguments=@('-v','error','-f',$forcedDemuxer,'-c:v',$Route.outputDecoders[0],'-i',$Path,'-map','0:v:0','-an','-vf','scale=320:180:flags=bilinear,format=rgb24','-f','rawvideo','-y',$videoRaw);& $Ffmpeg @videoDecodeArguments;if($LASTEXITCODE-ne 0){throw 'Independent video complete-decode failed.'};$all=[IO.File]::ReadAllBytes($videoRaw);$frameBytes=172800;if($all.Length-ne(200*$frameBytes)){throw 'Full frame identity decode length oracle failed.'};$expected=@((Get-PpmPixels (Assert-ContainedFile $FixtureRoot 'F1/f1-pattern-000.ppm' 'F1 identity')),(Get-PpmPixels (Assert-ContainedFile $FixtureRoot 'F1/f1-pattern-001.ppm' 'F1 identity')),(Get-PpmPixels (Assert-ContainedFile $FixtureRoot 'F1/f1-pattern-002.ppm' 'F1 identity')));$maes=[Collections.Generic.List[double]]::new();for($index=0;$index-lt 200;$index++){$actual=[byte[]]::new($frameBytes);[Array]::Copy($all,$index*$frameBytes,$actual,0,$frameBytes);$matching=Get-Mae $expected[$index%3] $actual;$other=@(0..2|Where-Object{$_-ne($index%3)}|ForEach-Object{Get-Mae $expected[$_] $actual}|Measure-Object -Minimum).Minimum;if($matching-gt 18-or$matching-ge$other){throw "Frame identity-cycle oracle failed at decoded frame $index."};$maes.Add($matching)}
+    $videoRaw=Join-Path $Work 'oracle-video.rgb';$videoDecodeArguments=@('-v','error','-f',$forcedDemuxer,'-c:v',$Route.outputDecoders[0],'-i',$Path,'-map','0:v:0','-an','-vf','scale=320:180:flags=bilinear,format=rgb24','-f','rawvideo','-y',$videoRaw);& $Ffmpeg @videoDecodeArguments;if($LASTEXITCODE-ne 0){throw 'Independent video complete-decode failed.'};$all=[IO.File]::ReadAllBytes($videoRaw);$frameBytes=172800;$expected=[byte[][]]@((Get-PpmPixels (Assert-ContainedFile $FixtureRoot 'F1/f1-pattern-000.ppm' 'F1 identity')),(Get-PpmPixels (Assert-ContainedFile $FixtureRoot 'F1/f1-pattern-001.ppm' 'F1 identity')),(Get-PpmPixels (Assert-ContainedFile $FixtureRoot 'F1/f1-pattern-002.ppm' 'F1 identity')));$maes=@(Assert-VisualIdentityCycle $expected $all $frameBytes 200 18)
     $raw=Join-Path $Work 'oracle-audio.s16le';$audioDecodeArguments=@('-v','error','-f',$forcedDemuxer,'-c:a',$Route.outputDecoders[1],'-i',$Path,'-map','0:a:0','-vn','-f','s16le','-y',$raw);& $Ffmpeg @audioDecodeArguments;if($LASTEXITCODE-ne 0){throw 'Independent audio complete-decode failed.'};$audioBytes=[IO.File]::ReadAllBytes($raw);$sampleCount=[int]($audioBytes.Length/4);$pcmTruth=[IO.File]::ReadAllBytes((Assert-ContainedFile $FixtureRoot 'F1/f1-sync-440hz-880hz-48000-stereo.pcm' 'F1 audio truth'));$maximumAudioSampleDelta=Assert-AudioWaveform $pcmTruth $audioBytes 384000 3072;$l440=Get-TonePower $audioBytes 440 0;$l880=Get-TonePower $audioBytes 880 0;$r440=Get-TonePower $audioBytes 440 1;$r880=Get-TonePower $audioBytes 880 1;if($l440-le$l880-or$r880-le$r440){throw 'Audio left/right tone identity oracle failed.'};[ordered]@{passed=$true;artifactSha256=(Get-Sha256 $Path);artifactBytes=(Get-Item $Path).Length;container=$Route.container;forcedDemuxer=$forcedDemuxer;contractOutputDemuxer=$Route.outputDemuxer;explicitStreams=@("0:v:0:$($Route.outputDecoders[0])","1:a:0:$($Route.outputDecoders[1])");dimensions="$($Row.width)x$($Row.height)";frameRate='25/1';frameCount=200;firstTimestampTick=0;finalTimestampTick=7960;allFrameIdentityCycle=$true;meanAbsoluteErrorPerFrame=@($maes);strictCompleteDecode=$true;audioSampleRate=[int]$audio[0].sample_rate;audioChannels=[int]$audio[0].channels;audioSamplesPerChannel=$sampleCount;maximumAllowedAbsoluteAudioSampleDelta=3072;observedMaximumAbsoluteAudioSampleDelta=$maximumAudioSampleDelta;left440Power=$l440;left880Power=$l880;right440Power=$r440;right880Power=$r880}
 }
 function Get-PartialOutputDisposition([string] $Path,[string] $Reason) {

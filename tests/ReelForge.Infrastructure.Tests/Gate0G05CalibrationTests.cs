@@ -275,7 +275,7 @@ public sealed class Gate0G05CalibrationTests
         var command = $$$"""
             $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile('{{{script}}}',[ref]$tokens,[ref]$errors)
             if($errors.Count){exit 10}
-            foreach($name in 'Get-Property','Get-ProbedVideoFrames','Assert-IndexedFrameTimestamps','New-AudioOracleInterop','Assert-AudioWaveform','Assert-StreamDescriptor'){
+            foreach($name in 'Get-Property','Get-ProbedVideoFrames','Assert-IndexedFrameTimestamps','New-VisualOracleInterop','Assert-VisualIdentityCycle','New-AudioOracleInterop','Assert-AudioWaveform','Assert-StreamDescriptor'){
               $fn=$ast.Find({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
               if($null-eq$fn){exit 11};. ([scriptblock]::Create($fn.Extent.Text))
             }
@@ -287,11 +287,15 @@ public sealed class Gate0G05CalibrationTests
             if(@(Get-ProbedVideoFrames $combined).Count-ne1){exit 24}
             try{Get-ProbedVideoFrames ([pscustomobject]@{});exit 25}catch{if($_.Exception.Message-notmatch'Combined packet/frame inspection oracle is missing'){exit 26}}
 
+            $visualTruth=[byte[][]]@([byte[]](1,1,1,1),[byte[]](20,20,20,20),[byte[]](40,40,40,40));$visualActual=[byte[]](1,1,1,1,20,20,20,20,40,40,40,40,1,1,1,1,20,20,20,20,40,40,40,40)
+            if(@(Assert-VisualIdentityCycle $visualTruth $visualActual 4 6 1).Count-ne6){exit 27}
+            $visualActual[12]=40;try{Assert-VisualIdentityCycle $visualTruth $visualActual 4 6 1;exit 28}catch{if($_.Exception.Message-notmatch'Frame identity-cycle oracle failed'){exit 29}}
+
             $truth=[byte[]]::new(8);[BitConverter]::GetBytes([int16]1000).CopyTo($truth,0);[BitConverter]::GetBytes([int16]-1000).CopyTo($truth,2);[BitConverter]::GetBytes([int16]2000).CopyTo($truth,4);[BitConverter]::GetBytes([int16]-2000).CopyTo($truth,6)
             $actual=[byte[]]::new(16);for($i=0;$i-lt4;$i++){[Array]::Copy($truth,($i%2)*4,$actual,$i*4,4)}
             if((Assert-AudioWaveform $truth $actual 4 3072)-ne0){exit 14}
             [BitConverter]::GetBytes([int16]4072).CopyTo($actual,0);if((Assert-AudioWaveform $truth $actual 4 3072)-ne3072){exit 15}
-            [BitConverter]::GetBytes([int16]4073).CopyTo($actual,0);try{Assert-AudioWaveform $truth $actual 4 3072;exit 16}catch{if($_.Exception.Message-notmatch'Audio waveform oracle failed'){exit 17}}
+            [BitConverter]::GetBytes([int16]4073).CopyTo($actual,0);try{Assert-AudioWaveform $truth $actual 4 3072;exit 16}catch{if($_.Exception.Message-notmatch'maximum absolute delta 3073'){exit 17}}
             try{Assert-AudioWaveform $truth ([byte[]]::new(12)) 4 3072;exit 18}catch{if($_.Exception.Message-notmatch'Audio sample-count oracle failed'){exit 19}}
 
             $video=[pscustomobject]@{avg_frame_rate='25/1';r_frame_rate='25/1';profile='Constrained Baseline'};$audio=[pscustomobject]@{profile='LC';sample_rate='48000';channels=2};$row=[pscustomobject]@{};$route=[pscustomobject]@{videoEncoder='libopenh264';audioEncoder='aac'}
