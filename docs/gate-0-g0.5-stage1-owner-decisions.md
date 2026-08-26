@@ -14,7 +14,7 @@ The owner approves all six G0.5 Stage 1 decisions. This authorizes three bounded
 2. produce the versioned Stage 2 workload/oracle contract for owner review; and
 3. document the proof-only P2 Windows WPF measurement-adapter boundary.
 
-It does not currently authorize media execution. The pre-matrix smoke cases become conditionally authorized only after their preparation prerequisites are satisfied. The full Stage 2 2A–2C matrix, concurrent proof, application-host measurement, and long-form run remain blocked behind their additional gates. Production runtime-profile mapping and production behavior changes remain outside this authorization.
+It does not currently authorize media execution. The pre-matrix smoke cases become conditionally authorized only after their preparation prerequisites are satisfied. The full Stage 2 2A–2C matrix, concurrent proof, application-host measurement, and long-form run remain blocked behind their additional gates. Production runtime-profile mapping and production behavior changes remain outside this authorization. The preparation unit returns three linked review packets: the [lossy-audio oracle proposal](gate-0-g0.5-lossy-audio-oracle-proposal.md), [Stage 2 workload proposal](gate-0-g0.5-stage2-workload-proposal.md), and [P2 Windows WPF measurement-adapter boundary](gate-0-g0.5-wpf-measurement-adapter-boundary.md).
 
 ## Lossy-audio oracle
 

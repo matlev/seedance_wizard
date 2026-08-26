@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 2,
+  "contractId": "Gate0.G05.LossyAudioOracle.V2.Proposed",
+  "status": "proposed-owner-review-required",
+  "purpose": "Codec-agnostic technical signal-preservation algorithm with an explicit reference descriptor per workload. It is not a perceptual-quality claim.",
+  "appliesTo": [
+    "Video.Export.Compatibility.Mp4H264Aac.P2OpenH264:aac",
+    "Video.Export.Open.WebmVp9Opus:opus"
+  ],
+  "executionBoundary": {
+    "syntheticControlExecutionAuthorized": true,
+    "syntheticControlsExecuted": true,
+    "retainedAacOrOpusEvaluationAuthorized": false,
+    "routeReencodeAuthorized": false,
+    "thresholdsMustBeOwnerApprovedBeforeRetainedRouteEvaluation": true,
+    "thresholdSelectionMayReadCodecRouteOutcomes": false
+  },
+  "rawAndNormalizedTiming": {
+    "sampleFormat": "signed-16-bit-little-endian-interleaved",
+    "sampleRate": 48000,
+    "channels": 2,
+    "channelLayout": "stereo",
+    "rawDecoderEvidence": [
+      "raw decoded sample count and SHA-256 before any proof-side trimming",
+      "audio stream start_time duration_ts time_base and codec identity",
+      "first and final audio packet and frame PTS DTS duration",
+      "skip-samples discard-padding codec-delay and side-data metadata when present"
+    ],
+    "maximumRecordedPrimingOrDiscardPaddingSamples": 1024,
+    "primingLimitScope": "bounded exact P2 AAC/Opus 48 kHz stereo fixture contract only; not a general codec limit",
+    "contentNormalizedExpectedSamplesPerChannel": "referenceDescriptor.samplesPerChannel",
+    "contentNormalizedMaximumSampleCountDelta": 0,
+    "contentNormalizedExpectedStartSample": 0,
+    "contentNormalizedExpectedEndSampleExclusive": "referenceDescriptor.samplesPerChannel",
+    "maximumPresentationEndpointErrorSamples": 1,
+    "normalizationRule": "Use decoder-applied skip/discard behavior as emitted. Any additional proof-side trimming must equal recorded packet/frame metadata exactly and is reported; signal-derived trimming is prohibited.",
+    "timingVerdictIsIndependentFromQuality": true,
+    "channelSwapIsAlwaysFailure": true
+  },
+  "qualityRegion": {
+    "referenceStartSample": 2048,
+    "referenceEndSampleExclusive": "referenceDescriptor.samplesPerChannel - 2048",
+    "actualStartSample": 2048,
+    "actualEndSampleExclusive": "contentNormalizedActual.samplesPerChannel - 2048",
+    "alignmentMode": "none-zero-lag-only",
+    "reason": "The current F1 pure-tone loop is periodic and cannot uniquely identify a signal lag. Exact metadata/timing gates own priming and delay.",
+    "implicitPaddingPermitted": false,
+    "gainFittingPermitted": false,
+    "absoluteCorrelationPermitted": false
+  },
+  "qualityThresholds": {
+    "minimumSignedNormalizedCrossCorrelationPerChannel": 0.995,
+    "maximumNormalizedRmsErrorPerChannel": 0.10,
+    "minimumSnrDbPerChannel": 20.0,
+    "minimumOutputToReferenceRmsRatioPerChannel": 0.90,
+    "maximumOutputToReferenceRmsRatioPerChannel": 1.10,
+    "maximumAbsoluteDcOffsetFullScalePerChannel": 0.005,
+    "minimumExpectedToneOutputToReferencePowerRatio": 0.80,
+    "maximumExpectedToneOutputToReferencePowerRatio": 1.20,
+    "minimumExpectedToForbiddenTonePowerRatioWhenDescriptorProvidesForbiddenTones": 100.0,
+    "minimumActiveChannelRmsFullScale": 0.05,
+    "silenceWindowSamples": 960,
+    "minimumActiveReferenceWindowOutputRmsFullScale": 0.05,
+    "maximumDeclaredSilenceWindowOutputRmsFullScale": 0.005,
+    "nearClippingSampleAbsoluteThreshold": 32760,
+    "maximumUnexpectedNearClippedSamplesPerChannel": 0
+  },
+  "frequencyMeasurement": {
+    "window": "rectangular over qualityRegion",
+    "dcRemoval": "subtract per-channel arithmetic mean over qualityRegion",
+    "sampleIndex": "absolute content-normalized sample index",
+    "projection": "For frequency f: re=sum(y[n]*cos(2*pi*f*n/48000)); im=-sum(y[n]*sin(2*pi*f*n/48000)); power=(re^2+im^2)/N^2.",
+    "expectedToneRule": "Compare every descriptor-declared expected frequency's output power with the independently generated reference power.",
+    "forbiddenToneRule": "Apply the expected/forbidden ratio only when the reference descriptor declares a forbidden tone.",
+    "identityControlMinimumObservedExpectedToForbiddenRatio": 4567.973443426002,
+    "approvedThresholdToIdentityFloorMargin": "100:1 is more than 45 times below the measured identity-control floor.",
+    "loopBoundaryLeakageIsIncluded": true
+  },
+  "metricDefinitions": {
+    "normalizedCrossCorrelation": "sum((x-mean(x))*(y-mean(y))) / sqrt(sum((x-mean(x))^2)*sum((y-mean(y))^2))",
+    "normalizedRmsError": "rms(y-x) / rms(x)",
+    "snrDb": "10*log10(sum((x-mean(x))^2)/sum((y-x)^2))",
+    "rmsRatio": "rms(y-mean(y))/rms(x-mean(x))",
+    "dcOffsetFullScale": "abs(mean(y))/32768"
+  },
+  "referenceDescriptorSchema": {
+    "required": [
+      "id",
+      "referenceGeneratorId",
+      "referencePcmSha256",
+      "samplesPerChannel",
+      "sampleRate",
+      "channels",
+      "activeExpectedFrequenciesHzByChannel",
+      "activeWindows",
+      "timingTruth"
+    ],
+    "optional": ["forbiddenFrequenciesHzByChannel", "trackOnsetWindows"],
+    "trackOnsetWindowSchema": {
+      "required": ["id", "newTrackId", "startSample", "endSampleExclusive", "activeTrackIds", "expectedFrequenciesHzByChannel"],
+      "qualityGuardSamplesEachEdge": 512,
+      "verdict": "compare decoded output with the matching independently authored reference segment at zero lag; apply signed correlation, NRMSE, SNR, RMS ratio, DC offset, active-window silence, clipping, and declared expected-frequency output/reference ratios; retain one verdict and all metrics per window",
+      "timing": "the separately recorded raw/content-normalized timeline must place the transition at startSample; the quality guard cannot move or conceal it"
+    },
+    "rule": "The metric algorithm is reusable; fixture bytes and frequency/onset semantics come only from the selected reference descriptor."
+  },
+  "referenceDescriptors": [
+    {
+      "id": "f1-loop-8s",
+      "referenceGeneratorId": "repeat-retained-f1-loop-without-gap",
+      "sourceArtifact": "fixtures/F1/f1-sync-440hz-880hz-48000-stereo.pcm",
+      "sourceSha256": "D6D0E575C834A0BFCF442713745EC409CC0774BF4D9356DA0B68A07D3F3F0E78",
+      "referencePcmSha256": "3A9BF240990CB5EC08026C83D6E2FC64A95011C8D35D2B2B7FECFF55B91639EA",
+      "samplesPerChannel": 384000,
+      "sampleRate": 48000,
+      "channels": 2,
+      "activeExpectedFrequenciesHzByChannel": [[440], [880]],
+      "forbiddenFrequenciesHzByChannel": [[880], [440]],
+      "activeWindows": [{ "startSample": 0, "endSampleExclusive": 384000 }],
+      "timingTruth": "content-normalized sample 0 through sample 383999; end exclusive 384000"
+    },
+    {
+      "id": "f1-loop-30s",
+      "referenceGeneratorId": "repeat-retained-f1-loop-without-gap",
+      "sourceArtifact": "fixtures/F1/f1-sync-440hz-880hz-48000-stereo.pcm",
+      "sourceSha256": "D6D0E575C834A0BFCF442713745EC409CC0774BF4D9356DA0B68A07D3F3F0E78",
+      "referencePcmSha256": "0C8C1E73ADACCB558CA563299A3FF238649A4995599AA49D2A6C37FE95AAC730",
+      "referencePcmSize": 5760000,
+      "samplesPerChannel": 1440000,
+      "sampleRate": 48000,
+      "channels": 2,
+      "activeExpectedFrequenciesHzByChannel": [[440], [880]],
+      "forbiddenFrequenciesHzByChannel": [[880], [440]],
+      "activeWindows": [{ "startSample": 0, "endSampleExclusive": 1440000 }],
+      "timingTruth": "content-normalized sample 0 through sample 1439999; end exclusive 1440000"
+    },
+    {
+      "id": "f1-loop-3600s",
+      "referenceGeneratorId": "repeat-retained-f1-loop-without-gap-streaming",
+      "sourceArtifact": "fixtures/F1/f1-sync-440hz-880hz-48000-stereo.pcm",
+      "sourceSha256": "D6D0E575C834A0BFCF442713745EC409CC0774BF4D9356DA0B68A07D3F3F0E78",
+      "referencePcmSha256": "3DC53F7A2505E9D7C71F476BA12D6BBD29ACFCC1F3AB2FC6EC3C063766FDBFB9",
+      "referencePcmSize": 691200000,
+      "samplesPerChannel": 172800000,
+      "sampleRate": 48000,
+      "channels": 2,
+      "activeExpectedFrequenciesHzByChannel": [[440], [880]],
+      "forbiddenFrequenciesHzByChannel": [[880], [440]],
+      "activeWindows": [{ "startSample": 0, "endSampleExclusive": 172800000 }],
+      "timingTruth": "content-normalized sample 0 through sample 172799999; end exclusive 172800000; reference and actual are streamed"
+    },
+    {
+      "id": "typical-2v4a-30s",
+      "referenceGeneratorId": "Gate0.G05.Stage2AudioTruth.V1",
+      "referencePcmSha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A",
+      "referencePcmSize": 5760000,
+      "samplesPerChannel": 1440000,
+      "sampleRate": 48000,
+      "channels": 2,
+      "activeExpectedFrequenciesHzByChannel": [[440, 660, 880, 1000], [440, 660, 880, 1000]],
+      "activeWindows": [{ "startSample": 0, "endSampleExclusive": 1440000 }],
+      "trackOnsetWindows": [
+        { "id": "a0-onset", "newTrackId": "a0", "startSample": 0, "endSampleExclusive": 12000, "activeTrackIds": ["a0"], "expectedFrequenciesHzByChannel": [[440], [440]] },
+        { "id": "a1-onset", "newTrackId": "a1", "startSample": 12000, "endSampleExclusive": 24000, "activeTrackIds": ["a0", "a1"], "expectedFrequenciesHzByChannel": [[440, 660], [440, 660]] },
+        { "id": "a2-onset", "newTrackId": "a2", "startSample": 24000, "endSampleExclusive": 36000, "activeTrackIds": ["a0", "a1", "a2"], "expectedFrequenciesHzByChannel": [[440, 660, 880], [440, 660, 880]] },
+        { "id": "a3-onset", "newTrackId": "a3", "startSample": 36000, "endSampleExclusive": 48000, "activeTrackIds": ["a0", "a1", "a2", "a3"], "expectedFrequenciesHzByChannel": [[440, 660, 880, 1000], [440, 660, 880, 1000]] }
+      ],
+      "timingTruth": "four declared track onsets and content-normalized end exclusive 1440000"
+    },
+    {
+      "id": "stress-4v8a-30s",
+      "referenceGeneratorId": "Gate0.G05.Stage2AudioTruth.V1",
+      "referencePcmSha256": "299846E21A0AF6F1416CCA7BF1BF8ACAC4A5EDDA78EFF9BEB392CC7B992B8CF5",
+      "referencePcmSize": 5760000,
+      "samplesPerChannel": 1440000,
+      "sampleRate": 48000,
+      "channels": 2,
+      "activeExpectedFrequenciesHzByChannel": [[440, 660, 880, 1000], [440, 660, 880, 1000]],
+      "activeWindows": [{ "startSample": 0, "endSampleExclusive": 1440000 }],
+      "trackOnsetWindows": [
+        { "id": "a0-onset", "newTrackId": "a0", "startSample": 0, "endSampleExclusive": 12000, "activeTrackIds": ["a0"], "expectedFrequenciesHzByChannel": [[440], [440]] },
+        { "id": "a1-onset", "newTrackId": "a1", "startSample": 12000, "endSampleExclusive": 24000, "activeTrackIds": ["a0", "a1"], "expectedFrequenciesHzByChannel": [[440, 660], [440, 660]] },
+        { "id": "a2-onset", "newTrackId": "a2", "startSample": 24000, "endSampleExclusive": 36000, "activeTrackIds": ["a0", "a1", "a2"], "expectedFrequenciesHzByChannel": [[440, 660, 880], [440, 660, 880]] },
+        { "id": "a3-onset", "newTrackId": "a3", "startSample": 36000, "endSampleExclusive": 48000, "activeTrackIds": ["a0", "a1", "a2", "a3"], "expectedFrequenciesHzByChannel": [[440, 660, 880, 1000], [440, 660, 880, 1000]] },
+        { "id": "a4-onset", "newTrackId": "a4", "startSample": 48000, "endSampleExclusive": 60000, "activeTrackIds": ["a0", "a1", "a2", "a3", "a4"], "expectedFrequenciesHzByChannel": [[440, 660, 880, 1000], [440, 660, 880, 1000]] },
+        { "id": "a5-onset", "newTrackId": "a5", "startSample": 60000, "endSampleExclusive": 72000, "activeTrackIds": ["a0", "a1", "a2", "a3", "a4", "a5"], "expectedFrequenciesHzByChannel": [[440, 660, 880, 1000], [440, 660, 880, 1000]] },
+        { "id": "a6-onset", "newTrackId": "a6", "startSample": 72000, "endSampleExclusive": 84000, "activeTrackIds": ["a0", "a1", "a2", "a3", "a4", "a5", "a6"], "expectedFrequenciesHzByChannel": [[440, 660, 880, 1000], [440, 660, 880, 1000]] },
+        { "id": "a7-onset", "newTrackId": "a7", "startSample": 84000, "endSampleExclusive": 96000, "activeTrackIds": ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"], "expectedFrequenciesHzByChannel": [[440, 660, 880, 1000], [440, 660, 880, 1000]] }
+      ],
+      "timingTruth": "eight declared track onsets and content-normalized end exclusive 1440000"
+    }
+  ],
+  "syntheticControlEvidence": {
+    "controlSetId": "Gate0.G05.LossyAudioOracle.Controls.V1",
+    "generatorAndOracle": "eng/gate0/Invoke-G05LossyAudioOracleControls.ps1",
+    "sourceLoopSha256": "D6D0E575C834A0BFCF442713745EC409CC0774BF4D9356DA0B68A07D3F3F0E78",
+    "referenceExpansion": "repeat 5760-sample-per-channel loop to 384000 samples per channel",
+    "qualityRegion": [2048, 381952],
+    "alignment": "none",
+    "prng": { "algorithm": "xorshift32", "noise24SeedHex": "5EED1234", "noise15SeedHex": "15BAD5ED", "mapping": "(state / UInt32.MaxValue) * 2 - 1", "normalization": "per-channel RMS over qualityRegion" },
+    "quantization": "IEEE-754 binary64; Math.Round MidpointRounding.ToEven; clamp signed 16-bit",
+    "vectors": [
+      { "id": "identity", "expectedPass": true, "sha256": "3A9BF240990CB5EC08026C83D6E2FC64A95011C8D35D2B2B7FECFF55B91639EA" },
+      { "id": "gain-95-percent", "expectedPass": true, "sha256": "6713183958B360BBAB3BB7598D96A2EDF4E9B8DC8E19F76314D26E40F6B2524E" },
+      { "id": "noise-24db-snr", "expectedPass": true, "sha256": "5695D7EE505CF8395B8E27FFC9952AD654A11F80BA53900A624717ECB452F2BE" },
+      { "id": "one-percent-crosstalk", "expectedPass": true, "sha256": "185D9EAA8E3655430A95E3EA505CADE2C9B741AA13585CC43ABB0C47083DF2AD" },
+      { "id": "midstream-960-sample-dropout", "expectedPass": false, "sha256": "009781E77A219764CA6D6C34A1114B36F835F7B58886AC8B5DD4314F6BEE2210" },
+      { "id": "gain-75-percent", "expectedPass": false, "sha256": "9FBC6DBA5D92292D3A619C839A24BF28CD2991AB54C58597013E277FF94F68A5" },
+      { "id": "noise-15db-snr", "expectedPass": false, "sha256": "F3429BFFDA86149B57BA9AD95616EAE653BFC2349FE1E754D736AF9B0481D202" },
+      { "id": "polarity-inversion", "expectedPass": false, "sha256": "868D294ADFE196191432F92C7FCD1265C3CF6B5C10DBC0E1EE48B13CB7734ED7" },
+      { "id": "channel-swap", "expectedPass": false, "sha256": "F86F8A8ECC01320F9A1932489445431F69B545C7C086AD2C60E53D8FBBC0A9F4" },
+      { "id": "clipping", "expectedPass": false, "sha256": "DA31E73872C8F6EC302DFF3AA1DC8E0E166FEDF3CCF316952BF7927738E4F4B7" },
+      { "id": "silence", "expectedPass": false, "sha256": "626DB8BEA999709C8FAEAD0EC9D60025604676FCC44130ABE6C1168B90989B3B" },
+      { "id": "frequency-offset", "expectedPass": false, "sha256": "8A145EA2F224724DEFB83A48CFA833BE459FB59F9E281EAE2B3837F0178602F3" }
+    ],
+    "measuredSeparation": {
+      "acceptedNoise24MinSnrDb": 23.99992277277758,
+      "acceptedNoise24MinCorrelation": 0.9980152914674053,
+      "acceptedNoise24MaxNrmse": 0.06309629544179002,
+      "acceptedGain95MinRmsRatio": 0.949997705006951,
+      "acceptedGain95MinimumExpectedToneOutputToReferencePowerRatio": 0.9024955633930484,
+      "acceptedGain95MaximumExpectedToneOutputToReferencePowerRatio": 0.9024978916266305,
+      "identityExpectedToneOutputToReferencePowerRatio": 1.0,
+      "identityMinimumActiveWindowRmsFullScale": 0.2567125532082932,
+      "rejectedDropoutMinimumActiveWindowRmsFullScale": 0.0,
+      "rejectedNoise15MaxSnrDb": 14.99995609000411,
+      "rejectedNoise15MaxCorrelation": 0.9845478349267509,
+      "rejectedGain75MaxRmsRatio": 0.7499986557862005,
+      "identityMinimumToneDominanceRatio": 4567.973443426002
+    }
+  },
+  "requiredEvidence": [
+    "raw and content-normalized timing verdicts",
+    "packet priming skip-sample and discard-padding metadata",
+    "selected reference descriptor and regenerated reference hash",
+    "per-channel signed correlation NRMSE SNR RMS ratio and DC offset",
+    "per-frequency output/reference powers and optional forbidden-tone ratios",
+    "every descriptor-declared onset-window verdict plus sliding active/silence-window and near-clipping observations",
+    "oracle implementation and contract SHA-256",
+    "raw and normalized decoded PCM SHA-256 and exact selected decoder"
+  ],
+  "nonClaims": [
+    "perceptual transparency",
+    "music or speech quality",
+    "arbitrary bitrate sample-rate channel-layout or content support",
+    "independent-player compatibility",
+    "shipping-runtime selection",
+    "patent distribution or legal approval"
+  ]
+}

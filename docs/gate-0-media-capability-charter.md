@@ -223,7 +223,7 @@ The repeatable methodology records at least:
 
 Gate 0 compares candidate FFmpeg thread caps and concurrent-job limits, exercises 720p/1080p primary editing, and probes higher-resolution sources with draft-quality/proxy behavior. It proposes numeric acceptance thresholds for owner approval. Subjective smoothness remains useful manual evidence but cannot replace repeatable measurements.
 
-The bounded execution sequence and evidence semantics are defined in the [G0.5 calibration plan](gate-0-g0.5-calibration-plan.md). Its [Stage 1 results](gate-0-g0.5-calibration-results.md) retain 24 complete VP9/Opus passes and 24 OpenH264/AAC failures at an incorrectly transposed lossy-audio oracle. The [owner-decision record](gate-0-g0.5-stage1-owner-decisions.md) authorizes bounded audio-oracle correction, versioned workload design, and proof-only P2 WPF boundary documentation. The MP4 route remains blocked, and Stage 2 execution waits on all recorded prerequisites.
+The bounded execution sequence and evidence semantics are defined in the [G0.5 calibration plan](gate-0-g0.5-calibration-plan.md). Its [Stage 1 results](gate-0-g0.5-calibration-results.md) retain 24 complete VP9/Opus passes and 24 OpenH264/AAC failures at an incorrectly transposed lossy-audio oracle. The [owner-decision record](gate-0-g0.5-stage1-owner-decisions.md) authorizes the now-proposed [corrected audio oracle](gate-0-g0.5-lossy-audio-oracle-proposal.md), [versioned Stage 2 workload contract](gate-0-g0.5-stage2-workload-proposal.md), and [proof-only P2 WPF boundary](gate-0-g0.5-wpf-measurement-adapter-boundary.md). The MP4 route remains blocked, and Stage 2 execution waits on owner approval and all recorded prerequisites.
 
 ### G0.6 — non-blocking Pro continuity/repair feasibility
 

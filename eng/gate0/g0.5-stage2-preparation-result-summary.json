@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "resultId": "Gate0.G05.Stage2Preparation.20260825",
+  "status": "ready-for-owner-review-no-media-execution-authorized",
+  "authority": "docs/gate-0-g0.5-stage1-owner-decisions.md",
+  "contracts": [
+    { "path": "eng/gate0/g0.5-lossy-audio-oracle-contract.json", "sha256": "1B5406BD6E1DDEBB7F677F37A896E36B760AF740FB2C9C70C51C0F9957359113" },
+    { "path": "eng/gate0/g0.5-stage2-workload-contract.json", "sha256": "E6E4A2808E69BE2A64FD47B6EAF041CDE7B7063EF9BCE4A0540FE393EBE19EF8" }
+  ],
+  "preparationScripts": [
+    { "path": "eng/gate0/Invoke-G05LossyAudioOracleControls.ps1", "sha256": "76B22B98E0A56FF9253DCBEC4153A7A950B10C6274B4F04FBB9B6861F66B0209" },
+    { "path": "eng/gate0/Generate-G05Stage2AudioTruth.ps1", "sha256": "56F9560D9AB77238F5E87F0EFE2B41ECC821F1E289F054A40FD620A0D200B017" },
+    { "path": "eng/gate0/Generate-G05Stage2MarkerAtlas.ps1", "sha256": "52423F1B528FAF40EF8E8A281410DDBA69A4E17062DDFB97F76F18E34AECA67C" }
+  ],
+  "syntheticAudioControls": {
+    "count": 12,
+    "expectedAccepted": 4,
+    "expectedRejected": 8,
+    "allVerdictsMatched": true,
+    "routeOutputsEvaluated": false,
+    "routeReencodePerformed": false,
+    "resultSummary": "eng/gate0/g0.5-lossy-audio-control-result-summary.json"
+  },
+  "derivedTruth": [
+    { "id": "typical-2v4a-30s", "size": 5760000, "sha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A", "retention": "regenerable-not-retained" },
+    { "id": "stress-4v8a-30s", "size": 5760000, "sha256": "299846E21A0AF6F1416CCA7BF1BF8ACAC4A5EDDA78EFF9BEB392CC7B992B8CF5", "retention": "regenerable-not-retained" },
+    { "id": "g05-long-frame-index-atlas", "size": 4590016, "sha256": "BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97", "retention": "proposed-not-yet-retained" }
+  ],
+  "validation": {
+    "infrastructureSuite": { "passed": 156, "skipped": 13, "failed": 0, "total": 169 },
+    "independentReviews": [
+      "lossy-audio-mathematics-and-contract-go",
+      "cross-contract-harness-and-boundary-go",
+      "stage2-workload-and-adapter-design-go"
+    ]
+  },
+  "notPerformed": [
+    "retained AAC or Opus evaluation under the proposed oracle",
+    "codec route re-encode",
+    "pre-matrix smoke",
+    "full Stage 2 matrix",
+    "WPF adapter implementation or execution",
+    "long-form media execution",
+    "production code or runtime-profile changes"
+  ],
+  "remainingBeforePreMatrixSmoke": [
+    "owner approval of the lossy-audio oracle",
+    "owner approval of the Stage 2 workload contract including the generated marker atlas",
+    "owner approval of the P2 Windows WPF measurement-adapter boundary",
+    "generation and durable retention of the approved marker atlas",
+    "application of the approved oracle to retained AAC and Opus outputs",
+    "verified second private copy of the required Gate 0 corpus",
+    "resource retention-capacity and free-space preflight"
+  ]
+}

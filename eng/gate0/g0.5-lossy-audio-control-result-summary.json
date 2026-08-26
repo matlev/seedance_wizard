@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "controlSetId": "Gate0.G05.LossyAudioOracle.Controls.V1",
+  "status": "passed-all-predeclared-controls",
+  "oracleContractId": "Gate0.G05.LossyAudioOracle.V2.Proposed",
+  "referencePcmSha256": "3A9BF240990CB5EC08026C83D6E2FC64A95011C8D35D2B2B7FECFF55B91639EA",
+  "accepted": [
+    { "id": "identity", "sha256": "3A9BF240990CB5EC08026C83D6E2FC64A95011C8D35D2B2B7FECFF55B91639EA" },
+    { "id": "gain-95-percent", "sha256": "6713183958B360BBAB3BB7598D96A2EDF4E9B8DC8E19F76314D26E40F6B2524E" },
+    { "id": "noise-24db-snr", "sha256": "5695D7EE505CF8395B8E27FFC9952AD654A11F80BA53900A624717ECB452F2BE" },
+    { "id": "one-percent-crosstalk", "sha256": "185D9EAA8E3655430A95E3EA505CADE2C9B741AA13585CC43ABB0C47083DF2AD" }
+  ],
+  "rejected": [
+    { "id": "gain-75-percent", "sha256": "9FBC6DBA5D92292D3A619C839A24BF28CD2991AB54C58597013E277FF94F68A5" },
+    { "id": "midstream-960-sample-dropout", "sha256": "009781E77A219764CA6D6C34A1114B36F835F7B58886AC8B5DD4314F6BEE2210" },
+    { "id": "noise-15db-snr", "sha256": "F3429BFFDA86149B57BA9AD95616EAE653BFC2349FE1E754D736AF9B0481D202" },
+    { "id": "polarity-inversion", "sha256": "868D294ADFE196191432F92C7FCD1265C3CF6B5C10DBC0E1EE48B13CB7734ED7" },
+    { "id": "channel-swap", "sha256": "F86F8A8ECC01320F9A1932489445431F69B545C7C086AD2C60E53D8FBBC0A9F4" },
+    { "id": "clipping", "sha256": "DA31E73872C8F6EC302DFF3AA1DC8E0E166FEDF3CCF316952BF7927738E4F4B7" },
+    { "id": "silence", "sha256": "626DB8BEA999709C8FAEAD0EC9D60025604676FCC44130ABE6C1168B90989B3B" },
+    { "id": "frequency-offset", "sha256": "8A145EA2F224724DEFB83A48CFA833BE459FB59F9E281EAE2B3837F0178602F3" }
+  ],
+  "measuredSeparation": {
+    "acceptedNoise24MinSnrDb": 23.99992277277758,
+    "acceptedNoise24MinCorrelation": 0.9980152914674053,
+    "acceptedNoise24MaxNrmse": 0.06309629544179002,
+    "acceptedGain95MinimumExpectedToneOutputToReferencePowerRatio": 0.9024955633930484,
+    "acceptedGain95MaximumExpectedToneOutputToReferencePowerRatio": 0.9024978916266305,
+    "identityExpectedToneOutputToReferencePowerRatio": 1.0,
+    "identityMinimumActiveWindowRmsFullScale": 0.2567125532082932,
+    "rejectedDropoutMinimumActiveWindowRmsFullScale": 0.0,
+    "rejectedNoise15MaxSnrDb": 14.99995609000411,
+    "rejectedNoise15MaxCorrelation": 0.9845478349267509,
+    "identityMinimumToneDominanceRatio": 4567.973443426002
+  },
+  "routeOutputsEvaluated": false,
+  "routeReencodePerformed": false
+}
