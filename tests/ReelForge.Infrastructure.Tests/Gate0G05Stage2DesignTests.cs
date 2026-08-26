@@ -109,12 +109,15 @@ public sealed class Gate0G05Stage2DesignTests
         using var contract = ReadJson("eng", "gate0", "g0.5-stage2-workload-contract.json");
         var root = contract.RootElement;
 
-        Assert.Equal("Gate0.G05.Stage2.Workloads.V1.Proposed", root.GetProperty("contractId").GetString());
-        Assert.Equal("proposed-owner-review-required-no-media-execution", root.GetProperty("status").GetString());
-        Assert.All(root.GetProperty("currentExecution").EnumerateObject(), property =>
-        {
-            if (property.Name.EndsWith("AuthorizedNow", StringComparison.Ordinal)) Assert.False(property.Value.GetBoolean());
-        });
+        Assert.Equal("Gate0.G05.Stage2.Workloads.V1.OwnerApproved.20260826", root.GetProperty("contractId").GetString());
+        Assert.Equal("owner-approved-prerequisite-execution-authorized-full-matrix-blocked", root.GetProperty("status").GetString());
+        var execution = root.GetProperty("currentExecution");
+        Assert.False(execution.GetProperty("preMatrixSmokeAuthorizedNow").GetBoolean());
+        Assert.False(execution.GetProperty("full2AAuthorizedNow").GetBoolean());
+        Assert.False(execution.GetProperty("applicationHost2BAuthorizedNow").GetBoolean());
+        Assert.False(execution.GetProperty("longForm2CAuthorizedNow").GetBoolean());
+        Assert.True(execution.GetProperty("markerAtlasGenerationAuthorizedNow").GetBoolean());
+        Assert.True(execution.GetProperty("markerSurvivabilityQualificationAuthorizedNow").GetBoolean());
         AssertNoTemplateProperties(root);
 
         var boundaryIds = root.GetProperty("evidenceBoundaries").EnumerateArray()
@@ -135,9 +138,11 @@ public sealed class Gate0G05Stage2DesignTests
         var routes = root.GetProperty("routes").EnumerateArray().ToDictionary(route => route.GetProperty("id").GetString()!);
         Assert.Equal(["mp4-openh264-aac", "webm-vp9-opus"], routes.Keys);
         Assert.Equal("libopenh264", routes["mp4-openh264-aac"].GetProperty("videoEncoder").GetString());
+        Assert.Equal("openh264-constrained-baseline-2m-aaclc-192k", routes["mp4-openh264-aac"].GetProperty("qualityProfileId").GetString());
         Assert.Equal("aac", routes["mp4-openh264-aac"].GetProperty("audioEncoder").GetString());
         Assert.Equal("mp4", routes["mp4-openh264-aac"].GetProperty("muxer").GetString());
         Assert.Equal("libvpx-vp9", routes["webm-vp9-opus"].GetProperty("videoEncoder").GetString());
+        Assert.Equal("vp9-crf32-cpu2-opus-128k-cbr", routes["webm-vp9-opus"].GetProperty("qualityProfileId").GetString());
         Assert.Equal("libopus", routes["webm-vp9-opus"].GetProperty("audioEncoder").GetString());
         Assert.Equal("webm", routes["webm-vp9-opus"].GetProperty("muxer").GetString());
         Assert.All(routes.Values, route =>
@@ -216,6 +221,21 @@ public sealed class Gate0G05Stage2DesignTests
         Assert.False(matrix.GetProperty("applicationHost2B").GetProperty("concurrencyFourAuthorized").GetBoolean());
         Assert.False(matrix.GetProperty("longForm2C").GetProperty("duration120MinutesAuthorized").GetBoolean());
 
+        var markerQualification = root.GetProperty("markerQualification");
+        Assert.Equal(750, markerQualification.GetProperty("expectedFrameCount").GetInt32());
+        Assert.Equal(2, markerQualification.GetProperty("requiredRouteQualityProfiles").GetArrayLength());
+        Assert.Equal([0, 749, 1], new[]
+        {
+            markerQualification.GetProperty("exercisedMarkerIds").GetProperty("first").GetInt32(),
+            markerQualification.GetProperty("exercisedMarkerIds").GetProperty("lastInclusive").GetInt32(),
+            markerQualification.GetProperty("exercisedMarkerIds").GetProperty("step").GetInt32(),
+        });
+        var bitOracle = markerQualification.GetProperty("bitOracle");
+        Assert.Equal(17, bitOracle.GetProperty("cells").GetInt32());
+        Assert.Equal([64, 192], bitOracle.GetProperty("inclusiveAmbiguousRange").EnumerateArray().Select(value => value.GetInt32()));
+        Assert.Contains(markerQualification.GetProperty("acceptance").EnumerateArray(),
+            value => value.GetString()!.Contains("zero duplicate", StringComparison.Ordinal));
+
         var adapter = root.GetProperty("applicationHostBoundary");
         Assert.Equal("p2-windows-wpf-measurement-adapter", adapter.GetProperty("id").GetString());
         Assert.Empty(adapter.GetProperty("productAssemblyReferences").EnumerateArray());
@@ -260,8 +280,8 @@ public sealed class Gate0G05Stage2DesignTests
     {
         using var summary = ReadJson("eng", "gate0", "g0.5-stage2-preparation-result-summary.json");
         var root = summary.RootElement;
-        Assert.Equal("owner-approved-audio-oracle-corrected-frozen-route-evaluation-authorized-other-prerequisites-pending", root.GetProperty("status").GetString());
-        Assert.False(root.GetProperty("syntheticAudioControls").GetProperty("routeOutputsEvaluated").GetBoolean());
+        Assert.Equal("audio-routes-admitted-marker-and-adapter-prerequisites-pending", root.GetProperty("status").GetString());
+        Assert.True(root.GetProperty("syntheticAudioControls").GetProperty("routeOutputsEvaluated").GetBoolean());
         Assert.False(root.GetProperty("syntheticAudioControls").GetProperty("routeReencodePerformed").GetBoolean());
         Assert.True(root.GetProperty("syntheticAudioControls").GetProperty("frozen").GetBoolean());
 

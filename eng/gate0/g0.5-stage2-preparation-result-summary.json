@@ -6,12 +6,12 @@
   "contracts": [
     { "path": "eng/gate0/g0.5-lossy-audio-oracle-contract.json", "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4" },
     { "path": "eng/gate0/g0.5-lossy-audio-oracle-freeze.json", "sha256": "895BE152017E56F4CF634BFDC8D13FC57D4F8A0A227B187E3779A3B537298822" },
-    { "path": "eng/gate0/g0.5-stage2-workload-contract.json", "sha256": "E6E4A2808E69BE2A64FD47B6EAF041CDE7B7063EF9BCE4A0540FE393EBE19EF8" }
+    { "path": "eng/gate0/g0.5-stage2-workload-contract.json", "sha256": "FA05EF6C9C51714A68BD31A49E1A848FFDD41AAB12A8D0CB07D50612B1AC0A44" }
   ],
   "preparationScripts": [
     { "path": "eng/gate0/Invoke-G05LossyAudioOracleControls.ps1", "sha256": "D0A7CA6BF8D2AA1963BDC1A318979EE7B3525141BADA4C2DDCFC5D6B74F15F66" },
     { "path": "eng/gate0/Generate-G05Stage2AudioTruth.ps1", "sha256": "56F9560D9AB77238F5E87F0EFE2B41ECC821F1E289F054A40FD620A0D200B017" },
-    { "path": "eng/gate0/Generate-G05Stage2MarkerAtlas.ps1", "sha256": "52423F1B528FAF40EF8E8A281410DDBA69A4E17062DDFB97F76F18E34AECA67C" }
+    { "path": "eng/gate0/Generate-G05Stage2MarkerAtlas.ps1", "sha256": "D156303EC7ED5F5DCC2C8453857A3ECF0044D19BD3B0178375A0F0301C9B6712" }
   ],
   "syntheticAudioControls": {
     "count": 12,

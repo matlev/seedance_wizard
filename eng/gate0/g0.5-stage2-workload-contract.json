@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "contractId": "Gate0.G05.Stage2.Workloads.V1.Proposed",
-  "status": "proposed-owner-review-required-no-media-execution",
-  "authority": "docs/gate-0-g0.5-stage1-owner-decisions.md",
+  "contractId": "Gate0.G05.Stage2.Workloads.V1.OwnerApproved.20260826",
+  "status": "owner-approved-prerequisite-execution-authorized-full-matrix-blocked",
+  "authority": "docs/gate-0-g0.5-stage2-owner-decisions.md",
   "profileId": "P2.BtbnLgplShared.WindowsX64.20260820",
   "runtimeManifest": "eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json",
   "currentExecution": {
@@ -10,6 +10,8 @@
     "full2AAuthorizedNow": false,
     "applicationHost2BAuthorizedNow": false,
     "longForm2CAuthorizedNow": false,
+    "markerAtlasGenerationAuthorizedNow": true,
+    "markerSurvivabilityQualificationAuthorizedNow": true,
     "mediaExecutionRequiresOwnerApprovedContract": true
   },
   "evidenceBoundaries": [
@@ -54,7 +56,7 @@
       "sha256": "BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97",
       "format": "ppm-p6-rgb24 5100x300",
       "semantics": "90,000 rows-in-atlas markers; each frame index is a unique 17-bit black/white marker, MSB first, arranged 300 markers per atlas row",
-      "status": "proposed-owner-review-required-not-yet-retained"
+      "status": "owner-approved-generation-authorized-not-yet-retained"
     }
   ],
   "inputProfiles": [
@@ -70,8 +72,8 @@
     { "id": "f8-audio-880-loop", "artifacts": ["f8-audio-880"], "tokens": ["-stream_loop", "-1", "-f", "s16le", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "1", "-i", "{artifactRoot}/fixtures/F8/f8-audio-one-880hz.pcm"], "stream": "{inputIndex}:a:0" }
   ],
   "routes": [
-    { "id": "mp4-openh264-aac", "availability": "conditional-on-approved-audio-oracle-pass", "maps": ["[vout]", "[aout]"], "container": "mp4", "videoEncoder": "libopenh264", "videoOptions": ["-profile:v", "constrained_baseline", "-rc_mode", "bitrate", "-b:v", "2M", "-g", "25", "-allow_skip_frames", "false"], "audioEncoder": "aac", "audioOptions": ["-profile:a", "aac_low", "-b:a", "192k"], "muxer": "mp4", "muxerOptions": ["-movflags", "+faststart"], "outputDurationTokens": ["-t", "{durationSeconds}"], "outputDecoders": ["h264", "aac"], "threadPolicies": ["one"] },
-    { "id": "webm-vp9-opus", "availability": "conditional-on-consistent-audio-oracle-revalidation", "maps": ["[vout]", "[aout]"], "container": "webm", "videoEncoder": "libvpx-vp9", "videoOptions": ["-b:v", "0", "-crf", "32", "-g", "25", "-deadline", "good", "-cpu-used", "2", "-row-mt", "0", "-tile-columns", "0", "-tile-rows", "0"], "audioEncoder": "libopus", "audioOptions": ["-b:a", "128k", "-vbr", "off", "-compression_level", "10", "-frame_duration", "20"], "muxer": "webm", "muxerOptions": [], "outputDurationTokens": ["-t", "{durationSeconds}"], "outputDecoders": ["vp9", "opus"], "threadPolicies": ["one", "half-logical"] }
+    { "id": "mp4-openh264-aac", "qualityProfileId": "openh264-constrained-baseline-2m-aaclc-192k", "availability": "admitted-by-frozen-retained-audio-oracle", "admissionEvidence": "eng/gate0/g0.5-retained-audio-result-summary.json", "maps": ["[vout]", "[aout]"], "container": "mp4", "videoEncoder": "libopenh264", "videoOptions": ["-profile:v", "constrained_baseline", "-rc_mode", "bitrate", "-b:v", "2M", "-g", "25", "-allow_skip_frames", "false"], "audioEncoder": "aac", "audioOptions": ["-profile:a", "aac_low", "-b:a", "192k"], "muxer": "mp4", "muxerOptions": ["-movflags", "+faststart"], "outputDurationTokens": ["-t", "{durationSeconds}"], "outputDecoders": ["h264", "aac"], "threadPolicies": ["one"] },
+    { "id": "webm-vp9-opus", "qualityProfileId": "vp9-crf32-cpu2-opus-128k-cbr", "availability": "admitted-by-frozen-retained-audio-oracle", "admissionEvidence": "eng/gate0/g0.5-retained-audio-result-summary.json", "maps": ["[vout]", "[aout]"], "container": "webm", "videoEncoder": "libvpx-vp9", "videoOptions": ["-b:v", "0", "-crf", "32", "-g", "25", "-deadline", "good", "-cpu-used", "2", "-row-mt", "0", "-tile-columns", "0", "-tile-rows", "0"], "audioEncoder": "libopus", "audioOptions": ["-b:a", "128k", "-vbr", "off", "-compression_level", "10", "-frame_duration", "20"], "muxer": "webm", "muxerOptions": [], "outputDurationTokens": ["-t", "{durationSeconds}"], "outputDecoders": ["vp9", "opus"], "threadPolicies": ["one", "half-logical"] }
   ],
   "threadPolicies": [
     {
@@ -259,6 +261,32 @@
       "concurrencyFourAuthorized": false
     },
     "longForm2C": { "workload": "long-form-adapter-1v1a-60m", "attemptsPerAdmittedRoute": 1, "durationMinutes": 60, "duration120MinutesAuthorized": false, "sizingApprovalRequired": true }
+  },
+  "markerQualification": {
+    "evidenceBoundary": "runtime-route",
+    "durationSeconds": 30,
+    "resolution": { "id": "1080p", "width": 1920, "height": 1080 },
+    "frameRate": "25/1",
+    "comparisonTimeBase": "1/1000",
+    "expectedFrameCount": 750,
+    "exercisedMarkerIds": { "first": 0, "lastInclusive": 749, "step": 1 },
+    "requiredRouteQualityProfiles": [
+      { "routeId": "mp4-openh264-aac", "qualityProfileId": "openh264-constrained-baseline-2m-aaclc-192k", "threadPolicyId": "one" },
+      { "routeId": "webm-vp9-opus", "qualityProfileId": "vp9-crf32-cpu2-opus-128k-cbr", "threadPolicyId": "one" }
+    ],
+    "source": "continuous F1 visual identity and audio plus the first 750 sequential markers authored through the long-form marker filter graph",
+    "decodedMarkerStrip": { "x": 16, "y": 16, "width": 272, "height": 16, "pixelFormat": "gray8", "retention": "retain the complete decoded strip sequence and its exact SHA-256" },
+    "bitOracle": { "cells": 17, "cellWidth": 16, "cellHeight": 16, "sampleXWithinCell": 8, "sampleY": 8, "zeroLumaMaximumExclusive": 64, "oneLumaMinimumExclusive": 192, "inclusiveAmbiguousRange": [64, 192], "bitOrder": "most-significant to least-significant" },
+    "acceptance": [
+      "exactly 750 decoded frames and immediate terminal EOF",
+      "normalized PTS equals sequential frame index multiplied by 40 ticks",
+      "every bit sample is outside the inclusive ambiguous luma range 64 through 192",
+      "every recovered marker equals its sequential frame index",
+      "zero duplicate recovered IDs, collisions, misidentified IDs, missing IDs, or unexpected IDs",
+      "every admitted route and exact quality profile passes independently"
+    ],
+    "stopCondition": "Any ambiguous bit, timing deviation, collision, duplicate, missing, unexpected, or misidentified marker blocks the affected route and stops before long-form execution.",
+    "nonClaims": ["No long-form integrity claim.", "No current ReelForge product-composition, preview, cache, or UI claim.", "No shipping-runtime, distribution, patent, or legal conclusion."]
   },
   "provisionalReferenceThresholds": {
     "uiCommandReturnMsMax": 100,
