@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-26T00:07:56.2080197+00:00",
+  "generatedUtc": "2026-08-26T00:09:18.8500280+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -15897,12 +15897,47 @@
           "sha256": "72680C5EFD7148779E07054BDE462752AFAF255CC4E1E8892C0A0170787CE5C2"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.Calibration.20260826T000915709Z.AC4E549E",
+      "provenance": "G0.5 bounded calibration evidence",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json"
+      ],
+      "licenseRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/g05-calibration-20260826T000911853Z-71c3c6b3/g0.5-calibration-evidence.json"
+      ],
+      "fileCount": 3,
+      "totalBytes": 71444,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T000915709Z.AC4E549E/g0.5-calibration-evidence.json",
+          "filename": "proofs/g05-calibration-20260826T000911853Z-71c3c6b3/g0.5-calibration-evidence.json",
+          "size": 16859,
+          "sha256": "3D8E0CBA16381FD11F9228AB30A386DD864B520EFA37C00532790FF4E07D1951"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T000915709Z.AC4E549E/snapshots/g0.5-calibration-contract.json",
+          "filename": "proofs/g05-calibration-20260826T000911853Z-71c3c6b3/snapshots/g0.5-calibration-contract.json",
+          "size": 10775,
+          "sha256": "DAC3E8C9836C8BF4EE1530A9DF22DE96B23E0DB736BF0575577DCB2CA4551270"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T000915709Z.AC4E549E/snapshots/Invoke-P2G05Calibration.ps1",
+          "filename": "proofs/g05-calibration-20260826T000911853Z-71c3c6b3/snapshots/Invoke-P2G05Calibration.ps1",
+          "size": 43810,
+          "sha256": "0B73420DAAD5E93628D8003954E7DBDF21711AEAEDFEED6A2FA7AFABDF54F8B2"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 8,
-    "fileCount": 2618,
-    "totalBytes": 454678323
+    "groupCount": 9,
+    "fileCount": 2621,
+    "totalBytes": 454749767
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

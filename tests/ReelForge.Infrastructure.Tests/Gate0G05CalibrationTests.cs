@@ -43,7 +43,7 @@ public sealed class Gate0G05CalibrationTests
             "'-map','0:v:0'", "'-map','1:a:0'", "libopenh264", "libvpx-vp9", "libopus",
             "Frame identity-cycle oracle failed", "Frame timestamp oracle failed", "Audio waveform oracle failed", "Audio left/right tone identity oracle failed",
             "activeProgressMonotonicMs", "output-size-ceiling", "forcedTermination", "blocked-startup", "not-exercised",
-            "pending-append", "retained-and-revalidated", "Post-append retained corpus validation failed",
+            "pending-append", "retained-and-revalidated", "Invoke-RequiredScript",
             "repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json",
             "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt",
             "artifact:$destination/g0.5-calibration-evidence.json"
@@ -85,6 +85,35 @@ public sealed class Gate0G05CalibrationTests
             Assert.Contains("must be new", result.Output, StringComparison.OrdinalIgnoreCase);
         }
         finally { Directory.Delete(output, true); }
+    }
+
+    [Fact]
+    public void RequiredPowerShellScriptCallsDoNotDependOnNativeLastExitCodeState()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ReelForge-Gate0-G05-required-script-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var success = Path.Combine(root, "success.ps1");
+            var failure = Path.Combine(root, "failure.ps1");
+            File.WriteAllText(success, "param([string] $Value)\nSet-StrictMode -Version Latest\n[pscustomobject]@{value=$Value}\n");
+            File.WriteAllText(failure, "throw 'expected-child-failure'\n");
+            var script = PathInRepo("eng", "gate0", "Invoke-P2G05Calibration.ps1").Replace("'", "''", StringComparison.Ordinal);
+            var command = $$$"""
+                Set-StrictMode -Version Latest
+                $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile('{{{script}}}',[ref]$tokens,[ref]$errors)
+                if($errors.Count){exit 10}
+                $fn=$ast.Find({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-RequiredScript'},$true)
+                if($null-eq$fn){exit 11};. ([scriptblock]::Create($fn.Extent.Text))
+                $result=Invoke-RequiredScript '{{{success.Replace("'", "''", StringComparison.Ordinal)}}}' @{Value='ok'}
+                if($result.value-ne'ok'){exit 12}
+                try{Invoke-RequiredScript '{{{failure.Replace("'", "''", StringComparison.Ordinal)}}}' @{};exit 13}catch{if($_.Exception.Message-notmatch'expected-child-failure'){exit 14}}
+                exit 0
+                """;
+            var result = RunPowerShell(command);
+            Assert.Equal(0, result.ExitCode);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
     [Fact]
