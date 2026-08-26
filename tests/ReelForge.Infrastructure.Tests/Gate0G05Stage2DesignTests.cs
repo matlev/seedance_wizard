@@ -290,10 +290,14 @@ public sealed class Gate0G05Stage2DesignTests
     {
         using var summary = ReadJson("eng", "gate0", "g0.5-stage2-preparation-result-summary.json");
         var root = summary.RootElement;
-        Assert.Equal("audio-routes-admitted-marker-and-adapter-prerequisites-pending", root.GetProperty("status").GetString());
+        Assert.Equal("audio-routes-and-marker-qualified-adapter-retention-and-resource-prerequisites-pending", root.GetProperty("status").GetString());
         Assert.True(root.GetProperty("syntheticAudioControls").GetProperty("routeOutputsEvaluated").GetBoolean());
         Assert.False(root.GetProperty("syntheticAudioControls").GetProperty("routeReencodePerformed").GetBoolean());
         Assert.True(root.GetProperty("syntheticAudioControls").GetProperty("frozen").GetBoolean());
+        Assert.Equal("completed", root.GetProperty("markerQualification").GetProperty("status").GetString());
+        Assert.Equal(2, root.GetProperty("markerQualification").GetProperty("routes").GetProperty("passed").GetInt32());
+        Assert.Equal(1500, root.GetProperty("markerQualification").GetProperty("frames").GetProperty("uniquelyRecovered").GetInt32());
+        Assert.True(root.GetProperty("markerQualification").GetProperty("r2VerificationPending").GetBoolean());
 
         foreach (var record in root.GetProperty("contracts").EnumerateArray().Concat(root.GetProperty("preparationScripts").EnumerateArray()))
         {

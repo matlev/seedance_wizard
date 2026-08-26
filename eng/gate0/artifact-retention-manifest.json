@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-26T18:00:20.6920757+00:00",
+  "generatedUtc": "2026-08-26T18:37:00.5856059+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -23895,12 +23895,368 @@
           "sha256": "96DCE72236F13EB79199D4FC598C09A61A9EAB1B4F3331B2CF5609EBD4B3A1C2"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.MarkerSurvivability.20260826.ExpectationPreflight",
+      "provenance": "G0.5 marker qualification expectation-typing infrastructure failure retained as superseded evidence.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Invoke-G05MarkerSurvivability.ps1",
+        "repository:eng/gate0/G05MarkerSurvivabilityHelpers.psm1",
+        "repository:eng/gate0/g0.5-stage2-workload-contract.json",
+        "repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json"
+      ],
+      "licenseRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-marker-survivability-20260826-expectation-preflight/g0.5-marker-survivability-report.json"
+      ],
+      "fileCount": 1,
+      "totalBytes": 1772,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.ExpectationPreflight/g0.5-marker-survivability-report.json",
+          "filename": "proofs/g0.5-marker-survivability-20260826-expectation-preflight/g0.5-marker-survivability-report.json",
+          "size": 1772,
+          "sha256": "3BCF489180AC2AFD4B515BB3615868E10A48C2DC7C4A43DF2C280270C8325CFD"
+        }
+      ]
+    },
+    {
+      "groupId": "Gate0.G05.MarkerSurvivability.20260826.FreeSpacePreflight",
+      "provenance": "G0.5 marker qualification free-space preflight infrastructure failure retained as superseded evidence.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Invoke-G05MarkerSurvivability.ps1",
+        "repository:eng/gate0/G05MarkerSurvivabilityHelpers.psm1",
+        "repository:eng/gate0/g0.5-stage2-workload-contract.json",
+        "repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json"
+      ],
+      "licenseRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-marker-survivability-20260826-free-space-preflight/g0.5-marker-survivability-report.json"
+      ],
+      "fileCount": 1,
+      "totalBytes": 2745,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.FreeSpacePreflight/g0.5-marker-survivability-report.json",
+          "filename": "proofs/g0.5-marker-survivability-20260826-free-space-preflight/g0.5-marker-survivability-report.json",
+          "size": 2745,
+          "sha256": "48590E8E1773BDF0EB1866AEE7E40B36B6A39D305F919ABCD92A5BC180F64FDA"
+        }
+      ]
+    },
+    {
+      "groupId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded",
+      "provenance": "G0.5 marker qualification attempt retained as superseded evidence before packet-bound lossy-audio timing correction.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Invoke-G05MarkerSurvivability.ps1",
+        "repository:eng/gate0/G05MarkerSurvivabilityHelpers.psm1",
+        "repository:eng/gate0/g0.5-stage2-workload-contract.json",
+        "repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json"
+      ],
+      "licenseRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/g0.5-marker-survivability-report.json"
+      ],
+      "fileCount": 17,
+      "totalBytes": 14681106,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/decoded-audio/mp4-openh264-aac.s16le",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/decoded-audio/mp4-openh264-aac.s16le",
+          "size": 5763072,
+          "sha256": "9737793D3146EC765758B6A7900BD6610DEFC94614298C5428B91B2F4BA658AA"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/g0.5-marker-survivability-report.json",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/g0.5-marker-survivability-report.json",
+          "size": 181652,
+          "sha256": "0FEB9200FF329BA0FB5DCA3EC63A0629D80E8FDCA69AF55C41A51C47725428EE"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/decode-audio-mp4-openh264-aac.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/decode-audio-mp4-openh264-aac.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/decode-audio-mp4-openh264-aac.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/decode-audio-mp4-openh264-aac.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/decode-mp4-openh264-aac.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/decode-mp4-openh264-aac.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/decode-mp4-openh264-aac.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/decode-mp4-openh264-aac.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/encode-mp4-openh264-aac.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/encode-mp4-openh264-aac.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/encode-mp4-openh264-aac.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/encode-mp4-openh264-aac.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/encode-webm-vp9-opus.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/encode-webm-vp9-opus.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/encode-webm-vp9-opus.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/encode-webm-vp9-opus.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/probe-mp4-openh264-aac.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/probe-mp4-openh264-aac.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/probe-mp4-openh264-aac.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/probe-mp4-openh264-aac.stdout.txt",
+          "size": 1582352,
+          "sha256": "EFD107E791B1E98E08DF59AF27A902D6D9BD90125A827155BEB619C8B0889D7A"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/probe-webm-vp9-opus.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/probe-webm-vp9-opus.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/logs/probe-webm-vp9-opus.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/logs/probe-webm-vp9-opus.stdout.txt",
+          "size": 1652877,
+          "sha256": "80EBFFA90372A674C03C733B604D5BF460A7409C1C06BB885B559F9F92185ED2"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/marker-strips/mp4-openh264-aac.gray",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/marker-strips/mp4-openh264-aac.gray",
+          "size": 3264000,
+          "sha256": "BB54F77EA9CE0530E88F64C64073D2C607398881524B01B9981DB44C97827B3E"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/media/mp4-openh264-aac.mp4",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/media/mp4-openh264-aac.mp4",
+          "size": 1538775,
+          "sha256": "8FE3B247309E077A5483D7A98E8D904C9EFA57F688730E49B03E84E9D19492D5"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded/media/webm-vp9-opus.webm",
+          "filename": "proofs/g0.5-marker-survivability-20260826-audio-timing-superseded/media/webm-vp9-opus.webm",
+          "size": 698378,
+          "sha256": "10F83085B6EA3913E3F97BB835A242D0495338AEC8845A6F73A37C1136C4C74F"
+        }
+      ]
+    },
+    {
+      "groupId": "Gate0.G05.MarkerSurvivability.20260826.Final",
+      "provenance": "Authoritative approved G0.5 marker-survivability qualification for both admitted route profiles.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Invoke-G05MarkerSurvivability.ps1",
+        "repository:eng/gate0/G05MarkerSurvivabilityHelpers.psm1",
+        "repository:eng/gate0/g0.5-stage2-workload-contract.json",
+        "repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json"
+      ],
+      "licenseRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-marker-survivability-20260826-final/g0.5-marker-survivability-report.json"
+      ],
+      "fileCount": 27,
+      "totalBytes": 25551686,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/decoded-audio/mp4-openh264-aac.s16le",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/decoded-audio/mp4-openh264-aac.s16le",
+          "size": 5763072,
+          "sha256": "9737793D3146EC765758B6A7900BD6610DEFC94614298C5428B91B2F4BA658AA"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/decoded-audio/webm-vp9-opus.s16le",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/decoded-audio/webm-vp9-opus.s16le",
+          "size": 5760000,
+          "sha256": "A088C078F476A828EDA94BAD3D4A4251D53FD790A15A1F0FF8E48071F2BA1BDF"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/g0.5-marker-survivability-report.json",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/g0.5-marker-survivability-report.json",
+          "size": 357168,
+          "sha256": "48611C1D670AEA59CA7192537B36237FE769B7F52BC074A5F9387B666FDEBFA9"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/decode-audio-mp4-openh264-aac.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/decode-audio-mp4-openh264-aac.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/decode-audio-mp4-openh264-aac.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/decode-audio-mp4-openh264-aac.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/decode-audio-webm-vp9-opus.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/decode-audio-webm-vp9-opus.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/decode-audio-webm-vp9-opus.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/decode-audio-webm-vp9-opus.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/decode-mp4-openh264-aac.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/decode-mp4-openh264-aac.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/decode-mp4-openh264-aac.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/decode-mp4-openh264-aac.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/decode-webm-vp9-opus.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/decode-webm-vp9-opus.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/decode-webm-vp9-opus.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/decode-webm-vp9-opus.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/encode-mp4-openh264-aac.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/encode-mp4-openh264-aac.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/encode-mp4-openh264-aac.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/encode-mp4-openh264-aac.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/encode-webm-vp9-opus.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/encode-webm-vp9-opus.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/encode-webm-vp9-opus.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/encode-webm-vp9-opus.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/probe-mp4-openh264-aac.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/probe-mp4-openh264-aac.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/probe-mp4-openh264-aac.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/probe-mp4-openh264-aac.stdout.txt",
+          "size": 1582353,
+          "sha256": "8C19EFDA2E40555B8D58610A87B8E51AB1F3FAB71A1E132AA19988CA0E3EC96E"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/probe-packets-mp4-openh264-aac.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/probe-packets-mp4-openh264-aac.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/probe-packets-mp4-openh264-aac.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/probe-packets-mp4-openh264-aac.stdout.txt",
+          "size": 823496,
+          "sha256": "14A21E9670F650BF787325EC15378EEF2B99EC8C8245EA37DD3FFD9474050F20"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/probe-packets-webm-vp9-opus.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/probe-packets-webm-vp9-opus.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/probe-packets-webm-vp9-opus.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/probe-packets-webm-vp9-opus.stdout.txt",
+          "size": 847566,
+          "sha256": "B92FF369DC7233FADBD3EF2FA6E0E0A8358E587A9BDF1641B6FCE79BCCBAD06B"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/probe-webm-vp9-opus.stderr.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/probe-webm-vp9-opus.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/logs/probe-webm-vp9-opus.stdout.txt",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/logs/probe-webm-vp9-opus.stdout.txt",
+          "size": 1652878,
+          "sha256": "4CDEDB63867867E1EDFE3BD1A89140549FBD7F1EC32CDE6C6C70CDC600657F2F"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/marker-strips/mp4-openh264-aac.gray",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/marker-strips/mp4-openh264-aac.gray",
+          "size": 3264000,
+          "sha256": "BB54F77EA9CE0530E88F64C64073D2C607398881524B01B9981DB44C97827B3E"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/marker-strips/webm-vp9-opus.gray",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/marker-strips/webm-vp9-opus.gray",
+          "size": 3264000,
+          "sha256": "5DF2A0B073008D90F1416ED6D8AFF3940CDC8800BFFA84F535A62C9F84827B61"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/media/mp4-openh264-aac.mp4",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/media/mp4-openh264-aac.mp4",
+          "size": 1538775,
+          "sha256": "8FE3B247309E077A5483D7A98E8D904C9EFA57F688730E49B03E84E9D19492D5"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerSurvivability.20260826.Final/media/webm-vp9-opus.webm",
+          "filename": "proofs/g0.5-marker-survivability-20260826-final/media/webm-vp9-opus.webm",
+          "size": 698378,
+          "sha256": "992036FBA776C41DC42A08EC791F771382A24FBBFD726C2F5604AA9AD0A37FFF"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 20,
-    "fileCount": 3915,
-    "totalBytes": 955671909
+    "groupCount": 24,
+    "fileCount": 3961,
+    "totalBytes": 995909218
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

@@ -29,7 +29,7 @@ public sealed class Gate0ArtifactRetentionTests
         Assert.False(storage.GetProperty("temporaryProviderR2Permitted").GetBoolean());
 
         var groups = root.GetProperty("groups").EnumerateArray().ToArray();
-        Assert.Equal(20, groups.Length);
+        Assert.Equal(24, groups.Length);
         Assert.Equal(
             [
                 "P2.BtbnLgplShared.WindowsX64.20260820",
@@ -52,12 +52,16 @@ public sealed class Gate0ArtifactRetentionTests
                 "Gate0.G05.RetainedAudioOracle.20260826.PtsEndpoint",
                 "Gate0.G05.RetainedAudioOracle.20260826.Final",
                 "Gate0.G05.MarkerAtlas.20260826",
+                "Gate0.G05.MarkerSurvivability.20260826.ExpectationPreflight",
+                "Gate0.G05.MarkerSurvivability.20260826.FreeSpacePreflight",
+                "Gate0.G05.MarkerSurvivability.20260826.AudioTimingSuperseded",
+                "Gate0.G05.MarkerSurvivability.20260826.Final",
             ],
             groups.Select(group => group.GetProperty("groupId").GetString()));
 
         var files = groups.SelectMany(group => group.GetProperty("files").EnumerateArray()).ToArray();
-        Assert.Equal(3915, files.Length);
-        Assert.Equal(955671909, files.Sum(file => file.GetProperty("size").GetInt64()));
+        Assert.Equal(3961, files.Length);
+        Assert.Equal(995909218, files.Sum(file => file.GetProperty("size").GetInt64()));
         Assert.Equal(files.Length, files.Select(file => file.GetProperty("artifactId").GetString()).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(files.Length, files.Select(file => file.GetProperty("filename").GetString()).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(files, file =>
@@ -93,6 +97,9 @@ public sealed class Gate0ArtifactRetentionTests
         Assert.Contains(files, file =>
             file.GetProperty("filename").GetString() == "proofs/p3-jpeg-20260825/validated/p3-jpeg-input-proof-evidence.json" &&
             file.GetProperty("sha256").GetString() == "679F5C79CFBA9C5FEBC3DB70714D867D7E9FBD8305F3129663C13A1E2FD88F45");
+        Assert.Contains(files, file =>
+            file.GetProperty("filename").GetString() == "proofs/g0.5-marker-survivability-20260826-final/g0.5-marker-survivability-report.json" &&
+            file.GetProperty("sha256").GetString() == "48611C1D670AEA59CA7192537B36237FE769B7F52BC074A5F9387B666FDEBFA9");
         Assert.Contains(files, file =>
             file.GetProperty("filename").GetString() == "proofs/p3-jpeg-20260825/validated/media/progressive-420.jpg" &&
             file.GetProperty("sha256").GetString() == "F9F34A9F0651066BFAD6646AB1E601FAFBFFBDDEBDB6A9FED45725857B5035F2");

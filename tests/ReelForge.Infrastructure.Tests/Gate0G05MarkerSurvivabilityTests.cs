@@ -5,6 +5,32 @@ namespace ReelForge.Infrastructure.Tests;
 public sealed class Gate0G05MarkerSurvivabilityTests
 {
     [Fact]
+    public void ResultSummaryPinsTheAuthoritativeBoundedQualificationWithoutClosingStage2()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-marker-survivability-result-summary.json")));
+        var root = document.RootElement;
+
+        Assert.Equal("completed", root.GetProperty("status").GetString());
+        Assert.Equal(2, root.GetProperty("matrix").GetProperty("evaluatedRoutes").GetInt32());
+        Assert.Equal(2, root.GetProperty("matrix").GetProperty("passedRoutes").GetInt32());
+        Assert.Equal(1500, root.GetProperty("matrix").GetProperty("uniquelyRecoveredFrames").GetInt32());
+        Assert.Equal("48611C1D670AEA59CA7192537B36237FE769B7F52BC074A5F9387B666FDEBFA9", root.GetProperty("authoritativeEvidence").GetProperty("reportSha256").GetString());
+        Assert.Equal("bc93906", root.GetProperty("authoritativeEvidence").GetProperty("executionCommit").GetString());
+        Assert.Equal(3, root.GetProperty("supersededAttempts").GetArrayLength());
+        Assert.Equal(4, root.GetProperty("remainingBeforePreMatrixSmoke").GetArrayLength());
+
+        foreach (var route in root.GetProperty("routeDispositions").EnumerateArray())
+        {
+            var marker = route.GetProperty("marker");
+            Assert.Equal(750, marker.GetProperty("expectedFrames").GetInt32());
+            Assert.Equal(750, marker.GetProperty("decodedFrames").GetInt32());
+            foreach (var field in new[] { "ambiguous", "misidentified", "duplicates", "collisions", "missing", "unexpected", "badPts" })
+                Assert.Equal(0, marker.GetProperty(field).GetInt32());
+            Assert.False(route.GetProperty("audioTiming").GetProperty("proofSideTrimmingPerformed").GetBoolean());
+        }
+    }
+
+    [Fact]
     public void HarnessPinsTheProofOnlyMarkerContractAndExplicitRoutes()
     {
         var path = PathInRepo("eng", "gate0", "Invoke-G05MarkerSurvivability.ps1");

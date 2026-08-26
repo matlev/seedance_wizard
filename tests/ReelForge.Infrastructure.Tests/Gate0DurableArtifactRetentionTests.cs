@@ -21,8 +21,8 @@ public sealed class Gate0DurableArtifactRetentionTests
         Assert.Equal("Gate0.DurableR2Retention.V1", root.GetProperty("manifestId").GetString());
         var source = root.GetProperty("sourceInventory");
         Assert.Equal(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath))), source.GetProperty("sha256").GetString());
-        Assert.Equal(3915, source.GetProperty("logicalArtifactCount").GetInt32());
-        Assert.Equal(955_671_909, source.GetProperty("logicalArtifactBytes").GetInt64());
+        Assert.Equal(3961, source.GetProperty("logicalArtifactCount").GetInt32());
+        Assert.Equal(995_909_218, source.GetProperty("logicalArtifactBytes").GetInt64());
 
         var storage = root.GetProperty("storage");
         Assert.Equal("cloudflare-r2", storage.GetProperty("provider").GetString());
@@ -70,7 +70,7 @@ public sealed class Gate0DurableArtifactRetentionTests
         using var document = JsonDocument.Parse(result.Output.Trim());
         Assert.False(document.RootElement.GetProperty("localByteVerificationPerformed").GetBoolean());
         Assert.False(document.RootElement.GetProperty("remoteByteVerificationPerformed").GetBoolean());
-        Assert.Equal(3915, document.RootElement.GetProperty("requiredLogicalArtifactCount").GetInt32());
+        Assert.Equal(3961, document.RootElement.GetProperty("requiredLogicalArtifactCount").GetInt32());
         Assert.Equal(1, document.RootElement.GetProperty("recordedRemoteVerifiedLogicalArtifacts").GetInt32());
         Assert.False(document.RootElement.GetProperty("secondPrivateCopyVerified").GetBoolean());
     }
@@ -104,8 +104,8 @@ public sealed class Gate0DurableArtifactRetentionTests
                 var status = root["status"]!.AsObject();
                 status["retentionCondition"] = "complete";
                 status["secondPrivateCopyVerified"] = true;
-                status["verifiedLogicalArtifactCount"] = 3915;
-                status["verifiedLogicalArtifactBytes"] = 955_671_909;
+                status["verifiedLogicalArtifactCount"] = 3961;
+                status["verifiedLogicalArtifactBytes"] = 995_909_218;
                 status["blocker"] = null;
             }
             else
