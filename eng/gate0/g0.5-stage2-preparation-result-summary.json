@@ -6,7 +6,7 @@
   "contracts": [
     { "path": "eng/gate0/g0.5-lossy-audio-oracle-contract.json", "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4" },
     { "path": "eng/gate0/g0.5-lossy-audio-oracle-freeze.json", "sha256": "895BE152017E56F4CF634BFDC8D13FC57D4F8A0A227B187E3779A3B537298822" },
-    { "path": "eng/gate0/g0.5-stage2-workload-contract.json", "sha256": "FA05EF6C9C51714A68BD31A49E1A848FFDD41AAB12A8D0CB07D50612B1AC0A44" }
+    { "path": "eng/gate0/g0.5-stage2-workload-contract.json", "sha256": "C7A26F05D2ED0B7A04CEE30F47E1E6FB20F2C9EA1C5D2A4EC93341BEF6D56C95" }
   ],
   "preparationScripts": [
     { "path": "eng/gate0/Invoke-G05LossyAudioOracleControls.ps1", "sha256": "D0A7CA6BF8D2AA1963BDC1A318979EE7B3525141BADA4C2DDCFC5D6B74F15F66" },

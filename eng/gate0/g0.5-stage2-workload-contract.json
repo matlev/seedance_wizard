@@ -271,15 +271,30 @@
     "expectedFrameCount": 750,
     "exercisedMarkerIds": { "first": 0, "lastInclusive": 749, "step": 1 },
     "requiredRouteQualityProfiles": [
-      { "routeId": "mp4-openh264-aac", "qualityProfileId": "openh264-constrained-baseline-2m-aaclc-192k", "threadPolicyId": "one" },
-      { "routeId": "webm-vp9-opus", "qualityProfileId": "vp9-crf32-cpu2-opus-128k-cbr", "threadPolicyId": "one" }
+      {
+        "routeId": "mp4-openh264-aac",
+        "qualityProfileId": "openh264-constrained-baseline-2m-aaclc-192k",
+        "threadPolicyId": "one",
+        "observedDescriptor": { "formatName": "mov,mp4,m4a,3gp,3g2,mj2", "videoCodec": "h264", "videoProfile": "Constrained Baseline", "pixelFormat": "yuv420p", "width": 1920, "height": 1080, "frameRate": "25/1", "audioCodec": "aac", "audioProfile": "LC", "audioSampleRate": 48000, "audioChannels": 2, "audioChannelLayout": "stereo" }
+      },
+      {
+        "routeId": "webm-vp9-opus",
+        "qualityProfileId": "vp9-crf32-cpu2-opus-128k-cbr",
+        "threadPolicyId": "one",
+        "observedDescriptor": { "formatName": "matroska,webm", "videoCodec": "vp9", "videoProfile": "Profile 0", "pixelFormat": "yuv420p", "width": 1920, "height": 1080, "frameRate": "25/1", "audioCodec": "opus", "audioProfile": null, "audioSampleRate": 48000, "audioChannels": 2, "audioChannelLayout": "stereo" }
+      }
     ],
     "source": "continuous F1 visual identity and audio plus the first 750 sequential markers authored through the long-form marker filter graph",
+    "videoFilterGraph": "[0:v:0]scale=1920:1080:flags=bilinear,format=rgba,setpts=PTS-STARTPTS[base];[1:v:0]crop=17:1:x=17*mod(n\\,300):y=floor(n/300),scale=272:16:flags=neighbor,format=rgba,setpts=PTS-STARTPTS[marker];[base][marker]overlay=x=16:y=16:format=auto,format=yuv420p[vout]",
+    "audioFilterGraph": "[2:a:0]aformat=sample_fmts=flt:sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[aout]",
     "decodedMarkerStrip": { "x": 16, "y": 16, "width": 272, "height": 16, "pixelFormat": "gray8", "retention": "retain the complete decoded strip sequence and its exact SHA-256" },
+    "decodedAudio": { "decoderSelection": "force the route audio decoder", "format": "pcm_s16le 48000 Hz stereo", "expectedSamplesPerChannel": 1440000, "retention": "retain complete decoded PCM and its exact size and SHA-256" },
     "bitOracle": { "cells": 17, "cellWidth": 16, "cellHeight": 16, "sampleXWithinCell": 8, "sampleY": 8, "zeroLumaMaximumExclusive": 64, "oneLumaMinimumExclusive": 192, "inclusiveAmbiguousRange": [64, 192], "bitOrder": "most-significant to least-significant" },
     "acceptance": [
       "exactly 750 decoded frames and immediate terminal EOF",
       "normalized PTS equals sequential frame index multiplied by 40 ticks",
+      "observed container, video, and audio descriptors exactly match the approved route quality profile",
+      "strict complete video and audio decodes succeed without concealed decode errors and produce exactly 1440000 audio samples per channel",
       "every bit sample is outside the inclusive ambiguous luma range 64 through 192",
       "every recovered marker equals its sequential frame index",
       "zero duplicate recovered IDs, collisions, misidentified IDs, missing IDs, or unexpected IDs",
