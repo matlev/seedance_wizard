@@ -34,12 +34,14 @@ public sealed class Gate0G05MarkerSurvivabilityTests
     }
 
     [Fact]
-    public void JsonDerivedArtifactExpectationRemainsAnObjectWithExplicitSizeAndHash()
+    public void JsonAndDictionaryArtifactExpectationsExposeExplicitSizeAndHash()
     {
         var command = """
             $expected='{"size":4590016,"sha256":"BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97"}'|ConvertFrom-Json
-            function Verify([object]$value){if($null-eq$value.PSObject.Properties['size']-or$null-eq$value.PSObject.Properties['sha256']-or[int64]$value.size-ne4590016){throw 'bad expectation'}}
+            $dictionary=[ordered]@{size=4590016;sha256='BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97'}
+            function Verify([object]$value){if($value-is[Collections.IDictionary]){if(-not$value.Contains('size')-or-not$value.Contains('sha256')-or[int64]$value['size']-ne4590016){throw 'bad dictionary expectation'}}elseif($null-eq$value.PSObject.Properties['size']-or$null-eq$value.PSObject.Properties['sha256']-or[int64]$value.size-ne4590016){throw 'bad object expectation'}}
             Verify $expected
+            Verify $dictionary
             """;
         Assert.Equal(0, Run("pwsh", command).ExitCode);
     }
