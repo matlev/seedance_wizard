@@ -1,6 +1,6 @@
 # Gate 0 G0.5 smoke resource preflight
 
-Status: all four numeric execution floors owner-approved; resource preflight execution authorized; media execution remains blocked
+Status: authoritative no-media resource preflight passed; complete R2 verification and media execution remain blocked
 
 Authority: [Stage 1 owner decisions](gate-0-g0.5-stage1-owner-decisions.md), [Stage 2 owner decisions](gate-0-g0.5-stage2-owner-decisions.md), and the [Stage 2 workload proposal](gate-0-g0.5-stage2-workload-proposal.md)
 
@@ -30,3 +30,17 @@ These are reference-host execution safeguards only. They do not establish a cust
 The runner independently validates every current local corpus byte and the local/durable manifest binding, proves the exact sibling roots contain no reparse points, observes memory/process/volume state, and hash-binds the workload and preflight contracts. Once a trusted new output directory has been established, passed and blocked attempts are atomically retained. An invalid invocation that cannot establish that trusted location is not a proof attempt. An evidence-persistence failure exits fail-closed and produces no reportable result; it cannot be relabeled as a retained block.
 
 This evidence does not complete the separate R2 prerequisite, authorize the smoke by itself, execute FFmpeg, or prove current ReelForge product behavior. The pre-matrix smoke may begin only after this preflight and complete R2 byte verification both pass. Full 2A, 2B, 2C, and long-form execution remain outside this unit.
+
+## Result
+
+The authoritative 2026-08-26 run from commit `7b3f7b2` passed all seven criteria and recorded `noMediaInvoked: true`. The point-in-time observation was:
+
+- 16 logical processors;
+- 34,261,430,272 bytes total physical memory and 17,961,807,872 bytes available;
+- 15.667% CPU utilization from the fail-closed native Windows sample, recorded but not gated;
+- no active `ffmpeg` or `ffprobe` process; and
+- 139,466,764,288 bytes free on the common artifact/staging volume against the 3,758,096,384-byte floor.
+
+The authoritative evidence is locally verified and immutably retained as `Gate0.G05.Stage2SmokePreflight.20260826.AuthoritativePass`, SHA-256 `2AD8399B808A2B673C002EBC8C4611F73265A8AC071365D50F0C49133FF3A119`. Three superseded attempts are retained as audit evidence: the native-memory compile block, the fail-closed stale durable-binding block, and an invalidated pass that exposed a nullable CPU observation. The latter caused the CPU probe to be replaced with a native `GetSystemTimes` sample that blocks instead of emitting a missing observation.
+
+The machine-readable result is `eng/gate0/g0.5-stage2-smoke-preflight-result-summary.json`; it is the current result record, while the hash-bound Stage 2 preparation summary remains an immutable pre-execution record. The resource prerequisite is complete. The smoke remains unauthorized until every byte in the now-stable 3,971-file, 996,626,827-byte corpus is independently retrieved from R2 and hash-verified.

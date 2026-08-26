@@ -4,9 +4,9 @@
   "sourceInventory": {
     "path": "eng/gate0/artifact-retention-manifest.json",
     "artifactSetId": "Gate0.InterimCorpus.20260825",
-    "sha256": "8C73CB1EBD68EDADA408E1E487B6811F427A2088B73630FA103E3B5B93C60FE9",
-    "logicalArtifactCount": 3967,
-    "logicalArtifactBytes": 996614118
+    "sha256": "AF4A7312E5182F82E2A022C1FF1CC0B9EF53FC914790C5B1D462E41107032477",
+    "logicalArtifactCount": 3971,
+    "logicalArtifactBytes": 996626827
   },
   "storage": {
     "provider": "cloudflare-r2",

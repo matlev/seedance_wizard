@@ -77,6 +77,24 @@ public sealed class Gate0G05Stage2SmokePreflightTests
         Assert.Contains("eng/gate0/g0.5-stage2-smoke-preflight-contract.json text eol=lf", File.ReadAllText(PathInRepo(".gitattributes")), StringComparison.Ordinal);
         Assert.Contains("eng/gate0/g0.5-stage2-workload-contract.json text eol=lf", File.ReadAllText(PathInRepo(".gitattributes")), StringComparison.Ordinal);
         Assert.Contains("eng/gate0/g0.5-stage2-preparation-result-summary.json text eol=lf", File.ReadAllText(PathInRepo(".gitattributes")), StringComparison.Ordinal);
+        Assert.Contains("eng/gate0/g0.5-stage2-smoke-preflight-result-summary.json text eol=lf", File.ReadAllText(PathInRepo(".gitattributes")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AuthoritativeResultRemainsBoundToRetainedNoMediaEvidence()
+    {
+        using var result = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-stage2-smoke-preflight-result-summary.json")));
+        var root = result.RootElement;
+        Assert.Equal("passed-r2-verification-pending", root.GetProperty("status").GetString());
+        Assert.True(root.GetProperty("execution").GetProperty("noMediaInvoked").GetBoolean());
+        Assert.Equal(JsonValueKind.Number, root.GetProperty("hostObservation").GetProperty("currentCpuUtilizationPercent").ValueKind);
+        Assert.False(root.GetProperty("disposition").GetProperty("preMatrixSmokeAuthorized").GetBoolean());
+
+        using var retention = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "artifact-retention-manifest.json")));
+        var expectedGroupId = root.GetProperty("retention").GetProperty("authoritativeGroupId").GetString();
+        var group = retention.RootElement.GetProperty("groups").EnumerateArray().Single(item => item.GetProperty("groupId").GetString() == expectedGroupId);
+        var evidence = Assert.Single(group.GetProperty("files").EnumerateArray());
+        Assert.Equal(root.GetProperty("retention").GetProperty("authoritativeEvidenceSha256").GetString(), evidence.GetProperty("sha256").GetString());
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-26T19:20:13.5513358+00:00",
+  "generatedUtc": "2026-08-26T20:26:55.3821545+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -24325,12 +24325,100 @@
           "sha256": "3F115A4B96EA951CD878A1896802882B355CE60B2D9E62801282822433EFB91E"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.Stage2SmokePreflight.20260826.NativeProbeBlocked",
+      "provenance": "Owner-approved G0.5 no-media smoke resource preflight blocked after local corpus and manifest verification by a proof-harness C# native-wrapper compile defect; no media or network execution; execution commit 65f360e.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Test-G05Stage2SmokePreflight.ps1",
+        "repository:eng/gate0/g0.5-stage2-smoke-preflight-contract.json"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-stage2-smoke-preflight-20260826-native-probe-blocked/g0.5-stage2-smoke-preflight-evidence.json"
+      ],
+      "fileCount": 1,
+      "totalBytes": 3220,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.Stage2SmokePreflight.20260826.NativeProbeBlocked/g0.5-stage2-smoke-preflight-evidence.json",
+          "filename": "proofs/g0.5-stage2-smoke-preflight-20260826-native-probe-blocked/g0.5-stage2-smoke-preflight-evidence.json",
+          "size": 3220,
+          "sha256": "B13514483A85D48FFE6A39C3269865AFCA517DB66C80610218277A34A1173411"
+        }
+      ]
+    },
+    {
+      "groupId": "Gate0.G05.Stage2SmokePreflight.20260826.AuthoritativePass",
+      "provenance": "Authoritative no-media G0.5 Stage 2 smoke-resource preflight pass on the owner reference host after the fail-closed native CPU-observation correction at repository commit 7b3f7b2.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Test-G05Stage2SmokePreflight.ps1",
+        "repository:eng/gate0/g0.5-stage2-smoke-preflight-contract.json"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-stage2-smoke-preflight-20260826-authoritative-pass/g0.5-stage2-smoke-preflight-evidence.json"
+      ],
+      "fileCount": 1,
+      "totalBytes": 3573,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.Stage2SmokePreflight.20260826.AuthoritativePass/g0.5-stage2-smoke-preflight-evidence.json",
+          "filename": "proofs/g0.5-stage2-smoke-preflight-20260826-authoritative-pass/g0.5-stage2-smoke-preflight-evidence.json",
+          "size": 3573,
+          "sha256": "2AD8399B808A2B673C002EBC8C4611F73265A8AC071365D50F0C49133FF3A119"
+        }
+      ]
+    },
+    {
+      "groupId": "Gate0.G05.Stage2SmokePreflight.20260826.StaleDurableBindingBlocked",
+      "provenance": "Superseded no-media G0.5 smoke-resource preflight attempt that correctly blocked after the newly retained native-probe failure made the durable R2 source binding stale; no media or network execution.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Test-G05Stage2SmokePreflight.ps1",
+        "repository:eng/gate0/g0.5-stage2-smoke-preflight-contract.json"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-stage2-smoke-preflight-20260826-stale-durable-binding-blocked/g0.5-stage2-smoke-preflight-evidence.json"
+      ],
+      "fileCount": 1,
+      "totalBytes": 2345,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.Stage2SmokePreflight.20260826.StaleDurableBindingBlocked/g0.5-stage2-smoke-preflight-evidence.json",
+          "filename": "proofs/g0.5-stage2-smoke-preflight-20260826-stale-durable-binding-blocked/g0.5-stage2-smoke-preflight-evidence.json",
+          "size": 2345,
+          "sha256": "3CF8CC08A1E796979A52E6560C28CCAD61D4387E729D2701180923EA8DF95CB1"
+        }
+      ]
+    },
+    {
+      "groupId": "Gate0.G05.Stage2SmokePreflight.20260826.NullCpuSuperseded",
+      "provenance": "Superseded no-media G0.5 smoke-resource preflight output whose harness labeled the attempt passed while recording null CPU utilization; retained as invalid evidence that led to the fail-closed native CPU-observation correction.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Test-G05Stage2SmokePreflight.ps1",
+        "repository:eng/gate0/g0.5-stage2-smoke-preflight-contract.json"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-stage2-smoke-preflight-20260826-null-cpu-superseded/g0.5-stage2-smoke-preflight-evidence.json"
+      ],
+      "fileCount": 1,
+      "totalBytes": 3571,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.Stage2SmokePreflight.20260826.NullCpuSuperseded/g0.5-stage2-smoke-preflight-evidence.json",
+          "filename": "proofs/g0.5-stage2-smoke-preflight-20260826-null-cpu-superseded/g0.5-stage2-smoke-preflight-evidence.json",
+          "size": 3571,
+          "sha256": "130CC6D765ED147AED933ABB9CE6BB5C0908FA73FD215A26543BE9245E1D675C"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 26,
-    "fileCount": 3967,
-    "totalBytes": 996614118
+    "groupCount": 30,
+    "fileCount": 3971,
+    "totalBytes": 996626827
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

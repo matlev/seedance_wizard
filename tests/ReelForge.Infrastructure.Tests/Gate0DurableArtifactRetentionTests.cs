@@ -21,8 +21,8 @@ public sealed class Gate0DurableArtifactRetentionTests
         Assert.Equal("Gate0.DurableR2Retention.V1", root.GetProperty("manifestId").GetString());
         var source = root.GetProperty("sourceInventory");
         Assert.Equal(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath))), source.GetProperty("sha256").GetString());
-        Assert.Equal(3967, source.GetProperty("logicalArtifactCount").GetInt32());
-        Assert.Equal(996_614_118, source.GetProperty("logicalArtifactBytes").GetInt64());
+        Assert.Equal(3971, source.GetProperty("logicalArtifactCount").GetInt32());
+        Assert.Equal(996_626_827, source.GetProperty("logicalArtifactBytes").GetInt64());
 
         var storage = root.GetProperty("storage");
         Assert.Equal("cloudflare-r2", storage.GetProperty("provider").GetString());
@@ -70,7 +70,7 @@ public sealed class Gate0DurableArtifactRetentionTests
         using var document = JsonDocument.Parse(result.Output.Trim());
         Assert.False(document.RootElement.GetProperty("localByteVerificationPerformed").GetBoolean());
         Assert.False(document.RootElement.GetProperty("remoteByteVerificationPerformed").GetBoolean());
-        Assert.Equal(3967, document.RootElement.GetProperty("requiredLogicalArtifactCount").GetInt32());
+        Assert.Equal(3971, document.RootElement.GetProperty("requiredLogicalArtifactCount").GetInt32());
         Assert.Equal(1, document.RootElement.GetProperty("recordedRemoteVerifiedLogicalArtifacts").GetInt32());
         Assert.False(document.RootElement.GetProperty("secondPrivateCopyVerified").GetBoolean());
     }
