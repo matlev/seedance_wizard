@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace ReelForge.Infrastructure.Tests;
 
@@ -36,6 +37,30 @@ public sealed class Gate0G05Stage2SmokePreflightTests
         Assert.DoesNotContain("ffmpeg.exe", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Invoke-WebRequest", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Move-Item", script, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void EveryNativeAddTypeDefinitionCompilesWithoutExecutingInterop()
+    {
+        var script = File.ReadAllText(PathInRepo("eng", "gate0", "Test-G05Stage2SmokePreflight.ps1"));
+        var definitions = Regex.Matches(
+                script,
+                "Add-Type\\s+-TypeDefinition\\s+@'\\r?\\n(?<definition>.*?)\\r?\\n'@",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["definition"].Value)
+            .ToArray();
+
+        Assert.Equal(2, definitions.Length);
+        Assert.All(definitions, definition =>
+        {
+            var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(definition));
+            var result = Run("pwsh", [
+                "-NoProfile",
+                "-Command",
+                "$definition=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + encoded + "')); Add-Type -TypeDefinition $definition -ErrorAction Stop"
+            ]);
+            Assert.True(result.ExitCode == 0, result.Output);
+        });
     }
 
     [Fact]

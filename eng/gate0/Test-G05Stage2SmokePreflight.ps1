@@ -47,7 +47,7 @@ function Assert-ExactRepositorySibling([string] $Candidate, [string] $ExpectedNa
 }
 
 function Get-PhysicalMemoryObservation {
-    if (-not ('Gate0.GlobalMemoryStatusEx' -as [type])) {
+    if (-not ('Gate0.NativeMemoryStatus' -as [type])) {
         Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -64,14 +64,14 @@ namespace Gate0 {
     public ulong ullAvailVirtual;
     public ulong ullAvailExtendedVirtual;
   }
-  public static class GlobalMemoryStatusEx {
-    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool GlobalMemoryStatusEx([In, Out] MEMORYSTATUSEX lpBuffer);
+  public static class NativeMemoryStatus {
+    [DllImport("kernel32.dll", EntryPoint="GlobalMemoryStatusEx", SetLastError=true)] public static extern bool ReadGlobalMemoryStatusEx([In, Out] MEMORYSTATUSEX lpBuffer);
   }
 }
 '@
     }
     $status = [Gate0.MEMORYSTATUSEX]::new()
-    if (-not [Gate0.GlobalMemoryStatusEx]::GlobalMemoryStatusEx($status)) { throw 'GlobalMemoryStatusEx failed.' }
+    if (-not [Gate0.NativeMemoryStatus]::ReadGlobalMemoryStatusEx($status)) { throw 'GlobalMemoryStatusEx failed.' }
     [pscustomobject]@{ totalPhysicalMemoryBytes = [int64]$status.ullTotalPhys; availablePhysicalMemoryBytes = [int64]$status.ullAvailPhys; memoryLoadPercent = [int]$status.dwMemoryLoad }
 }
 
