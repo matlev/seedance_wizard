@@ -29,7 +29,7 @@ public sealed class Gate0ArtifactRetentionTests
         Assert.False(storage.GetProperty("temporaryProviderR2Permitted").GetBoolean());
 
         var groups = root.GetProperty("groups").EnumerateArray().ToArray();
-        Assert.Equal(12, groups.Length);
+        Assert.Equal(13, groups.Length);
         Assert.Equal(
             [
                 "P2.BtbnLgplShared.WindowsX64.20260820",
@@ -44,12 +44,13 @@ public sealed class Gate0ArtifactRetentionTests
                 "Gate0.G05.Calibration.20260826T001250746Z.1F7B911B",
                 "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691",
                 "Gate0.G05.Calibration.20260826T004152697Z.FDABDAA2",
+                "Gate0.G05.LossyAudioOracle.V3.20260826",
             ],
             groups.Select(group => group.GetProperty("groupId").GetString()));
 
         var files = groups.SelectMany(group => group.GetProperty("files").EnumerateArray()).ToArray();
-        Assert.Equal(3007, files.Length);
-        Assert.Equal(517763820, files.Sum(file => file.GetProperty("size").GetInt64()));
+        Assert.Equal(3026, files.Length);
+        Assert.Equal(536266536, files.Sum(file => file.GetProperty("size").GetInt64()));
         Assert.Equal(files.Length, files.Select(file => file.GetProperty("artifactId").GetString()).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(files.Length, files.Select(file => file.GetProperty("filename").GetString()).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(files, file =>
@@ -107,6 +108,13 @@ public sealed class Gate0ArtifactRetentionTests
             file.GetProperty("filename").GetString() == "proofs/g05-calibration-20260826T002913397Z-189786ac/g0.5-calibration-evidence.json" &&
             file.GetProperty("size").GetInt64() == 497033 &&
             file.GetProperty("sha256").GetString() == "A95979C4211BD2CB844C44A2F1A1F55B9A7341EAC8C81A5B356AF7121468AC15");
+        Assert.Contains(files, file =>
+            file.GetProperty("filename").GetString() == "proofs/g0.5-audio-oracle-v3-20260826/g0.5-lossy-audio-control-results.json" &&
+            file.GetProperty("size").GetInt64() == 26055 &&
+            file.GetProperty("sha256").GetString() == "C30734212AD29DF3723D94280BA3BBFCE20E235F8F6843907D3C4E6D85533DEF");
+        Assert.Contains(files, file =>
+            file.GetProperty("filename").GetString() == "proofs/g0.5-audio-oracle-v3-20260826/repository-snapshots/eng/gate0/g0.5-lossy-audio-oracle-freeze.json" &&
+            file.GetProperty("sha256").GetString() == "895BE152017E56F4CF634BFDC8D13FC57D4F8A0A227B187E3779A3B537298822");
         Assert.Contains(files, file => file.GetProperty("filename").GetString() == "contracts/g0.4-input-proof-contract.json");
         Assert.Contains(files, file =>
             file.GetProperty("filename").GetString() == "contracts/artifacts/fonts/NotoSans-Regular.ttf" &&

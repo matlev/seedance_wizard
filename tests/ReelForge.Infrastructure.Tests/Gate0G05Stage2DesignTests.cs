@@ -11,13 +11,13 @@ public sealed class Gate0G05Stage2DesignTests
         using var contract = ReadJson("eng", "gate0", "g0.5-lossy-audio-oracle-contract.json");
         var root = contract.RootElement;
 
-        Assert.Equal("Gate0.G05.LossyAudioOracle.V2.Proposed", root.GetProperty("contractId").GetString());
-        Assert.Equal("proposed-owner-review-required", root.GetProperty("status").GetString());
+        Assert.Equal("Gate0.G05.LossyAudioOracle.V3.Frozen.20260826", root.GetProperty("contractId").GetString());
+        Assert.Equal("owner-approved-frozen-controls-passed-retained-route-evaluation-authorized", root.GetProperty("status").GetString());
         Assert.Equal(2, root.GetProperty("appliesTo").GetArrayLength());
 
         var execution = root.GetProperty("executionBoundary");
         Assert.True(execution.GetProperty("syntheticControlExecutionAuthorized").GetBoolean());
-        Assert.False(execution.GetProperty("retainedAacOrOpusEvaluationAuthorized").GetBoolean());
+        Assert.True(execution.GetProperty("retainedAacOrOpusEvaluationAuthorized").GetBoolean());
         Assert.False(execution.GetProperty("routeReencodeAuthorized").GetBoolean());
         Assert.False(execution.GetProperty("thresholdSelectionMayReadCodecRouteOutcomes").GetBoolean());
 
@@ -35,6 +35,12 @@ public sealed class Gate0G05Stage2DesignTests
         Assert.Equal(0.995, quality.GetProperty("minimumSignedNormalizedCrossCorrelationPerChannel").GetDouble());
         Assert.Equal(0.10, quality.GetProperty("maximumNormalizedRmsErrorPerChannel").GetDouble());
         Assert.Equal(20.0, quality.GetProperty("minimumSnrDbPerChannel").GetDouble());
+        Assert.Equal(0.90, quality.GetProperty("minimumOutputToReferenceRmsRatioPerChannel").GetDouble());
+        Assert.Equal(1.10, quality.GetProperty("maximumOutputToReferenceRmsRatioPerChannel").GetDouble());
+        Assert.Equal(0.90, quality.GetProperty("minimumExpectedToneOutputToReferenceAmplitudeRatio").GetDouble());
+        Assert.Equal(1.10, quality.GetProperty("maximumExpectedToneOutputToReferenceAmplitudeRatio").GetDouble());
+        Assert.False(quality.TryGetProperty("minimumExpectedToneOutputToReferencePowerRatio", out _));
+        Assert.Contains("sqrt(outputTonePower/referenceTonePower)", root.GetProperty("metricDefinitions").GetProperty("expectedToneOutputToReferenceAmplitudeRatio").GetString());
 
         var descriptors = root.GetProperty("referenceDescriptors").EnumerateArray().ToArray();
         Assert.Equal(5, descriptors.Length);
@@ -63,8 +69,14 @@ public sealed class Gate0G05Stage2DesignTests
         Assert.False(dropout.GetProperty("expectedPass").GetBoolean());
 
         using var summary = ReadJson("eng", "gate0", "g0.5-lossy-audio-control-result-summary.json");
+        Assert.Equal("Gate0.G05.LossyAudioOracle.Controls.V2.AmplitudeRatio", summary.RootElement.GetProperty("controlSetId").GetString());
         Assert.False(summary.RootElement.GetProperty("routeOutputsEvaluated").GetBoolean());
         Assert.False(summary.RootElement.GetProperty("routeReencodePerformed").GetBoolean());
+        var metricCorrection = summary.RootElement.GetProperty("metricCorrection");
+        Assert.Equal("sqrt(outputTonePower/referenceTonePower)", metricCorrection.GetProperty("formula").GetString());
+        Assert.Equal(0.90, metricCorrection.GetProperty("minimum").GetDouble());
+        Assert.Equal(1.10, metricCorrection.GetProperty("maximum").GetDouble());
+        Assert.True(metricCorrection.GetProperty("controlDispositionsPreserved").GetBoolean());
         var summaryVectors = summary.RootElement.GetProperty("accepted").EnumerateArray()
             .Concat(summary.RootElement.GetProperty("rejected").EnumerateArray())
             .ToDictionary(item => item.GetProperty("id").GetString()!, item => item.GetProperty("sha256").GetString());
@@ -76,6 +88,19 @@ public sealed class Gate0G05Stage2DesignTests
         var text = root.GetRawText();
         Assert.DoesNotContain("9015", text, StringComparison.Ordinal);
         Assert.DoesNotContain("1859", text, StringComparison.Ordinal);
+
+        using var freeze = ReadJson("eng", "gate0", "g0.5-lossy-audio-oracle-freeze.json");
+        Assert.Equal("Gate0.G05.LossyAudioOracle.Freeze.20260826", freeze.RootElement.GetProperty("freezeId").GetString());
+        Assert.False(freeze.RootElement.GetProperty("guards").GetProperty("retainedAacOrOpusReadBeforeFreeze").GetBoolean());
+        Assert.False(freeze.RootElement.GetProperty("guards").GetProperty("routeReencodePerformed").GetBoolean());
+        Assert.Equal(12, freeze.RootElement.GetProperty("controlEvidence").GetProperty("expectedDispositionCount").GetInt32());
+        foreach (var record in freeze.RootElement.GetProperty("frozenFiles").EnumerateArray())
+        {
+            var path = record.GetProperty("path").GetString()!;
+            using var stream = File.OpenRead(PathInRepo(path.Split('/')));
+            Assert.Equal(record.GetProperty("size").GetInt64(), stream.Length);
+            Assert.Equal(record.GetProperty("sha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+        }
     }
 
     [Fact]
@@ -235,9 +260,10 @@ public sealed class Gate0G05Stage2DesignTests
     {
         using var summary = ReadJson("eng", "gate0", "g0.5-stage2-preparation-result-summary.json");
         var root = summary.RootElement;
-        Assert.Equal("ready-for-owner-review-no-media-execution-authorized", root.GetProperty("status").GetString());
+        Assert.Equal("owner-approved-audio-oracle-corrected-frozen-route-evaluation-authorized-other-prerequisites-pending", root.GetProperty("status").GetString());
         Assert.False(root.GetProperty("syntheticAudioControls").GetProperty("routeOutputsEvaluated").GetBoolean());
         Assert.False(root.GetProperty("syntheticAudioControls").GetProperty("routeReencodePerformed").GetBoolean());
+        Assert.True(root.GetProperty("syntheticAudioControls").GetProperty("frozen").GetBoolean());
 
         foreach (var record in root.GetProperty("contracts").EnumerateArray().Concat(root.GetProperty("preparationScripts").EnumerateArray()))
         {

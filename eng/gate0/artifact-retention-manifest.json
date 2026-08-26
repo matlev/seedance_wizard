@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-26T00:41:58.5994973+00:00",
+  "generatedUtc": "2026-08-26T17:09:03.4054756+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -18299,12 +18299,144 @@
           "sha256": "B048BCBCC5B679E84AEDC81E2FBADE2AE0F89C71DA7785CF5288C7EC61105B50"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.LossyAudioOracle.V3.20260826",
+      "provenance": "Owner-approved G0.5 Stage 2 lossy-audio oracle metric correction and predeclared synthetic-control proof; no retained AAC or Opus route output was inspected or re-encoded during threshold selection.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1",
+        "upstream:Microsoft .NET SDK 9.0.317",
+        "upstream:PowerShell 7.5.3"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-audio-oracle-v3-20260826/g0.5-lossy-audio-control-results.json",
+        "artifact:proofs/g0.5-audio-oracle-v3-20260826/repository-snapshots/eng/gate0/g0.5-lossy-audio-oracle-freeze.json"
+      ],
+      "fileCount": 19,
+      "totalBytes": 18502716,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/channel-swap.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/channel-swap.s16le",
+          "size": 1536000,
+          "sha256": "F86F8A8ECC01320F9A1932489445431F69B545C7C086AD2C60E53D8FBBC0A9F4"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/clipping.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/clipping.s16le",
+          "size": 1536000,
+          "sha256": "DA31E73872C8F6EC302DFF3AA1DC8E0E166FEDF3CCF316952BF7927738E4F4B7"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/frequency-offset.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/frequency-offset.s16le",
+          "size": 1536000,
+          "sha256": "8A145EA2F224724DEFB83A48CFA833BE459FB59F9E281EAE2B3837F0178602F3"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/g0.5-lossy-audio-control-results.json",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/g0.5-lossy-audio-control-results.json",
+          "size": 26055,
+          "sha256": "C30734212AD29DF3723D94280BA3BBFCE20E235F8F6843907D3C4E6D85533DEF"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/gain-75-percent.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/gain-75-percent.s16le",
+          "size": 1536000,
+          "sha256": "9FBC6DBA5D92292D3A619C839A24BF28CD2991AB54C58597013E277FF94F68A5"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/gain-95-percent.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/gain-95-percent.s16le",
+          "size": 1536000,
+          "sha256": "6713183958B360BBAB3BB7598D96A2EDF4E9B8DC8E19F76314D26E40F6B2524E"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/identity.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/identity.s16le",
+          "size": 1536000,
+          "sha256": "3A9BF240990CB5EC08026C83D6E2FC64A95011C8D35D2B2B7FECFF55B91639EA"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/midstream-960-sample-dropout.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/midstream-960-sample-dropout.s16le",
+          "size": 1536000,
+          "sha256": "009781E77A219764CA6D6C34A1114B36F835F7B58886AC8B5DD4314F6BEE2210"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/noise-15db-snr.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/noise-15db-snr.s16le",
+          "size": 1536000,
+          "sha256": "F3429BFFDA86149B57BA9AD95616EAE653BFC2349FE1E754D736AF9B0481D202"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/noise-24db-snr.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/noise-24db-snr.s16le",
+          "size": 1536000,
+          "sha256": "5695D7EE505CF8395B8E27FFC9952AD654A11F80BA53900A624717ECB452F2BE"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/one-percent-crosstalk.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/one-percent-crosstalk.s16le",
+          "size": 1536000,
+          "sha256": "185D9EAA8E3655430A95E3EA505CADE2C9B741AA13585CC43ABB0C47083DF2AD"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/polarity-inversion.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/polarity-inversion.s16le",
+          "size": 1536000,
+          "sha256": "868D294ADFE196191432F92C7FCD1265C3CF6B5C10DBC0E1EE48B13CB7734ED7"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/repository-snapshots/docs/gate-0-g0.5-lossy-audio-oracle-proposal.md",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/repository-snapshots/docs/gate-0-g0.5-lossy-audio-oracle-proposal.md",
+          "size": 5551,
+          "sha256": "7B77FCE9A7B4BA3D22DB7033E7B1892576EE36D546082CEDC981B9F99DDA1619"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/repository-snapshots/docs/gate-0-g0.5-stage2-owner-decisions.md",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/repository-snapshots/docs/gate-0-g0.5-stage2-owner-decisions.md",
+          "size": 4764,
+          "sha256": "4F8CF253EDF5E554FD4914C64B36F7417262F0204F8E00D663AD8F4F722A0284"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/repository-snapshots/eng/gate0/g0.5-lossy-audio-control-result-summary.json",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/repository-snapshots/eng/gate0/g0.5-lossy-audio-control-result-summary.json",
+          "size": 3107,
+          "sha256": "C4DD61D89E59FC8F5A6A57C6B40CCC678848FC74BED5611387715920F1FEAC82"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/repository-snapshots/eng/gate0/g0.5-lossy-audio-oracle-contract.json",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/repository-snapshots/eng/gate0/g0.5-lossy-audio-oracle-contract.json",
+          "size": 16652,
+          "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/repository-snapshots/eng/gate0/g0.5-lossy-audio-oracle-freeze.json",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/repository-snapshots/eng/gate0/g0.5-lossy-audio-oracle-freeze.json",
+          "size": 1848,
+          "sha256": "895BE152017E56F4CF634BFDC8D13FC57D4F8A0A227B187E3779A3B537298822"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/repository-snapshots/eng/gate0/Invoke-G05LossyAudioOracleControls.ps1",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/repository-snapshots/eng/gate0/Invoke-G05LossyAudioOracleControls.ps1",
+          "size": 12739,
+          "sha256": "D0A7CA6BF8D2AA1963BDC1A318979EE7B3525141BADA4C2DDCFC5D6B74F15F66"
+        },
+        {
+          "artifactId": "Gate0.G05.LossyAudioOracle.V3.20260826/silence.s16le",
+          "filename": "proofs/g0.5-audio-oracle-v3-20260826/silence.s16le",
+          "size": 1536000,
+          "sha256": "626DB8BEA999709C8FAEAD0EC9D60025604676FCC44130ABE6C1168B90989B3B"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 12,
-    "fileCount": 3007,
-    "totalBytes": 517763820
+    "groupCount": 13,
+    "fileCount": 3026,
+    "totalBytes": 536266536
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

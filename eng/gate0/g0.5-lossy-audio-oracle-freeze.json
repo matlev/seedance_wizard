@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "freezeId": "Gate0.G05.LossyAudioOracle.Freeze.20260826",
+  "status": "frozen-owner-approved-controls-passed-route-evaluation-authorized",
+  "contractId": "Gate0.G05.LossyAudioOracle.V3.Frozen.20260826",
+  "controlSetId": "Gate0.G05.LossyAudioOracle.Controls.V2.AmplitudeRatio",
+  "metric": {
+    "name": "expected-tone output/reference amplitude ratio",
+    "formula": "sqrt(outputTonePower/referenceTonePower)",
+    "minimum": 0.90,
+    "maximum": 1.10,
+    "forbiddenToneMetric": "expected/forbidden tone power ratio",
+    "minimumForbiddenTonePowerRatio": 100.0
+  },
+  "frozenFiles": [
+    {
+      "path": "eng/gate0/g0.5-lossy-audio-oracle-contract.json",
+      "size": 16652,
+      "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4"
+    },
+    {
+      "path": "eng/gate0/Invoke-G05LossyAudioOracleControls.ps1",
+      "size": 12739,
+      "sha256": "D0A7CA6BF8D2AA1963BDC1A318979EE7B3525141BADA4C2DDCFC5D6B74F15F66"
+    },
+    {
+      "path": "eng/gate0/g0.5-lossy-audio-control-result-summary.json",
+      "size": 3107,
+      "sha256": "C4DD61D89E59FC8F5A6A57C6B40CCC678848FC74BED5611387715920F1FEAC82"
+    }
+  ],
+  "controlEvidence": {
+    "plannedRetainedRelativePath": "proofs/g0.5-audio-oracle-v3-20260826/g0.5-lossy-audio-control-results.json",
+    "size": 26055,
+    "sha256": "C30734212AD29DF3723D94280BA3BBFCE20E235F8F6843907D3C4E6D85533DEF",
+    "controlCount": 12,
+    "expectedDispositionCount": 12,
+    "acceptedCount": 4,
+    "rejectedCount": 8,
+    "gain95MinimumAmplitudeRatio": 0.9499976649408399,
+    "gain95MaximumAmplitudeRatio": 0.9499988903291574
+  },
+  "guards": {
+    "retainedAacOrOpusReadBeforeFreeze": false,
+    "routeReencodePerformed": false,
+    "thresholdSelectionReadCodecRouteOutcomes": false,
+    "laterThresholdWideningRequiresOwnerDecision": true
+  }
+}

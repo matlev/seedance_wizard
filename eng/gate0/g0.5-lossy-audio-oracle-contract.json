@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 2,
-  "contractId": "Gate0.G05.LossyAudioOracle.V2.Proposed",
-  "status": "proposed-owner-review-required",
+  "schemaVersion": 3,
+  "contractId": "Gate0.G05.LossyAudioOracle.V3.Frozen.20260826",
+  "status": "owner-approved-frozen-controls-passed-retained-route-evaluation-authorized",
   "purpose": "Codec-agnostic technical signal-preservation algorithm with an explicit reference descriptor per workload. It is not a perceptual-quality claim.",
   "appliesTo": [
     "Video.Export.Compatibility.Mp4H264Aac.P2OpenH264:aac",
@@ -10,9 +10,9 @@
   "executionBoundary": {
     "syntheticControlExecutionAuthorized": true,
     "syntheticControlsExecuted": true,
-    "retainedAacOrOpusEvaluationAuthorized": false,
+    "retainedAacOrOpusEvaluationAuthorized": true,
     "routeReencodeAuthorized": false,
-    "thresholdsMustBeOwnerApprovedBeforeRetainedRouteEvaluation": true,
+    "thresholdsOwnerApprovedAndMetricCorrectedBeforeRetainedRouteEvaluation": true,
     "thresholdSelectionMayReadCodecRouteOutcomes": false
   },
   "rawAndNormalizedTiming": {
@@ -55,8 +55,8 @@
     "minimumOutputToReferenceRmsRatioPerChannel": 0.90,
     "maximumOutputToReferenceRmsRatioPerChannel": 1.10,
     "maximumAbsoluteDcOffsetFullScalePerChannel": 0.005,
-    "minimumExpectedToneOutputToReferencePowerRatio": 0.80,
-    "maximumExpectedToneOutputToReferencePowerRatio": 1.20,
+    "minimumExpectedToneOutputToReferenceAmplitudeRatio": 0.90,
+    "maximumExpectedToneOutputToReferenceAmplitudeRatio": 1.10,
     "minimumExpectedToForbiddenTonePowerRatioWhenDescriptorProvidesForbiddenTones": 100.0,
     "minimumActiveChannelRmsFullScale": 0.05,
     "silenceWindowSamples": 960,
@@ -70,7 +70,7 @@
     "dcRemoval": "subtract per-channel arithmetic mean over qualityRegion",
     "sampleIndex": "absolute content-normalized sample index",
     "projection": "For frequency f: re=sum(y[n]*cos(2*pi*f*n/48000)); im=-sum(y[n]*sin(2*pi*f*n/48000)); power=(re^2+im^2)/N^2.",
-    "expectedToneRule": "Compare every descriptor-declared expected frequency's output power with the independently generated reference power.",
+    "expectedToneRule": "For every descriptor-declared expected frequency, compute sqrt(output tone power / independently generated reference tone power) and require the resulting amplitude ratio to remain within 0.90 through 1.10.",
     "forbiddenToneRule": "Apply the expected/forbidden ratio only when the reference descriptor declares a forbidden tone.",
     "identityControlMinimumObservedExpectedToForbiddenRatio": 4567.973443426002,
     "approvedThresholdToIdentityFloorMargin": "100:1 is more than 45 times below the measured identity-control floor.",
@@ -81,6 +81,7 @@
     "normalizedRmsError": "rms(y-x) / rms(x)",
     "snrDb": "10*log10(sum((x-mean(x))^2)/sum((y-x)^2))",
     "rmsRatio": "rms(y-mean(y))/rms(x-mean(x))",
+    "expectedToneOutputToReferenceAmplitudeRatio": "sqrt(outputTonePower/referenceTonePower), where each tone power is (re^2+im^2)/N^2 over the same zero-lag quality region",
     "dcOffsetFullScale": "abs(mean(y))/32768"
   },
   "referenceDescriptorSchema": {
@@ -99,7 +100,7 @@
     "trackOnsetWindowSchema": {
       "required": ["id", "newTrackId", "startSample", "endSampleExclusive", "activeTrackIds", "expectedFrequenciesHzByChannel"],
       "qualityGuardSamplesEachEdge": 512,
-      "verdict": "compare decoded output with the matching independently authored reference segment at zero lag; apply signed correlation, NRMSE, SNR, RMS ratio, DC offset, active-window silence, clipping, and declared expected-frequency output/reference ratios; retain one verdict and all metrics per window",
+      "verdict": "compare decoded output with the matching independently authored reference segment at zero lag; apply signed correlation, NRMSE, SNR, RMS ratio, DC offset, active-window silence, clipping, and declared expected-frequency output/reference amplitude ratios; retain one verdict and all metrics per window",
       "timing": "the separately recorded raw/content-normalized timeline must place the transition at startSample; the quality guard cannot move or conceal it"
     },
     "rule": "The metric algorithm is reusable; fixture bytes and frequency/onset semantics come only from the selected reference descriptor."
@@ -191,7 +192,7 @@
     }
   ],
   "syntheticControlEvidence": {
-    "controlSetId": "Gate0.G05.LossyAudioOracle.Controls.V1",
+    "controlSetId": "Gate0.G05.LossyAudioOracle.Controls.V2.AmplitudeRatio",
     "generatorAndOracle": "eng/gate0/Invoke-G05LossyAudioOracleControls.ps1",
     "sourceLoopSha256": "D6D0E575C834A0BFCF442713745EC409CC0774BF4D9356DA0B68A07D3F3F0E78",
     "referenceExpansion": "repeat 5760-sample-per-channel loop to 384000 samples per channel",
@@ -218,9 +219,9 @@
       "acceptedNoise24MinCorrelation": 0.9980152914674053,
       "acceptedNoise24MaxNrmse": 0.06309629544179002,
       "acceptedGain95MinRmsRatio": 0.949997705006951,
-      "acceptedGain95MinimumExpectedToneOutputToReferencePowerRatio": 0.9024955633930484,
-      "acceptedGain95MaximumExpectedToneOutputToReferencePowerRatio": 0.9024978916266305,
-      "identityExpectedToneOutputToReferencePowerRatio": 1.0,
+      "acceptedGain95MinimumExpectedToneOutputToReferenceAmplitudeRatio": 0.9499976649408399,
+      "acceptedGain95MaximumExpectedToneOutputToReferenceAmplitudeRatio": 0.9499988903291574,
+      "identityExpectedToneOutputToReferenceAmplitudeRatio": 1.0,
       "identityMinimumActiveWindowRmsFullScale": 0.2567125532082932,
       "rejectedDropoutMinimumActiveWindowRmsFullScale": 0.0,
       "rejectedNoise15MaxSnrDb": 14.99995609000411,
@@ -234,7 +235,7 @@
     "packet priming skip-sample and discard-padding metadata",
     "selected reference descriptor and regenerated reference hash",
     "per-channel signed correlation NRMSE SNR RMS ratio and DC offset",
-    "per-frequency output/reference powers and optional forbidden-tone ratios",
+    "per-frequency output and reference powers, output/reference amplitude ratios, and optional forbidden-tone power ratios",
     "every descriptor-declared onset-window verdict plus sliding active/silence-window and near-clipping observations",
     "oracle implementation and contract SHA-256",
     "raw and normalized decoded PCM SHA-256 and exact selected decoder"

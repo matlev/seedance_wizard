@@ -1,8 +1,22 @@
 {
-  "schemaVersion": 1,
-  "controlSetId": "Gate0.G05.LossyAudioOracle.Controls.V1",
-  "status": "passed-all-predeclared-controls",
-  "oracleContractId": "Gate0.G05.LossyAudioOracle.V2.Proposed",
+  "schemaVersion": 2,
+  "controlSetId": "Gate0.G05.LossyAudioOracle.Controls.V2.AmplitudeRatio",
+  "status": "metric-corrected-passed-all-12-predeclared-controls",
+  "oracleContractId": "Gate0.G05.LossyAudioOracle.V3.Frozen.20260826",
+  "metricCorrection": {
+    "metricName": "expected-tone output/reference amplitude ratio",
+    "formula": "sqrt(outputTonePower/referenceTonePower)",
+    "minimum": 0.90,
+    "maximum": 1.10,
+    "forbiddenToneMetricRemains": "expected/forbidden tone power ratio >= 100",
+    "controlDispositionsPreserved": true,
+    "controlCount": 12
+  },
+  "controlReport": {
+    "sha256": "C30734212AD29DF3723D94280BA3BBFCE20E235F8F6843907D3C4E6D85533DEF",
+    "plannedRetainedRelativePath": "proofs/g0.5-audio-oracle-v3-20260826/g0.5-lossy-audio-control-results.json",
+    "routeOutputsReadDuringCorrection": false
+  },
   "referencePcmSha256": "3A9BF240990CB5EC08026C83D6E2FC64A95011C8D35D2B2B7FECFF55B91639EA",
   "accepted": [
     { "id": "identity", "sha256": "3A9BF240990CB5EC08026C83D6E2FC64A95011C8D35D2B2B7FECFF55B91639EA" },
@@ -24,9 +38,9 @@
     "acceptedNoise24MinSnrDb": 23.99992277277758,
     "acceptedNoise24MinCorrelation": 0.9980152914674053,
     "acceptedNoise24MaxNrmse": 0.06309629544179002,
-    "acceptedGain95MinimumExpectedToneOutputToReferencePowerRatio": 0.9024955633930484,
-    "acceptedGain95MaximumExpectedToneOutputToReferencePowerRatio": 0.9024978916266305,
-    "identityExpectedToneOutputToReferencePowerRatio": 1.0,
+    "acceptedGain95MinimumExpectedToneOutputToReferenceAmplitudeRatio": 0.9499976649408399,
+    "acceptedGain95MaximumExpectedToneOutputToReferenceAmplitudeRatio": 0.9499988903291574,
+    "identityExpectedToneOutputToReferenceAmplitudeRatio": 1.0,
     "identityMinimumActiveWindowRmsFullScale": 0.2567125532082932,
     "rejectedDropoutMinimumActiveWindowRmsFullScale": 0.0,
     "rejectedNoise15MaxSnrDb": 14.99995609000411,

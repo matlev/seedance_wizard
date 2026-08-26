@@ -4,9 +4,9 @@
   "sourceInventory": {
     "path": "eng/gate0/artifact-retention-manifest.json",
     "artifactSetId": "Gate0.InterimCorpus.20260825",
-    "sha256": "21B03A19ABD084567173699E7E6CA39BC294A01FEA9A30064AFBB49549E64607",
-    "logicalArtifactCount": 3007,
-    "logicalArtifactBytes": 517763820
+    "sha256": "54B7A846492BE19ADE1F5B0B416FFE9533E60EC7748169527F588FE69A1DAC1A",
+    "logicalArtifactCount": 3026,
+    "logicalArtifactBytes": 536266536
   },
   "storage": {
     "provider": "cloudflare-r2",
@@ -37,8 +37,8 @@
     "verifiedLogicalArtifactBytes": 8,
     "verifiedDistinctObjectCount": 1,
     "verifiedDistinctObjectBytes": 8,
-    "lastRemoteVerificationUtc": "2026-08-26T16:49:46.9776689+00:00",
-    "blocker": "Not every source-inventory artifact has completed independent R2 byte verification."
+    "lastRemoteVerificationUtc": "2026-08-26T09:49:46.9776689-07:00",
+    "blocker": "The source inventory changed; new or changed artifacts require independent R2 byte verification."
   },
   "artifacts": [
     {
@@ -72,7 +72,7 @@
       ],
       "retentionStatus": "remote-verified",
       "transferDisposition": "uploaded-and-verified",
-      "remotelyVerifiedUtc": "2026-08-26T16:49:46.9776689+00:00"
+      "remotelyVerifiedUtc": "2026-08-26T09:49:46.9776689-07:00"
     }
   ],
   "limitations": [

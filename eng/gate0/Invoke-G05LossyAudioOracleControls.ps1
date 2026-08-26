@@ -29,7 +29,8 @@ namespace ReelForge.Gate0 {
     public double DcOffsetFullScale { get; set; }
     public double ActiveRmsFullScale { get; set; }
     public double ExpectedTonePower { get; set; }
-    public double ExpectedToneOutputToReferencePowerRatio { get; set; }
+    public double ReferenceExpectedTonePower { get; set; }
+    public double ExpectedToneOutputToReferenceAmplitudeRatio { get; set; }
     public double OtherTonePower { get; set; }
     public double ExpectedToOtherTonePowerRatio { get; set; }
     public double MinimumActiveWindowRmsFullScale { get; set; }
@@ -111,7 +112,8 @@ namespace ReelForge.Gate0 {
           DcOffsetFullScale=Math.Abs(meanY)/32768.0,
           ActiveRmsFullScale=rmsY/32768.0,
           ExpectedTonePower=expectedPower,
-          ExpectedToneOutputToReferencePowerRatio=expectedPower/referenceExpectedPower,
+          ReferenceExpectedTonePower=referenceExpectedPower,
+          ExpectedToneOutputToReferenceAmplitudeRatio=Math.Sqrt(expectedPower/referenceExpectedPower),
           OtherTonePower=otherPower,
           ExpectedToOtherTonePowerRatio=otherPower==0?double.PositiveInfinity:expectedPower/otherPower,
           MinimumActiveWindowRmsFullScale=minimumActiveWindowRms/32768.0,
@@ -125,7 +127,7 @@ namespace ReelForge.Gate0 {
         if (!(cm.DcOffsetFullScale<=0.005)) failures.Add($"channel-{channel}:dc-offset");
         if (!(cm.ActiveRmsFullScale>=0.05)) failures.Add($"channel-{channel}:silence");
         if (!(cm.MinimumActiveWindowRmsFullScale>=0.05)) failures.Add($"channel-{channel}:active-window-silence");
-        if (!(cm.ExpectedToneOutputToReferencePowerRatio>=0.80&&cm.ExpectedToneOutputToReferencePowerRatio<=1.20)) failures.Add($"channel-{channel}:tone-power-ratio");
+        if (!(cm.ExpectedToneOutputToReferenceAmplitudeRatio>=0.90&&cm.ExpectedToneOutputToReferenceAmplitudeRatio<=1.10)) failures.Add($"channel-{channel}:tone-amplitude-ratio");
         if (!(cm.ExpectedToOtherTonePowerRatio>=100.0)) failures.Add($"channel-{channel}:tone-dominance");
         if (cm.NearClippedSampleCount!=0) failures.Add($"channel-{channel}:near-clipping");
       }
@@ -194,8 +196,8 @@ foreach ($id in $controls.Keys | Sort-Object) {
 }
 $report = [ordered]@{
     schemaVersion = 1
-    controlSetId = 'Gate0.G05.LossyAudioOracle.Controls.V1'
-    oracleContractId = 'Gate0.G05.LossyAudioOracle.V2.Proposed'
+    controlSetId = 'Gate0.G05.LossyAudioOracle.Controls.V2.AmplitudeRatio'
+    oracleContractId = 'Gate0.G05.LossyAudioOracle.V3.Frozen.20260826'
     referenceExpansion = 'Repeat the retained 5,760-sample-per-channel F1 loop to exactly 384,000 samples per channel.'
     sampleRate = 48000
     channels = 2
