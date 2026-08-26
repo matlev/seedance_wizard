@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "contractId": "Gate0.G05.Stage2.SmokePreflight.V1",
-  "status": "owner-review-required-no-execution",
+  "status": "owner-approved-execution-authorized",
   "authority": [
     "docs/gate-0-g0.5-stage1-owner-decisions.md",
     "docs/gate-0-g0.5-stage2-owner-decisions.md",
@@ -17,7 +17,7 @@
       { "routeId": "webm-vp9-opus", "threadPolicyId": "half-logical" }
     ],
     "mediaExecutionPermitted": false,
-    "preflightExecutionPermitted": false,
+    "preflightExecutionPermitted": true,
     "smokeAuthorizationClaimPermitted": false,
     "fullMatrixOrLongFormClaimPermitted": false
   },
@@ -45,26 +45,28 @@
     "publicHardwareMinimumClaimPermitted": false
   },
   "ownerDecisionRequest": {
-    "reason": "The owner approved the need for an applicable resource/free-space preflight but did not yet approve its numeric pass/fail floors. The following conservative engineering values must not be represented as owner-approved until explicitly accepted or amended.",
+    "status": "approved-as-proposed",
+    "approvedOn": "2026-08-26",
+    "authority": "Owner approval of all four G0.5 smoke-resource preflight rules.",
     "items": [
       {
         "id": "reference-host-identity",
-        "proposal": "Require 16 logical processors and at least 30 GiB reported physical memory when recognizing the owner's 32 GiB reference host.",
+        "approvedRule": "Require 16 logical processors and at least 30 GiB reported physical memory when recognizing the owner's 32 GiB reference host.",
         "derivation": "The exact logical count is observed reference identity. The 30 GiB memory check allows reporting/firmware variance without becoming a public hardware floor."
       },
       {
         "id": "available-memory-floor",
-        "proposal": "Require at least 8 GiB available physical memory immediately before smoke.",
+        "approvedRule": "Require at least 8 GiB available physical memory immediately before smoke.",
         "derivation": "The owner-approved 4 GiB combined-process ceiling plus a separate 4 GiB host reserve."
       },
       {
         "id": "storage-floor",
-        "proposal": "Reserve the approved 0.75 GiB retention ceiling, an equal 0.75 GiB peak scratch allowance, and 2 GiB that must remain free on the one shared sibling-root volume.",
+        "approvedRule": "Reserve the approved 0.75 GiB retention ceiling, an equal 0.75 GiB peak scratch allowance, and 2 GiB that must remain free on the one shared sibling-root volume.",
         "derivation": "This yields exactly 3.5 GiB required free space. Only the 0.75 GiB retention ceiling was previously owner-approved."
       },
       {
         "id": "measurement-cleanliness",
-        "proposal": "Block while any ffmpeg or ffprobe process is active; record current CPU utilization without imposing a CPU-utilization gate.",
+        "approvedRule": "Block while any ffmpeg or ffprobe process is active; record current CPU utilization without imposing a CPU-utilization gate.",
         "derivation": "Avoid unrelated-media contamination without inventing a dynamic CPU threshold."
       }
     ]

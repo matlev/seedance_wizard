@@ -34,6 +34,14 @@ Cancellation remains graceful `q` plus newline followed by bounded process-tree 
 
 The private R2 backend choice, credentials, and artifact-storage availability are resolved by the [durable artifact-retention contract](gate-0-artifact-retention.md). The complete-corpus verification remains factual rather than assumed: every current logical artifact, including newly retained marker/oracle evidence, must have a retrieved size/SHA-256 receipt before the second-copy execution gate is reported complete. Storage setup is not returned as an owner decision.
 
+## Smoke resource preflight
+
+The owner approved all four rules in the [smoke resource preflight](gate-0-g0.5-smoke-preflight.md) on 2026-08-26. Reference-host recognition requires exactly 16 logical processors and at least 30 GiB reported physical memory. At least 8 GiB physical memory must be currently available, preserving the approved 4 GiB combined-process ceiling plus a separate 4 GiB host reserve.
+
+The shared artifact/staging volume must have at least 3.5 GiB free: a 0.75 GiB retained smoke-group ceiling, a 0.75 GiB peak scratch allowance, and 2 GiB that remains free. The already allocated corpus is not double-counted, and this figure does not apply to long-form sizing. Zero `ffmpeg` or `ffprobe` processes may be active at the observation instant. CPU utilization is recorded but has no dynamic pass/fail threshold.
+
+This authorizes only implementation and execution of the no-media resource preflight. It does not authorize the smoke by itself, the full Stage 2 matrix, WPF media scenarios, or long-form proof. The runner remains fail-closed and complete R2 byte verification remains independently mandatory before smoke execution.
+
 ## Authorized sequence and stop point
 
 Proceed in this order:

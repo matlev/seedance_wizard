@@ -13,8 +13,10 @@ public sealed class Gate0G05Stage2SmokePreflightTests
         using var document = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-stage2-smoke-preflight-contract.json")));
         var root = document.RootElement;
         Assert.Equal("Gate0.G05.Stage2.SmokePreflight.V1", root.GetProperty("contractId").GetString());
+        Assert.Equal("owner-approved-execution-authorized", root.GetProperty("status").GetString());
+        Assert.Equal("approved-as-proposed", root.GetProperty("ownerDecisionRequest").GetProperty("status").GetString());
         Assert.False(root.GetProperty("scope").GetProperty("mediaExecutionPermitted").GetBoolean());
-        Assert.False(root.GetProperty("scope").GetProperty("preflightExecutionPermitted").GetBoolean());
+        Assert.True(root.GetProperty("scope").GetProperty("preflightExecutionPermitted").GetBoolean());
         Assert.False(root.GetProperty("scope").GetProperty("smokeAuthorizationClaimPermitted").GetBoolean());
         Assert.Equal(3, root.GetProperty("scope").GetProperty("candidates").GetArrayLength());
         Assert.Equal(16, root.GetProperty("host").GetProperty("requiredLogicalProcessorCount").GetInt32());
@@ -43,8 +45,12 @@ public sealed class Gate0G05Stage2SmokePreflightTests
         var root = contract.RootElement;
         var workload = PathInRepo("eng", "gate0", "g0.5-stage2-workload-contract.json");
         Assert.Equal(root.GetProperty("bindings").GetProperty("workloadContract").GetProperty("sha256").GetString(), Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(workload))));
+        Assert.Contains(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(PathInRepo("eng", "gate0", "g0.5-stage2-smoke-preflight-contract.json")))), File.ReadAllText(PathInRepo("eng", "gate0", "Test-G05Stage2SmokePreflight.ps1")), StringComparison.Ordinal);
         var storage = root.GetProperty("storage");
         Assert.Equal(storage.GetProperty("fixedFreeSpaceReserveBytes").GetInt64() + storage.GetProperty("smokeRetainedGroupCeilingBytes").GetInt64() + storage.GetProperty("smokeScratchCeilingBytes").GetInt64(), storage.GetProperty("sameVolumeRequiredFreeBytes").GetInt64());
+        Assert.Contains("eng/gate0/g0.5-stage2-smoke-preflight-contract.json text eol=lf", File.ReadAllText(PathInRepo(".gitattributes")), StringComparison.Ordinal);
+        Assert.Contains("eng/gate0/g0.5-stage2-workload-contract.json text eol=lf", File.ReadAllText(PathInRepo(".gitattributes")), StringComparison.Ordinal);
+        Assert.Contains("eng/gate0/g0.5-stage2-preparation-result-summary.json text eol=lf", File.ReadAllText(PathInRepo(".gitattributes")), StringComparison.Ordinal);
     }
 
     [Fact]

@@ -189,6 +189,7 @@ function Test-ExactContractBindings([object] $Preflight, [object] $Workload, [ob
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
 $repositoryParent = [IO.Path]::GetDirectoryName($repositoryRoot)
 $contractPath = Join-Path $PSScriptRoot 'g0.5-stage2-smoke-preflight-contract.json'
+$expectedPreflightContractSha256 = '12852652BD5BBBF720689183FA04DD422AE3A124F5A2ED1E8E65CED4C0CE0B40'
 $workloadPath = Join-Path $PSScriptRoot 'g0.5-stage2-workload-contract.json'
 $preparationPath = Join-Path $PSScriptRoot 'g0.5-stage2-preparation-result-summary.json'
 $outputPath = $null
@@ -215,6 +216,7 @@ try {
 
     $preflightBytes = Get-Content -LiteralPath $contractPath -Raw
     $preflight = $preflightBytes | ConvertFrom-Json -Depth 32
+    if (-not $EnableTestInjection -and (Get-Sha256 $contractPath) -ne $expectedPreflightContractSha256) { throw 'The owner-approved smoke preflight contract SHA-256 changed.' }
     if (-not [bool]$preflight.scope.preflightExecutionPermitted) { throw 'The owner-approved contract keeps preflight execution disabled.' }
     Test-ClosedPreflightPolicy $preflight
     $workloadSha256 = Get-Sha256 $workloadPath
