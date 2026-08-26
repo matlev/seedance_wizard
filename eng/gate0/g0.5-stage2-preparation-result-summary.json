@@ -35,7 +35,7 @@
   "derivedTruth": [
     { "id": "typical-2v4a-30s", "size": 5760000, "sha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A", "retention": "regenerable-not-retained" },
     { "id": "stress-4v8a-30s", "size": 5760000, "sha256": "299846E21A0AF6F1416CCA7BF1BF8ACAC4A5EDDA78EFF9BEB392CC7B992B8CF5", "retention": "regenerable-not-retained" },
-    { "id": "g05-long-frame-index-atlas", "size": 4590016, "sha256": "BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97", "retention": "proposed-not-yet-retained" }
+    { "id": "g05-long-frame-index-atlas", "size": 4590016, "sha256": "BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97", "retention": "local-retained-r2-verification-pending", "retainedGroupId": "Gate0.G05.MarkerAtlas.20260826" }
   ],
   "validation": {
     "infrastructureSuite": { "passed": 156, "skipped": 13, "failed": 0, "total": 169 },
@@ -54,7 +54,7 @@
     "production code or runtime-profile changes"
   ],
   "remainingBeforePreMatrixSmoke": [
-    "generation and durable retention of the approved marker atlas",
+    "complete R2 byte verification of the locally retained approved marker atlas and current corpus",
     "marker-survivability qualification for every admitted route and quality profile",
     "WPF no-media control and closed environment, manual observation, WPR escalation, cancellation, and cleanup evidence contracts",
     "verified second private copy of the required Gate 0 corpus",

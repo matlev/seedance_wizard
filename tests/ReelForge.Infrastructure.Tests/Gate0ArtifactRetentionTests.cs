@@ -29,7 +29,7 @@ public sealed class Gate0ArtifactRetentionTests
         Assert.False(storage.GetProperty("temporaryProviderR2Permitted").GetBoolean());
 
         var groups = root.GetProperty("groups").EnumerateArray().ToArray();
-        Assert.Equal(19, groups.Length);
+        Assert.Equal(20, groups.Length);
         Assert.Equal(
             [
                 "P2.BtbnLgplShared.WindowsX64.20260820",
@@ -51,12 +51,13 @@ public sealed class Gate0ArtifactRetentionTests
                 "Gate0.G05.RetainedAudioOracle.20260826.CombinedParser",
                 "Gate0.G05.RetainedAudioOracle.20260826.PtsEndpoint",
                 "Gate0.G05.RetainedAudioOracle.20260826.Final",
+                "Gate0.G05.MarkerAtlas.20260826",
             ],
             groups.Select(group => group.GetProperty("groupId").GetString()));
 
         var files = groups.SelectMany(group => group.GetProperty("files").EnumerateArray()).ToArray();
-        Assert.Equal(3913, files.Length);
-        Assert.Equal(951081202, files.Sum(file => file.GetProperty("size").GetInt64()));
+        Assert.Equal(3915, files.Length);
+        Assert.Equal(955671909, files.Sum(file => file.GetProperty("size").GetInt64()));
         Assert.Equal(files.Length, files.Select(file => file.GetProperty("artifactId").GetString()).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(files.Length, files.Select(file => file.GetProperty("filename").GetString()).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(files, file =>
@@ -104,6 +105,9 @@ public sealed class Gate0ArtifactRetentionTests
         Assert.Contains(files, file =>
             file.GetProperty("filename").GetString() == "proofs/g0.5-retained-audio-oracle-20260826-final/g0.5-retained-audio-oracle-report.json" &&
             file.GetProperty("sha256").GetString() == "387BEF57A359C43479ECBF1B85C20DAB927378F7B8AFD1C58FF7CDEC87F56A0A");
+        Assert.Contains(files, file =>
+            file.GetProperty("filename").GetString() == "fixtures/G05/g0.5-frame-index-atlas-90000x17bit.ppm" &&
+            file.GetProperty("sha256").GetString() == "BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97");
         Assert.Contains(files, file =>
             file.GetProperty("filename").GetString() == "proofs/g05-calibration-20260826T000911853Z-71c3c6b3/g0.5-calibration-evidence.json" &&
             file.GetProperty("sha256").GetString() == "3D8E0CBA16381FD11F9228AB30A386DD864B520EFA37C00532790FF4E07D1951");

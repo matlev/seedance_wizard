@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-26T17:51:21.1862423+00:00",
+  "generatedUtc": "2026-08-26T18:00:20.6920757+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -23867,12 +23867,40 @@
           "sha256": "31A8C9D5161D3B02B182ED8562AFBF0ED0CDB23B04C3636054A8DA07628AE713"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.MarkerAtlas.20260826",
+      "provenance": "Owner-approved deterministic 90,000-marker 17-bit Stage 2 atlas and generator report; generation contract commit 23952c2.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Generate-G05Stage2MarkerAtlas.ps1",
+        "repository:eng/gate0/g0.5-stage2-workload-contract.json"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:fixtures/G05/g0.5-stage2-marker-atlas-report.json"
+      ],
+      "fileCount": 2,
+      "totalBytes": 4590707,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.MarkerAtlas.20260826/g0.5-frame-index-atlas-90000x17bit.ppm",
+          "filename": "fixtures/G05/g0.5-frame-index-atlas-90000x17bit.ppm",
+          "size": 4590016,
+          "sha256": "BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97"
+        },
+        {
+          "artifactId": "Gate0.G05.MarkerAtlas.20260826/g0.5-stage2-marker-atlas-report.json",
+          "filename": "fixtures/G05/g0.5-stage2-marker-atlas-report.json",
+          "size": 691,
+          "sha256": "96DCE72236F13EB79199D4FC598C09A61A9EAB1B4F3331B2CF5609EBD4B3A1C2"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 19,
-    "fileCount": 3913,
-    "totalBytes": 951081202
+    "groupCount": 20,
+    "fileCount": 3915,
+    "totalBytes": 955671909
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",
