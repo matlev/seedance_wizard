@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-25T22:55:26.6849581+00:00",
+  "generatedUtc": "2026-08-26T00:07:56.2080197+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -15874,12 +15874,35 @@
           "sha256": "00CCDD114E68CAFBCCA286AAEC61E1EB56F4491ED9A4C62C73B46DBBC24365C2"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.Calibration.20260826T000415244Z.4ABB046B",
+      "provenance": "G0.5 bounded calibration preflight failure evidence",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json"
+      ],
+      "licenseRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/g05-calibration-20260826T000415184Z-02881551/g0.5-calibration-evidence.json"
+      ],
+      "fileCount": 1,
+      "totalBytes": 16132,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T000415244Z.4ABB046B/g0.5-calibration-evidence.json",
+          "filename": "proofs/g05-calibration-20260826T000415184Z-02881551/g0.5-calibration-evidence.json",
+          "size": 16132,
+          "sha256": "72680C5EFD7148779E07054BDE462752AFAF255CC4E1E8892C0A0170787CE5C2"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 7,
-    "fileCount": 2617,
-    "totalBytes": 454662191
+    "groupCount": 8,
+    "fileCount": 2618,
+    "totalBytes": 454678323
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",
