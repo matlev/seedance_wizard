@@ -239,7 +239,9 @@ public sealed class Gate0G05Stage2DesignTests
             markerQualification.GetProperty("videoFilterGraph").GetString());
         Assert.Equal(workloads["long-form-adapter-1v1a-60m"].GetProperty("audioFilterGraph").GetString(),
             markerQualification.GetProperty("audioFilterGraph").GetString());
-        Assert.Equal(1_440_000, markerQualification.GetProperty("decodedAudio").GetProperty("expectedSamplesPerChannel").GetInt32());
+        Assert.Equal(1_440_000, markerQualification.GetProperty("decodedAudio").GetProperty("expectedPresentationSamplesPerChannel").GetInt32());
+        Assert.Equal(1_024, markerQualification.GetProperty("decodedAudio").GetProperty("maximumRawDecoderTailSamples").GetInt32());
+        Assert.Contains("no signal-derived", markerQualification.GetProperty("decodedAudio").GetProperty("normalization").GetString());
         var markerProfiles = markerQualification.GetProperty("requiredRouteQualityProfiles").EnumerateArray().ToArray();
         Assert.Equal("Constrained Baseline", markerProfiles[0].GetProperty("observedDescriptor").GetProperty("videoProfile").GetString());
         Assert.Equal("Profile 0", markerProfiles[1].GetProperty("observedDescriptor").GetProperty("videoProfile").GetString());

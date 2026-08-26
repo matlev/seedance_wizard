@@ -10,7 +10,10 @@ public sealed class Gate0G05MarkerSurvivabilityTests
         var path = PathInRepo("eng", "gate0", "Invoke-G05MarkerSurvivability.ps1");
         Assert.Equal(0, Run("pwsh", $"$t=$null;$e=$null;[Management.Automation.Language.Parser]::ParseFile('{path.Replace("'", "''")}',[ref]$t,[ref]$e)|Out-Null;if($e.Count){{exit 1}}").ExitCode);
         var script = File.ReadAllText(path);
-        foreach (var required in new[] { "Gate0.G05.MarkerSurvivability.V1", "Test-Gate0ArtifactRetention.ps1", "Generate-G05Stage2MarkerAtlas.ps1", "g0.5-stage2-workload-contract.json", "markerQualification.videoFilterGraph", "long-form-adapter-1v1a-60m", "contractRoutes", "videoOptions", "audioOptions", "muxerOptions", "Parse-DecimalInvariant", "Get-PSDrive -Name $driveName", "$free=[int64]$drive.Free", "qualityProfileId", "observedDescriptor", "rFrameRate", "avgFrameRate", "'-xerror'", "decoded-audio", "expectedSamplesPerChannel=1440000", "executedAudioDecoder", "completed-with-failures", "audioDecoder", "Explicit stream identity gate", "immediateNoExtraFrameConclusion", "partialMedia", "partialMarkerStrip", "commands=[ordered]@{encode=$encode;probe=$probe;decode=$decode;audioDecode=$audioDecode}", "[object]$Expected", "lacks explicit size/SHA", "BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97", "'-map','[vout]'", "'-map','0:v:0'", "crop=272:16:16:16,format=gray", "routeReencodePerformed=$true", "new direct child beneath approved staging root", "PATH discovery is prohibited", "expectedFrames=750" }) Assert.Contains(required, script);
+        foreach (var required in new[] { "Gate0.G05.MarkerSurvivability.V1", "Test-Gate0ArtifactRetention.ps1", "Generate-G05Stage2MarkerAtlas.ps1", "g0.5-stage2-workload-contract.json", "g0.5-lossy-audio-oracle-contract.json", "markerQualification.videoFilterGraph", "long-form-adapter-1v1a-60m", "contractRoutes", "videoOptions", "audioOptions", "muxerOptions", "Parse-DecimalInvariant", "Get-PSDrive -Name $driveName", "$free=[int64]$drive.Free", "'-show_packets'", "packetProbe", "Get-G05DecodedAudioTiming", "Optional $audioStream[0] 'profile'", "qualityProfileId", "observedDescriptor", "rFrameRate", "avgFrameRate", "'-xerror'", "decoded-audio", "executedAudioDecoder", "completed-with-failures", "audioDecoder", "Explicit stream identity gate", "immediateNoExtraFrameConclusion", "partialMedia", "partialMarkerStrip", "[object]$Expected", "lacks explicit size/SHA", "BB158EA61BFD6FE99BA7ED82C6A280AE4AABE2216E87028F35002FB9EC2DFC97", "'-map','[vout]'", "'-map','0:v:0'", "crop=272:16:16:16,format=gray", "routeReencodePerformed=$true", "new direct child beneath approved staging root", "PATH discovery is prohibited", "expectedFrames=750" }) Assert.Contains(required, script);
+        var helper = File.ReadAllText(PathInRepo("eng", "gate0", "G05MarkerSurvivabilityHelpers.psm1"));
+        Assert.Contains("proofSideTrimmingPerformed = $false", helper);
+        Assert.Contains("maximumRawDecoderTailSamples", helper);
         Assert.DoesNotContain("libx264", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("settb", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ReelForge.App", script, StringComparison.OrdinalIgnoreCase);
@@ -43,6 +46,28 @@ public sealed class Gate0G05MarkerSurvivabilityTests
             Verify $expected
             Verify $dictionary
             """;
+        Assert.Equal(0, Run("pwsh", command).ExitCode);
+    }
+
+    [Fact]
+    public void AudioTimingSeparatesRawDecoderTailFromExactPresentationEndpoint()
+    {
+        var module = PathInRepo("eng", "gate0", "G05MarkerSurvivabilityHelpers.psm1").Replace("'", "''");
+        var command = """
+            Import-Module '__MODULE__' -Force
+            $mp4Stream=[pscustomobject]@{duration_ts=1440000;time_base='1/48000'}
+            $mp4Frames=@([pscustomobject]@{nb_samples=1024;pts=0},[pscustomobject]@{nb_samples=1024;pts=1439744})
+            $mp4Packets=@([pscustomobject]@{pts=-1024;duration=1024;side_data_list=@([pscustomobject]@{side_data_type='Skip Samples';skip_samples=1024;discard_padding=0})},[pscustomobject]@{pts=0;duration=1024},[pscustomobject]@{pts=1439744;duration=256})
+            $mp4=Get-G05DecodedAudioTiming (1440768*4) $mp4Stream $mp4Frames $mp4Packets
+            if(-not$mp4.passed-or$mp4.endpointSource-ne'stream-duration-ts'-or$mp4.rawDecoderTailSamples-ne768-or-not$mp4.rawTailMetadataMatched-or$mp4.tailFromFinalPacketFrame-ne768-or$mp4.maximumRecordedSkipSamples-ne1024-or$mp4.proofSideTrimmingPerformed){exit 10}
+            $webmStream=[pscustomobject]@{time_base='1/1000'}
+            $webmFrames=@([pscustomobject]@{nb_samples=1439688},[pscustomobject]@{nb_samples=312})
+            $webmPackets=@([pscustomobject]@{duration=20;side_data_list=@([pscustomobject]@{side_data_type='Skip Samples';skip_samples=312;discard_padding=0})},[pscustomobject]@{duration=7;side_data_list=@([pscustomobject]@{side_data_type='Skip Samples';skip_samples=0;discard_padding=648})})
+            $webm=Get-G05DecodedAudioTiming (1440000*4) $webmStream $webmFrames $webmPackets
+            if(-not$webm.passed-or$webm.endpointSource-ne'decoded-frame-sample-sum'-or$webm.rawDecoderTailSamples-ne0-or$webm.maximumRecordedDiscardPaddingSamples-ne648){exit 11}
+            $bad=Get-G05DecodedAudioTiming (1441025*4) $mp4Stream $mp4Frames $mp4Packets
+            if($bad.passed-or'decoded-audio-raw-tail-out-of-range'-notin$bad.failures){exit 12}
+            """.Replace("__MODULE__", module);
         Assert.Equal(0, Run("pwsh", command).ExitCode);
     }
 
