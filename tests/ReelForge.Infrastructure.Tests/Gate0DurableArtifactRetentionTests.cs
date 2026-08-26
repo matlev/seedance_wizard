@@ -171,6 +171,10 @@ public sealed class Gate0DurableArtifactRetentionTests
         Assert.DoesNotContain("Configuration = $configuration", module);
         Assert.Contains("Assert-Gate0NoReparsePointAncestors $path $ArtifactRoot", module);
         Assert.Contains("Invoke-Gate0LockedManifestMutation", module);
+        Assert.Contains("$maximumAttempts = 20", module);
+        Assert.Contains("$cause -is [IO.IOException] -or $cause -is [UnauthorizedAccessException]", module);
+        Assert.Contains("[IO.File]::Move($temporary, $path, $true)", module);
+        Assert.Contains("if (-not $retryable -or $attempt -eq $maximumAttempts) { throw }", module);
         Assert.Contains("Invoke-Gate0RemoteByteVerification", upload);
         Assert.Contains("Test-Gate0DownloadedArtifact", download);
         Assert.Contains("-UpdateManifest requires -Remote byte verification", validate);

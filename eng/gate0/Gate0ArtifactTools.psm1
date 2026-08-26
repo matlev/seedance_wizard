@@ -339,7 +339,20 @@ function Write-Gate0RemoteManifest($RemoteManifest) {
     try {
         $json = ($RemoteManifest.Manifest | ConvertTo-Json -Depth 30) + [Environment]::NewLine
         [IO.File]::WriteAllText($temporary, $json, [Text.UTF8Encoding]::new($false))
-        [IO.File]::Move($temporary, $path, $true)
+        $maximumAttempts = 20
+        for ($attempt = 1; $attempt -le $maximumAttempts; $attempt++) {
+            try {
+                [IO.File]::Move($temporary, $path, $true)
+                break
+            }
+            catch {
+                $cause = $_.Exception
+                while ($null -ne $cause.InnerException) { $cause = $cause.InnerException }
+                $retryable = $cause -is [IO.IOException] -or $cause -is [UnauthorizedAccessException]
+                if (-not $retryable -or $attempt -eq $maximumAttempts) { throw }
+                Start-Sleep -Milliseconds ([Math]::Min(1000, 100 * $attempt))
+            }
+        }
     }
     finally {
         if (Test-Path -LiteralPath $temporary -PathType Leaf) { Remove-Item -LiteralPath $temporary -Force }
