@@ -250,7 +250,7 @@ $manifest = [ordered]@{
         heavyProofMode = 'manual-or-opt-in'
         separatelyBackedUpPrivateCopyVerified = $false
         twoCopyRetentionCondition = 'incomplete'
-        secondCopyBlocker = 'The dedicated private reelforge-artifacts R2 bucket is configured as the durable target, but SecretStore credentials and independently verified remote bytes are not yet present.'
+        secondCopyBlocker = 'The dedicated private reelforge-artifacts R2 bucket and Windows Generic Credentials are configured, but the complete corpus has not yet completed independent remote byte verification.'
         temporaryProviderR2Permitted = $false
     }
     anchors = $expected

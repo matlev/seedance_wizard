@@ -4,7 +4,7 @@
   "sourceInventory": {
     "path": "eng/gate0/artifact-retention-manifest.json",
     "artifactSetId": "Gate0.InterimCorpus.20260825",
-    "sha256": "D3597F16034DE00F0DE852CFB566B9CF7A0ECA3E2158205AAC5F81C49743C603",
+    "sha256": "21B03A19ABD084567173699E7E6CA39BC294A01FEA9A30064AFBB49549E64607",
     "logicalArtifactCount": 3007,
     "logicalArtifactBytes": 517763820
   },
@@ -21,8 +21,8 @@
     "hostedCiCredentialRequired": false
   },
   "credentialContract": {
-    "provider": "Microsoft.PowerShell.SecretStore",
-    "vaultName": "ReelForgeEngineering",
+    "provider": "Windows Credential Manager",
+    "credentialType": "Generic",
     "secretNames": [
       "ReelForge.Engineering.R2.AccountId",
       "ReelForge.Engineering.R2.AccessKeyId",
@@ -33,14 +33,48 @@
   "status": {
     "retentionCondition": "incomplete",
     "secondPrivateCopyVerified": false,
-    "verifiedLogicalArtifactCount": 0,
-    "verifiedLogicalArtifactBytes": 0,
-    "verifiedDistinctObjectCount": 0,
-    "verifiedDistinctObjectBytes": 0,
-    "lastRemoteVerificationUtc": null,
-    "blocker": "R2 credentials are not configured and no object has completed independent remote byte verification."
+    "verifiedLogicalArtifactCount": 1,
+    "verifiedLogicalArtifactBytes": 8,
+    "verifiedDistinctObjectCount": 1,
+    "verifiedDistinctObjectBytes": 8,
+    "lastRemoteVerificationUtc": "2026-08-26T16:49:46.9776689+00:00",
+    "blocker": "Not every source-inventory artifact has completed independent R2 byte verification."
   },
-  "artifacts": [],
+  "artifacts": [
+    {
+      "logicalArtifactId": "Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/inspect-orientation-6.stdout.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G04.P3.JpegInput.20260825.",
+      "originalFilename": "inspect-orientation-6.stdout.txt",
+      "localRelativePath": "proofs/p3-jpeg-20260825/superseded-initial-harness/logs/inspect-orientation-6.stdout.txt",
+      "byteSize": 8,
+      "sha256": "5E6510D6F9B52E78BE1A51958964211463800E000E3CE278DDEC2480E2A405DC",
+      "r2ObjectKey": "objects/sha256/5e/5e6510d6f9b52e78be1a51958964211463800e000e3ce278ddec2480e2a405dc",
+      "sourceProvenance": "Validated bounded P3 progressive-420 and EXIF-orientation input proof; includes two superseded harness-defect runs, exact proof outputs, commands, runtime identity, generated fixtures, and repository snapshots at commits 86e1085, dd84a27, and 42c90f8.",
+      "producerRuntimeIdentity": [
+        "artifact:p3/libjpeg-turbo-3.2.0/libjpeg-turbo-3.2.0-vc-x64.exe",
+        "artifact:p3/libjpeg-turbo-3.2.0/extracted/bin/cjpeg.exe",
+        "artifact:p3/libjpeg-turbo-3.2.0/extracted/bin/jpeg62.dll",
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/bin/ffmpeg.exe",
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/bin/ffprobe.exe",
+        "manifest:p3Authenticode"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/p3-jpeg-20260825/validated/p3-jpeg-input-proof-evidence.json",
+        "artifact:proofs/p3-jpeg-20260825/superseded-initial-harness/p3-jpeg-input-proof-evidence.json",
+        "artifact:proofs/p3-jpeg-20260825/superseded-ffprobe-shape/p3-jpeg-input-proof-evidence.json",
+        "artifact:proofs/p3-jpeg-20260825/repository-snapshots/eng/gate0/p3-jpeg-proof-contract.json",
+        "artifact:proofs/p3-jpeg-20260825/repository-snapshots/eng/gate0/Invoke-P3JpegInputProof.ps1",
+        "artifact:proofs/p3-jpeg-20260825/repository-snapshots/eng/gate0/Write-ExifOrientation.ps1"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p3/libjpeg-turbo-3.2.0/extracted/doc/LICENSE.md",
+        "artifact:p3/libjpeg-turbo-3.2.0/extracted/doc/README.ijg"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-26T16:49:46.9776689+00:00"
+    }
+  ],
   "limitations": [
     "This manifest is the tracked durable-retention status for the curated local source inventory; it is not a public-distribution manifest.",
     "An upload response, HEAD response, ETag, or object listing is insufficient. Every remote-verified record requires a retrieved byte stream matching the source size and SHA-256.",

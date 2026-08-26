@@ -1,12 +1,14 @@
 #nullable enable
 
 using System;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -15,6 +17,72 @@ using System.Threading.Tasks;
 namespace ReelForge.Gate0.Artifacts;
 
 public sealed record Gate0R2ObjectMetadata(long? ContentLength, string? ETag);
+
+public static class Gate0WindowsCredentialReader
+{
+    private const int CredentialTypeGeneric = 1;
+    private const int ErrorNotFound = 1168;
+
+    public static string ReadRequired(string targetName)
+    {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Gate 0 R2 credentials require Windows Credential Manager.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetName);
+        if (targetName.IndexOfAny(['\r', '\n', '\0']) >= 0) throw new ArgumentException("Credential target contains invalid characters.", nameof(targetName));
+        if (!CredRead(targetName, CredentialTypeGeneric, 0, out var credentialPointer))
+        {
+            var error = Marshal.GetLastWin32Error();
+            if (error == ErrorNotFound) throw new InvalidOperationException($"Required Windows Generic Credential is unavailable: {targetName}");
+            throw new Win32Exception(error, "Windows Credential Manager could not read a required Gate 0 credential.");
+        }
+
+        try
+        {
+            var credential = Marshal.PtrToStructure<NativeCredential>(credentialPointer);
+            if (credential.CredentialBlob == IntPtr.Zero || credential.CredentialBlobSize == 0)
+                throw new InvalidOperationException($"Required Windows Generic Credential is empty: {targetName}");
+            var bytes = new byte[credential.CredentialBlobSize];
+            Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
+            try
+            {
+                var value = Encoding.Unicode.GetString(bytes);
+                if (string.IsNullOrWhiteSpace(value)) throw new InvalidOperationException($"Required Windows Generic Credential is empty: {targetName}");
+                return value;
+            }
+            finally
+            {
+                Array.Clear(bytes);
+            }
+        }
+        finally
+        {
+            CredFree(credentialPointer);
+        }
+    }
+
+    [DllImport("advapi32.dll", EntryPoint = "CredReadW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CredRead(string target, int type, int reservedFlag, out IntPtr credentialPointer);
+
+    [DllImport("advapi32.dll")]
+    private static extern void CredFree(IntPtr credentialPointer);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct NativeCredential
+    {
+        public uint Flags;
+        public int Type;
+        public string? TargetName;
+        public string? Comment;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
+        public int CredentialBlobSize;
+        public IntPtr CredentialBlob;
+        public int Persist;
+        public int AttributeCount;
+        public IntPtr Attributes;
+        public string? TargetAlias;
+        public string? UserName;
+    }
+}
 
 public sealed class Gate0ArtifactR2Client
 {

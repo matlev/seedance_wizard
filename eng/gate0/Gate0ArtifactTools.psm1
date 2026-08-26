@@ -2,7 +2,6 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:BucketName = 'reelforge-artifacts'
-$script:VaultName = 'ReelForgeEngineering'
 $script:AccountIdSecretName = 'ReelForge.Engineering.R2.AccountId'
 $script:AccessKeyIdSecretName = 'ReelForge.Engineering.R2.AccessKeyId'
 $script:SecretAccessKeySecretName = 'ReelForge.Engineering.R2.SecretAccessKey'
@@ -127,7 +126,7 @@ function Read-Gate0RemoteManifest([string] $ManifestPath) {
     Assert-Gate0ExactProperties $manifest @('schemaVersion', 'manifestId', 'sourceInventory', 'storage', 'credentialContract', 'status', 'artifacts', 'limitations') 'Durable artifact manifest'
     Assert-Gate0ExactProperties $manifest.sourceInventory @('path', 'artifactSetId', 'sha256', 'logicalArtifactCount', 'logicalArtifactBytes') 'Durable source-inventory descriptor'
     Assert-Gate0ExactProperties $manifest.storage @('provider', 'bucketName', 'privateBucket', 'automaticDeletionLifecycle', 'objectKeyLayout', 'authoritativeIdentity', 'temporaryProviderReferenceStorage', 'productionReleaseStorage', 'ordinaryPullRequestWriteAccess', 'hostedCiCredentialRequired') 'Durable storage descriptor'
-    Assert-Gate0ExactProperties $manifest.credentialContract @('provider', 'vaultName', 'secretNames', 'credentialsCommitted') 'Durable credential contract'
+    Assert-Gate0ExactProperties $manifest.credentialContract @('provider', 'credentialType', 'secretNames', 'credentialsCommitted') 'Durable credential contract'
     Assert-Gate0ExactProperties $manifest.status @('retentionCondition', 'secondPrivateCopyVerified', 'verifiedLogicalArtifactCount', 'verifiedLogicalArtifactBytes', 'verifiedDistinctObjectCount', 'verifiedDistinctObjectBytes', 'lastRemoteVerificationUtc', 'blocker') 'Durable retention status'
     if ($manifest.schemaVersion -ne 1 -or $manifest.manifestId -ne 'Gate0.DurableR2Retention.V1') {
         throw 'Unsupported durable artifact manifest.'
@@ -145,10 +144,10 @@ function Read-Gate0RemoteManifest([string] $ManifestPath) {
         $manifest.storage.ordinaryPullRequestWriteAccess -or $manifest.storage.hostedCiCredentialRequired) {
         throw 'Durable artifact manifest widened its approved storage or CI boundary.'
     }
-    if ($manifest.credentialContract.provider -ne 'Microsoft.PowerShell.SecretStore' -or
-        $manifest.credentialContract.vaultName -ne $script:VaultName -or $manifest.credentialContract.credentialsCommitted -or
+    if ($manifest.credentialContract.provider -ne 'Windows Credential Manager' -or
+        $manifest.credentialContract.credentialType -ne 'Generic' -or $manifest.credentialContract.credentialsCommitted -or
         (@($manifest.credentialContract.secretNames) -join '|') -ne (@($script:AccountIdSecretName, $script:AccessKeyIdSecretName, $script:SecretAccessKeySecretName) -join '|')) {
-        throw 'Durable artifact manifest changed its approved SecretStore contract.'
+        throw 'Durable artifact manifest changed its approved Windows Credential Manager contract.'
     }
     return [pscustomobject]@{ Path = $resolved; Manifest = $manifest }
 }
@@ -242,23 +241,13 @@ function Get-Gate0LocalArtifactPath($Entry, [string] $ArtifactRoot) {
 }
 
 function Get-Gate0R2Configuration {
-    if (-not (Get-Command Get-Secret -ErrorAction SilentlyContinue) -or
-        -not (Get-Command Get-SecretVault -ErrorAction SilentlyContinue)) {
-        throw 'Microsoft.PowerShell.SecretManagement and Microsoft.PowerShell.SecretStore are required for R2 operations. No module installation is performed by this script.'
-    }
-    $vault = Get-SecretVault -Name $script:VaultName -ErrorAction SilentlyContinue
-    if ($null -eq $vault -or $vault.ModuleName -ne 'Microsoft.PowerShell.SecretStore') {
-        throw "A Microsoft.PowerShell.SecretStore vault named '$script:VaultName' is required."
-    }
     $names = @($script:AccountIdSecretName, $script:AccessKeyIdSecretName, $script:SecretAccessKeySecretName)
     $values = @{}
     foreach ($name in $names) {
-        try { $values[$name] = [string] (Get-Secret -Vault $script:VaultName -Name $name -AsPlainText -ErrorAction Stop) }
-        catch { throw "Required SecretStore credential is unavailable: $name" }
-        if ([string]::IsNullOrWhiteSpace($values[$name])) { throw "Required SecretStore credential is empty: $name" }
+        $values[$name] = [ReelForge.Gate0.Artifacts.Gate0WindowsCredentialReader]::ReadRequired($name)
     }
     $accountId = $values[$script:AccountIdSecretName]
-    if ($accountId -notmatch '^[A-Fa-f0-9]{32}$') { throw "SecretStore value '$script:AccountIdSecretName' is not a 32-character Cloudflare account ID." }
+    if ($accountId -notmatch '^[A-Fa-f0-9]{32}$') { throw "Windows Generic Credential '$script:AccountIdSecretName' is not a 32-character Cloudflare account ID." }
     return [pscustomobject]@{
         BucketName = $script:BucketName
         Endpoint = [Uri] "https://$($accountId.ToLowerInvariant()).r2.cloudflarestorage.com/"
@@ -295,7 +284,7 @@ function Invoke-Gate0RemoteByteVerification($ClientBundle, $Entry) {
     [IO.Directory]::CreateDirectory($directory) | Out-Null
     $path = Join-Path $directory 'artifact.bin'
     try {
-        $ClientBundle.Client.DownloadObjectAsync(
+        [void] $ClientBundle.Client.DownloadObjectAsync(
             $ClientBundle.BucketName,
             $Entry.ObjectKey,
             $path).GetAwaiter().GetResult()
@@ -348,7 +337,7 @@ function Write-Gate0RemoteManifest($RemoteManifest) {
     $path = $RemoteManifest.Path
     $temporary = "$path.tmp-$([Guid]::NewGuid().ToString('N'))"
     try {
-        $json = $RemoteManifest.Manifest | ConvertTo-Json -Depth 30
+        $json = ($RemoteManifest.Manifest | ConvertTo-Json -Depth 30) + [Environment]::NewLine
         [IO.File]::WriteAllText($temporary, $json, [Text.UTF8Encoding]::new($false))
         [IO.File]::Move($temporary, $path, $true)
     }

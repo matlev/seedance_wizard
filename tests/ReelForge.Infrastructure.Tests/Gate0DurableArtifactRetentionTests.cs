@@ -34,8 +34,8 @@ public sealed class Gate0DurableArtifactRetentionTests
         Assert.Equal("objects/sha256/<first-two-lowercase-hex>/<full-lowercase-sha256>", storage.GetProperty("objectKeyLayout").GetString());
 
         var credentials = root.GetProperty("credentialContract");
-        Assert.Equal("Microsoft.PowerShell.SecretStore", credentials.GetProperty("provider").GetString());
-        Assert.Equal("ReelForgeEngineering", credentials.GetProperty("vaultName").GetString());
+        Assert.Equal("Windows Credential Manager", credentials.GetProperty("provider").GetString());
+        Assert.Equal("Generic", credentials.GetProperty("credentialType").GetString());
         Assert.Equal(
             [
                 "ReelForge.Engineering.R2.AccountId",
@@ -45,8 +45,16 @@ public sealed class Gate0DurableArtifactRetentionTests
             credentials.GetProperty("secretNames").EnumerateArray().Select(value => value.GetString()));
         Assert.False(credentials.GetProperty("credentialsCommitted").GetBoolean());
 
-        Assert.Empty(root.GetProperty("artifacts").EnumerateArray());
-        Assert.False(root.GetProperty("status").GetProperty("secondPrivateCopyVerified").GetBoolean());
+        var artifact = Assert.Single(root.GetProperty("artifacts").EnumerateArray());
+        Assert.Equal("Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/inspect-orientation-6.stdout.txt", artifact.GetProperty("logicalArtifactId").GetString());
+        Assert.Equal(8, artifact.GetProperty("byteSize").GetInt64());
+        Assert.Equal("5E6510D6F9B52E78BE1A51958964211463800E000E3CE278DDEC2480E2A405DC", artifact.GetProperty("sha256").GetString());
+        Assert.Equal("objects/sha256/5e/5e6510d6f9b52e78be1a51958964211463800e000e3ce278ddec2480e2a405dc", artifact.GetProperty("r2ObjectKey").GetString());
+        Assert.Equal("remote-verified", artifact.GetProperty("retentionStatus").GetString());
+        var status = root.GetProperty("status");
+        Assert.Equal(1, status.GetProperty("verifiedLogicalArtifactCount").GetInt32());
+        Assert.Equal(8, status.GetProperty("verifiedLogicalArtifactBytes").GetInt64());
+        Assert.False(status.GetProperty("secondPrivateCopyVerified").GetBoolean());
         Assert.DoesNotMatch(@"[A-Za-z]:\\", text);
         Assert.DoesNotContain("X-Amz-Signature", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("https://", text, StringComparison.OrdinalIgnoreCase);
@@ -63,6 +71,7 @@ public sealed class Gate0DurableArtifactRetentionTests
         Assert.False(document.RootElement.GetProperty("localByteVerificationPerformed").GetBoolean());
         Assert.False(document.RootElement.GetProperty("remoteByteVerificationPerformed").GetBoolean());
         Assert.Equal(3007, document.RootElement.GetProperty("requiredLogicalArtifactCount").GetInt32());
+        Assert.Equal(1, document.RootElement.GetProperty("recordedRemoteVerifiedLogicalArtifacts").GetInt32());
         Assert.False(document.RootElement.GetProperty("secondPrivateCopyVerified").GetBoolean());
     }
 
@@ -144,18 +153,19 @@ public sealed class Gate0DurableArtifactRetentionTests
     }
 
     [Fact]
-    public void PowerShellSurfacePinsSecretStoreAndNeverFallsBackToEnvironmentCredentials()
+    public void PowerShellSurfacePinsDedicatedWindowsCredentialsAndNeverFallsBackToEnvironmentCredentials()
     {
         var module = File.ReadAllText(PathInRepo("eng", "gate0", "Gate0ArtifactTools.psm1"));
         var upload = File.ReadAllText(PathInRepo("eng", "gate0", "Upload-Gate0Artifact.ps1"));
         var download = File.ReadAllText(PathInRepo("eng", "gate0", "Get-Gate0Artifact.ps1"));
         var validate = File.ReadAllText(PathInRepo("eng", "gate0", "Test-Gate0ArtifactManifest.ps1"));
 
-        Assert.Contains("Get-Secret -Vault $script:VaultName", module);
-        Assert.Contains("Microsoft.PowerShell.SecretStore", module);
+        Assert.Contains("Gate0WindowsCredentialReader]::ReadRequired($name)", module);
+        Assert.Contains("CredReadW", File.ReadAllText(PathInRepo("eng", "gate0", "Gate0ArtifactR2Client.cs")));
         Assert.Contains("ReelForge.Engineering.R2.SecretAccessKey", module);
         Assert.DoesNotContain("AWS_ACCESS_KEY_ID", module, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("AWS_SECRET_ACCESS_KEY", module, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Get-Secret", module, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("presign", module, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("BucketName = $configuration.BucketName", module);
         Assert.DoesNotContain("Configuration = $configuration", module);

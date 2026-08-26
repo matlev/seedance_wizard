@@ -1,6 +1,6 @@
 # Gate 0 durable artifact retention
 
-Status: private R2 target approved; credential configuration and corpus migration incomplete; Stage 2 execution remains blocked
+Status: private R2 credentialed write/read smoke passed; complete corpus migration remains incomplete; Stage 2 execution remains blocked
 
 Authority: owner durable-retention direction dated 2026-08-26 and the [Gate 0 media capability charter](gate-0-media-capability-charter.md)
 
@@ -20,7 +20,7 @@ Logical names remain manifest metadata. Upload tooling never uses `latest`. A mi
 
 ## Credential contract
 
-R2 operations read only from the Microsoft PowerShell SecretStore vault `ReelForgeEngineering`:
+R2 operations read only from three dedicated Windows Credential Manager **Generic Credentials**:
 
 | Secret name | Value |
 | --- | --- |
@@ -28,16 +28,9 @@ R2 operations read only from the Microsoft PowerShell SecretStore vault `ReelFor
 | `ReelForge.Engineering.R2.AccessKeyId` | Bucket-scoped R2 S3 Access Key ID |
 | `ReelForge.Engineering.R2.SecretAccessKey` | Bucket-scoped R2 S3 Secret Access Key |
 
-The tooling does not read AWS credential environment variables, application settings, Windows Credential Manager entries used by ReelForge, or the temporary-provider R2 configuration. Credentials, authorization headers, signed queries, and endpoint URLs are never written to either manifest or normal command output.
+The engineering targets are read by exact name and do not use ReelForge's application credential prefix. The tooling does not read AWS credential environment variables, application settings, application-owned Credential Manager entries, or the temporary-provider R2 configuration. Credentials, authorization headers, signed queries, and endpoint URLs are never written to either manifest or normal command output.
 
-The required `Microsoft.PowerShell.SecretManagement` and `Microsoft.PowerShell.SecretStore` modules are intentionally not installed by the repository scripts. After those modules are available, register the vault and enter values interactively:
-
-```powershell
-Register-SecretVault -Name ReelForgeEngineering -ModuleName Microsoft.PowerShell.SecretStore
-Set-Secret -Vault ReelForgeEngineering -Name ReelForge.Engineering.R2.AccountId -Secret (Read-Host 'Cloudflare account ID' -AsSecureString)
-Set-Secret -Vault ReelForgeEngineering -Name ReelForge.Engineering.R2.AccessKeyId -Secret (Read-Host 'R2 Access Key ID' -AsSecureString)
-Set-Secret -Vault ReelForgeEngineering -Name ReelForge.Engineering.R2.SecretAccessKey -Secret (Read-Host 'R2 Secret Access Key' -AsSecureString)
-```
+Create the three entries with Windows Credential Manager's **Add a generic credential** action. Set each Internet or network address to the exact secret name above; the user-name field is not used by the tooling, and the password field contains the corresponding value. No PowerShell module or additional software is required.
 
 Use a token scoped only to object read/write for `reelforge-artifacts`. Do not reuse temporary-provider or future CI credentials.
 
@@ -77,6 +70,12 @@ Retrieve one already verified object to a new absolute destination:
 When the local source inventory changes, `-RefreshSourceInventory` adopts its new manifest hash only if every previously verified logical artifact still has the same size, SHA-256, and object key. It resets the overall retention condition to incomplete until new artifacts are remotely verified.
 
 Receipt and source-refresh writes take a machine-wide, manifest-specific mutex, reload and revalidate the current ledger while holding that lock, then atomically replace the JSON file. Concurrent operators may perform redundant immutable-object verification, but they cannot overwrite the object or silently discard one another's receipts. The reader enforces a closed manifest schema and derives completion, counts, and byte totals from the verified receipt set; hand-edited status flags cannot establish the second-copy gate.
+
+## Credentialed R2 smoke result
+
+On 2026-08-26, the exact 8-byte retained artifact `Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/inspect-orientation-6.stdout.txt` was locally verified, create-only uploaded, retrieved, and verified against SHA-256 `5E6510D6F9B52E78BE1A51958964211463800E000E3CE278DDEC2480E2A405DC`. A separate remote validation then repeated the HEAD, retrieval, size, and SHA-256 checks successfully. The durable ledger records the content-addressed object at `objects/sha256/5e/5e6510d6f9b52e78be1a51958964211463800e000e3ce278ddec2480e2a405dc` without storing credentials or an endpoint.
+
+This proves the configured engineering identity can execute the intended immutable write/read path. It does not satisfy the second-copy prerequisite: 1 of 3,007 logical artifacts is remotely verified, and Stage 2 remains blocked until the complete current inventory passes the same process.
 
 ## CI and completion
 

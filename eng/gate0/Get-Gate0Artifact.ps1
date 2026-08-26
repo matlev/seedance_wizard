@@ -32,7 +32,7 @@ if ($record.Count -ne 1 -or $record[0].retentionStatus -ne 'remote-verified') {
 $temporary = Join-Path $destinationDirectory ".reelforge-gate0-download-$([Guid]::NewGuid().ToString('N')).tmp"
 $bundle = New-Gate0R2ClientBundle
 try {
-    $bundle.Client.DownloadObjectAsync(
+    [void] $bundle.Client.DownloadObjectAsync(
         $bundle.BucketName,
         $entry.ObjectKey,
         $temporary).GetAwaiter().GetResult()
