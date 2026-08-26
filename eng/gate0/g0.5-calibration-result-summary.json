@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "resultId": "Gate0.G05.Calibration.Stage1.20260826",
+  "status": "completed-with-failures-owner-checkpoint-required",
+  "contractId": "Gate0.G05.Calibration.V1",
+  "profileId": "P2.BtbnLgplShared.WindowsX64.20260820",
+  "proofRunId": "g05-calibration-20260826T002913397Z-189786ac",
+  "startedAtUtc": "2026-08-26T00:29:13.3158913+00:00",
+  "completedAtUtc": "2026-08-26T00:41:52.6752800+00:00",
+  "statisticsClassification": "exploratory-not-acceptance",
+  "evidence": {
+    "retainedGroupId": "Gate0.G05.Calibration.20260826T004152697Z.FDABDAA2",
+    "path": "proofs/g05-calibration-20260826T002913397Z-189786ac/g0.5-calibration-evidence.json",
+    "size": 497033,
+    "sha256": "A95979C4211BD2CB844C44A2F1A1F55B9A7341EAC8C81A5B356AF7121468AC15",
+    "retention": "retained-and-revalidated",
+    "secondPrivateCopyComplete": false
+  },
+  "attempts": {
+    "total": 48,
+    "ffmpegExitZero": 48,
+    "passed": 24,
+    "failed": 24,
+    "warmupPerCell": 1,
+    "measuredPerCell": 2,
+    "concurrentProcessCount": 1
+  },
+  "routeOutcomes": [
+    {
+      "routeId": "Video.Export.Compatibility.Mp4H264Aac.P2OpenH264",
+      "outcome": "blocked-by-audio-oracle-contract",
+      "attempts": 24,
+      "ffmpegExitZero": 24,
+      "passed": 0,
+      "failed": 24,
+      "observedMaximumAbsoluteAudioSampleDelta": 9015,
+      "maximumAllowedAbsoluteAudioSampleDelta": 3072,
+      "failureLocation": { "sample": 553, "channel": 0 },
+      "interpretation": "The route reached the audio waveform assertion after preceding output assertions. The reused 3072 value was a G0.4 lossy sample-count tolerance, not an approved lossy peak-amplitude quality threshold."
+    },
+    {
+      "routeId": "Video.Export.Open.WebmVp9Opus",
+      "outcome": "passed-stage1-oracle",
+      "attempts": 24,
+      "ffmpegExitZero": 24,
+      "passed": 24,
+      "failed": 0,
+      "audioSamplesPerChannel": 384000,
+      "observedMaximumAbsoluteAudioSampleDelta": 1859,
+      "maximumObservedVisualFrameMeanAbsoluteError": 4.721909722222223,
+      "artifactSizes": [175050, 189109]
+    }
+  ],
+  "measuredCells": [
+    { "route": "mp4-openh264-aac", "resolution": "720p", "threadPolicy": "auto", "pass": 0, "fail": 2, "wallMeanMs": 456.5, "wallMinMs": 454, "wallMaxMs": 459, "resourceSummary": "insufficient-samples" },
+    { "route": "mp4-openh264-aac", "resolution": "720p", "threadPolicy": "one", "pass": 0, "fail": 2, "wallMeanMs": 418.0, "wallMinMs": 400, "wallMaxMs": 436, "resourceSummary": "insufficient-samples" },
+    { "route": "mp4-openh264-aac", "resolution": "720p", "threadPolicy": "half-logical", "pass": 0, "fail": 2, "wallMeanMs": 425.0, "wallMinMs": 421, "wallMaxMs": 429, "resourceSummary": "insufficient-samples" },
+    { "route": "mp4-openh264-aac", "resolution": "720p", "threadPolicy": "full-logical", "pass": 0, "fail": 2, "wallMeanMs": 442.5, "wallMinMs": 428, "wallMaxMs": 457, "resourceSummary": "insufficient-samples" },
+    { "route": "mp4-openh264-aac", "resolution": "1080p", "threadPolicy": "auto", "pass": 0, "fail": 2, "wallMeanMs": 909.0, "wallMinMs": 867, "wallMaxMs": 951, "cpuMeanPercent": 8.39, "cpuPeakPercent": 8.83, "peakWorkingSetMiB": 64.8, "peakPrivateMemoryMiB": 73.4 },
+    { "route": "mp4-openh264-aac", "resolution": "1080p", "threadPolicy": "one", "pass": 0, "fail": 2, "wallMeanMs": 871.5, "wallMinMs": 827, "wallMaxMs": 916, "cpuMeanPercent": 9.60, "cpuPeakPercent": 9.78, "peakWorkingSetMiB": 59.1, "peakPrivateMemoryMiB": 66.8 },
+    { "route": "mp4-openh264-aac", "resolution": "1080p", "threadPolicy": "half-logical", "pass": 0, "fail": 2, "wallMeanMs": 873.0, "wallMinMs": 856, "wallMaxMs": 890, "cpuMeanPercent": 10.53, "cpuPeakPercent": 10.62, "peakWorkingSetMiB": 62.1, "peakPrivateMemoryMiB": 70.2 },
+    { "route": "mp4-openh264-aac", "resolution": "1080p", "threadPolicy": "full-logical", "pass": 0, "fail": 2, "wallMeanMs": 932.5, "wallMinMs": 918, "wallMaxMs": 947, "cpuMeanPercent": 13.06, "cpuPeakPercent": 16.59, "peakWorkingSetMiB": 64.9, "peakPrivateMemoryMiB": 73.5 },
+    { "route": "webm-vp9-opus", "resolution": "720p", "threadPolicy": "auto", "pass": 2, "fail": 0, "wallMeanMs": 6892.5, "wallMinMs": 6833, "wallMaxMs": 6952, "cpuMeanPercent": 6.68, "cpuPeakPercent": 9.18, "peakWorkingSetMiB": 177.3, "peakPrivateMemoryMiB": 178.1 },
+    { "route": "webm-vp9-opus", "resolution": "720p", "threadPolicy": "one", "pass": 2, "fail": 0, "wallMeanMs": 6845.5, "wallMinMs": 6811, "wallMaxMs": 6880, "cpuMeanPercent": 6.46, "cpuPeakPercent": 7.15, "peakWorkingSetMiB": 172.6, "peakPrivateMemoryMiB": 172.6 },
+    { "route": "webm-vp9-opus", "resolution": "720p", "threadPolicy": "half-logical", "pass": 2, "fail": 0, "wallMeanMs": 7139.5, "wallMinMs": 6973, "wallMaxMs": 7306, "cpuMeanPercent": 6.55, "cpuPeakPercent": 7.91, "peakWorkingSetMiB": 175.1, "peakPrivateMemoryMiB": 175.4 },
+    { "route": "webm-vp9-opus", "resolution": "720p", "threadPolicy": "full-logical", "pass": 2, "fail": 0, "wallMeanMs": 7345.0, "wallMinMs": 7280, "wallMaxMs": 7410, "cpuMeanPercent": 6.51, "cpuPeakPercent": 8.68, "peakWorkingSetMiB": 177.2, "peakPrivateMemoryMiB": 178.0 },
+    { "route": "webm-vp9-opus", "resolution": "1080p", "threadPolicy": "auto", "pass": 2, "fail": 0, "wallMeanMs": 11781.0, "wallMinMs": 11768, "wallMaxMs": 11794, "cpuMeanPercent": 6.70, "cpuPeakPercent": 9.44, "peakWorkingSetMiB": 315.4, "peakPrivateMemoryMiB": 319.8 },
+    { "route": "webm-vp9-opus", "resolution": "1080p", "threadPolicy": "one", "pass": 2, "fail": 0, "wallMeanMs": 11747.0, "wallMinMs": 11506, "wallMaxMs": 11988, "cpuMeanPercent": 6.44, "cpuPeakPercent": 7.47, "peakWorkingSetMiB": 309.7, "peakPrivateMemoryMiB": 313.3 },
+    { "route": "webm-vp9-opus", "resolution": "1080p", "threadPolicy": "half-logical", "pass": 2, "fail": 0, "wallMeanMs": 11005.0, "wallMinMs": 10773, "wallMaxMs": 11237, "cpuMeanPercent": 6.60, "cpuPeakPercent": 8.12, "peakWorkingSetMiB": 312.7, "peakPrivateMemoryMiB": 316.6 },
+    { "route": "webm-vp9-opus", "resolution": "1080p", "threadPolicy": "full-logical", "pass": 2, "fail": 0, "wallMeanMs": 11047.0, "wallMinMs": 10825, "wallMaxMs": 11269, "cpuMeanPercent": 6.67, "cpuPeakPercent": 10.72, "peakWorkingSetMiB": 315.4, "peakPrivateMemoryMiB": 319.8 }
+  ],
+  "cancellation": [
+    { "route": "mp4-openh264-aac", "status": "forced-termination-evidence", "activeProgressMs": 764, "requestMs": 1266, "requestToExitMs": 17, "partialBytes": 524336, "partialDisposition": "removed-unvalidated", "peakWorkingSetMiB": 64.8 },
+    { "route": "webm-vp9-opus", "status": "forced-termination-evidence", "activeProgressMs": 785, "requestMs": 1316, "requestToExitMs": 27, "partialBytes": 0, "partialDisposition": "removed-unvalidated", "peakWorkingSetMiB": 315.1 }
+  ],
+  "ownerDecisionsRequired": [
+    "lossy-audio-oracle-semantics",
+    "stage2-thread-policy-candidates",
+    "stage2-versioned-workload-contract",
+    "application-host-p2-execution-boundary",
+    "stage2-measured-matrix-and-concurrency",
+    "application-responsiveness-and-cancellation-thresholds"
+  ],
+  "stage2ExecutionAuthorized": false,
+  "installationsUsedOrRequested": []
+}

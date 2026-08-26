@@ -26,6 +26,44 @@ public sealed class Gate0G05CalibrationTests
     }
 
     [Fact]
+    public void StageOneResultSummaryIsBoundedAndAnchoredToTheRetainedManifest()
+    {
+        using var summaryDocument = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-calibration-result-summary.json")));
+        var summary = summaryDocument.RootElement;
+        Assert.Equal("completed-with-failures-owner-checkpoint-required", summary.GetProperty("status").GetString());
+        Assert.Equal("exploratory-not-acceptance", summary.GetProperty("statisticsClassification").GetString());
+        Assert.False(summary.GetProperty("stage2ExecutionAuthorized").GetBoolean());
+        Assert.Empty(summary.GetProperty("installationsUsedOrRequested").EnumerateArray());
+        Assert.Equal(16, summary.GetProperty("measuredCells").GetArrayLength());
+        Assert.Equal(TimeSpan.Zero, DateTimeOffset.Parse(summary.GetProperty("startedAtUtc").GetString()!, System.Globalization.CultureInfo.InvariantCulture).Offset);
+        Assert.Equal(TimeSpan.Zero, DateTimeOffset.Parse(summary.GetProperty("completedAtUtc").GetString()!, System.Globalization.CultureInfo.InvariantCulture).Offset);
+
+        var attempts = summary.GetProperty("attempts");
+        Assert.Equal(48, attempts.GetProperty("total").GetInt32());
+        Assert.Equal(48, attempts.GetProperty("ffmpegExitZero").GetInt32());
+        Assert.Equal(24, attempts.GetProperty("passed").GetInt32());
+        Assert.Equal(24, attempts.GetProperty("failed").GetInt32());
+
+        var routes = summary.GetProperty("routeOutcomes").EnumerateArray().ToArray();
+        Assert.Contains(routes, route => route.GetProperty("outcome").GetString() == "blocked-by-audio-oracle-contract");
+        Assert.Contains(routes, route => route.GetProperty("outcome").GetString() == "passed-stage1-oracle");
+
+        var evidence = summary.GetProperty("evidence");
+        var evidencePath = evidence.GetProperty("path").GetString()!;
+        Assert.False(Path.IsPathRooted(evidencePath));
+        Assert.DoesNotContain('\\', evidencePath);
+        Assert.False(evidence.GetProperty("secondPrivateCopyComplete").GetBoolean());
+
+        using var manifestDocument = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "artifact-retention-manifest.json")));
+        var retainedGroup = manifestDocument.RootElement.GetProperty("groups").EnumerateArray().Single(
+            group => group.GetProperty("groupId").GetString() == evidence.GetProperty("retainedGroupId").GetString());
+        var retainedEvidence = retainedGroup.GetProperty("files").EnumerateArray().Single(
+            file => file.GetProperty("filename").GetString() == evidencePath);
+        Assert.Equal(evidence.GetProperty("size").GetInt64(), retainedEvidence.GetProperty("size").GetInt64());
+        Assert.Equal(evidence.GetProperty("sha256").GetString(), retainedEvidence.GetProperty("sha256").GetString());
+    }
+
+    [Fact]
     public void RunnerKeepsPreflightStagingMeasurementOracleAndRetentionBoundariesExplicit()
     {
         var scriptPath = PathInRepo("eng", "gate0", "Invoke-P2G05Calibration.ps1");
