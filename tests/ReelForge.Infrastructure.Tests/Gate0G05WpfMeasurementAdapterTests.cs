@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Xml.Linq;
 
 namespace ReelForge.Infrastructure.Tests;
@@ -83,6 +84,32 @@ public sealed class Gate0G05WpfMeasurementAdapterTests
         var project = File.ReadAllText(PathInRepo("eng", "gate0", "ReelForge.Gate0.WpfMeasurementAdapter", "ReelForge.Gate0.WpfMeasurementAdapter.csproj"));
         Assert.Contains("g0.5-wpf-measurement-adapter-contract.json", project);
         Assert.Contains("CopyToOutputDirectory", project);
+    }
+
+    [Fact]
+    public void AuthoritativeNoMediaResultIsClosedAndSourceBound()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-wpf-no-media-result-summary.json")));
+        var root = document.RootElement;
+        Assert.Equal("passed", root.GetProperty("status").GetString());
+        Assert.Equal("f4d39ac", root.GetProperty("execution").GetProperty("repositoryCommit").GetString());
+        Assert.Equal("237C38B7EA8A99DC3BE865F4EB25BE0D6BE1C24CCEB1CA45D6236C7DD549000D",
+            root.GetProperty("retention").GetProperty("artifacts")[1].GetProperty("sha256").GetString());
+
+        var window = root.GetProperty("windowAndMedia");
+        Assert.Equal(0, window.GetProperty("mediaChildCount").GetInt32());
+        Assert.False(window.GetProperty("mediaProcessStarted").GetBoolean());
+
+        var dispatcher = root.GetProperty("dispatcher");
+        Assert.Equal(dispatcher.GetProperty("expected").GetInt32(),
+            dispatcher.GetProperty("executed").GetInt32() + dispatcher.GetProperty("missed").GetInt32());
+        Assert.True(dispatcher.GetProperty("allExpectedCadencesClassified").GetBoolean());
+        Assert.True(root.GetProperty("host").GetProperty("requiredFieldsAvailable").GetBoolean());
+
+        var disposition = root.GetProperty("disposition");
+        Assert.True(disposition.GetProperty("noMediaControlComplete").GetBoolean());
+        Assert.False(disposition.GetProperty("wpfMediaScenarioComplete").GetBoolean());
+        Assert.False(disposition.GetProperty("preMatrixSmokeAuthorized").GetBoolean());
     }
 
     private static string Read(string filename) => File.ReadAllText(PathInRepo("eng", "gate0", "ReelForge.Gate0.WpfMeasurementAdapter", filename));

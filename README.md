@@ -80,6 +80,7 @@ All project-media paths stored in the `.rfp` file are relative to the project ro
 - [Gate 0 G0.5 retained-audio results](docs/gate-0-g0.5-retained-audio-results.md)
 - [Gate 0 G0.5 marker-survivability results](docs/gate-0-g0.5-marker-survivability-results.md)
 - [Gate 0 G0.5 WPF measurement-adapter boundary](docs/gate-0-g0.5-wpf-measurement-adapter-boundary.md)
+- [Gate 0 G0.5 WPF no-media control results](docs/gate-0-g0.5-wpf-no-media-results.md)
 - [Gate 0 durable artifact retention](docs/gate-0-artifact-retention.md)
 - [Milestone plan](docs/milestones.md)
 - [Manual regression acceptance matrix](docs/manual-acceptance.md)

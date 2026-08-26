@@ -73,6 +73,8 @@ When a later G0.3 proof runner packages or transforms these primitives, it must 
 
 `g0.5-wpf-measurement-adapter-contract.json` is the frozen evidence and execution boundary for the proof-only P2 Windows WPF adapter. It imports the executed workload contract by hash and requires a real visible STA window, a 30-second zero-child control, closed host/GPU-driver/power/display/window evidence, non-dropping dispatcher accounting, privacy-sensitive manual WPR escalation, job-contained exact-P2 children, and packet-to-cleanup cancellation evidence. The contract does not implement or prove the adapter by itself.
 
+`ReelForge.Gate0.WpfMeasurementAdapter` implements that isolated Windows proof boundary and is compiled by the Windows solution without referencing a ReelForge product assembly. Its authoritative visible no-media control passed with zero media children, complete host evidence, and all 1,871 dispatcher cadences classified; see `docs/gate-0-g0.5-wpf-no-media-results.md` and `g0.5-wpf-no-media-result-summary.json`. Media-load, human whole-system observation, preview, and cancellation evidence remain for the bounded smoke.
+
 ## Interim proof-artifact retention
 
 `Preserve-Gate0Artifacts.ps1` creates the one approved local corpus root: the `ReelForge.Gate0Artifacts` sibling of this repository. It refuses any other destination, an existing destination, and source or retained reparse points. The first preservation run copies and independently verifies the exact P2 archive/runtime, F1-F8 fixture corpus, corrected G0.4 evidence closure, P3 producer closure, and immutable contract/provenance snapshots. It atomically replaces only `artifact-retention-manifest.json` in this directory, then places a hash-identical copy at the retained root.

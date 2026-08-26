@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-26T18:37:00.5856059+00:00",
+  "generatedUtc": "2026-08-26T19:20:13.5513358+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -24251,12 +24251,86 @@
           "sha256": "992036FBA776C41DC42A08EC791F771382A24FBBFD726C2F5604AA9AD0A37FFF"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.WpfMeasurementAdapter.NoMedia.20260826",
+      "provenance": "Authoritative visible and unminimized 30-second G0.5 proof-only WPF no-media control executed from repository commit f4d39ac with zero media children.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/g0.5-wpf-measurement-adapter-contract.json",
+        "repository:eng/gate0/ReelForge.Gate0.WpfMeasurementAdapter/ReelForge.Gate0.WpfMeasurementAdapter.csproj",
+        "repository:eng/gate0/ReelForge.Gate0.WpfMeasurementAdapter/Program.cs",
+        "repository:eng/gate0/ReelForge.Gate0.WpfMeasurementAdapter/HostEvidence.cs",
+        "repository:eng/gate0/ReelForge.Gate0.WpfMeasurementAdapter/ExactP2ProcessRunner.cs"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-wpf-no-media-20260826-f4d39ac/evidence.json"
+      ],
+      "fileCount": 3,
+      "totalBytes": 352520,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.WpfMeasurementAdapter.NoMedia.20260826/dispatcher-probes.ndjson",
+          "filename": "proofs/g0.5-wpf-no-media-20260826-f4d39ac/dispatcher-probes.ndjson",
+          "size": 337799,
+          "sha256": "E27F807CE9686C83AAADC5D627F003F7056929E012A53E51275FF3359B0A0E42"
+        },
+        {
+          "artifactId": "Gate0.G05.WpfMeasurementAdapter.NoMedia.20260826/evidence.json",
+          "filename": "proofs/g0.5-wpf-no-media-20260826-f4d39ac/evidence.json",
+          "size": 8305,
+          "sha256": "63B2895046E000AD9B6B168AC5A28491BE193BA45C8DEE10B0509C86F09AD186"
+        },
+        {
+          "artifactId": "Gate0.G05.WpfMeasurementAdapter.NoMedia.20260826/process-samples.ndjson",
+          "filename": "proofs/g0.5-wpf-no-media-20260826-f4d39ac/process-samples.ndjson",
+          "size": 6416,
+          "sha256": "09D5CF7879D538F0A8DAD1BBDE4DC4ED7E9AC6DA7718AE59B796A0707A4135FD"
+        }
+      ]
+    },
+    {
+      "groupId": "Gate0.G05.WpfMeasurementAdapter.NoMedia.20260826.Final",
+      "provenance": "Authoritative visible and unminimized 30-second G0.5 proof-only WPF no-media control rebuilt and executed from repository commit f4d39ac with zero media children.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/g0.5-wpf-measurement-adapter-contract.json",
+        "repository:eng/gate0/ReelForge.Gate0.WpfMeasurementAdapter/ReelForge.Gate0.WpfMeasurementAdapter.csproj",
+        "repository:eng/gate0/ReelForge.Gate0.WpfMeasurementAdapter/Program.cs",
+        "repository:eng/gate0/ReelForge.Gate0.WpfMeasurementAdapter/HostEvidence.cs",
+        "repository:eng/gate0/ReelForge.Gate0.WpfMeasurementAdapter/ExactP2ProcessRunner.cs"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-wpf-no-media-20260826-f4d39ac-final/evidence.json"
+      ],
+      "fileCount": 3,
+      "totalBytes": 352380,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.WpfMeasurementAdapter.NoMedia.20260826.Final/dispatcher-probes.ndjson",
+          "filename": "proofs/g0.5-wpf-no-media-20260826-f4d39ac-final/dispatcher-probes.ndjson",
+          "size": 337853,
+          "sha256": "61ACD2FA30167A647814036ABE7A5DAE4FA07DCAE1B6B64857C217FA7849604E"
+        },
+        {
+          "artifactId": "Gate0.G05.WpfMeasurementAdapter.NoMedia.20260826.Final/evidence.json",
+          "filename": "proofs/g0.5-wpf-no-media-20260826-f4d39ac-final/evidence.json",
+          "size": 8312,
+          "sha256": "237C38B7EA8A99DC3BE865F4EB25BE0D6BE1C24CCEB1CA45D6236C7DD549000D"
+        },
+        {
+          "artifactId": "Gate0.G05.WpfMeasurementAdapter.NoMedia.20260826.Final/process-samples.ndjson",
+          "filename": "proofs/g0.5-wpf-no-media-20260826-f4d39ac-final/process-samples.ndjson",
+          "size": 6215,
+          "sha256": "3F115A4B96EA951CD878A1896802882B355CE60B2D9E62801282822433EFB91E"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 24,
-    "fileCount": 3961,
-    "totalBytes": 995909218
+    "groupCount": 26,
+    "fileCount": 3967,
+    "totalBytes": 996614118
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

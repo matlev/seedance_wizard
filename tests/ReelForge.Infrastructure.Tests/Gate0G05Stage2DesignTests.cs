@@ -290,7 +290,7 @@ public sealed class Gate0G05Stage2DesignTests
     {
         using var summary = ReadJson("eng", "gate0", "g0.5-stage2-preparation-result-summary.json");
         var root = summary.RootElement;
-        Assert.Equal("audio-routes-and-marker-qualified-adapter-retention-and-resource-prerequisites-pending", root.GetProperty("status").GetString());
+        Assert.Equal("audio-routes-marker-and-wpf-control-qualified-retention-and-resource-prerequisites-pending", root.GetProperty("status").GetString());
         Assert.True(root.GetProperty("syntheticAudioControls").GetProperty("routeOutputsEvaluated").GetBoolean());
         Assert.False(root.GetProperty("syntheticAudioControls").GetProperty("routeReencodePerformed").GetBoolean());
         Assert.True(root.GetProperty("syntheticAudioControls").GetProperty("frozen").GetBoolean());
