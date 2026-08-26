@@ -28,6 +28,7 @@ public sealed class Gate0G05RetainedAudioOracleTests
             "Assert-G05Stage1Matrix", "originalAttempt", "Get-G05AudioTiming",
             "Get-G05AudioTiming", "Original FFmpeg attempt did not exit zero", "new direct child beneath approved staging root",
             "approved project-parent trust boundary",
+            "-Arguments @('-v','error','-f',$demuxer",
             "selectedAudioStream", "Video.Export.Compatibility.Mp4H264Aac.P2OpenH264",
             "completed-with-failures", "infrastructure-failed"
         }) Assert.Contains(value, script);
