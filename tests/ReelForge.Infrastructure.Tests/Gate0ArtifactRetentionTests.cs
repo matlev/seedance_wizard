@@ -179,6 +179,7 @@ public sealed class Gate0ArtifactRetentionTests
             "Duplicate retained artifact filename",
             "Append staging is not on the artifact volume",
             "Assert-NoReparsePoints $source 'Source root'",
+            "SourceTrustBoundary must be the repository parent and contain SourceRoot",
             "Invoke-Validation $resolvedRoot",
         }) Assert.Contains(required, append);
         Assert.DoesNotContain("REELFORGE_GATE0_TEST", append);
@@ -232,7 +233,8 @@ public sealed class Gate0ArtifactRetentionTests
             var append = Path.Combine(gate0, "Add-Gate0RetainedProof.ps1").Replace("'", "''", StringComparison.Ordinal);
             var root = artifactRoot.Replace("'", "''", StringComparison.Ordinal);
             var quotedSource = source.Replace("'", "''", StringComparison.Ordinal);
-            var command = $"& '{append}' -ArtifactRoot '{root}' -SourceRoot '{quotedSource}' -GroupId 'Proof' -DestinationName 'proofs/new' -Provenance 'test proof' -ProofRunIdentity 'artifact:proofs/new/proof.txt'";
+            var sourceTrustBoundary = testRoot.Replace("'", "''", StringComparison.Ordinal);
+            var command = $"& '{append}' -ArtifactRoot '{root}' -SourceRoot '{quotedSource}' -SourceTrustBoundary '{sourceTrustBoundary}' -GroupId 'Proof' -DestinationName 'proofs/new' -Provenance 'test proof' -ProofRunIdentity 'artifact:proofs/new/proof.txt'";
             var result = RunPowerShell(command);
             Assert.True(result.ExitCode == 0, result.Output);
             Assert.True(File.Exists(Path.Combine(artifactRoot, "proofs", "new", "proof.txt")));

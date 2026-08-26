@@ -32,12 +32,14 @@ function Write-JsonAtomic([string] $Path, [object] $Value) {
     try { [IO.File]::WriteAllText($partial, ($Value | ConvertTo-Json -Depth 100), [Text.UTF8Encoding]::new($false)); Move-Item -LiteralPath $partial -Destination $Path -Force }
     finally { if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Force } }
 }
-function Assert-DirectDirectory([string] $Path, [string] $Label, [bool] $MustExist = $true) {
+function Assert-DirectDirectory([string] $Path, [string] $Label, [bool] $MustExist = $true, [string] $TrustedAncestor = '') {
     if ([string]::IsNullOrWhiteSpace($Path) -or -not [IO.Path]::IsPathRooted($Path)) { throw "$Label must be an explicit rooted path." }
     $full = [IO.Path]::GetFullPath($Path).TrimEnd([IO.Path]::DirectorySeparatorChar)
     if ($MustExist -and -not (Test-Path -LiteralPath $full -PathType Container)) { throw "$Label does not exist or is not a directory: $full" }
+    $boundary = if([string]::IsNullOrWhiteSpace($TrustedAncestor)){''}else{[IO.Path]::GetFullPath($TrustedAncestor).TrimEnd([IO.Path]::DirectorySeparatorChar)}
+    if(-not[string]::IsNullOrEmpty($boundary)-and-not($full.StartsWith("$boundary$([IO.Path]::DirectorySeparatorChar)",[StringComparison]::OrdinalIgnoreCase))){throw "$Label is outside its approved trust boundary."}
     $cursor = if (Test-Path -LiteralPath $full) { Get-Item -LiteralPath $full -Force } else { Get-Item -LiteralPath ([IO.Path]::GetDirectoryName($full)) -Force }
-    while ($null -ne $cursor) { if (($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "$Label traverses a reparse-point: $($cursor.FullName)" }; $cursor = $cursor.Parent }
+    while ($null -ne $cursor) { if (($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "$Label traverses a reparse-point: $($cursor.FullName)" };if(-not[string]::IsNullOrEmpty($boundary)-and$cursor.FullName.TrimEnd([IO.Path]::DirectorySeparatorChar).Equals($boundary,[StringComparison]::OrdinalIgnoreCase)){break}; $cursor = $cursor.Parent }
     if (Test-Path -LiteralPath $full) { foreach($item in @(Get-ChildItem -LiteralPath $full -Force -Recurse)) { if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw "$Label contains a reparse-point: $($item.FullName)"} } }
     return $full
 }
@@ -205,7 +207,7 @@ $state=[ordered]@{schemaVersion=1;contractId='Gate0.G05.Calibration.V1';profileI
 if(-not(Test-Path -LiteralPath $contractPath -PathType Leaf)){throw 'G0.5 calibration contract is missing.'};$contract=Get-Content -LiteralPath $contractPath -Raw|ConvertFrom-Json -Depth 64;$state.matrix=New-Matrix $contract
 if($ContractOnly){$state.status='contract-only';$state.completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O');if($OutputDirectory){$out=Assert-DirectDirectory $OutputDirectory 'OutputDirectory' $false;if(Test-Path $out){throw 'Contract-only OutputDirectory must be new.'};[IO.Directory]::CreateDirectory($out)|Out-Null;Write-JsonAtomic (Join-Path $out 'g0.5-calibration-evidence.json') $state};$state|ConvertTo-Json -Depth 100;exit 0}
 
-$runSuffix=New-RunSuffix;$approvedArtifacts=Join-Path ([IO.Path]::GetDirectoryName($repositoryRoot)) 'ReelForge.Gate0Artifacts';$stagingBase=Join-Path ([IO.Path]::GetDirectoryName($repositoryRoot)) 'ReelForge.Gate0Staging';$stage=Join-Path $stagingBase "g05-calibration-$runSuffix"
+$runSuffix=New-RunSuffix;$trustedProjectParent=[IO.Path]::GetDirectoryName($repositoryRoot);$approvedArtifacts=Join-Path $trustedProjectParent 'ReelForge.Gate0Artifacts';$stagingBase=Join-Path $trustedProjectParent 'ReelForge.Gate0Staging';$stage=Join-Path $stagingBase "g05-calibration-$runSuffix"
 try {
     # Every non-contract attempt receives persistent staging before any preflight
     # can fail, so a closed failure record cannot be lost with its diagnostics.
@@ -213,11 +215,11 @@ try {
     [IO.Directory]::CreateDirectory($stagingBase)|Out-Null
     if(Test-Path $stage){throw 'Collision-resistant staging directory already exists.'}
     [IO.Directory]::CreateDirectory($stage)|Out-Null
-    [void](Assert-DirectDirectory $stagingBase 'Staging base');[void](Assert-DirectDirectory $stage 'Staging directory')
+    [void](Assert-DirectDirectory $stagingBase 'Staging base' $true $trustedProjectParent);[void](Assert-DirectDirectory $stage 'Staging directory' $true $trustedProjectParent)
     $state.proofRunId="g05-calibration-$runSuffix";$snapshotDirectory=Join-Path $stage 'snapshots';[IO.Directory]::CreateDirectory($snapshotDirectory)|Out-Null;foreach($source in @($contractPath,$PSCommandPath)){Copy-Item -LiteralPath $source -Destination (Join-Path $snapshotDirectory (Split-Path -Leaf $source)) -ErrorAction Stop};$state.snapshots=@((Get-ChildItem -LiteralPath $snapshotDirectory -File|ForEach-Object{Get-FileEvidence $_.FullName $stage}))
     if([string]::IsNullOrWhiteSpace($RuntimeRoot)-or[string]::IsNullOrWhiteSpace($FixtureRoot)-or[string]::IsNullOrWhiteSpace($ArtifactRoot)){throw 'RuntimeRoot, FixtureRoot, and ArtifactRoot are required unless -ContractOnly is used.'}
-    $artifact=Assert-DirectDirectory $ArtifactRoot 'ArtifactRoot';if(-not $artifact.Equals($approvedArtifacts,[StringComparison]::OrdinalIgnoreCase)){throw "ArtifactRoot must be the approved repository sibling: $approvedArtifacts"}
-    $runtime=Assert-DirectDirectory $RuntimeRoot 'RuntimeRoot';$fixtures=Assert-DirectDirectory $FixtureRoot 'FixtureRoot';$approvedFixture=Join-Path $artifact 'fixtures';if(-not $fixtures.Equals($approvedFixture,[StringComparison]::OrdinalIgnoreCase)){throw "FixtureRoot must be the exact retained ArtifactRoot/fixtures directory: $approvedFixture"}
+    $artifact=Assert-DirectDirectory $ArtifactRoot 'ArtifactRoot' $true $trustedProjectParent;if(-not $artifact.Equals($approvedArtifacts,[StringComparison]::OrdinalIgnoreCase)){throw "ArtifactRoot must be the approved repository sibling: $approvedArtifacts"}
+    $runtime=Assert-DirectDirectory $RuntimeRoot 'RuntimeRoot' $true $trustedProjectParent;$fixtures=Assert-DirectDirectory $FixtureRoot 'FixtureRoot' $true $trustedProjectParent;$approvedFixture=Join-Path $artifact 'fixtures';if(-not $fixtures.Equals($approvedFixture,[StringComparison]::OrdinalIgnoreCase)){throw "FixtureRoot must be the exact retained ArtifactRoot/fixtures directory: $approvedFixture"}
     & $retentionValidator -ArtifactRoot $artifact;if($LASTEXITCODE-ne 0){throw 'Retained corpus preflight failed.'};$state.fixtureClosure=Test-FixtureClosure $fixtures
     & $runtimeValidator -RuntimeRoot $runtime -EvidencePath (Join-Path $stage 'runtime-identity.json');if($LASTEXITCODE-ne 0){throw 'P2 runtime preflight failed.'}
     $state.preflight.status='passed';$ffmpeg=Assert-ContainedFile $runtime 'bin/ffmpeg.exe' 'P2 FFmpeg';$ffprobe=Assert-ContainedFile $runtime 'bin/ffprobe.exe' 'P2 FFprobe';$logs=Join-Path $stage 'logs';$media=Join-Path $stage 'media';$work=Join-Path $stage 'work';@($logs,$media,$work)|ForEach-Object{[IO.Directory]::CreateDirectory($_)|Out-Null};$state.environment=Get-EnvironmentIdentity $stage $runtime $fixtures $artifact;if(-not $state.environment.referenceProfileComparison.matched){$state.preflight.status='blocked-reference-profile-mismatch';throw 'Reference profile comparison did not match the approved calibration machine.'}
@@ -235,7 +237,7 @@ finally {
             $groupStamp=([DateTimeOffset]::UtcNow).ToString('yyyyMMddTHHmmssfffZ');$groupSuffix=([Guid]::NewGuid().ToString('N').Substring(0,8)).ToUpperInvariant();$group="Gate0.G05.Calibration.$groupStamp.$groupSuffix";$destination="proofs/g05-calibration-$runSuffix"
             try {
                 $state.retention=[ordered]@{status='pending-append';groupId=$group;destinationName=$destination;error=$null};Write-JsonAtomic (Join-Path $stage 'g0.5-calibration-evidence.json') $state
-                & $retentionAppender -ArtifactRoot $approvedArtifacts -SourceRoot $stage -GroupId $group -DestinationName $destination -Provenance 'G0.5 bounded calibration evidence' -ProducerRuntimeIdentity @('repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json') -LicenseRecords @('artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt') -ProofRunIdentity @("artifact:$destination/g0.5-calibration-evidence.json");if($LASTEXITCODE-ne 0){throw 'Retention append failed.'}
+                & $retentionAppender -ArtifactRoot $approvedArtifacts -SourceRoot $stage -SourceTrustBoundary $trustedProjectParent -GroupId $group -DestinationName $destination -Provenance 'G0.5 bounded calibration evidence' -ProducerRuntimeIdentity @('repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json') -LicenseRecords @('artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt') -ProofRunIdentity @("artifact:$destination/g0.5-calibration-evidence.json");if($LASTEXITCODE-ne 0){throw 'Retention append failed.'}
                 & $retentionValidator -ArtifactRoot $approvedArtifacts;if($LASTEXITCODE-ne 0){throw 'Post-append retained corpus validation failed.'}
                 $state.retention=[ordered]@{status='retained-and-revalidated';groupId=$group;destinationName=$destination;error=$null};$state.status=$preRetentionStatus
             } catch { $state.retention=[ordered]@{status='failed';groupId=$group;destinationName=$destination;error=$_.Exception.ToString()};$state.status='retention-failed';$state.error=$_.Exception.ToString() }

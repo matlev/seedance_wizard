@@ -36,7 +36,7 @@ public sealed class Gate0G05CalibrationTests
         {
             "Test-Gate0ArtifactRetention.ps1", "Validate-P2Runtime.ps1", "Add-Gate0RetainedProof.ps1",
             "ContractOnly", "AppendRetention", "G0.5 contract matrix must expand to exactly 48 rows",
-            "ReelForge.Gate0Staging", "Collision-resistant staging directory", "reparse-point",
+            "ReelForge.Gate0Staging", "Collision-resistant staging directory", "reparse-point", "TrustedAncestor", "SourceTrustBoundary",
             "PATH fallback", "GetProcessIoCounters", "monotonicTimestampMilliseconds", "cpuNormalizationFormula",
             "-progress","-stats_period","pipe:1", "human", "filter_threads", "-threads:v",
             "-stream_loop", "-c:v','ppm", "-c:a','pcm_s16le", "scale=", "setpts=PTS-STARTPTS", "asetpts=PTS-STARTPTS",

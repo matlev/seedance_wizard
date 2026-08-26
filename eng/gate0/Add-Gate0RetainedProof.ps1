@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory)] [string] $ArtifactRoot,
     [Parameter(Mandatory)] [string] $SourceRoot,
+    [string] $SourceTrustBoundary = '',
     [Parameter(Mandatory)] [string] $GroupId,
     [Parameter(Mandatory)] [string] $DestinationName,
     [Parameter(Mandatory)] [string] $Provenance,
@@ -197,7 +198,14 @@ Assert-NoReparsePointAncestors $resolvedRoot 'Retained artifact root' ([IO.Path]
 $source = [IO.Path]::GetFullPath($SourceRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
 if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw "Source root does not exist: $source" }
 Assert-NoReparsePoints $source 'Source root'
-Assert-NoReparsePointAncestors $source 'Source root'
+if([string]::IsNullOrWhiteSpace($SourceTrustBoundary)){
+    Assert-NoReparsePointAncestors $source 'Source root'
+}else{
+    $sourceBoundary=[IO.Path]::GetFullPath($SourceTrustBoundary).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    $approvedSourceBoundary=[IO.Path]::GetDirectoryName($repositoryRoot)
+    if(-not$sourceBoundary.Equals($approvedSourceBoundary,[StringComparison]::OrdinalIgnoreCase)-or-not$source.StartsWith("$sourceBoundary$([IO.Path]::DirectorySeparatorChar)",[StringComparison]::OrdinalIgnoreCase)){throw 'SourceTrustBoundary must be the repository parent and contain SourceRoot.'}
+    Assert-NoReparsePointAncestors $source 'Source root' $sourceBoundary
+}
 
 $journalPath = "$resolvedRoot.append-journal.json"
 $lockPath = "$resolvedRoot.append-lock"
