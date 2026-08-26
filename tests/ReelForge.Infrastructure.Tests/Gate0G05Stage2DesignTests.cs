@@ -308,6 +308,50 @@ public sealed class Gate0G05Stage2DesignTests
         }
     }
 
+    [Fact]
+    public void WpfAdapterContractClosesTheApprovedProofOnlyBoundary()
+    {
+        using var contract = ReadJson("eng", "gate0", "g0.5-wpf-measurement-adapter-contract.json");
+        var root = contract.RootElement;
+        Assert.Equal("Gate0.G05.WpfMeasurementAdapter.V1", root.GetProperty("contractId").GetString());
+        Assert.Equal("CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC", root.GetProperty("parentWorkloadContract").GetProperty("sha256").GetString());
+
+        var boundary = root.GetProperty("boundary");
+        Assert.Equal("net8.0-windows", boundary.GetProperty("targetFramework").GetString());
+        Assert.True(boundary.GetProperty("useWpf").GetBoolean());
+        Assert.Empty(boundary.GetProperty("productAssemblyReferences").EnumerateArray());
+        Assert.False(boundary.GetProperty("pathRuntimeDiscoveryPermitted").GetBoolean());
+
+        var control = root.GetProperty("modes").GetProperty("noMediaControl");
+        Assert.Equal(0, control.GetProperty("mediaChildCount").GetInt32());
+        Assert.Equal(30_000, control.GetProperty("durationMilliseconds").GetInt32());
+        Assert.True(control.GetProperty("mustCompleteBeforeMediaScenario").GetBoolean());
+
+        var probe = root.GetProperty("dispatcherProbe");
+        Assert.Equal(16, probe.GetProperty("cadenceMilliseconds").GetInt32());
+        Assert.Equal(1, probe.GetProperty("maximumOutstandingCallbacks").GetInt32());
+        Assert.Equal(1_800, probe.GetProperty("minimumNoMediaControlExecutedCallbacks").GetInt32());
+
+        var human = root.GetProperty("humanObservation");
+        Assert.True(human.GetProperty("dispatcherPassCannotOverrideStall").GetBoolean());
+        Assert.False(human.GetProperty("wpr").GetProperty("automaticLaunchPermitted").GetBoolean());
+        Assert.False(human.GetProperty("wpr").GetProperty("installationPermitted").GetBoolean());
+
+        var runner = root.GetProperty("processRunner");
+        Assert.Contains("Job Object", runner.GetProperty("containment").GetString());
+        Assert.Contains("-nostdin prohibited", runner.GetProperty("stdin").GetString());
+        var cancellation = root.GetProperty("cancellation");
+        Assert.Equal(750, cancellation.GetProperty("gracePeriodMilliseconds").GetInt32());
+        Assert.Equal(2_000, cancellation.GetProperty("totalProcessTreeExitMillisecondsMaximum").GetInt32());
+        Assert.Contains("q followed by newline", cancellation.GetProperty("gracefulRequest").GetString());
+        Assert.Contains("Kill(entireProcessTree: true)", cancellation.GetProperty("forcedFallback").GetString());
+
+        var ci = root.GetProperty("ci");
+        Assert.False(ci.GetProperty("r2CredentialsPermitted").GetBoolean());
+        Assert.False(ci.GetProperty("p2AcquisitionPermitted").GetBoolean());
+        Assert.False(ci.GetProperty("mediaExecutionPermitted").GetBoolean());
+    }
+
     private static void AssertArtifactCatalogMatchesRetentionManifest(JsonElement catalog)
     {
         using var manifest = ReadJson("eng", "gate0", "artifact-retention-manifest.json");

@@ -6,7 +6,8 @@
   "contracts": [
     { "path": "eng/gate0/g0.5-lossy-audio-oracle-contract.json", "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4" },
     { "path": "eng/gate0/g0.5-lossy-audio-oracle-freeze.json", "sha256": "895BE152017E56F4CF634BFDC8D13FC57D4F8A0A227B187E3779A3B537298822" },
-    { "path": "eng/gate0/g0.5-stage2-workload-contract.json", "sha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC" }
+    { "path": "eng/gate0/g0.5-stage2-workload-contract.json", "sha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC" },
+    { "path": "eng/gate0/g0.5-wpf-measurement-adapter-contract.json", "sha256": "C13AA5236AD025415807F843D5861E707CB9DD82BC386CC79FF2AB580B954836" }
   ],
   "preparationScripts": [
     { "path": "eng/gate0/Invoke-G05LossyAudioOracleControls.ps1", "sha256": "D0A7CA6BF8D2AA1963BDC1A318979EE7B3525141BADA4C2DDCFC5D6B74F15F66" },
@@ -45,6 +46,14 @@
     "routes": { "passed": 2, "failed": 0, "total": 2 },
     "frames": { "uniquelyRecovered": 1500, "evaluated": 1500 },
     "r2VerificationPending": true
+  },
+  "wpfMeasurementAdapter": {
+    "contractStatus": "approved-and-hash-pinned",
+    "contractPath": "eng/gate0/g0.5-wpf-measurement-adapter-contract.json",
+    "contractSha256": "C13AA5236AD025415807F843D5861E707CB9DD82BC386CC79FF2AB580B954836",
+    "implementationStatus": "pending",
+    "noMediaControlStatus": "not-run",
+    "mediaEvidenceStatus": "not-run"
   },
   "validation": {
     "infrastructureSuite": { "passed": 156, "skipped": 13, "failed": 0, "total": 169 },
