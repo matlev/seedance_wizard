@@ -27,6 +27,7 @@ public sealed class Gate0G05RetainedAudioOracleTests
             "p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/bin", "must equal the exact approved P2 relative paths",
             "Assert-G05Stage1Matrix", "originalAttempt", "Get-G05AudioTiming",
             "Get-G05AudioTiming", "Original FFmpeg attempt did not exit zero", "new direct child beneath approved staging root",
+            "approved project-parent trust boundary",
             "selectedAudioStream", "Video.Export.Compatibility.Mp4H264Aac.P2OpenH264",
             "completed-with-failures", "infrastructure-failed"
         }) Assert.Contains(value, script);
