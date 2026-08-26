@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "resultId": "Gate0.G05.Stage2Preparation.20260825",
-  "status": "owner-approved-audio-oracle-corrected-frozen-route-evaluation-authorized-other-prerequisites-pending",
+  "status": "audio-routes-admitted-marker-and-adapter-prerequisites-pending",
   "authority": "docs/gate-0-g0.5-stage2-owner-decisions.md",
   "contracts": [
     { "path": "eng/gate0/g0.5-lossy-audio-oracle-contract.json", "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4" },
@@ -21,9 +21,16 @@
     "metric": "expected-tone output/reference amplitude ratio = sqrt(outputTonePower/referenceTonePower), 0.90 through 1.10",
     "frozen": true,
     "controlReportSha256": "C30734212AD29DF3723D94280BA3BBFCE20E235F8F6843907D3C4E6D85533DEF",
-    "routeOutputsEvaluated": false,
+    "routeOutputsEvaluated": true,
     "routeReencodePerformed": false,
-    "resultSummary": "eng/gate0/g0.5-lossy-audio-control-result-summary.json"
+    "resultSummary": "eng/gate0/g0.5-lossy-audio-control-result-summary.json",
+    "retainedRouteResultSummary": "eng/gate0/g0.5-retained-audio-result-summary.json",
+    "retainedRouteReportSha256": "387BEF57A359C43479ECBF1B85C20DAB927378F7B8AFD1C58FF7CDEC87F56A0A",
+    "retainedRouteRows": { "passed": 48, "failed": 0, "total": 48 },
+    "admittedRoutes": [
+      "Video.Export.Compatibility.Mp4H264Aac.P2OpenH264",
+      "Video.Export.Open.WebmVp9Opus"
+    ]
   },
   "derivedTruth": [
     { "id": "typical-2v4a-30s", "size": 5760000, "sha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A", "retention": "regenerable-not-retained" },
@@ -39,7 +46,6 @@
     ]
   },
   "notPerformed": [
-    "retained AAC or Opus evaluation under the frozen oracle",
     "codec route re-encode",
     "pre-matrix smoke",
     "full Stage 2 matrix",
@@ -49,7 +55,6 @@
   ],
   "remainingBeforePreMatrixSmoke": [
     "generation and durable retention of the approved marker atlas",
-    "application of the approved oracle to retained AAC and Opus outputs",
     "marker-survivability qualification for every admitted route and quality profile",
     "WPF no-media control and closed environment, manual observation, WPR escalation, cancellation, and cleanup evidence contracts",
     "verified second private copy of the required Gate 0 corpus",

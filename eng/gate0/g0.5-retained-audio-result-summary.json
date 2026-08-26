@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "resultId": "Gate0.G05.RetainedAudioOracle.20260826",
+  "status": "completed",
+  "authority": "docs/gate-0-g0.5-stage2-owner-decisions.md",
+  "sourceCalibrationGroupId": "Gate0.G05.Calibration.20260826T004152697Z.FDABDAA2",
+  "frozenOracle": {
+    "contract": {
+      "path": "eng/gate0/g0.5-lossy-audio-oracle-contract.json",
+      "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4"
+    },
+    "freeze": {
+      "path": "eng/gate0/g0.5-lossy-audio-oracle-freeze.json",
+      "sha256": "895BE152017E56F4CF634BFDC8D13FC57D4F8A0A227B187E3779A3B537298822"
+    },
+    "thresholdSelectionReadRouteOutputs": false,
+    "routeReencodePerformed": false
+  },
+  "authoritativeEvidence": {
+    "stagingDirectoryName": "g05-retained-audio-oracle-20260826-final3",
+    "reportFilename": "g0.5-retained-audio-oracle-report.json",
+    "reportSize": 681304,
+    "reportSha256": "387BEF57A359C43479ECBF1B85C20DAB927378F7B8AFD1C58FF7CDEC87F56A0A",
+    "executionCommit": "a336f55"
+  },
+  "matrix": {
+    "expectedRows": 48,
+    "evaluatedRows": 48,
+    "passedRows": 48,
+    "failedRows": 0,
+    "dimensions": "2 routes x 2 resolutions x 4 thread policies x 3 repetitions"
+  },
+  "routeDispositions": [
+    {
+      "routeId": "Video.Export.Compatibility.Mp4H264Aac.P2OpenH264",
+      "container": "MP4",
+      "audioCodec": "AAC-LC",
+      "decoder": "aac",
+      "disposition": "admitted-to-stage2-marker-qualification",
+      "passedRows": 24,
+      "failedRows": 0,
+      "minimumSignedCorrelation": 0.9997640555674011,
+      "maximumNormalizedRmsError": 0.021779543330464647,
+      "minimumSnrDb": 33.23902461386246,
+      "rmsRatioRange": [0.9981783303767129, 0.9982315390209268],
+      "expectedToneAmplitudeRatioRange": [1.0003847224402684, 1.0279934494398622],
+      "maximumRecordedSkipSamples": 1024,
+      "maximumRecordedDiscardPaddingSamples": 0
+    },
+    {
+      "routeId": "Video.Export.Open.WebmVp9Opus",
+      "container": "WebM",
+      "audioCodec": "Opus",
+      "decoder": "opus",
+      "disposition": "admitted-to-stage2-marker-qualification",
+      "passedRows": 24,
+      "failedRows": 0,
+      "minimumSignedCorrelation": 0.999738858735768,
+      "maximumNormalizedRmsError": 0.023260845063314214,
+      "minimumSnrDb": 32.66749022923869,
+      "rmsRatioRange": [0.9975903179882705, 0.9979550045882803],
+      "expectedToneAmplitudeRatioRange": [0.9934556017195404, 0.9935961243078989],
+      "maximumRecordedSkipSamples": 312,
+      "maximumRecordedDiscardPaddingSamples": 648
+    }
+  ],
+  "timingDisposition": {
+    "expectedDecodedSamplesPerChannel": 384000,
+    "allRowsDecodedSamplesPerChannel": 384000,
+    "maximumPresentationEndpointDeltaSamples": 0,
+    "exactEndpointBasis": "sum of decoder-emitted audio-frame sample counts",
+    "coarseContainerPtsSpansAreDiagnosticOnly": true
+  },
+  "supersededAttempts": [
+    {
+      "directoryName": "g05-retained-audio-oracle-20260826",
+      "executionCommit": "54bee44",
+      "status": "infrastructure-failed",
+      "reportSha256": "EFF6A8E0742A2764C6E427809555DFB0D3B9A1D0D18F23BFA0A2BA15F8FAB59C",
+      "reason": "PowerShell LASTEXITCODE was read before initialization after a successful preflight."
+    },
+    {
+      "directoryName": "g05-retained-audio-oracle-20260826-corrected",
+      "executionCommit": "4fba43f",
+      "status": "infrastructure-failed",
+      "reportSha256": "7520EC898F678B681CEF9A94BCAADE506FCC53573EC80F3AE4281CED469CDF68",
+      "reason": "PowerShell LASTEXITCODE was read before initialization after successful frozen-control validation."
+    },
+    {
+      "directoryName": "g05-retained-audio-oracle-20260826-validated",
+      "executionCommit": "5a0e67c",
+      "status": "completed-with-failures",
+      "reportSha256": "6B026C1FB1F98EB4E73AD3B5A6082455B0AA89ACC2555A0C23C1FA531A8734AC",
+      "reason": "An automatic PowerShell variable collision emptied recorded process arguments."
+    },
+    {
+      "directoryName": "g05-retained-audio-oracle-20260826-final",
+      "executionCommit": "1305c7f",
+      "status": "completed-with-failures",
+      "reportSha256": "82E76739013F1370F0702D255A3B74ACFB7BB8085665B5378B2F2AD13920BF58",
+      "reason": "The timing parser expected separate packet and frame arrays from combined ffprobe output."
+    },
+    {
+      "directoryName": "g05-retained-audio-oracle-20260826-final2",
+      "executionCommit": "e025b7d",
+      "status": "completed-with-failures",
+      "reportSha256": "A8E2A3943F6BB864FAD78AEE92A7DB4D337D4F6503E8F4318328D16C448A5BD8",
+      "reason": "A coarse 1/1000 WebM presentation timestamp span was incorrectly used as the exact decoded endpoint."
+    }
+  ],
+  "nonClaims": [
+    "This is a deterministic technical regression floor for the approved synthetic source, not a perceptual quality claim for speech or music.",
+    "Admission authorizes Stage 2 marker qualification; it does not select a shipping runtime or establish distribution, patent, or legal conclusions.",
+    "The evidence measures P2 runtime routes, not current ReelForge product composition behavior."
+  ]
+}

@@ -6,6 +6,40 @@ namespace ReelForge.Infrastructure.Tests;
 public sealed class Gate0G05RetainedAudioOracleTests
 {
     [Fact]
+    public void RetainedResultPinsTheCompleteAdmittedMatrixWithoutChangingItsBoundaries()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-retained-audio-result-summary.json")));
+        var root = document.RootElement;
+
+        Assert.Equal("completed", root.GetProperty("status").GetString());
+        Assert.Equal("Gate0.G05.Calibration.20260826T004152697Z.FDABDAA2", root.GetProperty("sourceCalibrationGroupId").GetString());
+        Assert.False(root.GetProperty("frozenOracle").GetProperty("thresholdSelectionReadRouteOutputs").GetBoolean());
+        Assert.False(root.GetProperty("frozenOracle").GetProperty("routeReencodePerformed").GetBoolean());
+        Assert.Equal("387BEF57A359C43479ECBF1B85C20DAB927378F7B8AFD1C58FF7CDEC87F56A0A", root.GetProperty("authoritativeEvidence").GetProperty("reportSha256").GetString());
+
+        var matrix = root.GetProperty("matrix");
+        Assert.Equal(48, matrix.GetProperty("expectedRows").GetInt32());
+        Assert.Equal(48, matrix.GetProperty("evaluatedRows").GetInt32());
+        Assert.Equal(48, matrix.GetProperty("passedRows").GetInt32());
+        Assert.Equal(0, matrix.GetProperty("failedRows").GetInt32());
+
+        var routes = root.GetProperty("routeDispositions").EnumerateArray().ToArray();
+        Assert.Equal(2, routes.Length);
+        Assert.All(routes, route =>
+        {
+            Assert.Equal("admitted-to-stage2-marker-qualification", route.GetProperty("disposition").GetString());
+            Assert.Equal(24, route.GetProperty("passedRows").GetInt32());
+            Assert.Equal(0, route.GetProperty("failedRows").GetInt32());
+        });
+
+        var timing = root.GetProperty("timingDisposition");
+        Assert.Equal(384000, timing.GetProperty("allRowsDecodedSamplesPerChannel").GetInt32());
+        Assert.Equal(0, timing.GetProperty("maximumPresentationEndpointDeltaSamples").GetInt32());
+        Assert.True(timing.GetProperty("coarseContainerPtsSpansAreDiagnosticOnly").GetBoolean());
+        Assert.Equal(5, root.GetProperty("supersededAttempts").GetArrayLength());
+    }
+
+    [Fact]
     public void FrozenContractAndRunnerPreserveTheRetainedOnlyBoundary()
     {
         using var freeze = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-lossy-audio-oracle-freeze.json")));

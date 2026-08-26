@@ -8,7 +8,7 @@ Authority: owner durable-retention direction dated 2026-08-26 and the [Gate 0 me
 
 The dedicated private Cloudflare R2 bucket `reelforge-artifacts` is the durable engineering copy of the curated Gate 0 proof corpus. It has no automatic object-deletion lifecycle. It is separate from temporary provider-reference hosting and is not an application feature, general artifact service, production release store, user-media store, or public distribution surface.
 
-The existing `eng/gate0/artifact-retention-manifest.json` remains the canonical local byte inventory. It currently identifies 3,026 logical artifacts and 536,266,536 bytes that were already curated into the local `ReelForge.Gate0Artifacts` working root; unmanifested staging and scratch files are excluded. `eng/gate0/artifact-manifest.json` separately records durable R2 verification status and inherits each artifact's provenance, producer/runtime, proof identity, and license records from that source inventory.
+The existing `eng/gate0/artifact-retention-manifest.json` remains the canonical local byte inventory. It currently identifies 3,913 logical artifacts and 951,081,202 bytes that were already curated into the local `ReelForge.Gate0Artifacts` working root; unmanifested staging and scratch files are excluded. This includes every retained-audio evaluator attempt, including superseded infrastructure evidence and the authoritative 48-row result. `eng/gate0/artifact-manifest.json` separately records durable R2 verification status and inherits each artifact's provenance, producer/runtime, proof identity, and license records from that source inventory.
 
 R2 object identity is always:
 
@@ -75,7 +75,7 @@ Receipt and source-refresh writes take a machine-wide, manifest-specific mutex, 
 
 On 2026-08-26, the exact 8-byte retained artifact `Gate0.G04.P3.JpegInput.20260825/superseded-initial-harness/logs/inspect-orientation-6.stdout.txt` was locally verified, create-only uploaded, retrieved, and verified against SHA-256 `5E6510D6F9B52E78BE1A51958964211463800E000E3CE278DDEC2480E2A405DC`. A separate remote validation then repeated the HEAD, retrieval, size, and SHA-256 checks successfully. The durable ledger records the content-addressed object at `objects/sha256/5e/5e6510d6f9b52e78be1a51958964211463800e000e3ce278ddec2480e2a405dc` without storing credentials or an endpoint.
 
-This proves the configured engineering identity can execute the intended immutable write/read path. It does not satisfy the second-copy prerequisite: 1 of 3,026 logical artifacts is remotely verified, and Stage 2 remains blocked until the complete current inventory passes the same process.
+This proves the configured engineering identity can execute the intended immutable write/read path. It does not satisfy the second-copy prerequisite: 1 of 3,913 logical artifacts is remotely verified, and Stage 2 remains blocked until the complete current inventory passes the same process.
 
 ## CI and completion
 
