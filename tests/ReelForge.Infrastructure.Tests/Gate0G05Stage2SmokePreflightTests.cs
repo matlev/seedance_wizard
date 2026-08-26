@@ -33,9 +33,10 @@ public sealed class Gate0G05Stage2SmokePreflightTests
         var parse = Run("pwsh", ["-NoProfile", "-Command", "$tokens=$null;$errors=$null;[Management.Automation.Language.Parser]::ParseFile('" + path.Replace("'", "''", StringComparison.Ordinal) + "',[ref]$tokens,[ref]$errors)|Out-Null;$errors|% Message;if($errors.Count){exit 1}"]);
         Assert.Equal(0, parse.ExitCode);
         var script = File.ReadAllText(path);
-        foreach (var expected in new[] { "owner-approved-execution-authorized", "preflightExecutionPermitted", "Test-ClosedPreflightPolicy", "Gate0.G05.Stage2.Workloads.V1.OwnerApproved.20260826", "attemptsPerAdmittedRouteThreadCandidate", "retainEveryAttempt", "failFastPerRoute", "threadPolicies", "Test-Gate0ArtifactRetention.ps1", "Test-Gate0ArtifactManifest.ps1", "GlobalMemoryStatusEx", "GetDiskFreeSpaceExW", "Get-Process", "ffmpeg", "ffprobe", "OutputDirectory must be a direct child of StagingRoot", "OutputDirectory must be new", "reparse", "noMediaInvoked", "absolutePathsExcluded", "g0.5-stage2-smoke-preflight-evidence.json", "sameVolumeRequiredFreeBytes", "REELFORGE_GATE0_TEST_INJECTION", ".gate0-test-repository-marker", "GetTempPath" }) Assert.Contains(expected, script, StringComparison.OrdinalIgnoreCase);
+        foreach (var expected in new[] { "owner-approved-execution-authorized", "preflightExecutionPermitted", "Test-ClosedPreflightPolicy", "Gate0.G05.Stage2.Workloads.V1.OwnerApproved.20260826", "attemptsPerAdmittedRouteThreadCandidate", "retainEveryAttempt", "failFastPerRoute", "threadPolicies", "Test-Gate0ArtifactRetention.ps1", "Test-Gate0ArtifactManifest.ps1", "GlobalMemoryStatusEx", "GetSystemTimes", "GetDiskFreeSpaceExW", "Get-Process", "ffmpeg", "ffprobe", "OutputDirectory must be a direct child of StagingRoot", "OutputDirectory must be new", "reparse", "noMediaInvoked", "absolutePathsExcluded", "g0.5-stage2-smoke-preflight-evidence.json", "sameVolumeRequiredFreeBytes", "REELFORGE_GATE0_TEST_INJECTION", ".gate0-test-repository-marker", "GetTempPath" }) Assert.Contains(expected, script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ffmpeg.exe", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Invoke-WebRequest", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("catch { $null }", script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Move-Item", script, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -50,7 +51,7 @@ public sealed class Gate0G05Stage2SmokePreflightTests
             .Select(match => match.Groups["definition"].Value)
             .ToArray();
 
-        Assert.Equal(2, definitions.Length);
+        Assert.Equal(3, definitions.Length);
         Assert.All(definitions, definition =>
         {
             var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(definition));

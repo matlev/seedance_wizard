@@ -94,11 +94,43 @@ namespace Gate0 {
 }
 
 function Get-CpuUtilizationObservation {
-    try {
-        $sample = Get-Counter '\\Processor(_Total)\\% Processor Time' -ErrorAction Stop
-        [Math]::Round([double]$sample.CounterSamples[0].CookedValue, 3)
+    if (-not ('Gate0.NativeCpuStatus' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Threading;
+namespace Gate0 {
+  public static class NativeCpuStatus {
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FILETIME {
+      public uint Low;
+      public uint High;
+      public ulong Ticks { get { return ((ulong)High << 32) | Low; } }
     }
-    catch { $null }
+
+    [DllImport("kernel32.dll", SetLastError=true)]
+    private static extern bool GetSystemTimes(out FILETIME idle, out FILETIME kernel, out FILETIME user);
+
+    public static double SampleUtilizationPercent(int sampleMilliseconds) {
+      FILETIME idle1, kernel1, user1, idle2, kernel2, user2;
+      if (!GetSystemTimes(out idle1, out kernel1, out user1)) throw new Win32Exception(Marshal.GetLastWin32Error());
+      Thread.Sleep(sampleMilliseconds);
+      if (!GetSystemTimes(out idle2, out kernel2, out user2)) throw new Win32Exception(Marshal.GetLastWin32Error());
+      ulong idleDelta = idle2.Ticks - idle1.Ticks;
+      ulong totalDelta = (kernel2.Ticks - kernel1.Ticks) + (user2.Ticks - user1.Ticks);
+      if (totalDelta == 0 || idleDelta > totalDelta) throw new InvalidOperationException("GetSystemTimes returned an invalid CPU sample.");
+      return 100.0 * (totalDelta - idleDelta) / totalDelta;
+    }
+  }
+}
+'@
+    }
+    $value = [Gate0.NativeCpuStatus]::SampleUtilizationPercent(500)
+    if ([double]::IsNaN($value) -or [double]::IsInfinity($value) -or $value -lt 0 -or $value -gt 100) {
+        throw 'The current CPU-utilization observation is invalid.'
+    }
+    [Math]::Round([double]$value, 3)
 }
 
 function Convert-ToPortableFailure([string] $Message) {
