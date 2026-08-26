@@ -97,6 +97,16 @@ function Get-G05AudioTiming([object] $Stream, [object[]] $Packets, [object[]] $F
     $candidates = [ordered]@{}
     $firstFrame = @($Frames | Select-Object -First 1)
     $finalFrame = @($Frames | Select-Object -Last 1)
+    if ($Frames.Count -gt 0) {
+        [int64] $frameSampleSum = 0
+        $allFrameSampleCountsAvailable = $true
+        foreach ($frame in $Frames) {
+            $frameSamples = Convert-G05OptionalDouble (Get-G05PropertyValue $frame 'nb_samples')
+            if ($null -eq $frameSamples) { $allFrameSampleCountsAvailable = $false; break }
+            $frameSampleSum += [int64] $frameSamples
+        }
+        if ($allFrameSampleCountsAvailable) { $candidates.decodedFrameSampleSum = $frameSampleSum }
+    }
     if ($firstFrame.Count -eq 1 -and $finalFrame.Count -eq 1 -and -not [string]::IsNullOrWhiteSpace($timeBase)) {
         $firstFrameTimestamp = Convert-G05OptionalDouble (Get-G05Timestamp $firstFrame[0])
         $finalFrameTimestamp = Convert-G05OptionalDouble (Get-G05Timestamp $finalFrame[0])
@@ -127,10 +137,11 @@ function Get-G05AudioTiming([object] $Stream, [object[]] $Packets, [object[]] $F
 
     $endpointSource = $null
     $endpoint = $null
-    foreach ($candidateName in @('decodedFrameSpan', 'streamDuration', 'packetSpan')) {
+    foreach ($candidateName in @('decodedFrameSampleSum', 'decodedFrameSpan', 'streamDuration', 'packetSpan')) {
         $candidate = $candidates[$candidateName]
         if ($null -ne $candidate) {
             $endpointSource = switch ($candidateName) {
+                'decodedFrameSampleSum' { 'decoded-frame-sample-sum' }
                 'decodedFrameSpan' { 'decoded-frame-span' }
                 'streamDuration' { 'stream-duration' }
                 'packetSpan' { 'packet-span' }
