@@ -117,6 +117,39 @@ public sealed class Gate0G05CalibrationTests
     }
 
     [Fact]
+    public void CommandBuilderReturnsAMutableClosedArgumentListWithoutUsingAutomaticArgs()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ReelForge-Gate0-G05-command-" + Guid.NewGuid().ToString("N"));
+        var f1 = Path.Combine(root, "F1");
+        Directory.CreateDirectory(f1);
+        try
+        {
+            File.WriteAllBytes(Path.Combine(f1, "f1-pattern-000.ppm"), [1]);
+            File.WriteAllBytes(Path.Combine(f1, "f1-sync-440hz-880hz-48000-stereo.pcm"), [1]);
+            var script = PathInRepo("eng", "gate0", "Invoke-P2G05Calibration.ps1").Replace("'", "''", StringComparison.Ordinal);
+            var command = $$$"""
+                $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile('{{{script}}}',[ref]$tokens,[ref]$errors)
+                if($errors.Count){exit 10}
+                foreach($name in 'Assert-ContainedFile','New-FfmpegArguments'){
+                  $fn=$ast.Find({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
+                  if($null-eq$fn){exit 11};. ([scriptblock]::Create($fn.Extent.Text))
+                }
+                $row=[pscustomobject]@{width=1280;height=720;codecThreads=1;filterThreads=1}
+                $route=[pscustomobject]@{videoEncoder='libopenh264';audioEncoder='aac';videoOptions=@('-b:v','2M');audioOptions=@('-b:a','192k');muxerOptions=@('-movflags','+faststart');muxer='mp4'}
+                $arguments=@(New-FfmpegArguments $row $route ([pscustomobject]@{}) '{{{root.Replace("'", "''", StringComparison.Ordinal)}}}' 'output.mp4' 8)
+                if($arguments.Count-lt40-or$arguments[0]-ne'-nostdin'-or$arguments[-1]-ne'output.mp4'){exit 12}
+                $maps=@();for($i=0;$i-lt$arguments.Count-1;$i++){if($arguments[$i]-eq'-map'){$maps+=$arguments[$i+1]}}
+                if($maps.Count-ne2-or$maps[0]-ne'0:v:0'-or$maps[1]-ne'1:a:0'-or'libopenh264'-notin$arguments-or'aac'-notin$arguments){exit 13}
+                $durationIndex=[Array]::IndexOf($arguments,'-t');$muxerIndex=[Array]::IndexOf($arguments,'-f',$durationIndex);if($durationIndex-lt0-or$muxerIndex-le$durationIndex-or$muxerIndex-ge($arguments.Count-1)){exit 14}
+                exit 0
+                """;
+            var result = RunPowerShell(command);
+            Assert.Equal(0, result.ExitCode);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public void ProcessObservationHelperDrainsBothStreamsKeepsExitCodeAndWritesRawEvidence()
     {
         var root = Path.Combine(Path.GetTempPath(), "ReelForge-Gate0-G05-helper-" + Guid.NewGuid().ToString("N"));
