@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-26T00:12:54.3823087+00:00",
+  "generatedUtc": "2026-08-26T00:19:08.4220386+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -15973,12 +15973,797 @@
           "sha256": "71DDC4FDE51CEE3D33BDA2BDA76AB29C730ADD9714B581D0F8D7BD5BACF99321"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691",
+      "provenance": "G0.5 bounded calibration evidence",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json"
+      ],
+      "licenseRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/g05-calibration-20260826T001825026Z-564182f4/g0.5-calibration-evidence.json"
+      ],
+      "fileCount": 128,
+      "totalBytes": 10629217,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/g0.5-calibration-evidence.json",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/g0.5-calibration-evidence.json",
+          "size": 197237,
+          "sha256": "F3A7EE69F53A7E43E5B5441A380705C22EF6B1F1F89DE876F18BD6B9AC5363B1"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/cancellation-mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/cancellation-mp4.progress.ndjson",
+          "size": 1586,
+          "sha256": "996D9F83812A46A02A2726FA4D371954923BEEA49FD15839F588A1FD22D46DA8"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/cancellation-mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/cancellation-mp4.samples.ndjson",
+          "size": 1357,
+          "sha256": "CB5DBA5B30AE88A7A0BAF999EC27A4C0C8C7A346AC2C30990FD2ABDC00D79371"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/cancellation-mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/cancellation-mp4.stderr.txt",
+          "size": 2108,
+          "sha256": "B5ED2BD9E3079330B6A063401EB281A12EDFA008BC9AFF7A7C82CC9BB86B4289"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/cancellation-mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/cancellation-mp4.stdout.txt",
+          "size": 422,
+          "sha256": "70C68CEA3AA29866E202AFF38931087BDCF7A23B84087A7048BFAAB3A498B34A"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-measured-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-measured-1.mp4.progress.ndjson",
+          "size": 1565,
+          "sha256": "2B0C386C187FF44BAED73F21855EA7D5124A0EEF9633AEC13B89AE18043E4651"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-measured-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-measured-1.mp4.samples.ndjson",
+          "size": 896,
+          "sha256": "B4EE3231B911CDAA91D7AD75F09BA0B2EEC72CA8348E8C6E0A7184EDA2EAD24F"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-measured-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-measured-1.mp4.stderr.txt",
+          "size": 2397,
+          "sha256": "5160FA1E200392B55EBB9D7F818D66359D1F3597AB17D3092965CB7CBEC26A30"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-measured-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-measured-1.mp4.stdout.txt",
+          "size": 413,
+          "sha256": "48031663361B767F4D32DC12D0A804E5DC08E2BB0A1D5B30EA3C418DD7216DDB"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-measured-2.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-measured-2.mp4.progress.ndjson",
+          "size": 1565,
+          "sha256": "38A1F3A28879ECF4327738D47BE0C01A618ED707DF9BEBB9A78BD712A6D1EC0A"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-measured-2.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-measured-2.mp4.samples.ndjson",
+          "size": 895,
+          "sha256": "82AB04BD17CCE3C3B7E6990334239DACF166F24BF92200AE017E35404D3300DB"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-measured-2.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-measured-2.mp4.stderr.txt",
+          "size": 2397,
+          "sha256": "FC3AAA225DFFEF35E59E5187F059ADA9C00700C12C8B39066BC34FAF6070BDAF"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-measured-2.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-measured-2.mp4.stdout.txt",
+          "size": 413,
+          "sha256": "6E9830EE9EE8506D014298B3960142A42FADC811727887437BECAA0DB3CB5676"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-warmup-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-warmup-1.mp4.progress.ndjson",
+          "size": 1569,
+          "sha256": "563D8B2625DAED328FA2D15018EC6F180E8096D770AB6CA111EE0E1CA9C44B4B"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-warmup-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-warmup-1.mp4.samples.ndjson",
+          "size": 895,
+          "sha256": "AD1CDB88DAF6299B4CFDBECD30687E4C32891A169E1AB3DA4BB3862B950C9BCF"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-warmup-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-warmup-1.mp4.stderr.txt",
+          "size": 2395,
+          "sha256": "C78110FBEBBDEE0CAA85B5F16D8606CDDE59E51CE19520C74B6C7E8311E212C6"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-auto-warmup-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-auto-warmup-1.mp4.stdout.txt",
+          "size": 417,
+          "sha256": "DCD9D7BAB4D581F2D80F6D7065F5D792B091A4C15342F372A76B9EEA167D6A7D"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-measured-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-measured-1.mp4.progress.ndjson",
+          "size": 1565,
+          "sha256": "84FA3F3EC948838AEB89E8774D603D2A19E861AA785CB1BB925D655F7B94BD3B"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-measured-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-measured-1.mp4.samples.ndjson",
+          "size": 895,
+          "sha256": "36BE4092CFDE79A2EC343FE7A5E66423395B585F152255926F37C33207FBB046"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-measured-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-measured-1.mp4.stderr.txt",
+          "size": 2405,
+          "sha256": "E9CBCEE32EC4BF24167A1ED9D57CED986071F376569C56EFD86FE05E80D038B5"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-measured-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-measured-1.mp4.stdout.txt",
+          "size": 413,
+          "sha256": "CB6F91DA7FF4DC6879791783654578CC6FA54FBAB2EF284F5BACBFCC6FAB6B78"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-measured-2.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-measured-2.mp4.progress.ndjson",
+          "size": 1565,
+          "sha256": "39273894BD432494350B562690A88C2E8EA74FA034D760677DBCDDD525C36176"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-measured-2.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-measured-2.mp4.samples.ndjson",
+          "size": 894,
+          "sha256": "3A6BA50D0AA578837ECCE2D30AC8CC9F518FB3FD38DD194446F6959119AAF3B3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-measured-2.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-measured-2.mp4.stderr.txt",
+          "size": 2405,
+          "sha256": "7256E8A6AC6CC352235D036D4B8D6C904350424B9F921561B296E27E23F3C8D5"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-measured-2.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-measured-2.mp4.stdout.txt",
+          "size": 413,
+          "sha256": "225E0F802B6A14EF22D7CCB36A4FF91B7232EA322D0095DD01F68AE657469E36"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-warmup-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-warmup-1.mp4.progress.ndjson",
+          "size": 1565,
+          "sha256": "A3549F3FF562AE0E6E771DDBB12530C8871C2B658ED72108309C14199A50FD14"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-warmup-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-warmup-1.mp4.samples.ndjson",
+          "size": 895,
+          "sha256": "8E02A4EDD7FE48027A1D8202CD28139EA87A3CDC116633570E1CA20720475A62"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-warmup-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-warmup-1.mp4.stderr.txt",
+          "size": 2403,
+          "sha256": "46C0BA12F0FF452795A4FE23B19683ECA3B5BB07695A6193652068B3CD3530E5"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-full-logical-warmup-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-full-logical-warmup-1.mp4.stdout.txt",
+          "size": 413,
+          "sha256": "22A9254E39AD5037D73FA3D198DF479000BA4E869939E6F2DC39B14F016E9655"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-measured-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-measured-1.mp4.progress.ndjson",
+          "size": 1565,
+          "sha256": "AA628FA69758EABDDDBDC30C89549FF33F17980DD3001167F98E8789AAC7FF2D"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-measured-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-measured-1.mp4.samples.ndjson",
+          "size": 892,
+          "sha256": "56DD9FBDCB00F2D724D0FD330DA5910B1152EB6E4CEEC2428805AB31BB2C0D82"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-measured-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-measured-1.mp4.stderr.txt",
+          "size": 2405,
+          "sha256": "1A598D8676BC92D56B6B1409F40B8198908624943EB47FD804E02A0FACF2B04D"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-measured-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-measured-1.mp4.stdout.txt",
+          "size": 413,
+          "sha256": "977AC1231A35900E6EB14599264BAEC1BF5072F51C26E63F2C5A09503A9D1A0F"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-measured-2.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-measured-2.mp4.progress.ndjson",
+          "size": 1569,
+          "sha256": "9B44B11EE36E6FCE6AE1477D74A2C293E735504584456FE3A055780518EB4240"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-measured-2.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-measured-2.mp4.samples.ndjson",
+          "size": 902,
+          "sha256": "58469B67DF8DCB45A20314EC1257199D75D9D80AE995BC58018374B8D8A7CE67"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-measured-2.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-measured-2.mp4.stderr.txt",
+          "size": 2405,
+          "sha256": "FF796E5DD2F3F578CC4A29F1C14EAFE23FFDBA9F5884DC78719D372FCC2D6ECF"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-measured-2.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-measured-2.mp4.stdout.txt",
+          "size": 417,
+          "sha256": "3C7803DD150F2EAB506A3F825F47ECA8B1C2736537D3CA7BFD74C1A22A0F6B53"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-warmup-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-warmup-1.mp4.progress.ndjson",
+          "size": 1565,
+          "sha256": "4D00AEC2F363D686A1D1EFD49566ECE91118D075D19C28A2DE3CC7BDA42EE5D2"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-warmup-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-warmup-1.mp4.samples.ndjson",
+          "size": 895,
+          "sha256": "61AB459F73C556802D733F79A9EDC1AB25BD18ABC567FBE87DDB2AFB352B5051"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-warmup-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-warmup-1.mp4.stderr.txt",
+          "size": 2403,
+          "sha256": "5A744E7A4309D92564D56696B2F26B55A4786C3F779B7FB0A5854EC125F5B6F0"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-half-logical-warmup-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-half-logical-warmup-1.mp4.stdout.txt",
+          "size": 413,
+          "sha256": "4401FDF95F7E2C5AB21A30EDCD0F3952C6B3741EC3DE332F5F58D674C5DC308E"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-measured-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-measured-1.mp4.progress.ndjson",
+          "size": 1565,
+          "sha256": "AAED5495B656CE63F132BFB426CE47AA1E613CA31FBD80CAA93D316C18192A01"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-measured-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-measured-1.mp4.samples.ndjson",
+          "size": 895,
+          "sha256": "338FD60E3DAA411FA6F77785367E1277CD91CC26D5A04F464F4B09B1C45A2BD0"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-measured-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-measured-1.mp4.stderr.txt",
+          "size": 2396,
+          "sha256": "894F4AF247276641216602B2B2637C84F77C7F4A1EB3E1E8DB298ED78F7B53CF"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-measured-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-measured-1.mp4.stdout.txt",
+          "size": 413,
+          "sha256": "00437728D227972A56292E6A8E110D36AFB863F942BEB0E36F5D38918C9B5E4B"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-measured-2.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-measured-2.mp4.progress.ndjson",
+          "size": 1569,
+          "sha256": "E7C6AC9096D55D9674212C97ABCF210606E7E1D02AE466A46E9BAF09B528ADFB"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-measured-2.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-measured-2.mp4.samples.ndjson",
+          "size": 894,
+          "sha256": "C32EA67E23986D806DA0B824EB896BCEE6BE7D187AC133B5892C8AE0641BFF3C"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-measured-2.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-measured-2.mp4.stderr.txt",
+          "size": 2396,
+          "sha256": "5BDD620E7F4A2DC104C8EE8CD4DC2F145E101AFDAC5AAEC5C32789FAEFC3AB36"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-measured-2.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-measured-2.mp4.stdout.txt",
+          "size": 417,
+          "sha256": "83EB319FA4E76D3F4132ADCF4A03CF61C22001897E1CD20329D031A8C6ECB90F"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-warmup-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-warmup-1.mp4.progress.ndjson",
+          "size": 1565,
+          "sha256": "AD974913498FF4768CC74AE6B0B19FECACE358F56FACCB80518368415D303873"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-warmup-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-warmup-1.mp4.samples.ndjson",
+          "size": 895,
+          "sha256": "A462FABA5D7FC7FFD385C6EB4F7573D2F4349EB99797EAF6A2A072763718D285"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-warmup-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-warmup-1.mp4.stderr.txt",
+          "size": 2394,
+          "sha256": "159DA0A82DDFEF62003A347D4EA755A7DA614E479D0A90320D7B059CF808D1C4"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-1080p-one-warmup-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-1080p-one-warmup-1.mp4.stdout.txt",
+          "size": 413,
+          "sha256": "919D56EB58629D181850B3B0537B8A6107C9AB6A80D03085A64284069E872F48"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-measured-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-measured-1.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "2F970BB3A1FF745799A9789D6E26B7249C4356E18E61EBBD280EB46DA3D42D3D"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-measured-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-measured-1.mp4.samples.ndjson",
+          "size": 434,
+          "sha256": "364035D89269607ECCC40E17868085412BC997C051ABF7D9C04B9B344BCF82FB"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-measured-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-measured-1.mp4.stderr.txt",
+          "size": 2276,
+          "sha256": "981E7FF08F8E1DA2915E073C75631B4E1636C6F5FB3DEB79D199ECCF25ADB961"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-measured-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-measured-1.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "E763F402CAE6BF9ADAABCE1779837B4BC321020AC5012E4C214BB596A97347B0"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-measured-2.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-measured-2.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "78D2BD8D55205412E37544C7A6999DC2F1C328CF98870F63CC208291F6FFBA10"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-measured-2.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-measured-2.mp4.samples.ndjson",
+          "size": 433,
+          "sha256": "5270585B0A870A3080AEA168E58EAF2167B3370A944C1B0EF8C691B372EEA447"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-measured-2.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-measured-2.mp4.stderr.txt",
+          "size": 2276,
+          "sha256": "67AF4494C6922D22D98656EA572DE381DCCB19D5F27A0E32CDD0C4DB693365EB"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-measured-2.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-measured-2.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "1CDD347472B967CF53C7F246159F6A542074619F783651B481BAF7D86998CAD9"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-warmup-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-warmup-1.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "6FA9B43F155A804D41D71AE1055A0484DDEFD1465DA093C2145B85227F95E812"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-warmup-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-warmup-1.mp4.samples.ndjson",
+          "size": 445,
+          "sha256": "8B9A4F770B78075D0D46117236BD6A90B4DFBB921BAA934A1990E10183F70A7A"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-warmup-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-warmup-1.mp4.stderr.txt",
+          "size": 2274,
+          "sha256": "7FB91FD297499D9AC4595606C6BE60FE7B49E87AED420D2C9A198562A7220855"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-auto-warmup-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-auto-warmup-1.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "53413D9316DFC8EDC7003C3F99535C4204A46788CD4BB31806AD4C92B4AED362"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-measured-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-measured-1.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "BC50D8E5016E8B30ADC5B0B255E325FFA769F178BE7607FB510632FB32CA06D2"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-measured-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-measured-1.mp4.samples.ndjson",
+          "size": 433,
+          "sha256": "0DFE10F15CEFC549F782BBC40B4976BDC04A0440B8E2FFB9D28592DE92EE2490"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-measured-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-measured-1.mp4.stderr.txt",
+          "size": 2284,
+          "sha256": "37D8348F4AE3377455791D93D58ED6B2B37B5AD9F3AF55FC61904CD3E2D4380F"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-measured-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-measured-1.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "E24611232798500121E54EFB4C669AD13A5E28D763CFDA6216D983BEFFB0F999"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-measured-2.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-measured-2.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "1A2F585DB66E0F37587916E0AF25A49E3368D6E07234999C60714F62AE89222D"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-measured-2.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-measured-2.mp4.samples.ndjson",
+          "size": 433,
+          "sha256": "57C54FB3C44A77A0CA59890E7A526D4D6CC3447FEE45DC263841E9F0D0000799"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-measured-2.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-measured-2.mp4.stderr.txt",
+          "size": 2284,
+          "sha256": "3E6B18735F36F98D81DA628FFD9A417CA0B8EFCA9198B4C3FCF02DD71DF1D08C"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-measured-2.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-measured-2.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "1D29BB34A23A8D5B29D297236E1CEAE387C02988157CD621B98C971631BE9A73"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-warmup-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-warmup-1.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "A59025E529BC857C5ADACA7F7EA46288C19E47743725949CC9983ADD8C2288B4"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-warmup-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-warmup-1.mp4.samples.ndjson",
+          "size": 434,
+          "sha256": "8EE5B0C8990A09FC749365B4D9AD6C59CB71505EAD3C8FD6FE5DDD7D2F774DB3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-warmup-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-warmup-1.mp4.stderr.txt",
+          "size": 2282,
+          "sha256": "20355257479B97DC046D829B73BD824D4AA4F07DA9A37CD796DEB3774BAB09BD"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-full-logical-warmup-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-full-logical-warmup-1.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "B9448EAA3BC94C8DAA810E38BA5921C36D904CC120FB857C3ED65970D5533525"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-measured-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-measured-1.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "6A98FC0CD2149143BFD22C49F2CA454B22FD79537D4BAEA701260BAF2567076C"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-measured-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-measured-1.mp4.samples.ndjson",
+          "size": 433,
+          "sha256": "36F57FBAF01317288D84F1B44B41DAD7A9BC77DC71439090545CAC7DBA441416"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-measured-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-measured-1.mp4.stderr.txt",
+          "size": 2284,
+          "sha256": "C87138FB4D4863D5B9E0BCF5695A9AFCDF8C093FAF8CF0BC804A2DDD415EA7C0"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-measured-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-measured-1.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "422DD0861C094C0D485494E2AE53F71ABEBDDEEF994C92F3E65C0C5FEB405829"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-measured-2.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-measured-2.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "9C50335D5D64E58ABAFFF049B2D75450227DEDB2DA11A22F2412945E339CBA40"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-measured-2.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-measured-2.mp4.samples.ndjson",
+          "size": 432,
+          "sha256": "DEC0C4CC93207AFD192527B5D430C50703D4448E41DC70BEC94BC3F841CF6B5F"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-measured-2.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-measured-2.mp4.stderr.txt",
+          "size": 2284,
+          "sha256": "1B0B30697AC44FE3F59A4DCEC498D768CDDD6DA61EEF6F4D809A6FA61CFDA746"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-measured-2.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-measured-2.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "015A6F18E71A4E9F4D6A235200A9F4752BBCA882DCEFC55981A109153E41BCD2"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-warmup-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-warmup-1.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "CF565AAAEA1573D799CC1B961FA229E836F7BCA5C0E644965421C1B273387649"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-warmup-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-warmup-1.mp4.samples.ndjson",
+          "size": 433,
+          "sha256": "796CE70D85E818A8C96069D70999E3CC5C96818AA6CEE47F83295DFB0DCC9456"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-warmup-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-warmup-1.mp4.stderr.txt",
+          "size": 2282,
+          "sha256": "C98E88897352A0EE835A8471B661E4A7CE8578548208610566287893789B5CFC"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-half-logical-warmup-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-half-logical-warmup-1.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "A67F37A9D8A9F994970EE4A9B8D5894B2C65E2848F9CF09001257D5ADA91E1C8"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-measured-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-measured-1.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "CE070C45A5594188C4832BFB8D180C1F3A42A3B264CC026689EFB04D12539049"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-measured-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-measured-1.mp4.samples.ndjson",
+          "size": 434,
+          "sha256": "5B0509B3161BF5B64EA48E247D443D4BB3751CDB2D1F91889E7BE95A5DD70A7E"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-measured-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-measured-1.mp4.stderr.txt",
+          "size": 2275,
+          "sha256": "CBB3C7AF5068B9E6A520F47F15BDD376ABF498A475E18025D08E0F601F1734B8"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-measured-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-measured-1.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "015A6F18E71A4E9F4D6A235200A9F4752BBCA882DCEFC55981A109153E41BCD2"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-measured-2.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-measured-2.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "07E061744A9F12A7142BCEAB72E3AA3FC45071872B589245CB9D8FEEB5C68E6A"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-measured-2.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-measured-2.mp4.samples.ndjson",
+          "size": 434,
+          "sha256": "CBF7A853100AB02B511F6868ACC285DA4F2D22DE4F1F773EB8531FC92D019574"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-measured-2.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-measured-2.mp4.stderr.txt",
+          "size": 2275,
+          "sha256": "FC1358AC338A8D48B7EF85FA2E858C07E2FDAAFC5C44AF84E2798F9A52D9BF9D"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-measured-2.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-measured-2.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "015A6F18E71A4E9F4D6A235200A9F4752BBCA882DCEFC55981A109153E41BCD2"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-warmup-1.mp4.progress.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-warmup-1.mp4.progress.ndjson",
+          "size": 782,
+          "sha256": "E1BF6760E46BB6D1262429D18D1CFC9BB95A92D3D77608B60ECC1D2592043DA8"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-warmup-1.mp4.samples.ndjson",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-warmup-1.mp4.samples.ndjson",
+          "size": 433,
+          "sha256": "74802147D3CBAAD71D381EC42E6EF97616AE2ADEA8CB9290600853902E989373"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-warmup-1.mp4.stderr.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-warmup-1.mp4.stderr.txt",
+          "size": 2273,
+          "sha256": "7C3F3001BD169071C212F4B9DBF9F0D3F8B7B3F5AA1C968CC2CF6F79AE49494C"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/logs/P2OpenH264-720p-one-warmup-1.mp4.stdout.txt",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/logs/P2OpenH264-720p-one-warmup-1.mp4.stdout.txt",
+          "size": 206,
+          "sha256": "2BA78E6C1BA25E1710528170379E716A37B8BB1FBBA2404FA97D808FF3315564"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-auto-measured-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-auto-measured-1.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-auto-measured-2.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-auto-measured-2.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-auto-warmup-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-auto-warmup-1.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-full-logical-measured-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-full-logical-measured-1.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-full-logical-measured-2.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-full-logical-measured-2.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-full-logical-warmup-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-full-logical-warmup-1.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-half-logical-measured-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-half-logical-measured-1.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-half-logical-measured-2.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-half-logical-measured-2.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-half-logical-warmup-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-half-logical-warmup-1.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-one-measured-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-one-measured-1.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-one-measured-2.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-one-measured-2.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-1080p-one-warmup-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-1080p-one-warmup-1.mp4",
+          "size": 426755,
+          "sha256": "208D08BFDA66C8109CD0690F1A209819970B8C361787951AF3E3BACC3B896CE3"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-auto-measured-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-auto-measured-1.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-auto-measured-2.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-auto-measured-2.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-auto-warmup-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-auto-warmup-1.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-full-logical-measured-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-full-logical-measured-1.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-full-logical-measured-2.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-full-logical-measured-2.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-full-logical-warmup-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-full-logical-warmup-1.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-half-logical-measured-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-half-logical-measured-1.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-half-logical-measured-2.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-half-logical-measured-2.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-half-logical-warmup-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-half-logical-warmup-1.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-one-measured-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-one-measured-1.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-one-measured-2.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-one-measured-2.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/media/P2OpenH264-720p-one-warmup-1.mp4",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/media/P2OpenH264-720p-one-warmup-1.mp4",
+          "size": 424452,
+          "sha256": "DA9C1B9CCD7CE57898FAD47F0D80958722B2195E518B7AAD11D911A580385906"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/runtime-identity.json",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/runtime-identity.json",
+          "size": 49320,
+          "sha256": "FFB73A285DAFB09FB7F4832166A688A907EB50A6C8FAD67BE5011D97E04009E9"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/snapshots/g0.5-calibration-contract.json",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/snapshots/g0.5-calibration-contract.json",
+          "size": 10775,
+          "sha256": "DAC3E8C9836C8BF4EE1530A9DF22DE96B23E0DB736BF0575577DCB2CA4551270"
+        },
+        {
+          "artifactId": "Gate0.G05.Calibration.20260826T001904417Z.AC1E2691/snapshots/Invoke-P2G05Calibration.ps1",
+          "filename": "proofs/g05-calibration-20260826T001825026Z-564182f4/snapshots/Invoke-P2G05Calibration.ps1",
+          "size": 44208,
+          "sha256": "A984E2DBC07AB1D7BCF933033761374D7E1BD7BC2AE9EDC8A5C6FD1A56D97B19"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 10,
-    "fileCount": 2625,
-    "totalBytes": 454997539
+    "groupCount": 11,
+    "fileCount": 2753,
+    "totalBytes": 465626756
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

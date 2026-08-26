@@ -130,7 +130,7 @@ public sealed class Gate0G05CalibrationTests
             var command = $$$"""
                 $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile('{{{script}}}',[ref]$tokens,[ref]$errors)
                 if($errors.Count){exit 10}
-                foreach($name in 'Assert-ContainedFile','New-FfmpegArguments'){
+                foreach($name in 'Get-Property','Assert-ContainedFile','New-FfmpegArguments'){
                   $fn=$ast.Find({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
                   if($null-eq$fn){exit 11};. ([scriptblock]::Create($fn.Extent.Text))
                 }
@@ -141,6 +141,9 @@ public sealed class Gate0G05CalibrationTests
                 $maps=@();for($i=0;$i-lt$arguments.Count-1;$i++){if($arguments[$i]-eq'-map'){$maps+=$arguments[$i+1]}}
                 if($maps.Count-ne2-or$maps[0]-ne'0:v:0'-or$maps[1]-ne'1:a:0'-or'libopenh264'-notin$arguments-or'aac'-notin$arguments){exit 13}
                 $durationIndex=[Array]::IndexOf($arguments,'-t');$muxerIndex=[Array]::IndexOf($arguments,'-f',$durationIndex);if($durationIndex-lt0-or$muxerIndex-le$durationIndex-or$muxerIndex-ge($arguments.Count-1)){exit 14}
+                $routeWithoutMuxerOptions=[pscustomobject]@{videoEncoder='libvpx-vp9';audioEncoder='libopus';videoOptions=@('-crf','32');audioOptions=@('-b:a','128k');muxer='webm'}
+                $openArguments=@(New-FfmpegArguments $row $routeWithoutMuxerOptions ([pscustomobject]@{}) '{{{root.Replace("'", "''", StringComparison.Ordinal)}}}' 'output.webm' 8)
+                if($openArguments[-1]-ne'output.webm'-or'libvpx-vp9'-notin$openArguments-or'libopus'-notin$openArguments){exit 15}
                 exit 0
                 """;
             var result = RunPowerShell(command);
@@ -272,7 +275,7 @@ public sealed class Gate0G05CalibrationTests
         var command = $$$"""
             $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile('{{{script}}}',[ref]$tokens,[ref]$errors)
             if($errors.Count){exit 10}
-            foreach($name in 'Assert-IndexedFrameTimestamps','New-AudioOracleInterop','Assert-AudioWaveform','Assert-StreamDescriptor'){
+            foreach($name in 'Get-Property','Get-ProbedVideoFrames','Assert-IndexedFrameTimestamps','New-AudioOracleInterop','Assert-AudioWaveform','Assert-StreamDescriptor'){
               $fn=$ast.Find({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
               if($null-eq$fn){exit 11};. ([scriptblock]::Create($fn.Extent.Text))
             }
@@ -280,6 +283,9 @@ public sealed class Gate0G05CalibrationTests
             Assert-IndexedFrameTimestamps $frames 1 1000
             $frames[73].best_effort_timestamp++
             try{Assert-IndexedFrameTimestamps $frames 1 1000;exit 12}catch{if($_.Exception.Message-notmatch'Frame timestamp oracle failed'){exit 13}}
+            $combined=[pscustomobject]@{packets_and_frames=@([pscustomobject]@{type='packet';media_type='video'},[pscustomobject]@{type='frame';media_type='audio'},[pscustomobject]@{type='frame';media_type='video';best_effort_timestamp=0})}
+            if(@(Get-ProbedVideoFrames $combined).Count-ne1){exit 24}
+            try{Get-ProbedVideoFrames ([pscustomobject]@{});exit 25}catch{if($_.Exception.Message-notmatch'Combined packet/frame inspection oracle is missing'){exit 26}}
 
             $truth=[byte[]]::new(8);[BitConverter]::GetBytes([int16]1000).CopyTo($truth,0);[BitConverter]::GetBytes([int16]-1000).CopyTo($truth,2);[BitConverter]::GetBytes([int16]2000).CopyTo($truth,4);[BitConverter]::GetBytes([int16]-2000).CopyTo($truth,6)
             $actual=[byte[]]::new(16);for($i=0;$i-lt4;$i++){[Array]::Copy($truth,($i%2)*4,$actual,$i*4,4)}
