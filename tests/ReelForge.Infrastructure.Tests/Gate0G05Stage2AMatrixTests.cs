@@ -323,6 +323,35 @@ public sealed class Gate0G05Stage2AMatrixTests
     }
 
     [Fact]
+    public void AudioOracleFailureIsFriendlyRetainedAndRouteSuspendingWithoutMedia()
+    {
+        var path = PathInRepo("eng", "gate0", "Invoke-G05Stage2AMatrix.ps1");
+        var runner = File.ReadAllText(path);
+        const string audioAssignment = "$summary.audio=[ordered]@";
+        const string friendlyThrow = "throw 'Audio timing or quality oracle failed.'";
+        const string malformedThrow = "throw'Audio timing or quality oracle failed.'";
+        const string retainedFailure = "$summary.failures+=,(ConvertTo-G05Stage2ASanitizedText $_.Exception.Message $portableRoots)";
+        const string suspension = "if(Test-G05Stage2ADeterministicIntegrityFailure $summary){[void]$suspended.Add([string]$row.routeId)}";
+
+        Assert.DoesNotContain(malformedThrow, runner, StringComparison.Ordinal);
+        var assignmentIndex = runner.IndexOf(audioAssignment, StringComparison.Ordinal);
+        var throwIndex = runner.IndexOf(friendlyThrow, StringComparison.Ordinal);
+        var failureIndex = runner.IndexOf(retainedFailure, StringComparison.Ordinal);
+        var suspensionIndex = runner.IndexOf(suspension, StringComparison.Ordinal);
+        Assert.True(assignmentIndex >= 0, "The structured audio result must be assigned before the audio gate.");
+        Assert.True(throwIndex > assignmentIndex, "The friendly audio gate must run after structured audio assignment.");
+        Assert.True(failureIndex > throwIndex, "The caught friendly exception must be retained in the summary flow.");
+        Assert.True(suspensionIndex > failureIndex, "A semantically-divergent audio gate must reach deterministic route suspension after retention.");
+        Assert.Contains("$failureDisposition='semantically-divergent';$summary.audio", runner, StringComparison.Ordinal);
+        Assert.Contains("$summary.disposition=$failureDisposition", runner, StringComparison.Ordinal);
+
+        var syntax = RunPwsh($"$tokens=$null;$errors=$null; $ast=[System.Management.Automation.Language.Parser]::ParseFile('{Escape(path)}',[ref]$tokens,[ref]$errors); if($errors.Count){{ $errors | ForEach-Object Message; exit 73 }}; @($ast.FindAll({{param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst]}},$true)|ForEach-Object {{$_.Extent.Text}})|ConvertTo-Json -Compress");
+        Assert.True(syntax.ExitCode == 0, syntax.Output);
+        using var json = JsonDocument.Parse(syntax.Output);
+        Assert.Contains(friendlyThrow, json.RootElement.EnumerateArray().Select(x => x.GetString()));
+    }
+
+    [Fact]
     public void BlockedAttemptUsesCurrentSemanticHashShape()
     {
         var command = SemanticImportCommand() + "; " +

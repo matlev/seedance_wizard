@@ -15,7 +15,7 @@
     { "role": "stage2a-result-summary", "path": "eng/gate0/g0.5-stage2a-result-summary.json", "sha256": "525E89C427090B2C61ECA3CFB7D6D6F749398022DB2AF0B42FFA8FD4F5891C46" },
     { "role": "stage2a-owner-packet", "path": "docs/gate-0-g0.5-stage2a-results.md", "sha256": "BE5DC5D2F20F0382E1A503FB0B7F881485758F427D5D71E5B60C32D028656ECB" },
     { "role": "schedule", "path": "eng/gate0/g0.5-stage2a-schedule.json", "sha256": "C16D4A65EDDEA2A6213C0A60D371BE605FD3295EE2695EF2716762EA2F85B90E" },
-    { "role": "runner", "path": "eng/gate0/Invoke-G05Stage2AMatrix.ps1", "sha256": "10E730F41274EA3FAF8889AC36B35D96C516A58052595123F0088F7D1AAB1E10" },
+    { "role": "runner", "path": "eng/gate0/Invoke-G05Stage2AMatrix.ps1", "sha256": "68356CAF687F90A976293D4571724B5826C2DFD01C01127B496AF0FA744BF886" },
     { "role": "preflight", "path": "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1", "sha256": "E7407FA10EA43F7BDE0AFB8079A949BEF06FD75DCF4D18B4FDC73FC13566EEA6" },
     { "role": "legacy-retention-validator", "path": "eng/gate0/Test-Gate0ArtifactRetention.ps1", "sha256": "97DCFA4BB91C0EA8A009F5E4F1DE0ABEDD28E4B41AFB10C48C18CC2C086C8D98" },
     { "role": "helper", "path": "eng/gate0/G05Stage2AMatrixHelpers.psm1", "sha256": "AC33180DDC7A3FE60DEEEF62C635467C41C5BA6730B29A7D8435A4E435F2F68A" },
