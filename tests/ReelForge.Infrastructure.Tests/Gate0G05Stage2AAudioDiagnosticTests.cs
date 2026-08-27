@@ -88,7 +88,13 @@ public sealed class Gate0G05Stage2AAudioDiagnosticTests
 
         var currentStatus = File.ReadAllText(PathInRepo("docs", "gate-0-current-status.md"));
         Assert.Contains("gate-0-g0.5-stage2a-audio-diagnostic-results.md", currentStatus, StringComparison.Ordinal);
-        Assert.Contains("No further media execution is currently authorized", currentStatus, StringComparison.Ordinal);
+        Assert.Contains("45 cumulative actual media executions", currentStatus, StringComparison.Ordinal);
+        Assert.Contains("72 new media executions", currentStatus, StringComparison.Ordinal);
+        Assert.DoesNotContain("115 total physical media attempts", currentStatus, StringComparison.Ordinal);
+
+        var continuationApproval = File.ReadAllText(PathInRepo("docs", "gate-0-g0.5-stage2a-continuation-approval.md"));
+        Assert.Contains("70 blocked authoritative records with no media execution", continuationApproval, StringComparison.Ordinal);
+        Assert.Contains("No continuation media execution is authorized before those gates complete", currentStatus, StringComparison.Ordinal);
     }
 
     private static (int ExitCode, string Output) RunPowerShell(string command) => RunProcess("pwsh", ["-NoProfile", "-Command", command]);
