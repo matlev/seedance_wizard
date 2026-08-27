@@ -142,7 +142,7 @@ public sealed class Gate0G05Stage2AMatrixTests
         var path = PathInRepo("eng", "gate0", "Invoke-G05Stage2AMatrix.ps1");
         var result = RunPwsh($"& '{Escape(path)}' | ConvertTo-Json -Compress");
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("Stage 2A smoke-helper authorization binding changed", result.Output, StringComparison.Ordinal);
+        Assert.Contains("authorization binding changed", result.Output, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ffmpeg", result.Output, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ffprobe", result.Output, StringComparison.OrdinalIgnoreCase);
     }
@@ -194,9 +194,12 @@ public sealed class Gate0G05Stage2AMatrixTests
             var role = binding.GetProperty("role").GetString()!;
             var path = PathInRepo(binding.GetProperty("path").GetString()!.Split('/'));
             var authorizedHash = binding.GetProperty("sha256").GetString();
-            if (role == "smoke-helper")
+            if (role is "smoke-helper" or "legacy-retention-validator")
             {
-                Assert.Equal("13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4", authorizedHash);
+                var historicalHash = role == "smoke-helper"
+                    ? "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4"
+                    : "97DCFA4BB91C0EA8A009F5E4F1DE0ABEDD28E4B41AFB10C48C18CC2C086C8D98";
+                Assert.Equal(historicalHash, authorizedHash);
                 Assert.NotEqual(authorizedHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))));
                 continue;
             }
@@ -383,14 +386,14 @@ public sealed class Gate0G05Stage2AMatrixTests
     }
 
     [Fact]
-    public void AuthorizationRejectsHelperHashTamperingAndPreflightRejectsZeroCellReservations()
+    public void AuthorizationRejectsStaleHistoricalBindingsAndPreflightRejectsZeroCellReservations()
     {
         var authorization = File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-stage2a-execution-authorization.json"));
         var helperHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(PathInRepo("eng", "gate0", "G05Stage2AMatrixHelpers.psm1"))));
         using var tampered = new TempFile(authorization.Replace(helperHash, new string('F', 64), StringComparison.Ordinal));
         var result = RunPwsh($"Import-Module '{ModulePath()}'; Read-G05Stage2AExecutionAuthorization '{Escape(tampered.Path)}' '{Escape(PathInRepo())}'");
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("helper", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("binding changed", result.Output, StringComparison.OrdinalIgnoreCase);
 
         var preflight = File.ReadAllText(PathInRepo("eng", "gate0", "Test-G05Stage2AMatrixPreflight.ps1"));
         Assert.Contains("Per-cell preflight requires positive contract-bound ordinary, compact-repeat, and exceptional-closure reservations", preflight, StringComparison.Ordinal);
@@ -406,7 +409,7 @@ public sealed class Gate0G05Stage2AMatrixTests
         var path = PathInRepo("eng", "gate0", "Invoke-G05Stage2AMatrix.ps1");
         var result = RunPwsh($"& '{Escape(path)}' -ExecuteMedia -RuntimeRoot 'C:\\unused' -ArtifactRoot 'C:\\unused' -StagingRoot 'C:\\unused'");
         Assert.NotEqual(0, result.ExitCode);
-        Assert.True(result.Output.Contains("smoke-helper authorization binding changed", StringComparison.OrdinalIgnoreCase)
+        Assert.True(result.Output.Contains("authorization binding changed", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("implementation pending", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("exact role bytes", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("effective authorization", StringComparison.OrdinalIgnoreCase)

@@ -43,7 +43,19 @@ $resolvedManifestPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'artifac
 if ($ValidateIndexedFutureEvidenceSeparately) {
     $futureValidator = Join-Path $PSScriptRoot 'Test-Gate0EvidenceContainment.ps1'
     if (-not (Test-Path -LiteralPath $futureValidator -PathType Leaf)) { throw 'The separate future-evidence validator is missing.' }
-    & $futureValidator -ArtifactRoot $ArtifactRoot -RequireEffectiveSeal | Out-Null
+    & $futureValidator -ArtifactRoot $ArtifactRoot -RequireEffectiveSeal -ExcludeSeparatelyValidatedV2Namespace | Out-Null
+
+    $trackedV2Root = Join-Path $PSScriptRoot 'evidence/v2/root-index.json'
+    $localV2Namespace = Join-Path ([IO.Path]::GetFullPath($ArtifactRoot)) 'future/stage2/v2'
+    $hasTrackedV2Root = Test-Path -LiteralPath $trackedV2Root -PathType Leaf
+    $hasLocalV2Namespace = Test-Path -LiteralPath $localV2Namespace -PathType Container
+    if ($hasTrackedV2Root -xor $hasLocalV2Namespace) { throw 'The tracked V2 root and local V2 namespace must either both exist or both be absent.' }
+    if ($hasTrackedV2Root) {
+        $v2Validator = Join-Path $PSScriptRoot 'Test-Gate0EvidenceV2Containment.ps1'
+        if (-not (Test-Path -LiteralPath $v2Validator -PathType Leaf)) { throw 'The separate V2 future-evidence validator is missing.' }
+        $v2Result = & $v2Validator -ArtifactRoot $ArtifactRoot
+        if ($null -eq $v2Result -or [string]$v2Result.disposition -ne 'passed') { throw 'The separate V2 future-evidence validation did not pass.' }
+    }
 }
 $approvedArtifactRoot = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($repositoryRoot)) 'ReelForge.Gate0Artifacts')).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $candidateArtifactRoot = [IO.Path]::GetFullPath($ArtifactRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)

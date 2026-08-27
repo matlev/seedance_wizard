@@ -82,6 +82,17 @@ public sealed class Gate0G05Stage2AContinuationPreflightTests
     }
 
     [Fact]
+    public void V1ValidationExcludesOnlyTheSeparatelyValidatedV2NamespaceLocallyAndRemotely()
+    {
+        var script = File.ReadAllText(PathInRepo("eng", "gate0", "Test-G05Stage2AContinuationPreflight.ps1"));
+        const string switchName = "-ExcludeSeparatelyValidatedV2Namespace";
+        Assert.Equal(2, script.Split(switchName, StringSplitOptions.None).Length - 1);
+        Assert.Contains("-RequireEffectiveSeal -ExcludeSeparatelyValidatedV2Namespace | Out-Null", script, StringComparison.Ordinal);
+        Assert.Contains("-RequireEffectiveSeal -ExcludeSeparatelyValidatedV2Namespace -Remote", script, StringComparison.Ordinal);
+        Assert.Contains("Test-Gate0EvidenceV2Containment.ps1", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ResumePolicyBindsOnlyTheExactOrderedSchedulePrefix()
     {
         using var schedule = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-stage2a-continuation-schedule.json")));

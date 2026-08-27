@@ -258,6 +258,34 @@ public sealed class Gate0EvidenceContainmentTests
     }
 
     [Fact]
+    public void LocalValidatorCanExcludeOnlyTheSeparatelyValidatedV2Namespace()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            var passed = RunPs(corpus.WriterCommand);
+            Assert.True(passed.ExitCode == 0, passed.Output);
+            var v2 = Path.Combine(corpus.ArtifactRoot, "future", "stage2", "v2");
+            Directory.CreateDirectory(v2);
+            File.WriteAllText(Path.Combine(v2, "separately-indexed.txt"), "v2");
+            var validator = Path.Combine(corpus.Gate0, "Test-Gate0EvidenceContainment.ps1");
+
+            var strict = RunPs($"& '{PsQuote(validator)}' -ArtifactRoot '{PsQuote(corpus.ArtifactRoot)}' -RequireEffectiveSeal");
+            Assert.NotEqual(0, strict.ExitCode);
+            Assert.Contains("unindexed", strict.Output, StringComparison.OrdinalIgnoreCase);
+
+            var excluded = RunPs($"& '{PsQuote(validator)}' -ArtifactRoot '{PsQuote(corpus.ArtifactRoot)}' -RequireEffectiveSeal -ExcludeSeparatelyValidatedV2Namespace");
+            Assert.Equal(0, excluded.ExitCode);
+
+            File.WriteAllText(Path.Combine(corpus.Destination, "non-v2-stray.txt"), "stray");
+            var rejected = RunPs($"& '{PsQuote(validator)}' -ArtifactRoot '{PsQuote(corpus.ArtifactRoot)}' -RequireEffectiveSeal -ExcludeSeparatelyValidatedV2Namespace");
+            Assert.NotEqual(0, rejected.ExitCode);
+            Assert.Contains("unindexed", rejected.Output, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
     public void LocalValidatorRejectsUnindexedTrackedStage2File()
     {
         var corpus = CreateIsolatedContainmentCorpus();
@@ -600,6 +628,36 @@ public sealed class Gate0EvidenceContainmentTests
             }
             var validator = Path.Combine(corpus.Gate0, "Test-Gate0EvidenceContainment.ps1");
             var result = RunPs($"& '{PsQuote(validator)}' -ArtifactRoot '{PsQuote(corpus.ArtifactRoot)}' -RequireEffectiveSeal");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("reparse", result.Output, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
+    public void V2ExclusionStillRejectsAReparsePointInsideTheExcludedNamespaceWhenHostPrivilegesPermitCreation()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            var v2 = Path.Combine(corpus.ArtifactRoot, "future", "stage2", "v2");
+            var target = Path.Combine(corpus.TestRoot, "v2-reparse-target");
+            Directory.CreateDirectory(v2); Directory.CreateDirectory(target);
+            var link = Path.Combine(v2, "excluded-link");
+            try { Directory.CreateSymbolicLink(link, target); }
+            catch (UnauthorizedAccessException)
+            {
+                Assert.Contains("futureReparse", File.ReadAllText(Path.Combine(corpus.Gate0, "Test-Gate0EvidenceContainment.ps1")), StringComparison.Ordinal);
+                return;
+            }
+            catch (IOException)
+            {
+                Assert.Contains("futureReparse", File.ReadAllText(Path.Combine(corpus.Gate0, "Test-Gate0EvidenceContainment.ps1")), StringComparison.Ordinal);
+                return;
+            }
+
+            var validator = Path.Combine(corpus.Gate0, "Test-Gate0EvidenceContainment.ps1");
+            var result = RunPs($"& '{PsQuote(validator)}' -ArtifactRoot '{PsQuote(corpus.ArtifactRoot)}' -RequireEffectiveSeal -ExcludeSeparatelyValidatedV2Namespace");
             Assert.NotEqual(0, result.ExitCode);
             Assert.Contains("reparse", result.Output, StringComparison.OrdinalIgnoreCase);
         }

@@ -93,7 +93,7 @@ try {
     $authorization = Read-G05Stage2AContinuationAuthorization $authorizationPath $repositoryRoot $schedulePath
     $schedule = [ordered]@{ path='eng/gate0/g0.5-stage2a-continuation-schedule.json'; sha256=$authorization.Schedule.Sha256; attemptCount=@($authorization.Schedule.Schedule.attempts).Count; cellCount=@($authorization.Schedule.ProofRunIds).Count }
     $evidence.bindings.schedule = $schedule; $evidence.bindings.authorization = [ordered]@{path='eng/gate0/g0.5-stage2a-continuation-authorization.json';sha256=$authorization.Sha256;authorizationId=$authorization.Authorization.authorizationId}; $evidence.criteria.scheduleAndAuthorization = 'passed'
-    & (Join-Path $PSScriptRoot 'Test-Gate0EvidenceContainment.ps1') -ArtifactRoot $artifact -RequireEffectiveSeal | Out-Null
+    & (Join-Path $PSScriptRoot 'Test-Gate0EvidenceContainment.ps1') -ArtifactRoot $artifact -RequireEffectiveSeal -ExcludeSeparatelyValidatedV2Namespace | Out-Null
     $legacyRetention = & (Join-Path $PSScriptRoot 'Test-Gate0ArtifactRetention.ps1') -ArtifactRoot $artifact -ValidateIndexedFutureEvidenceSeparately
     if ($null -eq $legacyRetention -or [string]$legacyRetention.status -ne 'verified') { throw 'The retained Gate 0 corpus is not locally verified.' }
     $durableManifest = & (Join-Path $PSScriptRoot 'Test-Gate0ArtifactManifest.ps1')
@@ -113,7 +113,7 @@ try {
         }
     }
     if ($RequireRemoteVerification) {
-        $legacyRemote = & (Join-Path $PSScriptRoot 'Test-Gate0EvidenceContainment.ps1') -ArtifactRoot $artifact -RequireEffectiveSeal -Remote
+        $legacyRemote = & (Join-Path $PSScriptRoot 'Test-Gate0EvidenceContainment.ps1') -ArtifactRoot $artifact -RequireEffectiveSeal -ExcludeSeparatelyValidatedV2Namespace -Remote
         if (-not $legacyRemote.remoteByteVerificationPerformed -or $legacyRemote.remotelyVerifiedThisRun -ne $legacyRemote.logicalArtifactCount) { throw 'Exact remote V1 evidence byte verification did not complete.' }
         $durableRemote = & (Join-Path $PSScriptRoot 'Test-Gate0ArtifactManifest.ps1') -Remote
         if (-not $durableRemote.remoteByteVerificationPerformed -or $durableRemote.sourceManifestSha256 -ne $durableManifest.sourceManifestSha256 -or $durableRemote.remotelyVerifiedThisRun -ne $durableRemote.selectedLogicalArtifactCount -or $durableRemote.recordedRemoteVerifiedLogicalArtifacts -ne $durableRemote.requiredLogicalArtifactCount -or $durableRemote.selectedLogicalArtifactCount -ne $durableRemote.requiredLogicalArtifactCount -or [int64]$durableRemote.selectedLogicalArtifactBytes -ne 1024859725) { throw 'Exact remote durable source-inventory verification did not complete.' }

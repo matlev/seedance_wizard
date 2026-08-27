@@ -33,7 +33,7 @@
     {
       "role": "preflight",
       "path": "eng/gate0/Test-G05Stage2AContinuationPreflight.ps1",
-      "sha256": "241B4ED7F130009A1A928F59828063C646FFDDA621640A5CA3474077077E021B"
+      "sha256": "9D1A9EC42600BD8FDDB4CB495EA29FDC914C5B2BE84C895C62BFBF278EEB23E5"
     },
     {
       "role": "v2-writer-authorization",
@@ -138,12 +138,12 @@
     {
       "role": "legacy-evidence-validator",
       "path": "eng/gate0/Test-Gate0EvidenceContainment.ps1",
-      "sha256": "F283655304F41EDF1D79C1EC0BDE37A3F6EC50D7D609BC937E3A830DAEF5A6BD"
+      "sha256": "611C8271AFC906D853E78115E5BA6206FB2E626B327FF3E0FE2A905A65FF3D94"
     },
     {
       "role": "artifact-retention-validator",
       "path": "eng/gate0/Test-Gate0ArtifactRetention.ps1",
-      "sha256": "97DCFA4BB91C0EA8A009F5E4F1DE0ABEDD28E4B41AFB10C48C18CC2C086C8D98"
+      "sha256": "BD0AF01629D6C7171624A9B68B9861BB516EC6F1B7A029E61D23F5BEAC2E3DCC"
     },
     {
       "role": "artifact-manifest-validator",

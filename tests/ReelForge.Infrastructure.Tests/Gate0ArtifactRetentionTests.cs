@@ -477,7 +477,7 @@ public sealed class Gate0ArtifactRetentionTests
             File.WriteAllText(Path.Combine(future, "proof.txt"), "future");
             var gate0 = Path.Combine(corpus.TestRoot, "repo", "eng", "gate0");
             var separate = Path.Combine(gate0, "Test-Gate0EvidenceContainment.ps1");
-            File.WriteAllText(separate, "param([string]$ArtifactRoot,[switch]$RequireEffectiveSeal) if(-not$RequireEffectiveSeal){throw 'seal required'}; [pscustomobject]@{disposition='passed'}");
+            File.WriteAllText(separate, "param([string]$ArtifactRoot,[switch]$RequireEffectiveSeal,[switch]$ExcludeSeparatelyValidatedV2Namespace) if(-not$RequireEffectiveSeal){throw 'seal required'};if(-not$ExcludeSeparatelyValidatedV2Namespace){throw 'v2 exclusion required'}; [pscustomobject]@{disposition='passed'}");
             var validator = Path.Combine(gate0, "Test-Gate0ArtifactRetention.ps1").Replace("'", "''", StringComparison.Ordinal);
             var root = corpus.ArtifactRoot.Replace("'", "''", StringComparison.Ordinal);
 
@@ -497,7 +497,25 @@ public sealed class Gate0ArtifactRetentionTests
             File.Delete(unrelatedFuture);
             Directory.Delete(Path.GetDirectoryName(unrelatedFuture)!);
 
-            File.WriteAllText(separate, "param([string]$ArtifactRoot,[switch]$RequireEffectiveSeal) throw 'future validation failed'");
+            var v2Root = Path.Combine(gate0, "evidence", "v2");
+            Directory.CreateDirectory(v2Root);
+            File.WriteAllText(Path.Combine(v2Root, "root-index.json"), "{}");
+            var v2Namespace = Path.Combine(corpus.ArtifactRoot, "future", "stage2", "v2");
+            Directory.CreateDirectory(v2Namespace);
+            File.WriteAllText(Path.Combine(v2Namespace, "proof.txt"), "v2");
+            File.Delete(Path.Combine(v2Root, "root-index.json"));
+            var halfPresent = RunPowerShell($"& '{validator}' -ArtifactRoot '{root}' -ValidateIndexedFutureEvidenceSeparately");
+            Assert.NotEqual(0, halfPresent.ExitCode);
+            Assert.Contains("must either both exist or both be absent", halfPresent.Output, StringComparison.OrdinalIgnoreCase);
+            File.WriteAllText(Path.Combine(v2Root, "root-index.json"), "{}");
+            var v2Marker = Path.Combine(corpus.TestRoot, "v2-validator-called.txt");
+            var v2Validator = Path.Combine(gate0, "Test-Gate0EvidenceV2Containment.ps1");
+            File.WriteAllText(v2Validator, $"param([string]$ArtifactRoot) Set-Content -LiteralPath '{v2Marker.Replace("'", "''", StringComparison.Ordinal)}' -Value $ArtifactRoot; [pscustomobject]@{{disposition='passed'}}");
+            var composite = RunPowerShell($"& '{validator}' -ArtifactRoot '{root}' -ValidateIndexedFutureEvidenceSeparately");
+            Assert.Equal(0, composite.ExitCode);
+            Assert.Equal(corpus.ArtifactRoot, File.ReadAllText(v2Marker).Trim());
+
+            File.WriteAllText(separate, "param([string]$ArtifactRoot,[switch]$RequireEffectiveSeal,[switch]$ExcludeSeparatelyValidatedV2Namespace) throw 'future validation failed'");
             var rejected = RunPowerShell($"& '{validator}' -ArtifactRoot '{root}' -ValidateIndexedFutureEvidenceSeparately");
             Assert.NotEqual(0, rejected.ExitCode);
             Assert.Contains("future validation failed", rejected.Output, StringComparison.OrdinalIgnoreCase);

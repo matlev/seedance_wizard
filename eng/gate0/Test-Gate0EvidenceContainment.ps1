@@ -3,6 +3,7 @@ param(
     [string] $ArtifactRoot,
     [switch] $Remote,
     [switch] $RequireEffectiveSeal,
+    [switch] $ExcludeSeparatelyValidatedV2Namespace,
     [string] $OutputPath
 )
 
@@ -20,6 +21,10 @@ $newArtifactCount = 0
 $newArtifactBytes = [int64]0
 $remoteVerified = 0
 $indexedPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$v2NamespacePrefix = 'future/stage2/v2/'
+function Test-IsSeparatelyValidatedV2Path([string] $RelativePath) {
+    return $ExcludeSeparatelyValidatedV2Namespace -and $RelativePath.StartsWith($v2NamespacePrefix, [StringComparison]::OrdinalIgnoreCase)
+}
 $bundle = $null
 try {
     if ($Remote) { $bundle = New-Gate0R2ClientBundle }
@@ -27,12 +32,14 @@ try {
         $shardPath = Join-Path (Split-Path -Parent $root.Path) ([string]$run.shardPath).Replace('/', [IO.Path]::DirectorySeparatorChar)
         $shard = Read-Gate0EvidenceShard $shardPath
         foreach ($artifact in @($shard.Manifest.artifacts)) {
-            [void]$indexedPaths.Add([string]$artifact.relativePath)
-            $localPath = [IO.Path]::GetFullPath((Join-Path $artifactRootResolved ([string]$artifact.relativePath).Replace('/', [IO.Path]::DirectorySeparatorChar)))
+            $relativePath = [string]$artifact.relativePath
+            if (Test-IsSeparatelyValidatedV2Path $relativePath) { continue }
+            [void]$indexedPaths.Add($relativePath)
+            $localPath = [IO.Path]::GetFullPath((Join-Path $artifactRootResolved $relativePath.Replace('/', [IO.Path]::DirectorySeparatorChar)))
             if (-not $localPath.StartsWith("$artifactRootResolved$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $localPath -PathType Leaf)) { throw "Future evidence artifact is missing or escaped: $($artifact.artifactId)" }
             Assert-Gate0EvidenceNoReparsePointAncestors $localPath $artifactRootResolved
             if ((Get-Item -LiteralPath $localPath -Force).Length -ne [int64]$artifact.byteSize -or (Get-Gate0EvidenceSha256 $localPath) -ne [string]$artifact.sha256) { throw "Future evidence artifact failed local byte verification: $($artifact.artifactId)" }
-            if (([string]$artifact.relativePath).EndsWith('.compact-attempt.json', [StringComparison]::OrdinalIgnoreCase) -and [int64]$artifact.byteSize -gt 262144) { throw 'Compact attempt record exceeds its 256 KiB cap.' }
+            if ($relativePath.EndsWith('.compact-attempt.json', [StringComparison]::OrdinalIgnoreCase) -and [int64]$artifact.byteSize -gt 262144) { throw 'Compact attempt record exceeds its 256 KiB cap.' }
             if ($Remote) {
                 $entry = [pscustomobject]@{ ArtifactId = [string]$artifact.artifactId; ObjectKey = [string]$artifact.r2ObjectKey; Size = [int64]$artifact.byteSize; Sha256 = [string]$artifact.sha256 }
                 $metadata = $bundle.Client.HeadObjectAsync($bundle.BucketName, $entry.ObjectKey).GetAwaiter().GetResult()
@@ -55,7 +62,7 @@ $physicalPaths = @(if (Test-Path -LiteralPath $futureRoot -PathType Container) {
     $futureItems = @(Get-ChildItem -LiteralPath $futureRoot -Force -Recurse)
     $futureReparse = @($futureItems | Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 })
     if ($futureReparse.Count -ne 0) { throw "The future evidence tree contains a reparse point: $($futureReparse[0].FullName)" }
-    @(Get-ChildItem -LiteralPath $futureRoot -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($artifactRootResolved, $_.FullName).Replace('\','/') })
+    @(Get-ChildItem -LiteralPath $futureRoot -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($artifactRootResolved, $_.FullName).Replace('\','/') } | Where-Object { -not (Test-IsSeparatelyValidatedV2Path $_) })
 } else { @() })
 if ($physicalPaths.Count -ne $indexedPaths.Count) { throw 'The future evidence tree contains an unindexed or missing file.' }
 foreach ($physicalPath in $physicalPaths) { if (-not $indexedPaths.Contains($physicalPath)) { throw "The future evidence tree contains an unindexed file: $physicalPath" } }
