@@ -1,29 +1,37 @@
 {
   "schemaVersion": 1,
   "authorizationId": "Gate0.G05.Stage2A.ExecutionAuthorization.V1",
-  "status": "owner-authorized-execution-implementation-pending",
+  "status": "owner-authorized-and-prerequisites-verified",
   "exactCellCount": 18,
   "exactAttemptCount": 108,
   "bindings": [
     { "role": "owner-decision", "path": "docs/gate-0-g0.5-stage2a-owner-decisions.md", "sha256": "A216BACB75251C0756F9B4101B93F2E7BA9C5B2D9E6AA5A0F9E33268122472B6" },
+    { "role": "execution-owner-approval", "path": "docs/gate-0-g0.5-stage2a-execution-approval.md", "sha256": "4CB1049F08951136CABB2F4F016DF64A038BC12B3CA0194A3EFD0219C19D3F58" },
     { "role": "schedule", "path": "eng/gate0/g0.5-stage2a-schedule.json", "sha256": "C16D4A65EDDEA2A6213C0A60D371BE605FD3295EE2695EF2716762EA2F85B90E" },
-    { "role": "runner", "path": "eng/gate0/Invoke-G05Stage2AMatrix.ps1", "sha256": "009D80CC7353CB36D9FBF977220653D5C4858622CC4DD92785C7916110C70BCD" },
+    { "role": "runner", "path": "eng/gate0/Invoke-G05Stage2AMatrix.ps1", "sha256": "66A8BD4E232706327E25F7B6FF4FC463D83F686F76966EA7BE13E0824C33CB9C" },
     { "role": "preflight", "path": "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1", "sha256": "A5E0D8FCF4309B6CEDC3A043382DC08ACB77D6D8D4EEEC6D978996955855E4DC" },
-    { "role": "helper", "path": "eng/gate0/G05Stage2AMatrixHelpers.psm1", "sha256": "20FFFEC4EA09B4F4ECC2D71BF9D4A26D5B2B4447FFFC074E6313BF6636012D44" },
-    { "role": "semantic-executor", "path": "eng/gate0/G05Stage2ASemanticExecutor.psm1", "sha256": "00509DB169E3040F66A3902D33E366E01BD3653D8830DEE306D74853FAD469EC" },
+    { "role": "helper", "path": "eng/gate0/G05Stage2AMatrixHelpers.psm1", "sha256": "49C92A62CF8338270D234EE8B35C930ECFFE57B892F34B623AA022EBD78CF18A" },
+    { "role": "semantic-executor", "path": "eng/gate0/G05Stage2ASemanticExecutor.psm1", "sha256": "20EDA2AB1105F6BEA80D729928FD21B124E480978A602B52873C239691C34CA5" },
     { "role": "semantic-helper", "path": "eng/gate0/G05Stage2ASemanticHelpers.psm1", "sha256": "D2EEE48541BA9411325D977AA5A6A1913FBFD4763BCF5C94CB1B97B071F620FE" },
     { "role": "smoke-helper", "path": "eng/gate0/G05Stage2SmokeHelpers.psm1", "sha256": "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4" },
+    { "role": "marker-helper", "path": "eng/gate0/G05MarkerSurvivabilityHelpers.psm1", "sha256": "32793DB793CFA7F08092CED6F5CFAABA4EE3761F9FC593C2AB551838159071CC" },
     { "role": "runtime-validator", "path": "eng/gate0/Validate-P2Runtime.ps1", "sha256": "CAA8A0B7DD67629273A6FAD1A30DC44BA1536F34861363341079860CC4327E49" },
     { "role": "runtime-manifest", "path": "eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json", "sha256": "3ECF44CF6D5A878C69A0BD18C9C44777EFE8BD990C04C4F371383D2FAF1E1640" },
     { "role": "workload-contract", "path": "eng/gate0/g0.5-stage2-workload-contract.json", "sha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC" },
     { "role": "containment-contract", "path": "eng/gate0/g0.5-stage2-containment-dry-run-contract.json", "sha256": "CE2F7B7BB95421F6A909B305C1DD33C30361B9FB86073E78C381C9A45EF517B3" }
     ,{ "role": "audio-oracle-contract", "path": "eng/gate0/g0.5-lossy-audio-oracle-contract.json", "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4" }
+    ,{ "role": "audio-oracle-amendment", "path": "eng/gate0/g0.5-lossy-audio-oracle-amendment-v4.json", "sha256": "21ECAFCD94F71E58AA43955079EF9959C135DB12530D015E8380CFD09B5E9FBC" }
+    ,{ "role": "audio-oracle-amendment-freeze", "path": "eng/gate0/g0.5-lossy-audio-oracle-amendment-v4-freeze.json", "sha256": "E2EFFD683FFE21BE902D77D7564F81C550F555C0989871C5D98B2DBE580D4CB2" }
+    ,{ "role": "structured-audio-control-summary", "path": "eng/gate0/g0.5-structured-audio-control-result-summary.json", "sha256": "83097DA638B80D048F84CC86B29BB24463C0B2BF9C2D3ED78CAF658FC73BF5EE" }
+    ,{ "role": "structured-audio-control-retention-summary", "path": "eng/gate0/g0.5-structured-audio-control-retention-result-summary.json", "sha256": "8E9581742592F0E10F48AD8E5DCDE2B1985C58BB68C990A071DBB49453AD16A2" }
+    ,{ "role": "replacement-smoke-authorization", "path": "eng/gate0/g0.5-stage2-replacement-smoke-authorization-summary.json", "sha256": "EE014A3890D88338C2AB555F63BE8CBDEF2F32385BDF7DA18B64FB9BD1FCECF0" }
+    ,{ "role": "replacement-smoke-result", "path": "eng/gate0/g0.5-stage2-replacement-smoke-result-summary.json", "sha256": "E1D4205C2517BE8A990559D03414BFF7951592450E77703A4561E27F5C8EEAB5" }
     ,{ "role": "retention-contract", "path": "eng/gate0/g0.5-stage2a-retention-contract.json", "sha256": "4E27689ECF0ACE0996C682D2F42B43E7D12A184F46EEFD8605A46EC687270E98" }
-    ,{ "role": "evidence-writer", "path": "eng/gate0/Add-Gate0EvidenceShard.ps1", "sha256": "248BBC31E99D2D31A484B056E492BA921870D8F9195C92E466C2C750BD3BB6EA" }
+    ,{ "role": "evidence-writer", "path": "eng/gate0/Add-Gate0EvidenceShard.ps1", "sha256": "22C98A67D9486896F7D944CDD78629790BD1E3431DFE61E63E0DBB0C5690EF53" }
     ,{ "role": "evidence-containment", "path": "eng/gate0/evidence/Gate0EvidenceContainment.psm1", "sha256": "95C1719E8911F5B2317B17EC22E71DB919AC4D40A5D6DB07C25A04EE2AD3ED71" }
   ],
   "limitations": [
-    "This record deliberately does not unlock evidence writing or media execution until an independently reviewed semantic cell executor is bound.",
+    "This record unlocks only the owner-authorized exact Stage 2A matrix after the semantic executor, retention integration, containment writer, and frozen oracle closure passed no-media review.",
     "It grants no product, WPF, concurrency, long-form, shipping-runtime, distribution, or legal authority."
   ]
 }

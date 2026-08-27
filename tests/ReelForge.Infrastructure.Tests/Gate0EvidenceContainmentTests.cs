@@ -334,6 +334,36 @@ public sealed class Gate0EvidenceContainmentTests
     }
 
     [Fact]
+    public void WriterRetainsARealisticFailedCellWithinTheImmutableShardCap()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            var attemptBindings = PrepareRealisticCellSource(corpus);
+            var command = corpus.WriterCommand.Replace("-Disposition passed", "-Disposition failed", StringComparison.Ordinal)
+                + $" -AttemptBindingsPath '{PsQuote(attemptBindings)}'";
+            var result = RunPs(command);
+            Assert.True(result.ExitCode == 0, result.Output);
+
+            var shardInfo = new FileInfo(corpus.Shard);
+            Assert.True(shardInfo.Length <= 65536, $"Shard is {shardInfo.Length} bytes.");
+            Assert.True(File.ReadLines(corpus.Shard).Count() <= 300);
+            var shard = JsonNode.Parse(File.ReadAllText(corpus.Shard))!.AsObject();
+            Assert.Equal("failed", shard["disposition"]!.GetValue<string>());
+            Assert.Equal(24, shard["artifacts"]!.AsArray().Count);
+            Assert.Equal(6, shard["attempts"]!.AsArray().Count);
+            var ids = shard["artifacts"]!.AsArray().Select(node => node!["artifactId"]!.GetValue<string>()).ToArray();
+            Assert.Equal(ids.Length, ids.Distinct(StringComparer.Ordinal).Count());
+            var firstAttemptPath = "future/stage2/run-a/attempts/attempt-1.json";
+            var expectedId = "artifact-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(firstAttemptPath))).ToLowerInvariant();
+            Assert.Contains(expectedId, ids);
+            using var root = JsonDocument.Parse(File.ReadAllText(corpus.RootIndex));
+            Assert.Equal("failed", root.RootElement.GetProperty("runs")[0].GetProperty("disposition").GetString());
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
     public void P2RuntimeRouteAppendRejectsAnOtherwiseExactPendingStage2AAuthorization()
     {
         var corpus = CreateIsolatedContainmentCorpus();
@@ -555,6 +585,7 @@ public sealed class Gate0EvidenceContainmentTests
         var expected = new (string Role, string Path)[]
         {
             ("owner-decision", "docs/gate-0-g0.5-stage2a-owner-decisions.md"),
+            ("execution-owner-approval", "docs/gate-0-g0.5-stage2a-execution-approval.md"),
             ("schedule", "eng/gate0/g0.5-stage2a-schedule.json"),
             ("runner", "eng/gate0/Invoke-G05Stage2AMatrix.ps1"),
             ("preflight", "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1"),
@@ -562,11 +593,18 @@ public sealed class Gate0EvidenceContainmentTests
             ("semantic-executor", "eng/gate0/G05Stage2ASemanticExecutor.psm1"),
             ("semantic-helper", "eng/gate0/G05Stage2ASemanticHelpers.psm1"),
             ("smoke-helper", "eng/gate0/G05Stage2SmokeHelpers.psm1"),
+            ("marker-helper", "eng/gate0/G05MarkerSurvivabilityHelpers.psm1"),
             ("runtime-validator", "eng/gate0/Validate-P2Runtime.ps1"),
             ("runtime-manifest", "eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json"),
             ("workload-contract", "eng/gate0/g0.5-stage2-workload-contract.json"),
             ("containment-contract", "eng/gate0/g0.5-stage2-containment-dry-run-contract.json"),
             ("audio-oracle-contract", "eng/gate0/g0.5-lossy-audio-oracle-contract.json"),
+            ("audio-oracle-amendment", "eng/gate0/g0.5-lossy-audio-oracle-amendment-v4.json"),
+            ("audio-oracle-amendment-freeze", "eng/gate0/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"),
+            ("structured-audio-control-summary", "eng/gate0/g0.5-structured-audio-control-result-summary.json"),
+            ("structured-audio-control-retention-summary", "eng/gate0/g0.5-structured-audio-control-retention-result-summary.json"),
+            ("replacement-smoke-authorization", "eng/gate0/g0.5-stage2-replacement-smoke-authorization-summary.json"),
+            ("replacement-smoke-result", "eng/gate0/g0.5-stage2-replacement-smoke-result-summary.json"),
             ("retention-contract", "eng/gate0/g0.5-stage2a-retention-contract.json"),
             ("evidence-writer", "eng/gate0/Add-Gate0EvidenceShard.ps1"),
             ("evidence-containment", "eng/gate0/evidence/Gate0EvidenceContainment.psm1")
@@ -593,6 +631,40 @@ public sealed class Gate0EvidenceContainmentTests
         var path = Path.Combine(corpus.Gate0, "g0.5-stage2a-execution-authorization.json");
         File.WriteAllText(path, authorization.ToJsonString());
         return path;
+    }
+
+    private static string PrepareRealisticCellSource((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus)
+    {
+        Directory.Delete(corpus.Source, recursive: true);
+        Directory.CreateDirectory(corpus.Source);
+        var attempts = new JsonArray();
+        for (var ordinal = 1; ordinal <= 6; ordinal++)
+        {
+            var relativePath = $"attempts/attempt-{ordinal}.json";
+            var path = Path.Combine(corpus.Source, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, $"{{\"attempt\":{ordinal},\"result\":\"synthetic\"}}");
+            attempts.Add(new JsonObject
+            {
+                ["attemptId"] = $"attempt-{ordinal}",
+                ["phase"] = ordinal == 1 ? "warmup" : "measured",
+                ["ordinal"] = ordinal,
+                ["retentionClass"] = "complete",
+                ["recordPath"] = $"future/stage2/run-a/{relativePath}",
+                ["recordSha256"] = Sha256(path),
+                ["disposition"] = "failed",
+                ["completeClosureReference"] = null
+            });
+        }
+        for (var ordinal = 1; ordinal <= 17; ordinal++)
+        {
+            var path = Path.Combine(corpus.Source, "observations", $"observation-{ordinal}.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, $"{{\"observation\":{ordinal},\"value\":\"synthetic\"}}");
+        }
+        var bindingsPath = Path.Combine(corpus.Source, "attempt-bindings.json");
+        File.WriteAllText(bindingsPath, attempts.ToJsonString());
+        return bindingsPath;
     }
 
     private static string P2WriterCommand((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus)

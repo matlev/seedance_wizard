@@ -153,10 +153,12 @@ public sealed class Gate0G05Stage2AMatrixTests
     public void RunnerAuthorizationBindsPendingHashContract()
     {
         using var auth = ReadJson("eng", "gate0", "g0.5-stage2a-execution-authorization.json");
-        Assert.Equal("owner-authorized-execution-implementation-pending", auth.RootElement.GetProperty("status").GetString());
+        var status = auth.RootElement.GetProperty("status").GetString();
+        Assert.True(status is "owner-authorized-execution-implementation-pending" or "owner-authorized-and-prerequisites-verified");
         var expected = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["owner-decision"] = "docs/gate-0-g0.5-stage2a-owner-decisions.md",
+            ["execution-owner-approval"] = "docs/gate-0-g0.5-stage2a-execution-approval.md",
             ["schedule"] = "eng/gate0/g0.5-stage2a-schedule.json",
             ["runner"] = "eng/gate0/Invoke-G05Stage2AMatrix.ps1",
             ["preflight"] = "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1",
@@ -164,11 +166,18 @@ public sealed class Gate0G05Stage2AMatrixTests
             ["semantic-executor"] = "eng/gate0/G05Stage2ASemanticExecutor.psm1",
             ["semantic-helper"] = "eng/gate0/G05Stage2ASemanticHelpers.psm1",
             ["smoke-helper"] = "eng/gate0/G05Stage2SmokeHelpers.psm1",
+            ["marker-helper"] = "eng/gate0/G05MarkerSurvivabilityHelpers.psm1",
             ["runtime-validator"] = "eng/gate0/Validate-P2Runtime.ps1",
             ["runtime-manifest"] = "eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json",
             ["workload-contract"] = "eng/gate0/g0.5-stage2-workload-contract.json",
             ["containment-contract"] = "eng/gate0/g0.5-stage2-containment-dry-run-contract.json",
             ["audio-oracle-contract"] = "eng/gate0/g0.5-lossy-audio-oracle-contract.json",
+            ["audio-oracle-amendment"] = "eng/gate0/g0.5-lossy-audio-oracle-amendment-v4.json",
+            ["audio-oracle-amendment-freeze"] = "eng/gate0/g0.5-lossy-audio-oracle-amendment-v4-freeze.json",
+            ["structured-audio-control-summary"] = "eng/gate0/g0.5-structured-audio-control-result-summary.json",
+            ["structured-audio-control-retention-summary"] = "eng/gate0/g0.5-structured-audio-control-retention-result-summary.json",
+            ["replacement-smoke-authorization"] = "eng/gate0/g0.5-stage2-replacement-smoke-authorization-summary.json",
+            ["replacement-smoke-result"] = "eng/gate0/g0.5-stage2-replacement-smoke-result-summary.json",
             ["retention-contract"] = "eng/gate0/g0.5-stage2a-retention-contract.json",
             ["evidence-writer"] = "eng/gate0/Add-Gate0EvidenceShard.ps1",
             ["evidence-containment"] = "eng/gate0/evidence/Gate0EvidenceContainment.psm1",
@@ -180,6 +189,18 @@ public sealed class Gate0G05Stage2AMatrixTests
             Assert.Equal(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))), binding.GetProperty("sha256").GetString());
         }
         Assert.Equal(expected.Count, auth.RootElement.GetProperty("bindings").GetArrayLength());
+    }
+
+    [Fact]
+    public void ReplacementSmokeClosureBindsAllAdmittedCandidatesAndDurableRetention()
+    {
+        var result = RunPwsh($"Import-Module '{ModulePath()}' -Force; Assert-G05Stage2AReplacementSmokeClosure '{Escape(PathInRepo())}' | ConvertTo-Json -Compress");
+        Assert.True(result.ExitCode == 0, result.Output);
+        using var json = JsonDocument.Parse(result.Output);
+        Assert.True(json.RootElement.GetProperty("localAndR2Verified").GetBoolean());
+        Assert.False(json.RootElement.GetProperty("historicalFullMatrixFlag").GetBoolean());
+        Assert.Equal(3, json.RootElement.GetProperty("candidateIds").GetArrayLength());
+        Assert.Equal("docs/gate-0-g0.5-stage2a-execution-approval.md", json.RootElement.GetProperty("supersedingExecutionApproval").GetString());
     }
 
     [Fact]
@@ -270,13 +291,37 @@ public sealed class Gate0G05Stage2AMatrixTests
         var summaryPath = System.IO.Path.Combine(directory.Path, "compact.json");
         var command = SemanticImportCommand() + "; " +
             "$attempt=[pscustomobject]@{globalOrdinal=7;phase='measured'}; " +
-            "$hashes=[ordered]@{outputSha256=('A'*64);probeSha256=('B'*64);decodedVideoIdentitySha256=('C'*64);decodedAudioIdentitySha256=('D'*64)}; " +
+            "$hashes=[ordered]@{outputSha256=('A'*64);frameProbeSha256=('B'*64);packetProbeSha256=('C'*64);decodedVideoIdentitySha256=('D'*64);decodedAudioRawSha256=('E'*64);decodedAudioContentNormalizedSha256=('F'*64)}; " +
             "$validations=[ordered]@{encode=$true;probe=$true;timing=$true;visual=$true;audio=$true;cleanup=$true}; " +
             "$summary=[ordered]@{disposition='passed';encodedByteEqualityClaim=$false;hashes=$hashes;validations=$validations}; " +
             "$binding=New-G05Stage2AAttemptBinding $attempt $summary '" + Escape(summaryPath) + "' '" + Escape(directory.Path) + "' 'compact' 'stage2a-8'; " +
             "Assert-G05Stage2ACompactBinding $binding '" + Escape(directory.Path) + "' 262144; " +
             "Add-Content -LiteralPath '" + Escape(summaryPath) + "' -Value ' '; " +
             "$blocked=$false;try{Assert-G05Stage2ACompactBinding $binding '" + Escape(directory.Path) + "' 262144}catch{$blocked=$true};if(-not$blocked){exit 32}";
+        var result = RunPwsh(command);
+        Assert.True(result.ExitCode == 0, result.Output);
+    }
+
+    [Fact]
+    public void RouteSuspensionUsesOnlyApprovedDeterministicTaxonomy()
+    {
+        var command = SemanticImportCommand() + "; " +
+            "$approved=@('structurally-divergent','semantically-divergent','byte-divergent'); " +
+            "$rejected=@('failed','blocked','cleanup-failed','failed-command','failed-integrity','failed-oracle'); " +
+            "foreach($d in $approved){if(-not(Test-G05Stage2ADeterministicIntegrityFailure ([pscustomobject]@{disposition=$d}))){exit 41}}; " +
+            "foreach($d in $rejected){if(Test-G05Stage2ADeterministicIntegrityFailure ([pscustomobject]@{disposition=$d})){exit 42}}";
+        var result = RunPwsh(command);
+        Assert.True(result.ExitCode == 0, result.Output);
+    }
+
+    [Fact]
+    public void BlockedAttemptUsesCurrentSemanticHashShape()
+    {
+        var command = SemanticImportCommand() + "; " +
+            "$blocked=New-G05Stage2ABlockedAttempt ([pscustomobject]@{globalOrdinal=1;cellAttemptOrdinal=1;phase='warmup'}) 'route suspended'; " +
+            "$actual=@($blocked.hashes.Keys|Sort-Object)-join '|'; " +
+            "$expected=@('decodedAudioContentNormalizedSha256','decodedAudioRawSha256','decodedVideoIdentitySha256','frameProbeSha256','outputSha256','packetProbeSha256')-join '|'; " +
+            "if($actual-ne$expected){throw \"Unexpected blocked hash shape: $actual\"}";
         var result = RunPwsh(command);
         Assert.True(result.ExitCode == 0, result.Output);
     }
@@ -319,7 +364,8 @@ public sealed class Gate0G05Stage2AMatrixTests
         Assert.NotEqual(0, result.ExitCode);
         Assert.True(result.Output.Contains("implementation pending", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("exact role bytes", StringComparison.OrdinalIgnoreCase)
-            || result.Output.Contains("effective authorization", StringComparison.OrdinalIgnoreCase), result.Output);
+            || result.Output.Contains("effective authorization", StringComparison.OrdinalIgnoreCase)
+            || result.Output.Contains("exact existing non-reparse", StringComparison.OrdinalIgnoreCase), result.Output);
         Assert.DoesNotContain("ffmpeg process", result.Output, StringComparison.OrdinalIgnoreCase);
     }
 

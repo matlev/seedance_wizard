@@ -39,6 +39,12 @@ function Assert-IsolatedTestMode([string] $RepositoryRoot, [string] $ResolvedArt
     }
 }
 
+function Get-Gate0EvidenceArtifactId([string] $PortableRelativePath) {
+    $pathBytes = [Text.Encoding]::UTF8.GetBytes($PortableRelativePath)
+    $pathHash = [Security.Cryptography.SHA256]::HashData($pathBytes)
+    "artifact-$([Convert]::ToHexString($pathHash).ToLowerInvariant())"
+}
+
 function Assert-Stage2AExecutionAuthorization([string] $RepositoryRoot, [string[]] $Identities) {
     $relativePath = 'eng/gate0/g0.5-stage2a-execution-authorization.json'
     $authorizationPath = Join-Path $RepositoryRoot $relativePath.Replace('/', [IO.Path]::DirectorySeparatorChar)
@@ -127,10 +133,9 @@ try {
         Copy-Item -LiteralPath $file.FullName -Destination $target
         $sha = Get-Gate0EvidenceSha256 $target
         if ((Get-Item -LiteralPath $target).Length -ne $file.Length -or $sha -ne (Get-Gate0EvidenceSha256 $file.FullName)) { throw 'Evidence staging copy failed byte verification.' }
-        $artifactId = "$ProofRunId.$([IO.Path]::GetFileNameWithoutExtension($relative))" -replace '[^A-Za-z0-9._-]','-'
-        if ($artifactId.Length -gt 128) { $artifactId = "$ProofRunId.$($sha.Substring(0,16))" }
+        $artifactId = Get-Gate0EvidenceArtifactId $portableDestination
         Assert-Gate0EvidenceIdentifier $artifactId 'Generated artifactId'
-        if (-not $seenIds.Add($artifactId)) { $artifactId = "$ProofRunId.$($sha.Substring(0,16))"; if (-not $seenIds.Add($artifactId)) { throw 'Evidence files produced duplicate artifact IDs.' } }
+        if (-not $seenIds.Add($artifactId)) { throw "Evidence files produced a deterministic artifact ID collision for $portableDestination." }
         $artifactRecords.Add([pscustomobject][ordered]@{
             artifactId = $artifactId
             relativePath = $portableDestination
@@ -173,7 +178,7 @@ try {
         totals = [ordered]@{ logicalArtifactCount = $artifactRecords.Count; logicalArtifactBytes = $totalBytes }
         limitations = @('This shard records Gate 0 proof infrastructure only and is not a product, shipping-runtime, distribution, or legal conclusion.')
     }
-    [IO.File]::WriteAllText($shardTemporary, (($shard | ConvertTo-Json -Depth 32) + "`n"), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($shardTemporary, (($shard | ConvertTo-Json -Depth 32 -Compress) + "`n"), [Text.UTF8Encoding]::new($false))
     [void](Read-Gate0EvidenceShard $shardTemporary)
     if ([int64]$root.Shape.Bytes + 8192 -gt [int64]$root.Index.limits.maxRootIndexBytes -or [int]$root.Shape.Lines + 40 -gt [int]$root.Index.limits.maxRootIndexLines) { throw 'Candidate root index lacks conservative capacity for one bounded append.' }
 
@@ -234,7 +239,7 @@ try {
     Write-Gate0EvidenceUtf8Atomic $journalPath (($journal | ConvertTo-Json -Depth 16) + "`n")
     if ($FaultInjection -eq 'AfterRemoteVerification') { $preserveFailureEvidence = $true; throw 'Injected containment failure after remote verification.' }
 
-    [IO.File]::WriteAllText($shardTemporary, (($shard | ConvertTo-Json -Depth 32) + "`n"), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($shardTemporary, (($shard | ConvertTo-Json -Depth 32 -Compress) + "`n"), [Text.UTF8Encoding]::new($false))
     $validatedShard = Read-Gate0EvidenceShard $shardTemporary
     $prior = @($root.Index.runs)
     $previous = if ($prior.Count) { $prior[-1] } else { $null }

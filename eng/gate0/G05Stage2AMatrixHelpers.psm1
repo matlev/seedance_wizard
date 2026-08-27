@@ -15,6 +15,7 @@ function Read-G05Stage2AExecutionAuthorization([string] $Path, [string] $Reposit
     }
     $expected = [ordered]@{
         'owner-decision' = 'docs/gate-0-g0.5-stage2a-owner-decisions.md'
+        'execution-owner-approval' = 'docs/gate-0-g0.5-stage2a-execution-approval.md'
         schedule = 'eng/gate0/g0.5-stage2a-schedule.json'
         runner = 'eng/gate0/Invoke-G05Stage2AMatrix.ps1'
         preflight = 'eng/gate0/Test-G05Stage2AMatrixPreflight.ps1'
@@ -22,11 +23,18 @@ function Read-G05Stage2AExecutionAuthorization([string] $Path, [string] $Reposit
         'semantic-executor' = 'eng/gate0/G05Stage2ASemanticExecutor.psm1'
         'semantic-helper' = 'eng/gate0/G05Stage2ASemanticHelpers.psm1'
         'smoke-helper' = 'eng/gate0/G05Stage2SmokeHelpers.psm1'
+        'marker-helper' = 'eng/gate0/G05MarkerSurvivabilityHelpers.psm1'
         'runtime-validator' = 'eng/gate0/Validate-P2Runtime.ps1'
         'runtime-manifest' = 'eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json'
         'workload-contract' = 'eng/gate0/g0.5-stage2-workload-contract.json'
         'containment-contract' = 'eng/gate0/g0.5-stage2-containment-dry-run-contract.json'
         'audio-oracle-contract' = 'eng/gate0/g0.5-lossy-audio-oracle-contract.json'
+        'audio-oracle-amendment' = 'eng/gate0/g0.5-lossy-audio-oracle-amendment-v4.json'
+        'audio-oracle-amendment-freeze' = 'eng/gate0/g0.5-lossy-audio-oracle-amendment-v4-freeze.json'
+        'structured-audio-control-summary' = 'eng/gate0/g0.5-structured-audio-control-result-summary.json'
+        'structured-audio-control-retention-summary' = 'eng/gate0/g0.5-structured-audio-control-retention-result-summary.json'
+        'replacement-smoke-authorization' = 'eng/gate0/g0.5-stage2-replacement-smoke-authorization-summary.json'
+        'replacement-smoke-result' = 'eng/gate0/g0.5-stage2-replacement-smoke-result-summary.json'
         'retention-contract' = 'eng/gate0/g0.5-stage2a-retention-contract.json'
         'evidence-writer' = 'eng/gate0/Add-Gate0EvidenceShard.ps1'
         'evidence-containment' = 'eng/gate0/evidence/Gate0EvidenceContainment.psm1'
@@ -41,6 +49,45 @@ function Read-G05Stage2AExecutionAuthorization([string] $Path, [string] $Reposit
         if ((Get-G05Stage2ASha256 $boundPath) -ne [string]$binding[0].sha256) { throw "Stage 2A $role authorization binding changed." }
     }
     [pscustomobject]@{ Authorization=$authorization; Sha256=(Get-G05Stage2ASha256 $Path) }
+}
+
+function Assert-G05Stage2AReplacementSmokeClosure([string] $RepositoryRoot) {
+    $authorizationRelative = 'eng/gate0/g0.5-stage2-replacement-smoke-authorization-summary.json'
+    $resultRelative = 'eng/gate0/g0.5-stage2-replacement-smoke-result-summary.json'
+    $authorizationPath = Join-Path $RepositoryRoot $authorizationRelative.Replace('/', [IO.Path]::DirectorySeparatorChar)
+    $resultPath = Join-Path $RepositoryRoot $resultRelative.Replace('/', [IO.Path]::DirectorySeparatorChar)
+    $authorization = Get-Content -LiteralPath $authorizationPath -Raw | ConvertFrom-Json -Depth 64
+    $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json -Depth 64
+    $expectedCandidates = @('mp4-openh264-aac|one','webm-vp9-opus|half-logical','webm-vp9-opus|one')
+    $authorizedCandidates = @($authorization.authorizedCandidates | ForEach-Object { [string]$_.candidateId } | Sort-Object)
+    $passedCandidates = @($result.candidates | Where-Object { [string]$_.status -eq 'passed' -and [int]$_.attemptCount -eq 1 } | ForEach-Object { [string]$_.candidateId } | Sort-Object)
+    if ([string]$authorization.status -ne 'passed-controls-retention-and-resource-preflight-replacement-smoke-authorized' -or
+        -not [bool]$authorization.gates.replacementPreMatrixSmokeAuthorized -or [bool]$authorization.gates.wpfMediaScenariosAuthorized -or
+        [bool]$authorization.gates.concurrencyComparisonAuthorized -or [bool]$authorization.gates.longFormAuthorized -or
+        @($authorization.authorizedCandidates).Count -ne 3 -or @($authorization.authorizedCandidates | Where-Object { [int]$_.attemptCount -ne 1 }).Count -ne 0 -or
+        ($authorizedCandidates -join '|') -ne ($expectedCandidates -join '|')) {
+        throw 'Replacement-smoke authorization does not preserve the exact three one-attempt candidate boundary.'
+    }
+    if ([string]$result.status -ne 'completed-three-authoritative-passes-full-stage2-owner-authorization-required' -or
+        @($result.candidates).Count -ne 3 -or ($passedCandidates -join '|') -ne ($expectedCandidates -join '|') -or
+        -not [bool]$result.retention.localVerified -or -not [bool]$result.retention.r2IndependentlyRetrievedAndByteVerified -or
+        [string]$result.retention.retentionCondition -ne 'complete' -or
+        [string]$result.retention.sourceManifestSha256 -ne 'AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0' -or
+        [string]$result.retention.durableManifestSha256 -ne 'AF9B368D44FDE3EFD2C45E2D847CB989D38E52066607A0D3E61384588D23C113' -or
+        [int]$result.retention.currentLogicalArtifactCount -ne 4101 -or [int64]$result.retention.currentLogicalArtifactBytes -ne 1121540509 -or
+        [bool]$result.oracle.routeOutputsEvaluatedBeforeFreezeAndRetention) {
+        throw 'Replacement-smoke result does not prove the approved three-candidate oracle and durable-retention closure.'
+    }
+    [ordered]@{
+        authorizationPath = $authorizationRelative
+        authorizationSha256 = Get-G05Stage2ASha256 $authorizationPath
+        resultPath = $resultRelative
+        resultSha256 = Get-G05Stage2ASha256 $resultPath
+        candidateIds = $passedCandidates
+        localAndR2Verified = $true
+        historicalFullMatrixFlag = [bool]$authorization.gates.fullStage2MatrixAuthorized
+        supersedingExecutionApproval = 'docs/gate-0-g0.5-stage2a-execution-approval.md'
+    }
 }
 
 function Assert-G05Stage2AExactProperties([object] $Value, [string[]] $Expected, [string] $Label) {
@@ -127,4 +174,4 @@ function Get-G05Stage2AEnvironmentObservation {
     }
 }
 
-Export-ModuleMember -Function Get-G05Stage2ASha256,Assert-G05Stage2AExactProperties,Read-G05Stage2AExecutionAuthorization,Read-G05Stage2ASchedule,Get-G05Stage2AStatistics,Get-G05Stage2AReservation,Get-G05Stage2AEnvironmentObservation
+Export-ModuleMember -Function Get-G05Stage2ASha256,Assert-G05Stage2AExactProperties,Read-G05Stage2AExecutionAuthorization,Assert-G05Stage2AReplacementSmokeClosure,Read-G05Stage2ASchedule,Get-G05Stage2AStatistics,Get-G05Stage2AReservation,Get-G05Stage2AEnvironmentObservation

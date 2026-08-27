@@ -130,7 +130,7 @@ function Assert-G05Stage2ACompactBinding([object] $Binding, [string] $SourceRoot
     if ((Get-G05SmokeHash $path) -ne [string]$Binding.recordSha256) { throw 'A compact Stage 2A semantic summary hash differs from its attempt binding.' }
     $summary = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -Depth 32
     $validationNames = @('encode','probe','timing','visual','audio','cleanup')
-    if ($summary.encodedByteEqualityClaim -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.outputSha256) -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.probeSha256) -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.decodedVideoIdentitySha256) -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.decodedAudioIdentitySha256) -or
+    if ($summary.encodedByteEqualityClaim -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.outputSha256) -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.frameProbeSha256) -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.packetProbeSha256) -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.decodedVideoIdentitySha256) -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.decodedAudioRawSha256) -or [string]::IsNullOrWhiteSpace([string]$summary.hashes.decodedAudioContentNormalizedSha256) -or
         $null -eq $summary.PSObject.Properties['validations'] -or @($summary.validations.PSObject.Properties).Count -ne $validationNames.Count -or
         @($validationNames | Where-Object { $null -eq $summary.validations.PSObject.Properties[$_] -or -not [bool]$summary.validations.$_ }).Count -ne 0) {
         throw 'A compact Stage 2A record lacks required passing validations or output, probe, and decoded semantic identity hashes.'
@@ -138,12 +138,93 @@ function Assert-G05Stage2ACompactBinding([object] $Binding, [string] $SourceRoot
 }
 
 function New-G05Stage2ABlockedAttempt([object] $Attempt, [string] $Reason) {
-    [ordered]@{ globalOrdinal=[int]$Attempt.globalOrdinal; cellAttemptOrdinal=[int]$Attempt.cellAttemptOrdinal; phase=[string]$Attempt.phase; disposition='blocked'; retentionKind='exceptional-full-closure'; reason=$Reason; command=$null; hashes=[ordered]@{outputSha256=$null;probeSha256=$null;decodedVideoIdentitySha256=$null;decodedAudioIdentitySha256=$null}; encodedByteEqualityClaim=$false; completedUtc=[DateTimeOffset]::UtcNow.ToString('O') }
+    [ordered]@{ globalOrdinal=[int]$Attempt.globalOrdinal; cellAttemptOrdinal=[int]$Attempt.cellAttemptOrdinal; phase=[string]$Attempt.phase; disposition='blocked'; retentionKind='exceptional-full-closure'; reason=$Reason; command=$null; hashes=[ordered]@{outputSha256=$null;frameProbeSha256=$null;packetProbeSha256=$null;decodedVideoIdentitySha256=$null;decodedAudioRawSha256=$null;decodedAudioContentNormalizedSha256=$null}; encodedByteEqualityClaim=$false; completedUtc=[DateTimeOffset]::UtcNow.ToString('O') }
 }
 
 function Test-G05Stage2ADeterministicIntegrityFailure([object] $SemanticSummary) {
-    # Strict encode/decode/probe/oracle identity or cleanup failures suspend a route. Timing alone is not a performance failure.
-    [string]$SemanticSummary.disposition -in @('failed-integrity','failed-oracle','failed-cleanup','failed-command')
+    # The taxonomy deliberately distinguishes deterministic route defects from
+    # environmental/retention/cleanup outcomes. Only these three labels suspend
+    # later rows for the affected route.
+    [string]$SemanticSummary.disposition -in @('structurally-divergent','semantically-divergent','byte-divergent')
 }
 
-Export-ModuleMember -Function Read-G05Stage2ARetentionContract,Get-G05Stage2ACellRows,New-G05Stage2AEncodeTokens,Get-G05Stage2ASemanticFile,Get-G05Stage2ASemanticSummaryHash,New-G05Stage2AAttemptBinding,Assert-G05Stage2ACompactBinding,New-G05Stage2ABlockedAttempt,Test-G05Stage2ADeterministicIntegrityFailure,Write-G05Stage2ASemanticJson
+function Resolve-G05Stage2ACellRetentionPlan([object[]] $AttemptSummaries) {
+    if ($AttemptSummaries.Count -ne 6) { throw 'A Stage 2A cell retention plan requires exactly six attempts.' }
+    $ordered = @($AttemptSummaries | Sort-Object globalOrdinal)
+    $ordinary = @($ordered | Where-Object { $_.phase -eq 'measured' -and $_.disposition -eq 'passed' } | Select-Object -First 1)
+    $ordinaryId = if ($ordinary.Count -eq 1) { [string]$ordinary[0].attemptId } else { $null }
+    foreach ($summary in $ordered) {
+        if ($null -eq $summary.PSObject.Properties['retentionClass']) { $summary | Add-Member -NotePropertyName retentionClass -NotePropertyValue $null }
+        if ($null -eq $summary.PSObject.Properties['completeClosureReference']) { $summary | Add-Member -NotePropertyName completeClosureReference -NotePropertyValue $null }
+        if ([string]$summary.disposition -eq 'passed' -and $null -ne $ordinaryId -and [string]$summary.attemptId -ne $ordinaryId) {
+            $null = ($summary.retentionClass = 'compact'); $null = ($summary.completeClosureReference = $ordinaryId)
+        } else {
+            $null = ($summary.retentionClass = 'complete'); $null = ($summary.completeClosureReference = $null)
+        }
+    }
+    [pscustomobject]@{ordinaryCompleteClosureAttemptId=$ordinaryId;hasOrdinaryMeasuredClosure=($null -ne $ordinaryId);attempts=$ordered}
+}
+
+function Get-G05Stage2AAttemptRetentionClass([object[]] $PriorBindings, [object] $AttemptSummary) {
+    # Compatibility seam for contract-only callers. Live retention is resolved
+    # only after the complete six-attempt cell is independently validated.
+    if ([string]$AttemptSummary.disposition -ne 'passed') { return 'complete' }
+    if ([string]$AttemptSummary.phase -eq 'measured' -and @($PriorBindings | Where-Object { $_.phase -eq 'measured' -and $_.retentionClass -eq 'complete' -and $_.disposition -eq 'passed' }).Count -eq 0) { return 'complete' }
+    if (@($PriorBindings | Where-Object { $_.phase -eq 'measured' -and $_.retentionClass -eq 'complete' -and $_.disposition -eq 'passed' }).Count -eq 0) { return 'complete' }
+    'compact'
+}
+
+function Get-G05Stage2ACompleteClosureReference([object[]] $Bindings) {
+    $ordinary = @($Bindings | Where-Object { $_.phase -eq 'measured' -and $_.retentionClass -eq 'complete' -and $_.disposition -eq 'passed' })
+    if ($ordinary.Count -gt 1) { throw 'A Stage 2A cell has more than one ordinary measured complete closure.' }
+    if ($ordinary.Count -eq 1) { return [string]$ordinary[0].attemptId }
+    $null
+}
+
+function Assert-G05Stage2AAttemptSummary([object] $Summary) {
+    $required = @('attemptId','globalOrdinal','phase','disposition','selectedComponents','commands','validations','hashes','encodedByteEqualityClaim','cleanup')
+    foreach ($name in $required) { if ($null -eq $Summary.PSObject.Properties[$name]) { throw "Stage 2A attempt summary lacks $name." } }
+    $approvedDispositions = @('passed','failed','blocked','cleanup-failed','orphan-producing','byte-divergent','semantically-divergent','structurally-divergent')
+    if ([string]$Summary.disposition -notin $approvedDispositions) { throw 'Stage 2A attempt summary has an unapproved disposition.' }
+    if ([bool]$Summary.encodedByteEqualityClaim) { throw 'Stage 2A evidence may not claim encoded-byte equality.' }
+    if ([string]$Summary.disposition -eq 'passed') {
+        $names = @('encode','probe','timing','visual','audio','cleanup')
+        foreach ($name in $names) { if ($null -eq $Summary.validations.PSObject.Properties[$name] -or -not [bool]$Summary.validations.$name) { throw "A passed Stage 2A summary lacks $name validation." } }
+        foreach ($name in @('outputSha256','frameProbeSha256','packetProbeSha256','decodedVideoIdentitySha256','decodedAudioRawSha256','decodedAudioContentNormalizedSha256')) { if ([string]::IsNullOrWhiteSpace([string]$Summary.hashes.$name)) { throw "A passed Stage 2A summary lacks $name." } }
+        if (-not [bool]$Summary.cleanup.processTreeRootExited -or -not [bool]$Summary.cleanup.processTreeOrphanFree -or -not [bool]$Summary.cleanup.noUnvalidatedPartialOutput) { throw 'A passed Stage 2A summary lacks process-tree or partial-output cleanup evidence.' }
+    }
+}
+
+function Get-G05Stage2AContentNormalizedAudioHash([string] $Path, [int64] $ExpectedContentBytes = 5760000, [int] $MaximumRawTailSamples = 1024) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'Decoded audio is absent.' }
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    if ($ExpectedContentBytes -le 0 -or $ExpectedContentBytes % 4 -ne 0 -or $bytes.Length -lt $ExpectedContentBytes -or
+        $bytes.Length -gt $ExpectedContentBytes + ([int64]$MaximumRawTailSamples * 4) -or $bytes.Length % 4 -ne 0) {
+        throw 'Decoded audio is outside the frozen stereo s16le content/tail envelope.'
+    }
+    $content = [byte[]]::new([int]$ExpectedContentBytes)
+    [Array]::Copy($bytes, $content, [int]$ExpectedContentBytes)
+    [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($content))
+}
+
+function Get-G05Stage2AExactVideoTiming([object] $VideoStream, [object[]] $Frames) {
+    if ($Frames.Count -ne 750) { throw "Expected 750 video frames, observed $($Frames.Count)." }
+    $timeBase = [string]$VideoStream.time_base
+    $ticks = [Collections.Generic.List[int64]]::new()
+    for ($index = 0; $index -lt 750; $index++) {
+        $raw = Get-G05Stage2ASemanticProperty $Frames[$index] 'best_effort_timestamp' (Get-G05Stage2ASemanticProperty $Frames[$index] 'pts')
+        if ($null -eq $raw) { throw "Video frame $index lacks a presentation timestamp." }
+        $tick = Convert-G05SmokeTicks ([int64]$raw) $timeBase
+        if ($tick -ne [int64]($index * 40)) { throw "Video frame $index normalized to $tick instead of $($index * 40)." }
+        $ticks.Add($tick)
+    }
+    $last = $Frames[-1]
+    $durationRaw = Get-G05Stage2ASemanticProperty $last 'pkt_duration' (Get-G05Stage2ASemanticProperty $last 'duration')
+    if ($null -ne $durationRaw) { $end = $ticks[-1] + (Convert-G05SmokeTicks ([int64]$durationRaw) $timeBase); $source = 'final-frame-duration' }
+    elseif ($null -ne $VideoStream.PSObject.Properties['duration_ts']) { $end = Convert-G05SmokeTicks ([int64]$VideoStream.duration_ts) $timeBase; $source = 'stream-duration-ts' }
+    else { throw 'Video presentation-end evidence is unavailable.' }
+    if ($end -ne 30000) { throw "Video presentation end normalized to $end instead of 30000." }
+    [ordered]@{passed=$true;frameCount=750;comparisonTimeBase='1/1000';firstTick=$ticks[0];finalTick=$ticks[-1];presentationEndTick=$end;presentationEndSource=$source;allFrameTicksExact=$true}
+}
+
+Export-ModuleMember -Function Read-G05Stage2ARetentionContract,Get-G05Stage2ACellRows,New-G05Stage2AEncodeTokens,Get-G05Stage2ASemanticFile,Get-G05Stage2ASemanticSummaryHash,New-G05Stage2AAttemptBinding,Assert-G05Stage2ACompactBinding,New-G05Stage2ABlockedAttempt,Test-G05Stage2ADeterministicIntegrityFailure,Get-G05Stage2AAttemptRetentionClass,Resolve-G05Stage2ACellRetentionPlan,Get-G05Stage2ACompleteClosureReference,Assert-G05Stage2AAttemptSummary,Get-G05Stage2AExactVideoTiming,Get-G05Stage2AContentNormalizedAudioHash,Write-G05Stage2ASemanticJson
