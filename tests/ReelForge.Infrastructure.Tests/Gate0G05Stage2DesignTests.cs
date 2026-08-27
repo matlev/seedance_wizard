@@ -152,14 +152,34 @@ public sealed class Gate0G05Stage2DesignTests
         Assert.Equal("Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.Frozen.20260827", frozen.GetProperty("freezeId").GetString());
         Assert.False(frozen.GetProperty("controlEvidence").GetProperty("routeOutputsEvaluated").GetBoolean());
         Assert.True(frozen.GetProperty("controlEvidence").GetProperty("allDeclaredDispositionsPassed").GetBoolean());
-        var frozenFiles = new[] { frozen.GetProperty("v3Contract"), frozen.GetProperty("v4Amendment") }
-            .Concat(frozen.GetProperty("implementation").EnumerateArray());
-        foreach (var record in frozenFiles)
+        foreach (var record in new[] { frozen.GetProperty("v3Contract"), frozen.GetProperty("v4Amendment") })
         {
             var path = record.GetProperty("path").GetString()!;
             using var stream = File.OpenRead(PathInRepo(path.Split('/')));
             Assert.Equal(record.GetProperty("size").GetInt64(), stream.Length);
             Assert.Equal(record.GetProperty("sha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+        }
+
+        using var retainedV4Manifest = ReadJson("eng", "gate0", "artifact-retention-manifest.json");
+        using var durableV4Manifest = ReadJson("eng", "gate0", "artifact-manifest.json");
+        var retainedV4Group = Assert.Single(retainedV4Manifest.RootElement.GetProperty("groups").EnumerateArray(), group =>
+            group.GetProperty("groupId").GetString() == "G05-V4-Structured-Audio-Controls-20260827-001");
+        foreach (var record in frozen.GetProperty("implementation").EnumerateArray())
+        {
+            var snapshotName = Path.GetFileName(record.GetProperty("path").GetString()!);
+            var logicalArtifactId = $"G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/{snapshotName}";
+            var retained = Assert.Single(retainedV4Group.GetProperty("files").EnumerateArray(), artifact =>
+                artifact.GetProperty("artifactId").GetString() == logicalArtifactId);
+            var durable = Assert.Single(durableV4Manifest.RootElement.GetProperty("artifacts").EnumerateArray(), artifact =>
+                artifact.GetProperty("logicalArtifactId").GetString() == logicalArtifactId);
+
+            Assert.Equal(record.GetProperty("size").GetInt64(), retained.GetProperty("size").GetInt64());
+            Assert.Equal(record.GetProperty("sha256").GetString(), retained.GetProperty("sha256").GetString());
+            Assert.Equal(record.GetProperty("size").GetInt64(), durable.GetProperty("byteSize").GetInt64());
+            Assert.Equal(record.GetProperty("sha256").GetString(), durable.GetProperty("sha256").GetString());
+            Assert.Equal("remote-verified", durable.GetProperty("retentionStatus").GetString());
+            Assert.True(durable.GetProperty("transferDisposition").GetString() is
+                "uploaded-and-verified" or "existing-object-verified");
         }
 
         using var controlSummary = ReadJson("eng", "gate0", "g0.5-structured-audio-control-result-summary.json");

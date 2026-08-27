@@ -76,7 +76,8 @@ public sealed class Gate0G05Stage2AExecutorTests
         var runner = PathInRepo("eng", "gate0", "Invoke-G05Stage2AMatrix.ps1");
         var result = RunResult($"& '{Escape(runner)}' -ExecuteMedia -RuntimeRoot 'C:\\not-used' -ArtifactRoot 'C:\\not-used' -StagingRoot 'C:\\not-used'");
         Assert.NotEqual(0, result.ExitCode);
-        Assert.True(result.Output.Contains("exact existing non-reparse", StringComparison.OrdinalIgnoreCase)
+        Assert.True(result.Output.Contains("smoke-helper authorization binding changed", StringComparison.OrdinalIgnoreCase)
+            || result.Output.Contains("exact existing non-reparse", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("execution authorization", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("implementation is pending", StringComparison.OrdinalIgnoreCase), result.Output);
         Assert.DoesNotContain("ffmpeg.exe", result.Output, StringComparison.OrdinalIgnoreCase);

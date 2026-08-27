@@ -137,16 +137,14 @@ public sealed class Gate0G05Stage2AMatrixTests
     }
 
     [Fact]
-    public void RunnerDefaultsToContractOnlyAndExecutesNoMedia()
+    public void SupersededV1RunnerFailsClosedOnItsHistoricalAuthorizationWithoutMedia()
     {
         var path = PathInRepo("eng", "gate0", "Invoke-G05Stage2AMatrix.ps1");
         var result = RunPwsh($"& '{Escape(path)}' | ConvertTo-Json -Compress");
-        Assert.True(result.ExitCode == 0, result.Output);
-        using var json = JsonDocument.Parse(result.Output);
-        Assert.Equal("contract-only", json.RootElement.GetProperty("status").GetString());
-        Assert.True(json.RootElement.GetProperty("noMediaExecuted").GetBoolean());
-        Assert.Equal(108, json.RootElement.GetProperty("schedule").GetProperty("attemptCount").GetInt32());
-        Assert.Equal(18, json.RootElement.GetProperty("schedule").GetProperty("cellCount").GetInt32());
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("Stage 2A smoke-helper authorization binding changed", result.Output, StringComparison.Ordinal);
+        Assert.DoesNotContain("ffmpeg", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ffprobe", result.Output, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -193,8 +191,17 @@ public sealed class Gate0G05Stage2AMatrixTests
         foreach (var binding in auth.RootElement.GetProperty("bindings").EnumerateArray())
         {
             Assert.True(expected.ContainsKey(binding.GetProperty("role").GetString()!));
+            var role = binding.GetProperty("role").GetString()!;
             var path = PathInRepo(binding.GetProperty("path").GetString()!.Split('/'));
-            Assert.Equal(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))), binding.GetProperty("sha256").GetString());
+            var authorizedHash = binding.GetProperty("sha256").GetString();
+            if (role == "smoke-helper")
+            {
+                Assert.Equal("13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4", authorizedHash);
+                Assert.NotEqual(authorizedHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))));
+                continue;
+            }
+
+            Assert.Equal(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))), authorizedHash);
         }
         Assert.Equal(expected.Count, auth.RootElement.GetProperty("bindings").GetArrayLength());
     }
@@ -399,7 +406,8 @@ public sealed class Gate0G05Stage2AMatrixTests
         var path = PathInRepo("eng", "gate0", "Invoke-G05Stage2AMatrix.ps1");
         var result = RunPwsh($"& '{Escape(path)}' -ExecuteMedia -RuntimeRoot 'C:\\unused' -ArtifactRoot 'C:\\unused' -StagingRoot 'C:\\unused'");
         Assert.NotEqual(0, result.ExitCode);
-        Assert.True(result.Output.Contains("implementation pending", StringComparison.OrdinalIgnoreCase)
+        Assert.True(result.Output.Contains("smoke-helper authorization binding changed", StringComparison.OrdinalIgnoreCase)
+            || result.Output.Contains("implementation pending", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("exact role bytes", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("effective authorization", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("exact existing non-reparse", StringComparison.OrdinalIgnoreCase), result.Output);
