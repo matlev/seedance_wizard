@@ -34,7 +34,9 @@ public sealed class Gate0G05Stage2AV5RetainedOutputReevaluationTests
         Assert.Contains("Assert-PortableJsonValue", evaluator);
         Assert.Contains("$Value -is [ValueType]", evaluator);
         Assert.Contains("ConvertFrom-Json -Depth 64 -DateKind String", evaluator);
-        Assert.Contains("ConvertFrom-Json -Depth 128 -DateKind String", evaluator);
+        Assert.Contains("ConvertFrom-Json -Depth 100 -DateKind String", evaluator);
+        Assert.Contains("$overlay[0] 1024", evaluator);
+        Assert.DoesNotContain("-Depth 128", evaluator, StringComparison.Ordinal);
         Assert.Contains("Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1", authorizer);
         Assert.Contains("Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1", controls);
         Assert.Contains("Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1", freezer);

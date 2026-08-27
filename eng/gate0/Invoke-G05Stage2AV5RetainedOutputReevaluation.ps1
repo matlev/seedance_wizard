@@ -86,9 +86,9 @@ Import-Module (Join-Path $PSScriptRoot 'G05Stage2SmokeHelpers.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'G05Stage2AV5AudioOracle.psm1') -Force
 $routes = [ordered]@{}
 foreach ($route in @([ordered]@{ key='webm'; pcm=$WebmPcmPath; summary=$WebmOriginalSummaryPath; metadata=$authorization.inputs.webm }, [ordered]@{ key='mp4'; pcm=$Mp4PcmPath; summary=$Mp4OriginalSummaryPath; metadata=$authorization.inputs.mp4 })) {
-    $original = Get-Content -LiteralPath $route.summary -Raw | ConvertFrom-Json -Depth 128 -DateKind String
+    $original = Get-Content -LiteralPath $route.summary -Raw | ConvertFrom-Json -Depth 100 -DateKind String
     Assert-PortableJsonValue $original "originalV3Summary.$($route.key)"
-    $evaluation = Test-G05Stage2AV5StressAudio $StressReferencePcmPath $route.pcm $v3.qualityThresholds $descriptor[0] $overlay[0] 0
+    $evaluation = Test-G05Stage2AV5StressAudio $StressReferencePcmPath $route.pcm $v3.qualityThresholds $descriptor[0] $overlay[0] 1024
     $routes[$route.key] = [ordered]@{ routeId=$route.metadata.routeId; pcm=[ordered]@{ filename=[IO.Path]::GetFileName($route.pcm); sha256=Get-Sha256 $route.pcm; size=(Get-Item -LiteralPath $route.pcm).Length }; originalV3Summary=$original; originalV3SummarySha256=Get-Sha256 $route.summary; v5Evaluation=$evaluation }
 }
 $passed = @($routes.Values | ForEach-Object { [bool]$_.v5Evaluation.passed }) -notcontains $false
@@ -96,5 +96,5 @@ $output = New-OutputDirectory $OutputDirectory
 $proofId = 'g05-stage2a-v5-retained-output-reevaluation-' + [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssfffZ')
 $report = [ordered]@{ schemaVersion=1; proofId=$proofId; status=if($passed){'passed-no-media-continuation-prerequisite'}else{'stop-before-media-v5-route-failure'}; finalFreeze=[ordered]@{ filename=[IO.Path]::GetFileName($FinalFreezePath); sha256=Get-Sha256 $FinalFreezePath }; authorization=[ordered]@{ filename=[IO.Path]::GetFileName($AuthorizationPath); sha256=Get-Sha256 $AuthorizationPath; authorizationId=$authorization.authorizationId }; reference=[ordered]@{ filename=[IO.Path]::GetFileName($StressReferencePcmPath); sha256=Get-Sha256 $StressReferencePcmPath; size=(Get-Item -LiteralPath $StressReferencePcmPath).Length; descriptorId='stress-4v8a-30s' }; routes=$routes; executionBoundary=[ordered]@{ retainedPcmRead=$true; reencodePerformed=$false; ffmpegInvoked=$false; ffprobeInvoked=$false; mediaProcessesStarted=$false; originalV3RecordsModified=$false }; nextAction=if($passed){'continuation-remains-subject-to-separate-authorizations-and-preflight'}else{'stop-before-media-and-return-exact-route-evidence-for-owner-disposition'} }
 $reportPath = Join-Path $output 'g0.5-stage2a-v5-retained-output-reevaluation-result.json'
-[IO.File]::WriteAllText($reportPath, ($report | ConvertTo-Json -Depth 128), [Text.UTF8Encoding]::new($false))
-$report | ConvertTo-Json -Depth 128
+[IO.File]::WriteAllText($reportPath, ($report | ConvertTo-Json -Depth 100), [Text.UTF8Encoding]::new($false))
+$report | ConvertTo-Json -Depth 100

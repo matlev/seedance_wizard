@@ -49,6 +49,7 @@ public sealed class Gate0G05Stage2AV5AudioOracleTests
         var runner = File.ReadAllText(PathInRepo("eng", "gate0", "Invoke-G05Stage2AV5AudioOracleControls.ps1"));
         Assert.Contains("Test-G05SmokeAudio", module);
         Assert.Contains("New-G05Stage2AAudioTruth", runner);
+        Assert.DoesNotContain("return[ordered]@", File.ReadAllText(PathInRepo("eng", "gate0", "G05Stage2SmokeHelpers.psm1")), StringComparison.Ordinal);
         Assert.Contains("stress-right-low-level-960-sample-dropout", runner);
         Assert.Contains("reference-relative-window-rms-ratio", runner);
         Assert.Contains("Exact V3 legacy control changed", runner);

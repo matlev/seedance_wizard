@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "authorizationId": "Gate0.G05.Stage2A.V5RetainedOutputReevaluation.20260827",
   "status": "owner-approved-after-final-v5-freeze",
-  "createdUtc": "2026-08-27T21:31:28.9191270Z",
+  "createdUtc": "2026-08-27T21:35:43.5435580Z",
   "finalFreeze": {
     "filename": "g0.5-lossy-audio-oracle-amendment-v5-freeze.json",
-    "sha256": "7A953367736E5CCDCCF4993690EB374DB31A668B9842CC0C97367D2A918ABDA0",
+    "sha256": "742CDFE200D9E380D8BE0F7451C8C5BB277C664803609F1E1BB63BA71FF967B9",
     "freezeId": "Gate0.G05.LossyAudioOracle.V5.ReferenceRelativeStress.Frozen.20260827"
   },
   "evaluator": {
     "path": "eng/gate0/Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1",
-    "sha256": "4F9B637CE6DF257306FCA8A1B2D94A36F4D59BB7BD74894582EC30405DC616F1"
+    "sha256": "C2D3FFA0BB350EAB6EE51D59970A57F9E07ADAE2F3C16F6D4DA3875A79CE6ACC"
   },
   "v5": {
     "amendmentPath": "eng/gate0/g0.5-lossy-audio-oracle-amendment-v5.json",
