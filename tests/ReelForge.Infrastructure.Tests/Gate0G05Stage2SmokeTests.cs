@@ -13,6 +13,7 @@ public sealed class Gate0G05Stage2SmokeTests
         Assert.Equal(0, result.ExitCode);
         using var json = JsonDocument.Parse(result.Output);
         Assert.Equal("contract-only", json.RootElement.GetProperty("status").GetString());
+        Assert.Equal("Gate0.G05.Stage2.ReplacementPreMatrixSmoke.V2", json.RootElement.GetProperty("schemaId").GetString());
         Assert.True(json.RootElement.GetProperty("noMediaExecuted").GetBoolean());
         Assert.Equal(
             ["mp4-openh264-aac|one", "webm-vp9-opus|one", "webm-vp9-opus|half-logical"],
@@ -140,14 +141,22 @@ public sealed class Gate0G05Stage2SmokeTests
         {
             "-ManualExecution", "-AppendRetention", "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC",
             "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4", "Test-Gate0ArtifactRetention.ps1",
-            "Validate-P2Runtime.ps1", "Add-Gate0RetainedProof.ps1", "route-fail-fast-blocked", "candidateBytes",
+            "Validate-P2Runtime.ps1", "Add-Gate0RetainedProof.ps1", "g0.5-stage2-replacement-smoke-authorization-summary.json", "candidateBytes",
             "process-samples.ndjson", "visual-mae.ndjson", "Get-G05DecodedAudioTiming", "ConvertTo-G05SmokePortableTokens",
-            "snapshotWorkload", "snapshotAudioContract", "snapshotR2Summary", "-ManifestPath $snapshotP2Manifest"
+            "snapshotWorkload", "snapshotAudioContract", "snapshotAuthorization", "audio-oracle-amendment-v4-freeze.json", "-ManifestPath $snapshotP2Manifest",
+            "expectedStartSample", "observedStartSample", "signedErrorOffsetSamples", "webm-vp9-opus|half-logical",
+            "durable-artifact-manifest.json", "replacement authorization must contain exactly the three expanded one-attempt candidates",
+            "filename-eq$authorization.resourcePreflight.evidenceLogicalId", "SignedErrorOffsetSeconds",
+            "wpfMediaScenariosAuthorized", "concurrencyComparisonAuthorized", "longFormAuthorized",
+            "controlRetention.controlGroup.groupId-ne$authorization.oracle.controlGroupId",
+            "Retained structured audio control evidence is absent or mismatched.",
+            "harness-definition-stop-before-candidate-media", "Active media contamination blocks candidate"
         }) Assert.Contains(text, script, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("audioOracleIdentity", script, StringComparison.Ordinal);
         foreach (var text in new[] { "FrameMeanAbsoluteErrors", "MinimumWindowRmsFullScale", "OutputToReferenceAmplitudeRatio", "Kill($true)" })
             Assert.Contains(text, helper, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("libx264", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("route-fail-fast-blocked", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("$env:PATH", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotMatch(@"Where-Object\s+[A-Za-z_][A-Za-z0-9_]*\s+-eq'", script);
     }
