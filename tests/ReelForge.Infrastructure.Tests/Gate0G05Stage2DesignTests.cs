@@ -173,13 +173,26 @@ public sealed class Gate0G05Stage2DesignTests
         var corpus = retentionSummary.RootElement.GetProperty("corpusAfterAppend");
         Assert.Equal(4041, corpus.GetProperty("requiredLogicalArtifactCount").GetInt32());
         Assert.True(corpus.GetProperty("secondPrivateCopyVerified").GetBoolean());
-        Assert.Equal(4041, durableManifest.RootElement.GetProperty("artifacts").GetArrayLength());
-        using (var stream = File.OpenRead(PathInRepo("eng", "gate0", "artifact-retention-manifest.json")))
-            Assert.Equal(corpus.GetProperty("sourceManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
-        using (var stream = File.OpenRead(PathInRepo("eng", "gate0", "artifact-manifest.json")))
-            Assert.Equal(corpus.GetProperty("durableManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
         Assert.Single(sourceManifest.RootElement.GetProperty("groups").EnumerateArray(), group =>
             group.GetProperty("groupId").GetString() == "G05-V4-Structured-Audio-Controls-20260827-001");
+
+        using var authorization = ReadJson("eng", "gate0", "g0.5-stage2-replacement-smoke-authorization-summary.json");
+        var authorizationRoot = authorization.RootElement;
+        Assert.True(authorizationRoot.GetProperty("gates").GetProperty("replacementPreMatrixSmokeAuthorized").GetBoolean());
+        Assert.False(authorizationRoot.GetProperty("gates").GetProperty("fullStage2MatrixAuthorized").GetBoolean());
+        Assert.Equal(3, authorizationRoot.GetProperty("authorizedCandidates").GetArrayLength());
+        Assert.All(authorizationRoot.GetProperty("authorizedCandidates").EnumerateArray(), candidate =>
+            Assert.Equal(1, candidate.GetProperty("attemptCount").GetInt32()));
+        var sealedCorpus = authorizationRoot.GetProperty("sealedCorpusAfterPreflightRetention");
+        Assert.Equal(4042, sealedCorpus.GetProperty("logicalArtifactCount").GetInt32());
+        Assert.Equal(4042, durableManifest.RootElement.GetProperty("artifacts").GetArrayLength());
+        using (var stream = File.OpenRead(PathInRepo("eng", "gate0", "artifact-retention-manifest.json")))
+            Assert.Equal(sealedCorpus.GetProperty("sourceManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+        using (var stream = File.OpenRead(PathInRepo("eng", "gate0", "artifact-manifest.json")))
+            Assert.Equal(sealedCorpus.GetProperty("durableManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+        var preflightGroupId = authorizationRoot.GetProperty("resourcePreflight").GetProperty("evidenceGroupId").GetString();
+        Assert.Single(sourceManifest.RootElement.GetProperty("groups").EnumerateArray(), group =>
+            group.GetProperty("groupId").GetString() == preflightGroupId);
     }
 
     [Fact]

@@ -20,11 +20,12 @@ V3, its absolute `0.05` full-scale active-channel and active-window floors, its 
 
 V4 is a versioned descriptor-scoped amendment. A structured descriptor may opt into reference-relative active-window validation only before any route output is evaluated and only when its independently authored reference PCM and descriptor are hash-bound and intentionally contain valid active regions below `0.05`.
 
-For each declared active channel and every sliding 960-sample window:
+For every sliding 960-sample window classified active from the reference:
 
 - activity and denominator eligibility derive only from the independently authored reference;
 - reference RMS must be finite and strictly greater than zero;
-- zero or non-finite reference RMS fails closed for a declared active window;
+- a finite zero-RMS reference window is inactive for this ratio check and remains governed by the other V3 semantic checks;
+- non-finite reference RMS and a region with no eligible active reference window fail closed;
 - the metric is `RMS(output window) / RMS(reference window)`, never a power or mean-square ratio; and
 - every ratio must remain within `0.90–1.10`.
 

@@ -4,9 +4,9 @@
   "sourceInventory": {
     "path": "eng/gate0/artifact-retention-manifest.json",
     "artifactSetId": "Gate0.InterimCorpus.20260825",
-    "sha256": "932880622DF1D26D6140C06FA38ED5AC19D018C3AF737059AE2837B490780438",
-    "logicalArtifactCount": 4041,
-    "logicalArtifactBytes": 1078136024
+    "sha256": "E4FE29FD428B827C3019AF80F16F5F777C076EB36387422E65EA35DFC9E75FB4",
+    "logicalArtifactCount": 4042,
+    "logicalArtifactBytes": 1078139599
   },
   "storage": {
     "provider": "cloudflare-r2",
@@ -33,11 +33,11 @@
   "status": {
     "retentionCondition": "complete",
     "secondPrivateCopyVerified": true,
-    "verifiedLogicalArtifactCount": 4041,
-    "verifiedLogicalArtifactBytes": 1078136024,
-    "verifiedDistinctObjectCount": 2010,
-    "verifiedDistinctObjectBytes": 637569724,
-    "lastRemoteVerificationUtc": "2026-08-27T07:10:59.2565894+00:00",
+    "verifiedLogicalArtifactCount": 4042,
+    "verifiedLogicalArtifactBytes": 1078139599,
+    "verifiedDistinctObjectCount": 2011,
+    "verifiedDistinctObjectBytes": 637573299,
+    "lastRemoteVerificationUtc": "2026-08-27T07:15:41.5664277+00:00",
     "blocker": null
   },
   "artifacts": [
@@ -683,7 +683,7 @@
       "licenseProvenanceRecords": [],
       "retentionStatus": "remote-verified",
       "transferDisposition": "uploaded-and-verified",
-      "remotelyVerifiedUtc": "2026-08-27T07:10:59.2565894+00:00"
+      "remotelyVerifiedUtc": "2026-08-27T00:10:59.2565894-07:00"
     },
     {
       "logicalArtifactId": "Gate0.Fixtures.F1-F8.20260824/expected-truths.json",
@@ -85398,6 +85398,27 @@
       "retentionStatus": "remote-verified",
       "transferDisposition": "uploaded-and-verified",
       "remotelyVerifiedUtc": "2026-08-26T17:32:42.9295317-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2ReplacementSmokePreflight.20260827.AuthoritativePass/g0.5-stage2-smoke-preflight-evidence.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2ReplacementSmokePreflight.20260827.AuthoritativePass.",
+      "originalFilename": "g0.5-stage2-smoke-preflight-evidence.json",
+      "localRelativePath": "proofs/g0.5-stage2-replacement-smoke-preflight-20260827-authoritative-pass/g0.5-stage2-smoke-preflight-evidence.json",
+      "byteSize": 3575,
+      "sha256": "E28A463F4AD6A78ED5937907B523AD55F1F5AB2BD4972A50783CE5CD1CAEF9EF",
+      "r2ObjectKey": "objects/sha256/e2/e28a463f4ad6a78ed5937907b523ad55f1f5ab2bd4972a50783ce5cd1caef9ef",
+      "sourceProvenance": "Fresh no-media reference-host resource preflight after the V4 control corpus append and R2 verification; replacement smoke only.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Test-G05Stage2SmokePreflight.ps1",
+        "repository:eng/gate0/g0.5-stage2-smoke-preflight-contract.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g0.5-stage2-replacement-smoke-preflight-20260827-authoritative-pass/g0.5-stage2-smoke-preflight-evidence.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T07:15:41.5664277+00:00"
     },
     {
       "logicalArtifactId": "Gate0.G05.Stage2SmokePreflight.20260826.AuthoritativePass/g0.5-stage2-smoke-preflight-evidence.json",

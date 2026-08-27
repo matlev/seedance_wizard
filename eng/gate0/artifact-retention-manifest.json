@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-27T07:08:37.0891955+00:00",
+  "generatedUtc": "2026-08-27T07:15:07.5984287+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -24870,12 +24870,34 @@
           "sha256": "46BD4100CE1D0BD257429C3F00E31D24B6E667FCE4C3DE47E47F8C9B5AC6D076"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.Stage2ReplacementSmokePreflight.20260827.AuthoritativePass",
+      "provenance": "Fresh no-media reference-host resource preflight after the V4 control corpus append and R2 verification; replacement smoke only.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/Test-G05Stage2SmokePreflight.ps1",
+        "repository:eng/gate0/g0.5-stage2-smoke-preflight-contract.json"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:proofs/g0.5-stage2-replacement-smoke-preflight-20260827-authoritative-pass/g0.5-stage2-smoke-preflight-evidence.json"
+      ],
+      "fileCount": 1,
+      "totalBytes": 3575,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.Stage2ReplacementSmokePreflight.20260827.AuthoritativePass/g0.5-stage2-smoke-preflight-evidence.json",
+          "filename": "proofs/g0.5-stage2-replacement-smoke-preflight-20260827-authoritative-pass/g0.5-stage2-smoke-preflight-evidence.json",
+          "size": 3575,
+          "sha256": "E28A463F4AD6A78ED5937907B523AD55F1F5AB2BD4972A50783CE5CD1CAEF9EF"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 32,
-    "fileCount": 4041,
-    "totalBytes": 1078136024
+    "groupCount": 33,
+    "fileCount": 4042,
+    "totalBytes": 1078139599
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",
