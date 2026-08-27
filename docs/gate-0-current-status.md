@@ -1,6 +1,6 @@
 # Gate 0 current status
 
-Status: V4 controls and three replacement pre-matrix candidates passed; full Stage 2 awaits owner authorization
+Status: exact Stage 2A matrix and future-only containment approved; media blocked on containment implementation and no-media proof
 
 Updated: 2026-08-27
 
@@ -30,11 +30,11 @@ The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. 
 | V4 structured-audio amendment | Five structured controls passed; all 12 V3 control hashes/dispositions preserved; frozen before route evaluation | [Smoke amendment decisions](gate-0-g0.5-stage2-smoke-amendment-decisions.md) |
 | Replacement pre-matrix smoke | MP4 one-thread, WebM one-thread, and WebM half-logical each passed once under the complete frozen contract | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
 | Durable artifact retention | Current 4,101-artifact corpus independently byte-verified in private R2 | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
-| Current owner decision | Full 2A authorization and the bounded future-only evidence-containment adjustment are requested | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
+| Current owner authorization | Exact 18-cell/108-attempt Stage 2A matrix and bounded future-only containment approved; 2B and later work blocked | [Stage 2A owner decisions](gate-0-g0.5-stage2a-owner-decisions.md) |
 
-## Completed bounded unit
+## Active bounded unit
 
-The authorized replacement-smoke unit completed:
+The replacement-smoke unit completed:
 
 1. added the versioned, descriptor-scoped V4 reference-relative active-window amendment without changing V3;
 2. executed and froze the approved amended controls before reading replacement route outputs;
@@ -43,7 +43,7 @@ The authorized replacement-smoke unit completed:
 5. retained and independently verified the replacement evidence; and
 6. produced one compact owner packet with results, growth projections, containment recommendation, and the proposed full-matrix route/thread subset.
 
-The full 2A/2B matrix, concurrency comparison, 60-minute run, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
+The active unit may implement and prove the approved legacy seal, root index, immutable shard writer/validator, no-media R2 round trip, deterministic matrix schedule, and exact 2A runner. Stage 2A media may begin only after those prerequisites pass. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
 
 ## Containment and remaining sequence
 
@@ -51,6 +51,6 @@ No new codec/container/filter matrix, dependency, installation, fixture family, 
 
 F7/Matroska expansion has stopped. The final packet will classify the 83 non-passing rows rather than attempt further repairs unless a required Free 1.0 workflow is shown to depend on an exact row.
 
-Before any full measured matrix, the owner must approve or amend the exact 18-cell/108-attempt route matrix and the [future evidence-containment plan](gate-0-evidence-containment.md). Successful smoke does not itself authorize the matrix. The current flat evidence shape projects above the approved 768 MiB ceiling, so execution may not begin without a bounded retention adjustment.
+The exact 18-cell/108-attempt matrix and [future evidence-containment plan](gate-0-evidence-containment.md) are approved. Execution remains blocked until the approved writer/validator, legacy seal, atomic no-media local/R2 proof, counterbalanced schedule, incremental preflights, and retention guards are committed and verified.
 
 After any separately authorized measured work, Gate 0 still requires long-form sizing and authorization, suitable independent playback, documentation-only Pro repair dispositions, and the G0.7 exit packet.

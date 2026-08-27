@@ -1,6 +1,6 @@
 # Gate 0 generated-evidence containment
 
-Status: owner-approved containment direction; measured future-only shard/index and compact-repeat adjustment proposed for owner approval
+Status: future-only shard/index and compact-repeat adjustment owner-approved; implementation and no-media proof pending
 
 Authority: owner and Project Manager containment approval dated 2026-08-27
 
@@ -14,7 +14,7 @@ This is a bounded repository-evidence design. It does not authorize a database, 
 
 The existing `eng/gate0/artifact-retention-manifest.json` and `eng/gate0/artifact-manifest.json` remain the authoritative legacy corpus inventories through the currently authorized oracle-control and replacement-smoke unit. The append machinery may extend them only through its existing verified append/receipt rules; it may not reinterpret, delete, reorder, or replace historical logical records.
 
-The replacement-smoke evidence and R2 receipts are complete. The proposed legacy seal points are source manifest SHA-256 `AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0` and durable-ledger SHA-256 `AF9B368D44FDE3EFD2C45E2D847CB989D38E52066607A0D3E61384588D23C113`. They cover 4,101 logical artifacts and 1,121,540,509 logical bytes. A future shard writer must reference those exact hashes rather than copy or transform historical entries. The seal is proposed, not effective, until the owner approves the full Stage 2 containment disposition.
+The replacement-smoke evidence and R2 receipts are complete. The approved legacy seal points are source manifest SHA-256 `AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0` and durable-ledger SHA-256 `AF9B368D44FDE3EFD2C45E2D847CB989D38E52066607A0D3E61384588D23C113`. They cover 4,101 logical artifacts and 1,121,540,509 logical bytes. A future shard writer must reference those exact hashes rather than copy or transform historical entries. The seal is owner-approved but not effective until the exact files/R2 state are reverified, the root-index references validate, and the legacy append path is disabled.
 
 The 256-row `eng/gate0/g0.4-input-proof-contract.json` likewise remains an immutable expanded proof contract. Future input decisions refer to its hash and the 173-row candidate guaranteed subset; they do not regenerate or broaden it.
 
@@ -92,12 +92,12 @@ The bounded planning budget is 18 shards capped at 64 KiB/300 lines each, a root
 
 Actual retained bytes remain fail-closed against the existing ceiling. If exceptional closures exhaust the headroom, execution returns for owner review rather than discarding evidence or raising the ceiling.
 
-## Adoption decision requested
+## Approved adoption
 
-The replacement-smoke owner packet recommends:
+The owner approved:
 
 - seal the two legacy manifests at the exact hashes above;
 - adopt the future-only shard/index layout before measured execution; and
 - use the compact-repeat retention rule above rather than raising the ceiling.
 
-No implementation begins merely because replacement smoke succeeds.
+Implementation and the required no-media local/R2 proof are authorized. Stage 2A media remains blocked until they pass.
