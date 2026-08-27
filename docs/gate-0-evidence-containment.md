@@ -1,6 +1,6 @@
 # Gate 0 generated-evidence containment
 
-Status: owner-approved containment direction; future-only shard/index design proposed before full Stage 2 authorization
+Status: owner-approved containment direction; measured future-only shard/index and compact-repeat adjustment proposed for owner approval
 
 Authority: owner and Project Manager containment approval dated 2026-08-27
 
@@ -14,7 +14,7 @@ This is a bounded repository-evidence design. It does not authorize a database, 
 
 The existing `eng/gate0/artifact-retention-manifest.json` and `eng/gate0/artifact-manifest.json` remain the authoritative legacy corpus inventories through the currently authorized oracle-control and replacement-smoke unit. The append machinery may extend them only through its existing verified append/receipt rules; it may not reinterpret, delete, reorder, or replace historical logical records.
 
-After the replacement-smoke evidence and its R2 receipts are complete, the owner packet will report their final hashes and propose sealing both files as immutable legacy Gate 0 records. A future shard writer must reference those exact final hashes rather than copy or transform their historical entries.
+The replacement-smoke evidence and R2 receipts are complete. The proposed legacy seal points are source manifest SHA-256 `AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0` and durable-ledger SHA-256 `AF9B368D44FDE3EFD2C45E2D847CB989D38E52066607A0D3E61384588D23C113`. They cover 4,101 logical artifacts and 1,121,540,509 logical bytes. A future shard writer must reference those exact hashes rather than copy or transform historical entries. The seal is proposed, not effective, until the owner approves the full Stage 2 containment disposition.
 
 The 256-row `eng/gate0/g0.4-input-proof-contract.json` likewise remains an immutable expanded proof contract. Future input decisions refer to its hash and the 173-row candidate guaranteed subset; they do not regenerate or broaden it.
 
@@ -84,12 +84,20 @@ The projection may use a range only where measured output size varies. It must k
 
 If the projection exceeds the approved retention ceiling or makes the proposed shard/index review surface materially larger than reported, execution returns for owner review. It does not silently increase the ceiling or add a new storage system.
 
-## Adoption decision
+The replacement smoke measured 59 files and 43,400,910 logical bytes for three candidates. Applying only the observed candidate-specific closure sizes to the exact 108-attempt 2A contract projects 1,014,340,500 bytes before shared snapshots and summaries. That exceeds the 805,306,368-byte ceiling.
 
-The full Stage 2 owner packet must recommend one of:
+The recommended bounded adjustment is one immutable shard per 2A cell and compact retention for repeated attempts. Every attempt retains commands, resource samples, timing/oracle summaries, output size/hash, and disposition. Each cell retains one complete media/PCM/probe closure; every failed, blocked, cleanup-failed, or byte/semantic-divergent attempt also retains its complete closure. A repeated passing attempt may reference a prior exact SHA-256 only after completing its own validation.
 
-- adopt this future-only shard/index layout before measured execution;
-- amend it with a smaller bounded schema; or
-- explicitly accept continued legacy-manifest growth for a named, finite matrix.
+The bounded planning budget is 18 shards capped at 64 KiB/300 lines each, a root index capped at 128 KiB/400 lines, 90 compact passing-repetition records capped at 256 KiB each, the measured 15,224,785-byte shared closure, and one complete 13-file closure per cell. The measured complete-closure projection is 169,056,750 bytes; a conservative 2× workload/output allowance makes it 338,113,500 bytes. Including compact records, shards, index, and a 1 MiB run/result reserve produces a 210,233,791–379,290,541-byte increment and 364 logical receipts without crediting R2 deduplication. The conservative case leaves 426,015,827 bytes of the 2A ceiling for exceptional full closures.
+
+Actual retained bytes remain fail-closed against the existing ceiling. If exceptional closures exhaust the headroom, execution returns for owner review rather than discarding evidence or raising the ceiling.
+
+## Adoption decision requested
+
+The replacement-smoke owner packet recommends:
+
+- seal the two legacy manifests at the exact hashes above;
+- adopt the future-only shard/index layout before measured execution; and
+- use the compact-repeat retention rule above rather than raising the ceiling.
 
 No implementation begins merely because replacement smoke succeeds.

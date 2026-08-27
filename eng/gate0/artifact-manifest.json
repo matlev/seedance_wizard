@@ -4,9 +4,9 @@
   "sourceInventory": {
     "path": "eng/gate0/artifact-retention-manifest.json",
     "artifactSetId": "Gate0.InterimCorpus.20260825",
-    "sha256": "E4FE29FD428B827C3019AF80F16F5F777C076EB36387422E65EA35DFC9E75FB4",
-    "logicalArtifactCount": 4042,
-    "logicalArtifactBytes": 1078139599
+    "sha256": "AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0",
+    "logicalArtifactCount": 4101,
+    "logicalArtifactBytes": 1121540509
   },
   "storage": {
     "provider": "cloudflare-r2",
@@ -33,11 +33,11 @@
   "status": {
     "retentionCondition": "complete",
     "secondPrivateCopyVerified": true,
-    "verifiedLogicalArtifactCount": 4042,
-    "verifiedLogicalArtifactBytes": 1078139599,
-    "verifiedDistinctObjectCount": 2011,
-    "verifiedDistinctObjectBytes": 637573299,
-    "lastRemoteVerificationUtc": "2026-08-27T07:15:41.5664277+00:00",
+    "verifiedLogicalArtifactCount": 4101,
+    "verifiedLogicalArtifactBytes": 1121540509,
+    "verifiedDistinctObjectCount": 2032,
+    "verifiedDistinctObjectBytes": 651715907,
+    "lastRemoteVerificationUtc": "2026-08-27T07:39:05.4784684+00:00",
     "blocker": null
   },
   "artifacts": [
@@ -85400,6 +85400,1422 @@
       "remotelyVerifiedUtc": "2026-08-26T17:32:42.9295317-07:00"
     },
     {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/g0.5-stage2-pre-matrix-smoke-evidence.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "g0.5-stage2-pre-matrix-smoke-evidence.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json",
+      "byteSize": 154694,
+      "sha256": "ACF9E3DF3CD27051F7A88E0475AF9B0D72CEC8BE8ACE46E72357694162529F0A",
+      "r2ObjectKey": "objects/sha256/ac/acf9e3df3cd27051f7a88e0475af9b0d72cec8be8ace46e72357694162529f0a",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:08.2021157-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.audio-decode.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.audio-decode.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.audio-decode.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:10.1932642-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.audio-decode.stdout.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.audio-decode.stdout.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.audio-decode.stdout.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:12.144193-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.audio.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.audio.s16le",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.audio.s16le",
+      "byteSize": 5763072,
+      "sha256": "D7EA93FCA327DD6B699F38680E7E04ABBBDE1A4775C0F3B5A018BABE69D5B636",
+      "r2ObjectKey": "objects/sha256/d7/d7ea93fca327dd6b699f38680e7e04abbbde1a4775c0f3b5a018babe69d5b636",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:13.9470356-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.encode.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.encode.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.encode.stderr.txt",
+      "byteSize": 5076,
+      "sha256": "43E7B410222CE7E7079D6ED383775F40EA1148C2E947CD3506161EC5F13EB13A",
+      "r2ObjectKey": "objects/sha256/43/43e7b410222ce7e7079d6ed383775f40ea1148c2e947cd3506161ec5f13eb13a",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:16.3822898-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.mp4",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.mp4",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.mp4",
+      "byteSize": 1733392,
+      "sha256": "AC1E396F646F87E273E2E876F11346C78157A4301F265679B8BCB9FA0FEB2F03",
+      "r2ObjectKey": "objects/sha256/ac/ac1e396f646f87e273e2e876f11346c78157a4301f265679b8bcb9fa0feb2f03",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:18.4438768-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.probe-frames.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.probe-frames.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.probe-frames.json",
+      "byteSize": 1582729,
+      "sha256": "D8FF52EADA8BB365DCC777D640518A1BBC3B747A2FCDA49B53C0BACDBCCBD1F7",
+      "r2ObjectKey": "objects/sha256/d8/d8ff52eada8bb365dcc777d640518a1bbc3b747a2fcda49b53c0bacdbccbd1f7",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:20.6610837-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.probe-frames.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.probe-frames.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.probe-frames.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:22.5898569-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.probe-packets.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.probe-packets.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.probe-packets.json",
+      "byteSize": 823870,
+      "sha256": "EBAF6D860D2DAEDBB69CD8EC0308888864081523F84E4CE5D0FD73D0472A69B2",
+      "r2ObjectKey": "objects/sha256/eb/ebaf6d860d2daedbb69cd8ec0308888864081523f84e4ce5d0fd73d0472a69b2",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:24.2820316-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.probe-packets.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.probe-packets.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.probe-packets.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:26.1040812-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.process-samples.ndjson",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.process-samples.ndjson",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.process-samples.ndjson",
+      "byteSize": 3995,
+      "sha256": "AE611DF0892D52823BAC08553120629CAAACE77826351EB6EAEF03DDF3D2D1D2",
+      "r2ObjectKey": "objects/sha256/ae/ae611df0892d52823bac08553120629caaace77826351eb6eaef03ddf3d2d1d2",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:28.3707067-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.progress.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.progress.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.progress.txt",
+      "byteSize": 2627,
+      "sha256": "61453E2128BCEF1C6908D675F08468D76829B02BD05F610FFD5E5FA0117C82EE",
+      "r2ObjectKey": "objects/sha256/61/61453e2128bcef1c6908d675f08468d76829b02bd05f610ffd5e5fa0117c82ee",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:30.3596708-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.visual-mae.ndjson",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.visual-mae.ndjson",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.visual-mae.ndjson",
+      "byteSize": 70969,
+      "sha256": "82442B83A2EAD27271A628A0DA436EDE87DF98E215BD12184D47BF99800ADAB8",
+      "r2ObjectKey": "objects/sha256/82/82442b83a2ead27271a628a0da436ede87df98e215bd12184d47bf99800adab8",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:32.3671718-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.visual.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "mp4-openh264-aac-one.visual.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.visual.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:34.1620012-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/runtime-identity.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "runtime-identity.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/runtime-identity.json",
+      "byteSize": 49320,
+      "sha256": "40BA13EEB82753430D062D160B4D7D52B10859205D3DA8C0F9A506B6D41369C9",
+      "r2ObjectKey": "objects/sha256/40/40ba13eeb82753430d062d160b4d7d52b10859205d3da8c0f9a506b6d41369c9",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:36.3249722-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/audio-oracle-amendment-v4-freeze.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "audio-oracle-amendment-v4-freeze.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/audio-oracle-amendment-v4-freeze.json",
+      "byteSize": 2268,
+      "sha256": "E2EFFD683FFE21BE902D77D7564F81C550F555C0989871C5D98B2DBE580D4CB2",
+      "r2ObjectKey": "objects/sha256/e2/e2effd683ffe21be902d77d7564f81c550f555c0989871c5d98b2dbe580d4cb2",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:38.2444655-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/audio-oracle-amendment-v4.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "audio-oracle-amendment-v4.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/audio-oracle-amendment-v4.json",
+      "byteSize": 3101,
+      "sha256": "21ECAFCD94F71E58AA43955079EF9959C135DB12530D015E8380CFD09B5E9FBC",
+      "r2ObjectKey": "objects/sha256/21/21ecafcd94f71e58aa43955079ef9959c135db12530d015e8380cfd09b5e9fbc",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:40.0711306-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/audio-oracle-contract.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "audio-oracle-contract.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/audio-oracle-contract.json",
+      "byteSize": 16652,
+      "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4",
+      "r2ObjectKey": "objects/sha256/11/119a4c179bfa010f3202dbf6aa368e42ede5fd0fc23ef2781aa9c7f63540cbe4",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:42.111844-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/audio-timing-helper.psm1",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "audio-timing-helper.psm1",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/audio-timing-helper.psm1",
+      "byteSize": 9932,
+      "sha256": "32793DB793CFA7F08092CED6F5CFAABA4EE3761F9FC593C2AB551838159071CC",
+      "r2ObjectKey": "objects/sha256/32/32793db793cfa7f08092ced6f5cfaaba4ee3761f9fc593c2ab551838159071cc",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:43.9162538-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/durable-artifact-manifest.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "durable-artifact-manifest.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/durable-artifact-manifest.json",
+      "byteSize": 5874319,
+      "sha256": "49F973324CC3037AD64283CB4B918B28A6B381C1D752C2A820A0B839FA844E73",
+      "r2ObjectKey": "objects/sha256/49/49f973324cc3037ad64283cb4b918b28a6b381c1d752c2a820a0b839fa844e73",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:46.4017898-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/local-retention-manifest.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "local-retention-manifest.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/local-retention-manifest.json",
+      "byteSize": 1593665,
+      "sha256": "E4FE29FD428B827C3019AF80F16F5F777C076EB36387422E65EA35DFC9E75FB4",
+      "r2ObjectKey": "objects/sha256/e4/e4fe29fd428b827c3019af80f16f5f777c076eb36387422e65ea35dfc9e75fb4",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:48.7365471-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/p2-runtime-manifest.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "p2-runtime-manifest.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json",
+      "byteSize": 6491,
+      "sha256": "3ECF44CF6D5A878C69A0BD18C9C44777EFE8BD990C04C4F371383D2FAF1E1640",
+      "r2ObjectKey": "objects/sha256/3e/3ecf44cf6d5a878c69a0bd18c9c44777efe8bd990c04c4f371383d2faf1e1640",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:50.6457434-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/replacement-smoke-authorization-summary.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "replacement-smoke-authorization-summary.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/replacement-smoke-authorization-summary.json",
+      "byteSize": 2527,
+      "sha256": "EE014A3890D88338C2AB555F63BE8CBDEF2F32385BDF7DA18B64FB9BD1FCECF0",
+      "r2ObjectKey": "objects/sha256/ee/ee014a3890d88338c2ab555f63be8cbdef2f32385bdf7da18b64fb9bd1fcecf0",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:53.0407276-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/retention-appender.ps1",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "retention-appender.ps1",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/retention-appender.ps1",
+      "byteSize": 25510,
+      "sha256": "A73F95E48A782923BC8BE75D22F92623FFEA60735A611CED23078E527A718D8A",
+      "r2ObjectKey": "objects/sha256/a7/a73f95e48a782923bc8be75d22f92623ffea60735a611ced23078e527a718d8a",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:55.0733937-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/retention-validator.ps1",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "retention-validator.ps1",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/retention-validator.ps1",
+      "byteSize": 9951,
+      "sha256": "6CE715122ED166A024FDCC1F5DBE7773FD436CA74E8C88C03493A90107C33D45",
+      "r2ObjectKey": "objects/sha256/6c/6ce715122ed166a024fdcc1f5dbe7773fd436ca74e8c88c03493a90107c33d45",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:56.7688649-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/runtime-validator.ps1",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "runtime-validator.ps1",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/runtime-validator.ps1",
+      "byteSize": 2312,
+      "sha256": "CAA8A0B7DD67629273A6FAD1A30DC44BA1536F34861363341079860CC4327E49",
+      "r2ObjectKey": "objects/sha256/ca/caa8a0b7dd67629273a6fad1a30dc44ba1536f34861363341079860cc4327e49",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:37:58.6522285-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/smoke-helper.psm1",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "smoke-helper.psm1",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+      "byteSize": 41601,
+      "sha256": "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4",
+      "r2ObjectKey": "objects/sha256/13/13763e718e35f5794c39835b46f69ef3eaf0ece4c7c1b562b956dbcbed48e8e4",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:00.5293352-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/smoke-runner.ps1",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "smoke-runner.ps1",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+      "byteSize": 38806,
+      "sha256": "7267E2DBA7B94631FE2DFE8C35A7532BF7847AE084212DABD6C923A188DCC0AA",
+      "r2ObjectKey": "objects/sha256/72/7267e2dba7b94631fe2dfe8c35a7532bf7847ae084212dabd6c923a188dcc0aa",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:02.7972773-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/structured-audio-control-retention-summary.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "structured-audio-control-retention-summary.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/structured-audio-control-retention-summary.json",
+      "byteSize": 1421,
+      "sha256": "8E9581742592F0E10F48AD8E5DCDE2B1985C58BB68C990A071DBB49453AD16A2",
+      "r2ObjectKey": "objects/sha256/8e/8e9581742592f0e10f48ad8e5dcde2b1985c58bb68c990a071dbb49453ad16a2",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:04.9726954-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/structured-audio-control-summary.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "structured-audio-control-summary.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/structured-audio-control-summary.json",
+      "byteSize": 1793,
+      "sha256": "83097DA638B80D048F84CC86B29BB24463C0B2BF9C2D3ED78CAF658FC73BF5EE",
+      "r2ObjectKey": "objects/sha256/83/83097da638b80d048f84cc86b29bb24463c0b2bf9c2d3ed78caf658fc73bf5ee",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:06.8118547-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/tracked-retention-manifest.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "tracked-retention-manifest.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/tracked-retention-manifest.json",
+      "byteSize": 1593665,
+      "sha256": "E4FE29FD428B827C3019AF80F16F5F777C076EB36387422E65EA35DFC9E75FB4",
+      "r2ObjectKey": "objects/sha256/e4/e4fe29fd428b827c3019af80f16f5f777c076eb36387422e65ea35dfc9e75fb4",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:08.5659979-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/workload-contract.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "workload-contract.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/workload-contract.json",
+      "byteSize": 36757,
+      "sha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC",
+      "r2ObjectKey": "objects/sha256/cb/cbb93cc1483fecd65489485cb1bbf03cd3bf24c2419d28c587c62758c3ead7ec",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:10.5159191-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/typical-2v4a-30s.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "typical-2v4a-30s.s16le",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/typical-2v4a-30s.s16le",
+      "byteSize": 5760000,
+      "sha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A",
+      "r2ObjectKey": "objects/sha256/81/81b41cd4db85568930c15282a7268e2ced2610d27d48c6cb258e1d1c5c1b8c5a",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:12.8592546-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.audio-decode.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.audio-decode.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.audio-decode.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:14.4038909-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.audio-decode.stdout.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.audio-decode.stdout.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.audio-decode.stdout.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:16.318313-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.audio.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.audio.s16le",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.audio.s16le",
+      "byteSize": 5760000,
+      "sha256": "176F8EA8CE4DDA6647A40D4494EC19EBB7CD612EFD69594A3F9C824D92344F46",
+      "r2ObjectKey": "objects/sha256/17/176f8ea8ce4dda6647a40d4494ec19ebb7cd612efd69594a3f9c824d92344f46",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:18.2502265-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.encode.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.encode.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.encode.stderr.txt",
+      "byteSize": 12704,
+      "sha256": "3DA326C4830D6854D9C5071270DDE16D3957AEAECEF5ACC5652E02C18268D741",
+      "r2ObjectKey": "objects/sha256/3d/3da326c4830d6854d9c5071270dde16d3957aeaecef5acc5652e02c18268d741",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:20.5814832-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.probe-frames.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.probe-frames.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.probe-frames.json",
+      "byteSize": 1652852,
+      "sha256": "A08E45CB43BDA87BE9FFF65B4E4B34461F9393129C8BA15B8E72DA88E379D043",
+      "r2ObjectKey": "objects/sha256/a0/a08e45cb43bda87be9fff65b4e4b34461f9393129c8ba15b8e72da88e379d043",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:23.2956083-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.probe-frames.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.probe-frames.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.probe-frames.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:25.1397625-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.probe-packets.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.probe-packets.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.probe-packets.json",
+      "byteSize": 847529,
+      "sha256": "11A96A1558B19842085DF6715EF3D825F666F13957C57F74DC0D63DF1D2A7E51",
+      "r2ObjectKey": "objects/sha256/11/11a96a1558b19842085df6715ef3d825f666f13957c57f74dc0d63df1d2a7e51",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:27.0970614-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.probe-packets.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.probe-packets.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.probe-packets.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:28.8545011-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.process-samples.ndjson",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.process-samples.ndjson",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.process-samples.ndjson",
+      "byteSize": 25365,
+      "sha256": "F170F78DA002CBE149771E6673CCC2557D25872A71EFDEA96CAD50CD8E83874E",
+      "r2ObjectKey": "objects/sha256/f1/f170f78da002cbe149771e6673ccc2557d25872a71efdea96cad50cd8e83874e",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:31.0735652-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.progress.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.progress.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.progress.txt",
+      "byteSize": 16436,
+      "sha256": "231F44E1174FD9710ECF846A18679BC93CA8B9BDA17419AEA3EA44CC635050C9",
+      "r2ObjectKey": "objects/sha256/23/231f44e1174fd9710ecf846a18679bc93ca8b9bda17419aea3ea44cc635050c9",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:33.3154556-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.visual-mae.ndjson",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.visual-mae.ndjson",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.visual-mae.ndjson",
+      "byteSize": 70954,
+      "sha256": "13EB75DFB086B9A34A3CC86AB224FB0943A67B098FEDD8B0AC763A2F1BF06F36",
+      "r2ObjectKey": "objects/sha256/13/13eb75dfb086b9a34a3cc86ab224fb0943a67b098fedd8b0ac763a2f1bf06f36",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:35.322384-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.visual.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.visual.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.visual.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:36.9443532-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.webm",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-half-logical.webm",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.webm",
+      "byteSize": 708459,
+      "sha256": "8BC1BA3EFB20A33AF40950DB21A83A1A01899C342E15C65CB72078DD900D5663",
+      "r2ObjectKey": "objects/sha256/8b/8bc1ba3efb20a33af40950db21a83a1a01899c342e15c65cb72078dd900d5663",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:39.3272246-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.audio-decode.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.audio-decode.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.audio-decode.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:41.1456272-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.audio-decode.stdout.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.audio-decode.stdout.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.audio-decode.stdout.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:42.8612687-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.audio.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.audio.s16le",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.audio.s16le",
+      "byteSize": 5760000,
+      "sha256": "176F8EA8CE4DDA6647A40D4494EC19EBB7CD612EFD69594A3F9C824D92344F46",
+      "r2ObjectKey": "objects/sha256/17/176f8ea8ce4dda6647a40d4494ec19ebb7cd612efd69594a3f9c824d92344f46",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:44.6405232-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.encode.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.encode.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.encode.stderr.txt",
+      "byteSize": 12822,
+      "sha256": "4C48BBC0CFFD5AE392444446BBE6DFA10F4B54462453C219D46FC70106E797A0",
+      "r2ObjectKey": "objects/sha256/4c/4c48bbc0cffd5ae392444446bbe6dfa10f4b54462453c219d46fc70106e797a0",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:46.7941385-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.probe-frames.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.probe-frames.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.probe-frames.json",
+      "byteSize": 1652843,
+      "sha256": "0CBBDB98EDDD8D71088748429DD36DC89BFE6227C4B3887CFA53BFC73B0DD7E4",
+      "r2ObjectKey": "objects/sha256/0c/0cbbdb98eddd8d71088748429dd36dc89bfe6227c4b3887cfa53bfc73b0dd7e4",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:49.3074114-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.probe-frames.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.probe-frames.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.probe-frames.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:51.4374688-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.probe-packets.json",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.probe-packets.json",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.probe-packets.json",
+      "byteSize": 847529,
+      "sha256": "11A96A1558B19842085DF6715EF3D825F666F13957C57F74DC0D63DF1D2A7E51",
+      "r2ObjectKey": "objects/sha256/11/11a96a1558b19842085df6715ef3d825f666f13957c57f74dc0d63df1d2a7e51",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:53.1027144-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.probe-packets.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.probe-packets.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.probe-packets.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:55.0207727-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.process-samples.ndjson",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.process-samples.ndjson",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.process-samples.ndjson",
+      "byteSize": 26845,
+      "sha256": "5962C1E7F94D81FBA4EDD6C0FEE87A44EED069E41B7824D0380057E5702EB23B",
+      "r2ObjectKey": "objects/sha256/59/5962c1e7f94d81fba4edd6c0fee87a44eed069e41b7824d0380057e5702eb23b",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:57.3027861-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.progress.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.progress.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.progress.txt",
+      "byteSize": 16644,
+      "sha256": "2796845944AA8BEFD473DA35691DA43E9053D0D5318E85231A21B98FF941FC70",
+      "r2ObjectKey": "objects/sha256/27/2796845944aa8befd473da35691da43e9053d0d5318e85231a21b98ff941fc70",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:38:59.6538268-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.visual-mae.ndjson",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.visual-mae.ndjson",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.visual-mae.ndjson",
+      "byteSize": 70954,
+      "sha256": "13EB75DFB086B9A34A3CC86AB224FB0943A67B098FEDD8B0AC763A2F1BF06F36",
+      "r2ObjectKey": "objects/sha256/13/13eb75dfb086b9a34a3cc86ab224fb0943a67b098fedd8b0ac763a2f1bf06f36",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:39:01.4643062-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.visual.stderr.txt",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.visual.stderr.txt",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.visual.stderr.txt",
+      "byteSize": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "r2ObjectKey": "objects/sha256/e3/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:39:03.3143222-07:00"
+    },
+    {
+      "logicalArtifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.webm",
+      "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483.",
+      "originalFilename": "webm-vp9-opus-one.webm",
+      "localRelativePath": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.webm",
+      "byteSize": 708459,
+      "sha256": "93983E23D7A1B738B2C402E0C2FABB9FCC9C6C82B093DF5951D075C884137AB4",
+      "r2ObjectKey": "objects/sha256/93/93983e23d7a1b738b2c402e0c2fabb9fcc9c6c82b093df5951d075c884137ab4",
+      "sourceProvenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "licenseProvenanceRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T07:39:05.4784684+00:00"
+    },
+    {
       "logicalArtifactId": "Gate0.G05.Stage2ReplacementSmokePreflight.20260827.AuthoritativePass/g0.5-stage2-smoke-preflight-evidence.json",
       "purpose": "Durable Gate 0 proof input or evidence from Gate0.G05.Stage2ReplacementSmokePreflight.20260827.AuthoritativePass.",
       "originalFilename": "g0.5-stage2-smoke-preflight-evidence.json",
@@ -85418,7 +86834,7 @@
       "licenseProvenanceRecords": [],
       "retentionStatus": "remote-verified",
       "transferDisposition": "uploaded-and-verified",
-      "remotelyVerifiedUtc": "2026-08-27T07:15:41.5664277+00:00"
+      "remotelyVerifiedUtc": "2026-08-27T00:15:41.5664277-07:00"
     },
     {
       "logicalArtifactId": "Gate0.G05.Stage2SmokePreflight.20260826.AuthoritativePass/g0.5-stage2-smoke-preflight-evidence.json",

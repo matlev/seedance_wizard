@@ -185,14 +185,91 @@ public sealed class Gate0G05Stage2DesignTests
             Assert.Equal(1, candidate.GetProperty("attemptCount").GetInt32()));
         var sealedCorpus = authorizationRoot.GetProperty("sealedCorpusAfterPreflightRetention");
         Assert.Equal(4042, sealedCorpus.GetProperty("logicalArtifactCount").GetInt32());
-        Assert.Equal(4042, durableManifest.RootElement.GetProperty("artifacts").GetArrayLength());
+        Assert.Equal("E4FE29FD428B827C3019AF80F16F5F777C076EB36387422E65EA35DFC9E75FB4", sealedCorpus.GetProperty("sourceManifestSha256").GetString());
+        Assert.Equal("49F973324CC3037AD64283CB4B918B28A6B381C1D752C2A820A0B839FA844E73", sealedCorpus.GetProperty("durableManifestSha256").GetString());
+
+        using var replacementResult = ReadJson("eng", "gate0", "g0.5-stage2-replacement-smoke-result-summary.json");
+        var replacementRetention = replacementResult.RootElement.GetProperty("retention");
+        Assert.Equal("complete", replacementRetention.GetProperty("retentionCondition").GetString());
+        Assert.True(replacementRetention.GetProperty("r2IndependentlyRetrievedAndByteVerified").GetBoolean());
+        Assert.Equal(
+            replacementRetention.GetProperty("currentLogicalArtifactCount").GetInt32(),
+            durableManifest.RootElement.GetProperty("artifacts").GetArrayLength());
+        Assert.Equal(
+            sealedCorpus.GetProperty("logicalArtifactCount").GetInt32() + replacementRetention.GetProperty("groupFileCount").GetInt32(),
+            replacementRetention.GetProperty("currentLogicalArtifactCount").GetInt32());
         using (var stream = File.OpenRead(PathInRepo("eng", "gate0", "artifact-retention-manifest.json")))
-            Assert.Equal(sealedCorpus.GetProperty("sourceManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+            Assert.Equal(replacementRetention.GetProperty("sourceManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
         using (var stream = File.OpenRead(PathInRepo("eng", "gate0", "artifact-manifest.json")))
-            Assert.Equal(sealedCorpus.GetProperty("durableManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+            Assert.Equal(replacementRetention.GetProperty("durableManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
         var preflightGroupId = authorizationRoot.GetProperty("resourcePreflight").GetProperty("evidenceGroupId").GetString();
         Assert.Single(sourceManifest.RootElement.GetProperty("groups").EnumerateArray(), group =>
             group.GetProperty("groupId").GetString() == preflightGroupId);
+        Assert.Single(sourceManifest.RootElement.GetProperty("groups").EnumerateArray(), group =>
+            group.GetProperty("groupId").GetString() == replacementRetention.GetProperty("groupId").GetString());
+    }
+
+    [Fact]
+    public void ReplacementSmokeResultBindsCompleteAudioMetricsAndContainmentArithmetic()
+    {
+        using var result = ReadJson("eng", "gate0", "g0.5-stage2-replacement-smoke-result-summary.json");
+        var root = result.RootElement;
+        var thresholds = root.GetProperty("oracle").GetProperty("audioThresholds");
+        var candidates = root.GetProperty("candidates").EnumerateArray().ToArray();
+
+        Assert.Equal(3, candidates.Length);
+        Assert.All(candidates, candidate =>
+        {
+            Assert.Equal("passed", candidate.GetProperty("status").GetString());
+            Assert.Equal(1, candidate.GetProperty("attemptCount").GetInt32());
+            Assert.True(candidate.GetProperty("orphanFree").GetBoolean());
+            var audio = candidate.GetProperty("audio");
+            Assert.True(audio.GetProperty("minimumSignedCorrelation").GetDouble() >= thresholds.GetProperty("minimumSignedCorrelation").GetDouble());
+            Assert.True(audio.GetProperty("maximumNormalizedRmsError").GetDouble() <= thresholds.GetProperty("maximumNormalizedRmsError").GetDouble());
+            Assert.True(audio.GetProperty("minimumSnrDb").GetDouble() >= thresholds.GetProperty("minimumSnrDb").GetDouble());
+            Assert.InRange(audio.GetProperty("minimumFullChannelRmsRatio").GetDouble(), 0.9, 1.1);
+            Assert.InRange(audio.GetProperty("maximumFullChannelRmsRatio").GetDouble(), 0.9, 1.1);
+            Assert.InRange(audio.GetProperty("minimumReferenceRelativeWindowRmsRatio").GetDouble(), 0.9, 1.1);
+            Assert.InRange(audio.GetProperty("maximumReferenceRelativeWindowRmsRatio").GetDouble(), 0.9, 1.1);
+            Assert.True(audio.GetProperty("maximumAbsoluteDcOffsetFullScale").GetDouble() <= thresholds.GetProperty("maximumAbsoluteDcOffsetFullScale").GetDouble());
+            Assert.InRange(audio.GetProperty("minimumExpectedToneOutputToReferenceAmplitudeRatio").GetDouble(), 0.9, 1.1);
+            Assert.InRange(audio.GetProperty("maximumExpectedToneOutputToReferenceAmplitudeRatio").GetDouble(), 0.9, 1.1);
+            Assert.Equal(JsonValueKind.Null, audio.GetProperty("expectedToForbiddenTonePowerRatio").ValueKind);
+            Assert.Equal("not-applicable-descriptor-declares-no-forbidden-tones", audio.GetProperty("expectedToForbiddenTonePowerRatioDisposition").GetString());
+            Assert.Equal(0, audio.GetProperty("nearClippedSampleCount").GetInt32());
+            Assert.Equal(
+                audio.GetProperty("onsetExpectedSamples").EnumerateArray().Select(value => value.GetInt32()),
+                audio.GetProperty("onsetObservedSamples").EnumerateArray().Select(value => value.GetInt32()));
+            Assert.All(audio.GetProperty("onsetSignedErrorSamples").EnumerateArray(), value => Assert.Equal(0, value.GetInt32()));
+        });
+
+        var flat = root.GetProperty("full2AProjection");
+        Assert.Equal(18, flat.GetProperty("cellCount").GetInt32());
+        Assert.Equal(108, flat.GetProperty("warmupAttemptCount").GetInt32() + flat.GetProperty("measuredAttemptCount").GetInt32());
+        Assert.False(flat.GetProperty("currentFlatRetentionPlanFitsCeiling").GetBoolean());
+        Assert.True(flat.GetProperty("projectedFlatLogicalArtifactBytesBeforeSharedClosure").GetInt64() > flat.GetProperty("approvedRetentionCeilingBytes").GetInt64());
+
+        var compact = root.GetProperty("recommendedContainmentProjection");
+        var assumptions = compact.GetProperty("assumptions");
+        var fixedBytes = assumptions.GetProperty("sharedClosureBytes").GetInt64()
+            + assumptions.GetProperty("compactRepeatAttemptMaximumBytes").GetInt64()
+            + assumptions.GetProperty("cellShardMaximumBytes").GetInt64()
+            + assumptions.GetProperty("rootIndexMaximumBytes").GetInt64()
+            + assumptions.GetProperty("resultAndRunOverheadReserveBytes").GetInt64();
+        var range = compact.GetProperty("incrementalLocalAndLogicalR2BytesRange").EnumerateArray().Select(value => value.GetInt64()).ToArray();
+        Assert.Equal(fixedBytes + assumptions.GetProperty("measuredShapeCanonicalClosureBytes").GetInt64(), range[0]);
+        Assert.Equal(fixedBytes + assumptions.GetProperty("conservativeCanonicalClosureBytes").GetInt64(), range[1]);
+        Assert.Equal(
+            assumptions.GetProperty("sharedClosureFileCount").GetInt32()
+                + assumptions.GetProperty("canonicalCompleteClosureCount").GetInt32() * assumptions.GetProperty("canonicalCompleteClosureFileCountEach").GetInt32()
+                + assumptions.GetProperty("compactRepeatAttemptCount").GetInt32()
+                + assumptions.GetProperty("cellShardCount").GetInt32()
+                + 2,
+            assumptions.GetProperty("projectedLogicalArtifactReceiptCount").GetInt32());
+        Assert.True(range[1] < flat.GetProperty("approvedRetentionCeilingBytes").GetInt64());
+        Assert.Equal(flat.GetProperty("approvedRetentionCeilingBytes").GetInt64() - range[1], compact.GetProperty("conservativeCeilingHeadroomBytes").GetInt64());
+        Assert.True(compact.GetProperty("fitsApprovedRetentionCeilingBeforeExceptionalClosures").GetBoolean());
+        Assert.Contains("stop before", compact.GetProperty("failClosedRule").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

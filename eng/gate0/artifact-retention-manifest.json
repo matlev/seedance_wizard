@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-27T07:15:07.5984287+00:00",
+  "generatedUtc": "2026-08-27T07:36:26.6638353+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -24892,12 +24892,385 @@
           "sha256": "E28A463F4AD6A78ED5937907B523AD55F1F5AB2BD4972A50783CE5CD1CAEF9EF"
         }
       ]
+    },
+    {
+      "groupId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483",
+      "provenance": "Manual Gate 0 G0.5 authorized replacement pre-matrix smoke attempts; every candidate disposition retained.",
+      "producerRuntimeIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json"
+      ],
+      "licenseRecords": [
+        "artifact:p2/runtime/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1/LICENSE.txt"
+      ],
+      "proofRunIdentity": [
+        "artifact:proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json"
+      ],
+      "fileCount": 59,
+      "totalBytes": 43400910,
+      "files": [
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/g0.5-stage2-pre-matrix-smoke-evidence.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/g0.5-stage2-pre-matrix-smoke-evidence.json",
+          "size": 154694,
+          "sha256": "ACF9E3DF3CD27051F7A88E0475AF9B0D72CEC8BE8ACE46E72357694162529F0A"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.audio-decode.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.audio-decode.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.audio-decode.stdout.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.audio-decode.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.audio.s16le",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.audio.s16le",
+          "size": 5763072,
+          "sha256": "D7EA93FCA327DD6B699F38680E7E04ABBBDE1A4775C0F3B5A018BABE69D5B636"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.encode.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.encode.stderr.txt",
+          "size": 5076,
+          "sha256": "43E7B410222CE7E7079D6ED383775F40EA1148C2E947CD3506161EC5F13EB13A"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.mp4",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.mp4",
+          "size": 1733392,
+          "sha256": "AC1E396F646F87E273E2E876F11346C78157A4301F265679B8BCB9FA0FEB2F03"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.probe-frames.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.probe-frames.json",
+          "size": 1582729,
+          "sha256": "D8FF52EADA8BB365DCC777D640518A1BBC3B747A2FCDA49B53C0BACDBCCBD1F7"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.probe-frames.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.probe-frames.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.probe-packets.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.probe-packets.json",
+          "size": 823870,
+          "sha256": "EBAF6D860D2DAEDBB69CD8EC0308888864081523F84E4CE5D0FD73D0472A69B2"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.probe-packets.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.probe-packets.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.process-samples.ndjson",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.process-samples.ndjson",
+          "size": 3995,
+          "sha256": "AE611DF0892D52823BAC08553120629CAAACE77826351EB6EAEF03DDF3D2D1D2"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.progress.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.progress.txt",
+          "size": 2627,
+          "sha256": "61453E2128BCEF1C6908D675F08468D76829B02BD05F610FFD5E5FA0117C82EE"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.visual-mae.ndjson",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.visual-mae.ndjson",
+          "size": 70969,
+          "sha256": "82442B83A2EAD27271A628A0DA436EDE87DF98E215BD12184D47BF99800ADAB8"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/mp4-openh264-aac-one.visual.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/mp4-openh264-aac-one.visual.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/runtime-identity.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/runtime-identity.json",
+          "size": 49320,
+          "sha256": "40BA13EEB82753430D062D160B4D7D52B10859205D3DA8C0F9A506B6D41369C9"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/audio-oracle-amendment-v4-freeze.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/audio-oracle-amendment-v4-freeze.json",
+          "size": 2268,
+          "sha256": "E2EFFD683FFE21BE902D77D7564F81C550F555C0989871C5D98B2DBE580D4CB2"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/audio-oracle-amendment-v4.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/audio-oracle-amendment-v4.json",
+          "size": 3101,
+          "sha256": "21ECAFCD94F71E58AA43955079EF9959C135DB12530D015E8380CFD09B5E9FBC"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/audio-oracle-contract.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/audio-oracle-contract.json",
+          "size": 16652,
+          "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/audio-timing-helper.psm1",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/audio-timing-helper.psm1",
+          "size": 9932,
+          "sha256": "32793DB793CFA7F08092CED6F5CFAABA4EE3761F9FC593C2AB551838159071CC"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/durable-artifact-manifest.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/durable-artifact-manifest.json",
+          "size": 5874319,
+          "sha256": "49F973324CC3037AD64283CB4B918B28A6B381C1D752C2A820A0B839FA844E73"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/local-retention-manifest.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/local-retention-manifest.json",
+          "size": 1593665,
+          "sha256": "E4FE29FD428B827C3019AF80F16F5F777C076EB36387422E65EA35DFC9E75FB4"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/p2-runtime-manifest.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/p2-runtime-manifest.json",
+          "size": 6491,
+          "sha256": "3ECF44CF6D5A878C69A0BD18C9C44777EFE8BD990C04C4F371383D2FAF1E1640"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/replacement-smoke-authorization-summary.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/replacement-smoke-authorization-summary.json",
+          "size": 2527,
+          "sha256": "EE014A3890D88338C2AB555F63BE8CBDEF2F32385BDF7DA18B64FB9BD1FCECF0"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/retention-appender.ps1",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/retention-appender.ps1",
+          "size": 25510,
+          "sha256": "A73F95E48A782923BC8BE75D22F92623FFEA60735A611CED23078E527A718D8A"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/retention-validator.ps1",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/retention-validator.ps1",
+          "size": 9951,
+          "sha256": "6CE715122ED166A024FDCC1F5DBE7773FD436CA74E8C88C03493A90107C33D45"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/runtime-validator.ps1",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/runtime-validator.ps1",
+          "size": 2312,
+          "sha256": "CAA8A0B7DD67629273A6FAD1A30DC44BA1536F34861363341079860CC4327E49"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/smoke-helper.psm1",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-helper.psm1",
+          "size": 41601,
+          "sha256": "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/smoke-runner.ps1",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/smoke-runner.ps1",
+          "size": 38806,
+          "sha256": "7267E2DBA7B94631FE2DFE8C35A7532BF7847AE084212DABD6C923A188DCC0AA"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/structured-audio-control-retention-summary.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/structured-audio-control-retention-summary.json",
+          "size": 1421,
+          "sha256": "8E9581742592F0E10F48AD8E5DCDE2B1985C58BB68C990A071DBB49453AD16A2"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/structured-audio-control-summary.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/structured-audio-control-summary.json",
+          "size": 1793,
+          "sha256": "83097DA638B80D048F84CC86B29BB24463C0B2BF9C2D3ED78CAF658FC73BF5EE"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/tracked-retention-manifest.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/tracked-retention-manifest.json",
+          "size": 1593665,
+          "sha256": "E4FE29FD428B827C3019AF80F16F5F777C076EB36387422E65EA35DFC9E75FB4"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/snapshots/workload-contract.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/snapshots/workload-contract.json",
+          "size": 36757,
+          "sha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/typical-2v4a-30s.s16le",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/typical-2v4a-30s.s16le",
+          "size": 5760000,
+          "sha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.audio-decode.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.audio-decode.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.audio-decode.stdout.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.audio-decode.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.audio.s16le",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.audio.s16le",
+          "size": 5760000,
+          "sha256": "176F8EA8CE4DDA6647A40D4494EC19EBB7CD612EFD69594A3F9C824D92344F46"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.encode.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.encode.stderr.txt",
+          "size": 12704,
+          "sha256": "3DA326C4830D6854D9C5071270DDE16D3957AEAECEF5ACC5652E02C18268D741"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.probe-frames.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.probe-frames.json",
+          "size": 1652852,
+          "sha256": "A08E45CB43BDA87BE9FFF65B4E4B34461F9393129C8BA15B8E72DA88E379D043"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.probe-frames.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.probe-frames.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.probe-packets.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.probe-packets.json",
+          "size": 847529,
+          "sha256": "11A96A1558B19842085DF6715EF3D825F666F13957C57F74DC0D63DF1D2A7E51"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.probe-packets.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.probe-packets.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.process-samples.ndjson",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.process-samples.ndjson",
+          "size": 25365,
+          "sha256": "F170F78DA002CBE149771E6673CCC2557D25872A71EFDEA96CAD50CD8E83874E"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.progress.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.progress.txt",
+          "size": 16436,
+          "sha256": "231F44E1174FD9710ECF846A18679BC93CA8B9BDA17419AEA3EA44CC635050C9"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.visual-mae.ndjson",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.visual-mae.ndjson",
+          "size": 70954,
+          "sha256": "13EB75DFB086B9A34A3CC86AB224FB0943A67B098FEDD8B0AC763A2F1BF06F36"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.visual.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.visual.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-half-logical.webm",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-half-logical.webm",
+          "size": 708459,
+          "sha256": "8BC1BA3EFB20A33AF40950DB21A83A1A01899C342E15C65CB72078DD900D5663"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.audio-decode.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.audio-decode.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.audio-decode.stdout.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.audio-decode.stdout.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.audio.s16le",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.audio.s16le",
+          "size": 5760000,
+          "sha256": "176F8EA8CE4DDA6647A40D4494EC19EBB7CD612EFD69594A3F9C824D92344F46"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.encode.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.encode.stderr.txt",
+          "size": 12822,
+          "sha256": "4C48BBC0CFFD5AE392444446BBE6DFA10F4B54462453C219D46FC70106E797A0"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.probe-frames.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.probe-frames.json",
+          "size": 1652843,
+          "sha256": "0CBBDB98EDDD8D71088748429DD36DC89BFE6227C4B3887CFA53BFC73B0DD7E4"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.probe-frames.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.probe-frames.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.probe-packets.json",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.probe-packets.json",
+          "size": 847529,
+          "sha256": "11A96A1558B19842085DF6715EF3D825F666F13957C57F74DC0D63DF1D2A7E51"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.probe-packets.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.probe-packets.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.process-samples.ndjson",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.process-samples.ndjson",
+          "size": 26845,
+          "sha256": "5962C1E7F94D81FBA4EDD6C0FEE87A44EED069E41B7824D0380057E5702EB23B"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.progress.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.progress.txt",
+          "size": 16644,
+          "sha256": "2796845944AA8BEFD473DA35691DA43E9053D0D5318E85231A21B98FF941FC70"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.visual-mae.ndjson",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.visual-mae.ndjson",
+          "size": 70954,
+          "sha256": "13EB75DFB086B9A34A3CC86AB224FB0943A67B098FEDD8B0AC763A2F1BF06F36"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.visual.stderr.txt",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.visual.stderr.txt",
+          "size": 0,
+          "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        },
+        {
+          "artifactId": "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483/webm-vp9-opus-one.webm",
+          "filename": "proofs/g05-stage2-smoke-20260827T073321856Z-527fa736/webm-vp9-opus-one.webm",
+          "size": 708459,
+          "sha256": "93983E23D7A1B738B2C402E0C2FABB9FCC9C6C82B093DF5951D075C884137AB4"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 33,
-    "fileCount": 4042,
-    "totalBytes": 1078139599
+    "groupCount": 34,
+    "fileCount": 4101,
+    "totalBytes": 1121540509
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

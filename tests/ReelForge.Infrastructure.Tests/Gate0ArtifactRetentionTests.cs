@@ -29,7 +29,7 @@ public sealed class Gate0ArtifactRetentionTests
         Assert.False(storage.GetProperty("temporaryProviderR2Permitted").GetBoolean());
 
         var groups = root.GetProperty("groups").EnumerateArray().ToArray();
-        Assert.Equal(31, groups.Length);
+        Assert.Equal(34, groups.Length);
         Assert.Equal(
             [
                 "P2.BtbnLgplShared.WindowsX64.20260820",
@@ -63,12 +63,15 @@ public sealed class Gate0ArtifactRetentionTests
                 "Gate0.G05.Stage2SmokePreflight.20260826.StaleDurableBindingBlocked",
                 "Gate0.G05.Stage2SmokePreflight.20260826.NullCpuSuperseded",
                 "Gate0.G05.Stage2PreMatrixSmoke.20260827T002126507Z.1BD6749C",
+                "G05-V4-Structured-Audio-Controls-20260827-001",
+                "Gate0.G05.Stage2ReplacementSmokePreflight.20260827.AuthoritativePass",
+                "Gate0.G05.Stage2PreMatrixSmoke.20260827T073620244Z.F2D80483",
             ],
             groups.Select(group => group.GetProperty("groupId").GetString()));
 
         var files = groups.SelectMany(group => group.GetProperty("files").EnumerateArray()).ToArray();
-        Assert.Equal(4013, files.Length);
-        Assert.Equal(1024859725, files.Sum(file => file.GetProperty("size").GetInt64()));
+        Assert.Equal(4101, files.Length);
+        Assert.Equal(1121540509, files.Sum(file => file.GetProperty("size").GetInt64()));
         Assert.Equal(files.Length, files.Select(file => file.GetProperty("artifactId").GetString()).Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(files.Length, files.Select(file => file.GetProperty("filename").GetString()).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(files, file =>
