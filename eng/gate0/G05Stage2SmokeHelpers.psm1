@@ -26,6 +26,12 @@ function Assert-G05SmokeSnapshotBinding([object[]] $Bindings, [hashtable] $Sourc
     }
 }
 
+function Get-G05SmokeSnapshotHash([object[]] $Bindings, [string] $Name) {
+    $match = @($Bindings | Where-Object { $_.name -eq $Name })
+    if ($match.Count -ne 1 -or [string]::IsNullOrWhiteSpace([string]$match[0].sha256)) { throw "Snapshot binding is not unique and complete: $Name." }
+    [string]$match[0].sha256
+}
+
 function Get-G05SmokeCombinedGraph([object] $Workload, [object] $Variant) {
     $substitutions = @{
         '{variant.width}' = [string] $Variant.width
@@ -252,4 +258,4 @@ function Invoke-G05SmokeObservedProcess([string]$Executable,[string[]]$Arguments
     $orphans=@($childIds|Where-Object{Get-Process -Id $_ -ErrorAction SilentlyContinue});$first=if($samples.Count){$samples[0]}else{$null};$last=if($samples.Count){$samples[$samples.Count-1]}else{$null};$summary=[ordered]@{wallClockMilliseconds=$clock.ElapsedMilliseconds;sampleCount=$samples.Count;observedLogicalProcessors=[Environment]::ProcessorCount;peakWorkingSetBytes=if($samples.Count){($samples|ForEach-Object workingSetBytes|Measure-Object -Maximum).Maximum}else{$null};peakPrivateMemoryBytes=if($samples.Count){($samples|ForEach-Object privateMemoryBytes|Measure-Object -Maximum).Maximum}else{$null};meanNormalizedCpuPercent=if($samples.Count-ge2-and$last.monotonicMilliseconds-gt$first.monotonicMilliseconds){100.0*($last.totalProcessorMilliseconds-$first.totalProcessorMilliseconds)/(($last.monotonicMilliseconds-$first.monotonicMilliseconds)*[Environment]::ProcessorCount)}else{$null};readTransferBytes=if($samples.Count-ge2){[uint64]$last.readBytes-[uint64]$first.readBytes}else{$null};writeTransferBytes=if($samples.Count-ge2){[uint64]$last.writeBytes-[uint64]$first.writeBytes}else{$null}};[ordered]@{exitCode=$process.ExitCode;rootPid=$rootPid;startedUtc=$startedUtc;completedUtc=[DateTimeOffset]::UtcNow;summary=$summary;samples=@($samples);processTree=[ordered]@{observedChildPids=@($childIds);activeObservedChildrenAtClose=@($orphans|ForEach-Object Id);rootExited=$process.HasExited;orphanFree=$orphans.Count-eq0}}
 }
 
-Export-ModuleMember -Function Get-G05SmokeHash,New-G05SmokeSnapshotBinding,Assert-G05SmokeSnapshotBinding,Get-G05SmokeCombinedGraph,Assert-G05SmokeRoot,Assert-G05SmokePath,ConvertTo-G05SmokePortableTokens,New-G05TypicalAudioTruth,Test-G05SmokeAudio,Convert-G05SmokeTicks,Get-G05SmokeDemuxer,Test-G05SmokeVisual,Invoke-G05SmokeObservedProcess
+Export-ModuleMember -Function Get-G05SmokeHash,New-G05SmokeSnapshotBinding,Assert-G05SmokeSnapshotBinding,Get-G05SmokeSnapshotHash,Get-G05SmokeCombinedGraph,Assert-G05SmokeRoot,Assert-G05SmokePath,ConvertTo-G05SmokePortableTokens,New-G05TypicalAudioTruth,Test-G05SmokeAudio,Convert-G05SmokeTicks,Get-G05SmokeDemuxer,Test-G05SmokeVisual,Invoke-G05SmokeObservedProcess

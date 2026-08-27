@@ -98,7 +98,7 @@ public sealed class Gate0G05Stage2SmokeTests
             var source = Path.Combine(root, "source.txt");
             File.WriteAllText(source, "approved");
             var module = PsQuote(PathInRepo("eng", "gate0", "G05Stage2SmokeHelpers.psm1"));
-            var script = $"Import-Module '{module}' -Force;$sources=@{{'source.txt'='{PsQuote(source)}'}};$bindings=New-G05SmokeSnapshotBinding '{PsQuote(snapshots)}' $sources;Set-Content -LiteralPath '{PsQuote(source)}' -Value changed -NoNewline;$blocked=$false;try{{Assert-G05SmokeSnapshotBinding $bindings $sources}}catch{{if($_.Exception.Message-notmatch'Snapshot source changed after binding'){{exit 51}};$blocked=$true}};if(-not$blocked){{exit 50}}";
+            var script = $"Import-Module '{module}' -Force;$sources=@{{'source.txt'='{PsQuote(source)}'}};$bindings=New-G05SmokeSnapshotBinding '{PsQuote(snapshots)}' $sources;$hash=Get-G05SmokeSnapshotHash $bindings 'source.txt';if($hash-ne$bindings.sha256){{exit 52}};Set-Content -LiteralPath '{PsQuote(source)}' -Value changed -NoNewline;$blocked=$false;try{{Assert-G05SmokeSnapshotBinding $bindings $sources}}catch{{if($_.Exception.Message-notmatch'Snapshot source changed after binding'){{exit 51}};$blocked=$true}};if(-not$blocked){{exit 50}}";
 
             var result = Run("pwsh", ["-NoProfile", "-Command", script]);
             Assert.True(result.ExitCode == 0, result.Output);
@@ -126,6 +126,7 @@ public sealed class Gate0G05Stage2SmokeTests
             Assert.Contains(text, helper, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("libx264", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("$env:PATH", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(@"Where-Object\s+[A-Za-z_][A-Za-z0-9_]*\s+-eq'", script);
     }
 
     private static (int ExitCode, string Output) Run(string fileName, IEnumerable<string> arguments)
