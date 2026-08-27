@@ -1,6 +1,6 @@
 # Gate 0 current status
 
-Status: Stage 2A completed with failures; owner disposition required
+Status: Stage 2A completed with failures; bounded no-media diagnostic authorized
 
 Updated: 2026-08-27
 
@@ -10,7 +10,9 @@ This is the small canonical current-status entry point for Gate 0. Historical de
 
 Gate 0 remains inside its approved research-and-proof boundary. It has not added editing UI, project persistence, product render-command changes, runtime enforcement, or Windows-specific project meaning. The narrow product-source runtime observation/validation seam remains unintegrated with production behavior.
 
-The first Stage 2A live start stopped after one local physical attempt because of an ordered-dictionary validator defect. The owner classified it as non-authoritative and authorized one fresh restart. That replacement passed preflight and completed six local physical attempts in the first cell, then stopped before retention because runner bindings used source-relative paths while immutable shard artifacts use the retained destination namespace. Both blocks occurred before R2, shard, or root-index mutation. Stage 2A has zero authoritative and seven physical attempts; both local closures remain excluded from matrix dispositions and statistics. See the [replacement-execution block](gate-0-g0.5-stage2a-replacement-execution-block.md).
+The two earlier Stage 2A starts remain non-authoritative harness-defect history. The first stopped after one local physical attempt because of an ordered-dictionary validator defect. The replacement completed six local physical attempts in the first cell, then stopped before retention because runner bindings used source-relative paths while immutable shard artifacts use the retained destination namespace. Both blocks occurred before R2, shard, or root-index mutation, and both local closures remain excluded from matrix dispositions and statistics. See the [replacement-execution block](gate-0-g0.5-stage2a-replacement-execution-block.md).
+
+The accepted Stage 2A run completed all 18 scheduled cells and retained 108 authoritative attempt records: 36 passed, two semantically diverged, and 70 were blocked without media after fail-fast route suspension. Including the seven attempts from the two earlier non-authoritative starts, 115 total physical media attempts have occurred. No further media execution is currently authorized.
 
 The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. Independent playback, measured Stage 2 performance, WPF media-load evidence, cancellation/preview/resource evidence, long-form integrity, final Pro dispositions, and the G0.7 decision packet remain open.
 
@@ -35,7 +37,7 @@ The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. 
 | Future evidence containment | Legacy corpus sealed; immutable shard/index path passed local and exact R2-byte no-media proof | [Containment result](gate-0-g0.5-stage2-containment-results.md) |
 | Stage 2A execution prerequisite | Exact 18-cell/108-attempt schedule, semantic executor, hash closure, runtime/resource preflight, bounded retention, and no-media activation review passed | [Execution prerequisite](gate-0-g0.5-stage2a-execution-prerequisite.md) |
 | Stage 2A measured matrix | Completed all 18 cells and 108 authoritative records: 36 passed, two semantically divergent, 70 blocked; all 289 indexed artifacts independently verified locally and in R2 | [Stage 2A owner packet](gate-0-g0.5-stage2a-results.md) |
-| Current owner authorization | No further media is effective; Stage 2A diagnostic and blocked-row disposition require owner review | [Stage 2A owner packet](gate-0-g0.5-stage2a-results.md) |
+| Current owner authorization | One bounded no-media stress-audio diagnostic and narrow throw-fix regression are authorized; no further media execution or blocked-row disposition is authorized | [Stage 2A owner packet](gate-0-g0.5-stage2a-results.md) |
 
 ## Active bounded unit
 
@@ -48,7 +50,7 @@ The replacement-smoke unit completed:
 5. retained and independently verified the replacement evidence; and
 6. produced one compact owner packet with results, growth projections, containment recommendation, and the proposed full-matrix route/thread subset.
 
-The exact Stage 2A run completed all 18 cells and retained all 108 authoritative records: 36 passed, two semantically divergent, and 70 blocked after fail-fast suspension of both routes. Six baseline/typical 720p cells passed. Both stress 720p warm-ups reached the same structured-audio quality failure despite passing timing/onset and strong full-region correlation; the remaining stress and all 1080p cells were blocked without media. Independent post-run retrieval verified all 289 indexed local/R2 artifacts and 78,538,843 logical bytes. The retained failure text also exposed a proof-harness `throw` tokenization typo that obscured the intended message but did not create the false quality-gate result. No further execution is effective pending owner disposition. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
+The exact Stage 2A run completed all 18 cells and retained all 108 authoritative records: 36 passed, two semantically divergent, and 70 blocked after fail-fast suspension of both routes. Six baseline/typical 720p cells passed. Both stress 720p warm-ups reached the same structured-audio quality failure despite passing timing/onset and strong full-region correlation; the remaining stress and all 1080p cells were blocked without media. Independent post-run retrieval verified all 289 indexed local/R2 artifacts and 78,538,843 logical bytes. The retained failure text also exposed a proof-harness `throw` tokenization typo that obscured the intended message but did not create the false quality-gate result. The owner accepted this result and authorized one bounded no-media diagnostic plus the narrow throw-fix regression. No further media execution is authorized. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
 
 ## Containment and remaining sequence
 
