@@ -180,7 +180,42 @@ try {
     }
     [IO.File]::WriteAllText($shardTemporary, (($shard | ConvertTo-Json -Depth 32 -Compress) + "`n"), [Text.UTF8Encoding]::new($false))
     [void](Read-Gate0EvidenceShard $shardTemporary)
-    if ([int64]$root.Shape.Bytes + 8192 -gt [int64]$root.Index.limits.maxRootIndexBytes -or [int]$root.Shape.Lines + 40 -gt [int]$root.Index.limits.maxRootIndexLines) { throw 'Candidate root index lacks conservative capacity for one bounded append.' }
+
+    # Verify the exact serialized root shape before creating an append journal or touching remote retention.
+    # The final shard and entry hashes are not available until after remote verification, but their fixed-length
+    # placeholders preserve the exact JSON shape of the final candidate.
+    $projectedPrior = @($root.Index.runs)
+    $projectedPrevious = if ($projectedPrior.Count) { $projectedPrior[-1] } else { $null }
+    $projectedEntry = [ordered]@{
+        ordinal = $projectedPrior.Count + 1
+        runKind = if ($EvidenceBoundary -eq 'containment-no-media') { 'infrastructure' } else { 'stage2a-cell' }
+        proofRunId = $ProofRunId
+        evidenceGroupId = $EvidenceGroupId
+        cellId = $CellId
+        shardPath = $shardRelativePath
+        shardSha256 = ('0' * 64)
+        entrySha256 = ('0' * 64)
+        previousRunId = if ($null -eq $projectedPrevious) { $null } else { [string]$projectedPrevious.proofRunId }
+        previousRunEntrySha256 = if ($null -eq $projectedPrevious) { $null } else { [string]$projectedPrevious.entrySha256 }
+        disposition = $Disposition
+        logicalArtifactCount = $artifactRecords.Count
+        logicalArtifactBytes = $totalBytes
+        localRetention = 'verified'
+        r2Retention = 'independently-retrieved-and-verified'
+    }
+    $projectedCandidate = $root.Index.PSObject.Copy()
+    $projectedCandidate.runs = @($projectedPrior) + @([pscustomobject]$projectedEntry)
+    $projectedCandidate.totals = $root.Index.totals.PSObject.Copy()
+    $projectedCandidate.totals.runCount = @($projectedCandidate.runs).Count
+    $projectedCandidate.totals.logicalArtifactCount = [int]$root.Index.totals.logicalArtifactCount + $artifactRecords.Count
+    $projectedCandidate.totals.logicalArtifactBytes = [int64]$root.Index.totals.logicalArtifactBytes + $totalBytes
+    $projectedCandidateText = ($projectedCandidate | ConvertTo-Json -Depth 64) + "`n"
+    $projectedCandidatePath = "$rootIndexPath.tmp-$([Guid]::NewGuid().ToString('N'))"
+    [IO.File]::WriteAllText($projectedCandidatePath, $projectedCandidateText, [Text.UTF8Encoding]::new($false))
+    $projectedCandidateShape = Get-Gate0EvidenceFileShape $projectedCandidatePath
+    if ($projectedCandidateShape.Bytes -gt [int64]$root.Index.limits.maxRootIndexBytes -or $projectedCandidateShape.Lines -gt [int]$root.Index.limits.maxRootIndexLines) {
+        throw 'Candidate root index exceeds its approved cap.'
+    }
 
     $journal = [ordered]@{
         schemaVersion = 1
@@ -264,6 +299,7 @@ try {
     $entry.entrySha256 = Get-Gate0EvidenceEntryHash $entryObject
     $candidate = $root.Index.PSObject.Copy()
     $candidate.runs = @($prior) + @([pscustomobject]$entry)
+    $candidate.totals = $root.Index.totals.PSObject.Copy()
     $candidate.totals.runCount = @($candidate.runs).Count
     $candidate.totals.logicalArtifactCount = [int]$root.Index.totals.logicalArtifactCount + $artifactRecords.Count
     $candidate.totals.logicalArtifactBytes = [int64]$root.Index.totals.logicalArtifactBytes + $totalBytes
@@ -272,7 +308,7 @@ try {
     $candidatePath = "$rootIndexPath.tmp-$([Guid]::NewGuid().ToString('N'))"
     [IO.File]::WriteAllText($candidatePath, $candidateText, [Text.UTF8Encoding]::new($false))
     $candidateShape = Get-Gate0EvidenceFileShape $candidatePath
-    if ($candidateShape.Bytes -gt 131072 -or $candidateShape.Lines -gt 400) { throw 'Candidate root index exceeds its approved cap.' }
+    if ($candidateShape.Bytes -gt [int64]$candidate.limits.maxRootIndexBytes -or $candidateShape.Lines -gt [int]$candidate.limits.maxRootIndexLines) { throw 'Candidate root index exceeds its approved cap.' }
 
     [IO.Directory]::CreateDirectory((Split-Path -Parent $destination)) | Out-Null
     Assert-Gate0EvidenceNoReparsePointAncestors (Split-Path -Parent $destination) $artifactRootResolved
