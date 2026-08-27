@@ -65,6 +65,28 @@ public sealed class Gate0G05Stage2SmokeTests
     }
 
     [Fact]
+    public void EffectiveOracleHandlesReferenceSilentWindowsAndDescriptorsWithoutOnsets()
+    {
+        var module = PsQuote(PathInRepo("eng", "gate0", "G05Stage2SmokeHelpers.psm1"));
+        var script = $"Import-Module '{module}' -Force;$r=[int16[]]::new(12000);for($n=2048;$n-lt3008;$n++){{$sample=[int16](1200*[Math]::Sin(2*[Math]::PI*440*$n/48000));$r.SetValue($sample,$n*2);$r.SetValue($sample,$n*2+1)}};$b=[byte[]]::new($r.Length*2);[Buffer]::BlockCopy($r,0,$b,0,$b.Length);$root=Join-Path ([IO.Path]::GetTempPath()) ('g05-relative-'+[guid]::NewGuid().ToString('N'));[IO.Directory]::CreateDirectory($root)|Out-Null;$p=Join-Path $root 'truth.s16le';[IO.File]::WriteAllBytes($p,$b);try{{$t=[pscustomobject]@{{minimumSignedNormalizedCrossCorrelationPerChannel=0.995;maximumNormalizedRmsErrorPerChannel=0.10;minimumSnrDbPerChannel=20;minimumOutputToReferenceRmsRatioPerChannel=0.90;maximumOutputToReferenceRmsRatioPerChannel=1.10;maximumAbsoluteDcOffsetFullScalePerChannel=0.005;minimumExpectedToneOutputToReferenceAmplitudeRatio=0.90;maximumExpectedToneOutputToReferenceAmplitudeRatio=1.10;minimumExpectedToForbiddenTonePowerRatioWhenDescriptorProvidesForbiddenTones=100;minimumActiveChannelRmsFullScale=0;silenceWindowSamples=960;minimumActiveReferenceWindowOutputRmsFullScale=0;nearClippingSampleAbsoluteThreshold=32760;maximumUnexpectedNearClippedSamplesPerChannel=0}};$typical=[pscustomobject]@{{id='typical-2v4a-30s';samplesPerChannel=6000;channels=2;activeExpectedFrequenciesHzByChannel=@(@(),@());trackOnsetWindows=@()}};$overlay=[pscustomobject]@{{referenceDescriptorId='typical-2v4a-30s';mode='reference-relative-active-windows-v1';sampleRate=48000;windowSamples=960;minimumOutputToReferenceRmsRatio=0.90;maximumOutputToReferenceRmsRatio=1.10;replacesV3Checks=@('qualityThresholds.minimumActiveChannelRmsFullScale','qualityThresholds.minimumActiveReferenceWindowOutputRmsFullScale')}};$effective=Test-G05SmokeAudio $p $p $t $typical 0 $overlay;$f1=[pscustomobject]@{{id='f1-loop-8s';samplesPerChannel=6000;channels=2;activeExpectedFrequenciesHzByChannel=@(@(),@())}};$noOnset=Test-G05SmokeAudio $p $p $t $f1 0;if(-not$effective.passed-or$effective.referenceRelativeRegions[0].activeWindowCount-eq0-or-not$noOnset.passed-or$noOnset.onsetTiming.Count-ne0){{exit 35}}}}finally{{Remove-Item -LiteralPath $root -Recurse -Force}}";
+
+        var result = Run("pwsh", ["-NoProfile", "-Command", script]);
+        Assert.True(result.ExitCode == 0, result.Output);
+    }
+
+    [Fact]
+    public void EffectiveOracleRejectsWrongDescriptorAndMalformedReplacementSetBeforeReadingMedia()
+    {
+        var module = PsQuote(PathInRepo("eng", "gate0", "G05Stage2SmokeHelpers.psm1"));
+        var script = $"Import-Module '{module}' -Force;$wrong=[pscustomobject]@{{id='f1-loop-8s'}};$typical=[pscustomobject]@{{id='typical-2v4a-30s'}};$valid=[pscustomobject]@{{referenceDescriptorId='typical-2v4a-30s';mode='reference-relative-active-windows-v1';sampleRate=48000;windowSamples=960;minimumOutputToReferenceRmsRatio=0.90;maximumOutputToReferenceRmsRatio=1.10;replacesV3Checks=@('qualityThresholds.minimumActiveChannelRmsFullScale','qualityThresholds.minimumActiveReferenceWindowOutputRmsFullScale')}};$bad=[pscustomobject]@{{referenceDescriptorId='typical-2v4a-30s';mode='reference-relative-active-windows-v1';sampleRate=48000;windowSamples=960;minimumOutputToReferenceRmsRatio=0.90;maximumOutputToReferenceRmsRatio=1.10;replacesV3Checks=@('qualityThresholds.minimumActiveChannelRmsFullScale')}};$wrongMessage=try{{Assert-G05SmokeReferenceRelativeOverlay $wrong $valid;'no-error'}}catch{{$_.Exception.Message}};$badMessage=try{{Assert-G05SmokeReferenceRelativeOverlay $typical $bad;'no-error'}}catch{{$_.Exception.Message}};$wrongMessage;$badMessage";
+
+        var result = Run("pwsh", ["-NoProfile", "-Command", script]);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("only for typical", result.Output);
+        Assert.Contains("replacement set", result.Output);
+    }
+
+    [Fact]
     public void VisualOracleFailureTerminatesAndReapsABlockedProducer()
     {
         var root = Path.Combine(Path.GetTempPath(), "ReelForge-G05-visual-cleanup-" + Guid.NewGuid().ToString("N"));

@@ -104,6 +104,51 @@ public sealed class Gate0G05Stage2DesignTests
     }
 
     [Fact]
+    public void ReferenceRelativeTypicalAmendmentIsACompactV3BoundedOverlay()
+    {
+        using var v3 = ReadJson("eng", "gate0", "g0.5-lossy-audio-oracle-contract.json");
+        using var amendment = ReadJson("eng", "gate0", "g0.5-lossy-audio-oracle-amendment-v4.json");
+        var root = amendment.RootElement;
+
+        Assert.Equal("Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.20260827", root.GetProperty("amendmentId").GetString());
+        var extends = root.GetProperty("extends");
+        Assert.Equal("eng/gate0/g0.5-lossy-audio-oracle-contract.json", extends.GetProperty("path").GetString());
+        using (var stream = File.OpenRead(PathInRepo("eng", "gate0", "g0.5-lossy-audio-oracle-contract.json")))
+            Assert.Equal(extends.GetProperty("sha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+        Assert.Equal(v3.RootElement.GetProperty("contractId").GetString(), extends.GetProperty("contractId").GetString());
+
+        var scope = root.GetProperty("scope");
+        Assert.Equal(["typical-2v4a-30s"], scope.GetProperty("referenceDescriptorIds").EnumerateArray().Select(value => value.GetString()));
+        Assert.False(scope.GetProperty("routeOutputsMayBeReadBeforeControlsPass").GetBoolean());
+        Assert.False(scope.GetProperty("routeReencodeAuthorized").GetBoolean());
+        Assert.True(scope.GetProperty("otherReferenceDescriptorsRemainExactV3").GetBoolean());
+
+        var overlay = Assert.Single(root.GetProperty("descriptorOverlays").EnumerateArray());
+        Assert.Equal("typical-2v4a-30s", overlay.GetProperty("referenceDescriptorId").GetString());
+        Assert.Equal("reference-relative-active-windows-v1", overlay.GetProperty("mode").GetString());
+        Assert.Equal(960, overlay.GetProperty("windowSamples").GetInt32());
+        Assert.Equal(0.90, overlay.GetProperty("minimumOutputToReferenceRmsRatio").GetDouble());
+        Assert.Equal(1.10, overlay.GetProperty("maximumOutputToReferenceRmsRatio").GetDouble());
+        Assert.Equal(2, overlay.GetProperty("replacesV3Checks").GetArrayLength());
+        Assert.Contains("minimumActiveChannelRmsFullScale", overlay.GetProperty("replacesV3Checks").GetArrayLength() > 0 ? string.Join(' ', overlay.GetProperty("replacesV3Checks").EnumerateArray().Select(value => value.GetString())) : string.Empty);
+        Assert.Contains("minimumActiveReferenceWindowOutputRmsFullScale", string.Join(' ', overlay.GetProperty("replacesV3Checks").EnumerateArray().Select(value => value.GetString())));
+        Assert.Contains("independently authored reference PCM", overlay.GetProperty("activeClassification").GetString());
+        Assert.Contains("finite zero-RMS", overlay.GetProperty("activeClassification").GetString());
+        Assert.Contains("non-finite reference RMS", overlay.GetProperty("failClosed").GetString());
+
+        var runner = File.ReadAllText(PathInRepo("eng", "gate0", "Invoke-G05StructuredAudioOracleControls.ps1"));
+        Assert.Contains("New-G05TypicalAudioTruth", runner);
+        Assert.Contains("typical-right-low-level-960-sample-dropout", runner);
+        Assert.Contains("reference-relative-window-rms-ratio", runner);
+        Assert.Contains("Exact V3 legacy control changed", runner);
+        Assert.Contains("No-overlay V3 effective-oracle regression", runner);
+        Assert.Contains("typical-right-low-level-960-sample-dropout", runner);
+        Assert.Contains("5000, 960", runner);
+        Assert.DoesNotContain("ffmpeg", runner, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ffprobe", runner, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void StageTwoProposalDefinesExactBoundariesWorkloadsAndConditionalExecution()
     {
         using var contract = ReadJson("eng", "gate0", "g0.5-stage2-workload-contract.json");
