@@ -1,6 +1,6 @@
 # Gate 0 current status
 
-Status: Stage 2A retained-path repair and fresh restart approved; implementation pending
+Status: Stage 2A retained-path repair complete; restart activation prerequisites pending
 
 Updated: 2026-08-27
 
@@ -34,7 +34,7 @@ The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. 
 | Durable artifact retention | Current 4,101-artifact corpus independently byte-verified in private R2 | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
 | Future evidence containment | Legacy corpus sealed; immutable shard/index path passed local and exact R2-byte no-media proof | [Containment result](gate-0-g0.5-stage2-containment-results.md) |
 | Stage 2A execution prerequisite | Exact 18-cell/108-attempt schedule, semantic executor, hash closure, runtime/resource preflight, bounded retention, and no-media activation review passed | [Execution prerequisite](gate-0-g0.5-stage2a-execution-prerequisite.md) |
-| Current owner authorization | The retained-path bridge, no-media integration regression, and one fresh 108-attempt restart are approved; implementation and prerequisite verification remain pending | [Retained-path repair approval](gate-0-g0.5-stage2a-retained-path-repair-approval.md) |
+| Current owner authorization | The retained-path bridge is implemented and independently reviewed with 65 focused no-media tests passing; one fresh 108-attempt restart is approved but prerequisite activation remains pending | [Retained-path repair approval](gate-0-g0.5-stage2a-retained-path-repair-approval.md) |
 
 ## Active bounded unit
 
@@ -47,7 +47,7 @@ The replacement-smoke unit completed:
 5. retained and independently verified the replacement evidence; and
 6. produced one compact owner packet with results, growth projections, containment recommendation, and the proposed full-matrix route/thread subset.
 
-The legacy seal, root index, immutable shard writer/validator, negative tests, no-media local/R2 round trip, deterministic schedule, hash-bound dependency closure, full/per-cell preflight, exact semantic cell executor, compact/full retention transformation, fail-fast route suspension, and bounded result aggregation are complete and independently reviewed. The owner classified the six new physical attempts as non-authoritative and approved the narrow runner-to-writer retained-namespace bridge plus one fresh restart. Execution remains fail-closed while that repair, its integration regression, independent review, hash rebinding, and fresh prerequisites are completed. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
+The legacy seal, root index, immutable shard writer/validator, negative tests, no-media local/R2 round trip, deterministic schedule, hash-bound dependency closure, full/per-cell preflight, exact semantic cell executor, compact/full retention transformation, fail-fast route suspension, and bounded result aggregation are complete and independently reviewed. The owner classified the six new physical attempts as non-authoritative. The narrow runner-to-writer retained-namespace bridge now preserves local source-relative validation, projects only an evidence-facing binding copy, and leaves the exact shard invariant unchanged. Its real-helper-to-real-writer positive and negative regressions pass; independent review returned GO; and the complete focused no-media set passes 65 of 65. Execution remains fail-closed while the fresh full preflight, local/R2 verification, clean-tree check, and effective activation transition are completed. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
 
 ## Containment and remaining sequence
 
@@ -55,6 +55,6 @@ No new codec/container/filter matrix, dependency, installation, fixture family, 
 
 F7/Matroska expansion has stopped. The final packet will classify the 83 non-passing rows rather than attempt further repairs unless a required Free 1.0 workflow is shown to depend on an exact row.
 
-The exact 18-cell/108-attempt matrix and [future evidence-containment contract](gate-0-evidence-containment.md) remain unchanged. The writer/validator's exact one-artifact invariant remains correct and must not be weakened. The approved repair may project only the runner's already-validated source-relative binding into the retained destination namespace. The later effective run must stop after the Stage 2A owner packet.
+The exact 18-cell/108-attempt matrix and [future evidence-containment contract](gate-0-evidence-containment.md) remain unchanged. The writer/validator's exact one-artifact invariant remains correct and has not been weakened. The approved repair projects only the runner's already-validated source-relative binding into the retained destination namespace. The fresh restart remains pending activation prerequisites and must stop after the Stage 2A owner packet.
 
 After any separately authorized measured work, Gate 0 still requires long-form sizing and authorization, suitable independent playback, documentation-only Pro repair dispositions, and the G0.7 exit packet.

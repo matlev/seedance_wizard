@@ -117,6 +117,22 @@ function New-G05Stage2AAttemptBinding([object] $Attempt, [object] $SemanticSumma
     }
 }
 
+function ConvertTo-G05Stage2ARetainedAttemptBindings([object[]] $Bindings, [string] $DestinationName) {
+    if ([string]::IsNullOrWhiteSpace($DestinationName)) { throw 'Stage 2A retained attempt bindings require a destination name.' }
+    $projected = @()
+    foreach ($binding in @($Bindings)) {
+        $recordPath = [string]$binding.recordPath
+        if ([IO.Path]::IsPathRooted($recordPath) -or $recordPath.Contains('\') -or $recordPath -match '(^|/)\.\.(/|$)') {
+            throw 'Stage 2A source attempt binding record path is not portable and contained.'
+        }
+        $copy = [ordered]@{}
+        foreach ($property in $binding.PSObject.Properties) { $copy[$property.Name] = $property.Value }
+        $copy.recordPath = "$DestinationName/$recordPath"
+        $projected += [pscustomobject]$copy
+    }
+    @($projected)
+}
+
 function Assert-G05Stage2ACompactBinding([object] $Binding, [string] $SourceRoot, [int64] $MaximumBytes) {
     $required = @('attemptId','phase','ordinal','retentionClass','recordPath','recordSha256','disposition','completeClosureReference')
     Assert-G05Stage2AExactProperties $Binding $required 'Stage 2A compact attempt binding'
@@ -231,4 +247,4 @@ function Get-G05Stage2AExactVideoTiming([object] $VideoStream, [object[]] $Frame
     [ordered]@{passed=$true;frameCount=750;comparisonTimeBase='1/1000';firstTick=$ticks[0];finalTick=$ticks[-1];presentationEndTick=$end;presentationEndSource=$source;allFrameTicksExact=$true}
 }
 
-Export-ModuleMember -Function Read-G05Stage2ARetentionContract,Get-G05Stage2ACellRows,New-G05Stage2AEncodeTokens,Get-G05Stage2ASemanticFile,Get-G05Stage2ASemanticSummaryHash,New-G05Stage2AAttemptBinding,Assert-G05Stage2ACompactBinding,New-G05Stage2ABlockedAttempt,Test-G05Stage2ADeterministicIntegrityFailure,Get-G05Stage2AAttemptRetentionClass,Resolve-G05Stage2ACellRetentionPlan,Get-G05Stage2ACompleteClosureReference,Assert-G05Stage2AAttemptSummary,Get-G05Stage2AExactVideoTiming,Get-G05Stage2AContentNormalizedAudioHash,Write-G05Stage2ASemanticJson
+Export-ModuleMember -Function Read-G05Stage2ARetentionContract,Get-G05Stage2ACellRows,New-G05Stage2AEncodeTokens,Get-G05Stage2ASemanticFile,Get-G05Stage2ASemanticSummaryHash,New-G05Stage2AAttemptBinding,ConvertTo-G05Stage2ARetainedAttemptBindings,Assert-G05Stage2ACompactBinding,New-G05Stage2ABlockedAttempt,Test-G05Stage2ADeterministicIntegrityFailure,Get-G05Stage2AAttemptRetentionClass,Resolve-G05Stage2ACellRetentionPlan,Get-G05Stage2ACompleteClosureReference,Assert-G05Stage2AAttemptSummary,Get-G05Stage2AExactVideoTiming,Get-G05Stage2AContentNormalizedAudioHash,Write-G05Stage2ASemanticJson

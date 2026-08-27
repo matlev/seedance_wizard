@@ -162,6 +162,7 @@ public sealed class Gate0G05Stage2AMatrixTests
             ["replacement-warmup-approval"] = "docs/gate-0-g0.5-stage2a-replacement-warmup-approval.md",
             ["replacement-activation-summary"] = "eng/gate0/g0.5-stage2a-replacement-activation-summary.json",
             ["replacement-execution-block"] = "docs/gate-0-g0.5-stage2a-replacement-execution-block.md",
+            ["retained-path-repair-approval"] = "docs/gate-0-g0.5-stage2a-retained-path-repair-approval.md",
             ["schedule"] = "eng/gate0/g0.5-stage2a-schedule.json",
             ["runner"] = "eng/gate0/Invoke-G05Stage2AMatrix.ps1",
             ["preflight"] = "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1",

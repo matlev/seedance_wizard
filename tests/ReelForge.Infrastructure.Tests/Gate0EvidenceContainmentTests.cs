@@ -339,7 +339,8 @@ public sealed class Gate0EvidenceContainmentTests
         var corpus = CreateIsolatedContainmentCorpus();
         try
         {
-            var attemptBindings = PrepareRealisticCellSource(corpus);
+            PrepareRealisticCellSource(corpus);
+            var attemptBindings = CreateRealisticStage2AAttemptBindings(corpus, projectToRetainedNamespace: true);
             var command = corpus.WriterCommand.Replace("-Disposition passed", "-Disposition failed", StringComparison.Ordinal)
                 + $" -AttemptBindingsPath '{PsQuote(attemptBindings)}'";
             var result = RunPs(command);
@@ -389,6 +390,48 @@ public sealed class Gate0EvidenceContainmentTests
             Assert.True(result.ExitCode == 0, result.Output);
             Assert.DoesNotContain("unexpected or duplicate binding role", result.Output, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(1, JsonNode.Parse(File.ReadAllText(corpus.RootIndex))!["totals"]!["runCount"]!.GetValue<int>());
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
+    public void P2RuntimeRouteAppendAcceptsAllSixProjectedAttemptBindingsBeforeRemoteRetention()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            ConfigureExactStage2AAuthorization(corpus, "owner-authorized-and-prerequisites-verified");
+            PrepareRealisticCellSource(corpus);
+            var attemptBindings = CreateRealisticStage2AAttemptBindings(corpus, projectToRetainedNamespace: true);
+            var result = RunPs(P2WriterCommand(corpus).Replace("-Disposition passed", "-Disposition failed", StringComparison.Ordinal)
+                + $" -AttemptBindingsPath '{PsQuote(attemptBindings)}'");
+
+            Assert.True(result.ExitCode == 0, result.Output);
+            var shard = JsonNode.Parse(File.ReadAllText(corpus.Shard))!.AsObject();
+            Assert.Equal(6, shard["attempts"]!.AsArray().Count);
+            Assert.All(shard["attempts"]!.AsArray(), attempt =>
+                Assert.StartsWith("future/stage2/run-a/", attempt!["recordPath"]!.GetValue<string>(), StringComparison.Ordinal));
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
+    public void P2RuntimeRouteAppendRejectsUnprojectedAttemptBindingsBeforeRemoteRetention()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            ConfigureExactStage2AAuthorization(corpus, "owner-authorized-and-prerequisites-verified");
+            PrepareRealisticCellSource(corpus);
+            var attemptBindings = CreateRealisticStage2AAttemptBindings(corpus, projectToRetainedNamespace: false);
+            var result = RunPs(P2WriterCommand(corpus).Replace("-Disposition passed", "-Disposition failed", StringComparison.Ordinal)
+                + $" -AttemptBindingsPath '{PsQuote(attemptBindings)}'");
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("does not reference one exact retained artifact", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.False(Directory.Exists(corpus.Destination));
+            Assert.False(File.Exists(corpus.Shard));
+            Assert.Equal(0, JsonNode.Parse(File.ReadAllText(corpus.RootIndex))!["totals"]!["runCount"]!.GetValue<int>());
         }
         finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
     }
@@ -544,7 +587,7 @@ public sealed class Gate0EvidenceContainmentTests
         var evidence = Path.Combine(gate0, "evidence");
         Directory.CreateDirectory(evidence);
         File.WriteAllText(Path.Combine(repo, ".gate0-containment-test-sentinel"), "isolated\n");
-        foreach (var file in new[] { "artifact-retention-manifest.json", "artifact-manifest.json", "Gate0ArtifactTools.psm1", "Gate0ArtifactR2Client.cs", "Add-Gate0EvidenceShard.ps1", "G05Stage2AMatrixHelpers.psm1", "Resolve-Gate0EvidenceAppendJournal.ps1", "Test-Gate0EvidenceContainment.ps1" })
+        foreach (var file in new[] { "artifact-retention-manifest.json", "artifact-manifest.json", "Gate0ArtifactTools.psm1", "Gate0ArtifactR2Client.cs", "Add-Gate0EvidenceShard.ps1", "G05Stage2AMatrixHelpers.psm1", "G05Stage2SmokeHelpers.psm1", "G05Stage2ASemanticExecutor.psm1", "Resolve-Gate0EvidenceAppendJournal.ps1", "Test-Gate0EvidenceContainment.ps1" })
             File.Copy(PathInRepo("eng", "gate0", file), Path.Combine(gate0, file));
         File.Copy(ModulePath(), Path.Combine(evidence, "Gate0EvidenceContainment.psm1"));
         var rootIndex = Path.Combine(evidence, "root-index.json");
@@ -589,6 +632,7 @@ public sealed class Gate0EvidenceContainmentTests
             ("replacement-warmup-approval", "docs/gate-0-g0.5-stage2a-replacement-warmup-approval.md"),
             ("replacement-activation-summary", "eng/gate0/g0.5-stage2a-replacement-activation-summary.json"),
             ("replacement-execution-block", "docs/gate-0-g0.5-stage2a-replacement-execution-block.md"),
+            ("retained-path-repair-approval", "docs/gate-0-g0.5-stage2a-retained-path-repair-approval.md"),
             ("schedule", "eng/gate0/g0.5-stage2a-schedule.json"),
             ("runner", "eng/gate0/Invoke-G05Stage2AMatrix.ps1"),
             ("preflight", "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1"),
@@ -637,37 +681,28 @@ public sealed class Gate0EvidenceContainmentTests
         return path;
     }
 
-    private static string PrepareRealisticCellSource((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus)
+    private static void PrepareRealisticCellSource((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus)
     {
         Directory.Delete(corpus.Source, recursive: true);
         Directory.CreateDirectory(corpus.Source);
-        var attempts = new JsonArray();
-        for (var ordinal = 1; ordinal <= 6; ordinal++)
-        {
-            var relativePath = $"attempts/attempt-{ordinal}.json";
-            var path = Path.Combine(corpus.Source, relativePath.Replace('/', Path.DirectorySeparatorChar));
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, $"{{\"attempt\":{ordinal},\"result\":\"synthetic\"}}");
-            attempts.Add(new JsonObject
-            {
-                ["attemptId"] = $"attempt-{ordinal}",
-                ["phase"] = ordinal == 1 ? "warmup" : "measured",
-                ["ordinal"] = ordinal,
-                ["retentionClass"] = "complete",
-                ["recordPath"] = $"future/stage2/run-a/{relativePath}",
-                ["recordSha256"] = Sha256(path),
-                ["disposition"] = "failed",
-                ["completeClosureReference"] = null
-            });
-        }
+        Directory.CreateDirectory(Path.Combine(corpus.Source, "attempts"));
         for (var ordinal = 1; ordinal <= 17; ordinal++)
         {
             var path = Path.Combine(corpus.Source, "observations", $"observation-{ordinal}.json");
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, $"{{\"observation\":{ordinal},\"value\":\"synthetic\"}}");
         }
+    }
+
+    private static string CreateRealisticStage2AAttemptBindings((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus, bool projectToRetainedNamespace)
+    {
+        var module = Path.Combine(corpus.Gate0, "G05Stage2ASemanticExecutor.psm1");
+        var smokeModule = Path.Combine(corpus.Gate0, "G05Stage2SmokeHelpers.psm1");
         var bindingsPath = Path.Combine(corpus.Source, "attempt-bindings.json");
-        File.WriteAllText(bindingsPath, attempts.ToJsonString());
+        var projection = projectToRetainedNamespace ? "$records=ConvertTo-G05Stage2ARetainedAttemptBindings @($records) 'future/stage2/run-a';" : string.Empty;
+        var command = $"Import-Module '{PsQuote(smokeModule)}' -Force;Import-Module '{PsQuote(module)}' -Force;$source='{PsQuote(corpus.Source)}';$records=@();1..6|%{{$ordinal=$_;$attempt=[pscustomobject]@{{globalOrdinal=$ordinal;phase=if($ordinal-eq1){{'warmup'}}else{{'measured'}}}};$summary=[pscustomobject]@{{disposition='failed'}};$path=Join-Path $source ('attempts/attempt-'+$ordinal+'.json');$records+=,(New-G05Stage2AAttemptBinding $attempt $summary $path $source 'complete')}};{projection}$records|ConvertTo-Json -Depth 16|Set-Content -LiteralPath '{PsQuote(bindingsPath)}' -NoNewline";
+        var result = RunPs(command);
+        Assert.True(result.ExitCode == 0, result.Output);
         return bindingsPath;
     }
 
