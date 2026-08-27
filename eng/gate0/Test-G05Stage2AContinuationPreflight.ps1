@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory)] [string] $StagingRoot,
     [Parameter(Mandatory)] [string] $OutputDirectory,
     [switch] $RequireRemoteVerification,
+    [switch] $AllowCompletedContinuationAudit,
     [switch] $EnableTestInjection,
     [string] $TestObservationPath
 )
@@ -102,7 +103,8 @@ try {
     $v2Root = Read-Json $v2RootPath 'V2 root index'
     $infrastructureRuns = @($v2Root.runs | Where-Object { $_.runKind -eq 'infrastructure' })
     $continuationRuns = @($v2Root.runs | Where-Object { $_.runKind -eq 'stage2a-continuation-cell' })
-    if ($infrastructureRuns.Count -ne 2 -or $continuationRuns.Count -gt 11 -or $v2Result.runCount -ne ($infrastructureRuns.Count + $continuationRuns.Count) -or [int64]$v2Result.logicalArtifactBytes -ne [int64]$v2Root.totals.logicalArtifactBytes -or -not $v2Result.localByteVerificationPerformed) { throw 'V2 containment is not the exact two-infrastructure plus zero-to-eleven-continuation-shard state.' }
+    $maximumContinuationRuns=if($AllowCompletedContinuationAudit){12}else{11}
+    if ($infrastructureRuns.Count -ne 2 -or $continuationRuns.Count -gt $maximumContinuationRuns -or $v2Result.runCount -ne ($infrastructureRuns.Count + $continuationRuns.Count) -or [int64]$v2Result.logicalArtifactBytes -ne [int64]$v2Root.totals.logicalArtifactBytes -or -not $v2Result.localByteVerificationPerformed) { throw 'V2 containment is not the exact authorized continuation shard state.' }
     $scheduleCells = @($authorization.Schedule.Schedule.attempts | Group-Object proofRunId | ForEach-Object { $_.Group[0] })
     if ($scheduleCells.Count -ne 12) { throw 'The fixed continuation schedule does not define exactly twelve ordered cell identities.' }
     for ($i = 0; $i -lt $continuationRuns.Count; $i++) {
@@ -128,8 +130,12 @@ try {
     $evidence.criteria.v5Reevaluation = 'passed'
     $obs = Get-TestObservation; if ($null -eq $obs) { $memory=Get-CimInstance Win32_OperatingSystem; $obs=[pscustomobject]@{logicalProcessorCount=[Environment]::ProcessorCount;totalPhysicalMemoryBytes=([int64]$memory.TotalVisibleMemorySize*1KB);availablePhysicalMemoryBytes=([int64]$memory.FreePhysicalMemory*1KB);activeMediaProcesses=@(Get-Process -Name ffmpeg,ffprobe -ErrorAction SilentlyContinue | ForEach-Object {[ordered]@{id=$_.Id;processName=$_.ProcessName}});availableFreeSpaceBytes=([IO.DriveInfo]::new([IO.Path]::GetPathRoot($artifact))).AvailableFreeSpace} }
     if ([int]$obs.logicalProcessorCount -ne 16 -or [int64]$obs.totalPhysicalMemoryBytes -lt 32212254720 -or [int64]$obs.availablePhysicalMemoryBytes -lt 8589934592 -or @($obs.activeMediaProcesses).Count -ne 0) { throw 'The reference-host capacity or zero-active-media-process requirement is not satisfied.' }
-    $current=[int64]78538843+[int64]$v2Result.logicalArtifactBytes; $perCell=[int64]38878888; $cellsRemaining=12-$continuationRuns.Count; $ceiling=[int64]805306368; $remaining=$ceiling-$current; $requiredRetentionReservation=$perCell*$cellsRemaining; if($cellsRemaining -le 0 -or $remaining -lt $requiredRetentionReservation){throw 'The V1-plus-V2 retention state cannot reserve every remaining authorized continuation cell.'}; $freeFloor=[int64]3758096384; $required=[Math]::Max($freeFloor,([int64]2147483648+(2*$perCell))); if([int64]$obs.availableFreeSpaceBytes -lt $required){throw 'The shared artifact/staging volume lacks the approved continuation free-space floor.'}
-    $evidence.host=[ordered]@{logicalProcessorCount=[int]$obs.logicalProcessorCount;totalPhysicalMemoryBytes=[int64]$obs.totalPhysicalMemoryBytes;availablePhysicalMemoryBytes=[int64]$obs.availablePhysicalMemoryBytes;activeMediaProcessCount=@($obs.activeMediaProcesses).Count}; $evidence.retention=[ordered]@{v1PredecessorBytes=78538843;v2CurrentBytes=[int64]$v2Result.logicalArtifactBytes;currentRetainedBytes=$current;globalCeilingBytes=$ceiling;requiredReservationPerCellBytes=$perCell;continuationCellsAlreadyRetained=$continuationRuns.Count;continuationCellsRemaining=$cellsRemaining;requiredReservationForRemainingCellsBytes=$requiredRetentionReservation;remainingAfterFullContinuationReservationBytes=$remaining-$requiredRetentionReservation;requiredFreeSpaceBytes=$required}; $evidence.criteria.hostAndRetention = 'passed'; $evidence.status='passed'
+    $current=[int64]78538843+[int64]$v2Result.logicalArtifactBytes; $perCell=[int64]38878888; $cellsRemaining=12-$continuationRuns.Count; $ceiling=[int64]805306368; $remaining=$ceiling-$current; $requiredRetentionReservation=$perCell*$cellsRemaining
+    $completedAudit=($cellsRemaining-eq0)
+    if($completedAudit -and -not $AllowCompletedContinuationAudit){throw 'Completed continuation state requires the explicit AllowCompletedContinuationAudit switch.'}
+    if(-not$completedAudit-and$remaining-lt$requiredRetentionReservation){throw 'The V1-plus-V2 retention state cannot reserve every remaining authorized continuation cell.'}
+    $freeFloor=[int64]3758096384; $required=if($completedAudit){$freeFloor}else{[Math]::Max($freeFloor,([int64]2147483648+(2*$perCell)))}; if([int64]$obs.availableFreeSpaceBytes -lt $required){throw 'The shared artifact/staging volume lacks the approved continuation free-space floor.'}
+    $evidence.host=[ordered]@{logicalProcessorCount=[int]$obs.logicalProcessorCount;totalPhysicalMemoryBytes=[int64]$obs.totalPhysicalMemoryBytes;availablePhysicalMemoryBytes=[int64]$obs.availablePhysicalMemoryBytes;activeMediaProcessCount=@($obs.activeMediaProcesses).Count}; $evidence.retention=[ordered]@{v1PredecessorBytes=78538843;v2CurrentBytes=[int64]$v2Result.logicalArtifactBytes;currentRetainedBytes=$current;globalCeilingBytes=$ceiling;requiredReservationPerCellBytes=$perCell;continuationCellsAlreadyRetained=$continuationRuns.Count;continuationCellsRemaining=$cellsRemaining;completedContinuationAudit=$completedAudit;requiredReservationForRemainingCellsBytes=$requiredRetentionReservation;remainingAfterFullContinuationReservationBytes=$remaining-$requiredRetentionReservation;requiredFreeSpaceBytes=$required}; $evidence.criteria.hostAndRetention = 'passed'; $evidence.status='passed'
 } catch { $evidence.failures=@((Convert-ToPortableFailure $_.Exception.Message)) }
 if ($null -ne $output -and (Test-Path -LiteralPath $output -PathType Container)) { $evidence | ConvertTo-Json -Depth 64 | Set-Content -LiteralPath (Join-Path $output 'g0.5-stage2a-continuation-preflight-evidence.json') -Encoding utf8NoBOM }
 if ($evidence.status -ne 'passed') { Write-Error ($evidence.failures -join [Environment]::NewLine); exit 1 }

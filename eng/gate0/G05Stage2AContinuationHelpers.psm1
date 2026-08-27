@@ -21,6 +21,7 @@ $script:ContinuationAuthorizationRoles = [ordered]@{
     'v5-reevaluation-authorization' = 'eng/gate0/g0.5-stage2a-v5-retained-output-reevaluation-authorization.json'
     'v5-reevaluation-summary' = 'eng/gate0/g0.5-stage2a-v5-retained-output-reevaluation-result-summary.json'
     'v5-audio-module' = 'eng/gate0/G05Stage2AV5AudioOracle.psm1'
+    'v5-freeze-validator' = 'eng/gate0/G05Stage2AV5FreezeValidation.psm1'
     'semantic-executor' = 'eng/gate0/G05Stage2ASemanticExecutor.psm1'
     'semantic-helper' = 'eng/gate0/G05Stage2ASemanticHelpers.psm1'
     'smoke-helper' = 'eng/gate0/G05Stage2SmokeHelpers.psm1'
@@ -29,6 +30,12 @@ $script:ContinuationAuthorizationRoles = [ordered]@{
     'runtime-manifest' = 'eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json'
     'fixture-inventory' = 'eng/gate0/fixture-source-inventory.json'
     'artifact-manifest' = 'eng/gate0/artifact-manifest.json'
+    'legacy-evidence-validator' = 'eng/gate0/Test-Gate0EvidenceContainment.ps1'
+    'artifact-retention-validator' = 'eng/gate0/Test-Gate0ArtifactRetention.ps1'
+    'artifact-manifest-validator' = 'eng/gate0/Test-Gate0ArtifactManifest.ps1'
+    'legacy-evidence-containment' = 'eng/gate0/evidence/Gate0EvidenceContainment.psm1'
+    'artifact-tools' = 'eng/gate0/Gate0ArtifactTools.psm1'
+    'r2-client-source' = 'eng/gate0/Gate0ArtifactR2Client.cs'
 }
 
 function Get-G05Stage2AContinuationSha256([string] $Path) {

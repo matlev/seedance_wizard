@@ -21,6 +21,7 @@ public sealed class Gate0G05Stage2AContinuationPreflightTests
             "P2.BtbnLgplShared.WindowsX64.20260820", "805306368", "78538843", "38878888",
             "3758096384", "logicalProcessorCount -ne 16", "ffmpeg", "ffprobe",
             "noMediaInvoked", "RequireRemoteVerification", "-Remote", "REELFORGE_GATE0_TEST_INJECTION",
+            "AllowCompletedContinuationAudit", "Completed continuation state requires the explicit AllowCompletedContinuationAudit switch.",
             "g0.5-stage2a-continuation-preflight-evidence.json", "Convert-ToPortableFailure" })
             Assert.Contains(expected, script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Invoke-WebRequest", script, StringComparison.OrdinalIgnoreCase);
@@ -39,7 +40,8 @@ public sealed class Gate0G05Stage2AContinuationPreflightTests
         var script = File.ReadAllText(PathInRepo("eng", "gate0", "Test-G05Stage2AContinuationPreflight.ps1"));
         Assert.Contains("v2Result.logicalArtifactBytes", script, StringComparison.Ordinal);
         Assert.Contains("78538843+[int64]$v2Result.logicalArtifactBytes", script, StringComparison.Ordinal);
-        Assert.Contains("two-infrastructure plus zero-to-eleven-continuation-shard state", script, StringComparison.Ordinal);
+        Assert.Contains("exact authorized continuation shard state", script, StringComparison.Ordinal);
+        Assert.Contains("$maximumContinuationRuns=if($AllowCompletedContinuationAudit){12}else{11}", script, StringComparison.Ordinal);
         Assert.Contains("continuationCellsRemaining", script, StringComparison.Ordinal);
         Assert.Contains("requiredReservationForRemainingCellsBytes", script, StringComparison.Ordinal);
     }
