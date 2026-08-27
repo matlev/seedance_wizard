@@ -1,6 +1,6 @@
 # Gate 0 current status
 
-Status: Stage 2A containment proven; media blocked on deterministic schedule and runner verification
+Status: Stage 2A schedule and containment proven; media blocked on semantic executor integration
 
 Updated: 2026-08-27
 
@@ -31,6 +31,7 @@ The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. 
 | Replacement pre-matrix smoke | MP4 one-thread, WebM one-thread, and WebM half-logical each passed once under the complete frozen contract | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
 | Durable artifact retention | Current 4,101-artifact corpus independently byte-verified in private R2 | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
 | Future evidence containment | Legacy corpus sealed; immutable shard/index path passed local and exact R2-byte no-media proof | [Containment result](gate-0-g0.5-stage2-containment-results.md) |
+| Stage 2A execution prerequisite | Exact 18-cell/108-attempt schedule, hash closure, runtime/resource preflight, and contract-only runner passed; execution authorization remains pending | [Execution prerequisite](gate-0-g0.5-stage2a-execution-prerequisite.md) |
 | Current owner authorization | Exact 18-cell/108-attempt Stage 2A matrix and bounded future-only containment approved; 2B and later work blocked | [Stage 2A owner decisions](gate-0-g0.5-stage2a-owner-decisions.md) |
 
 ## Active bounded unit
@@ -44,7 +45,7 @@ The replacement-smoke unit completed:
 5. retained and independently verified the replacement evidence; and
 6. produced one compact owner packet with results, growth projections, containment recommendation, and the proposed full-matrix route/thread subset.
 
-The legacy seal, root index, immutable shard writer/validator, negative tests, and no-media local/R2 round trip are complete. The active unit may now implement and prove only the deterministic matrix schedule, incremental preflights, retention reservation, and exact 2A runner. Stage 2A media may begin only after those remaining prerequisites pass. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
+The legacy seal, root index, immutable shard writer/validator, negative tests, no-media local/R2 round trip, deterministic schedule, hash-bound dependency closure, and full/per-cell preflight contract are complete. The active unit may now implement and prove only the exact semantic cell executor, compact/full retention transformation, fail-fast route suspension, and result aggregation. The pending authorization keeps both media and `p2-runtime-route` evidence appends unavailable until that integration passes review. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
 
 ## Containment and remaining sequence
 
@@ -52,6 +53,6 @@ No new codec/container/filter matrix, dependency, installation, fixture family, 
 
 F7/Matroska expansion has stopped. The final packet will classify the 83 non-passing rows rather than attempt further repairs unless a required Free 1.0 workflow is shown to depend on an exact row.
 
-The exact 18-cell/108-attempt matrix and [future evidence-containment contract](gate-0-evidence-containment.md) are approved. The writer/validator, legacy seal, atomic no-media local/R2 proof, and fixed retention ceilings are complete. Execution remains blocked until the counterbalanced schedule, incremental preflights, retention reservation, and exact runner are committed and verified.
+The exact 18-cell/108-attempt matrix and [future evidence-containment contract](gate-0-evidence-containment.md) are approved. The writer/validator, legacy seal, atomic no-media local/R2 proof, fixed retention ceilings, counterbalanced schedule, hash closure, and preflight guards are committed and verified. Execution remains blocked until the semantic cell executor and one-shard-per-cell retention integration are implemented, tested, reviewed, and included in an effective execution authorization.
 
 After any separately authorized measured work, Gate 0 still requires long-form sizing and authorization, suitable independent playback, documentation-only Pro repair dispositions, and the G0.7 exit packet.

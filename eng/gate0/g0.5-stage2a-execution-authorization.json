@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "authorizationId": "Gate0.G05.Stage2A.ExecutionAuthorization.V1",
+  "status": "owner-authorized-execution-implementation-pending",
+  "exactCellCount": 18,
+  "exactAttemptCount": 108,
+  "bindings": [
+    { "role": "owner-decision", "path": "docs/gate-0-g0.5-stage2a-owner-decisions.md", "sha256": "A216BACB75251C0756F9B4101B93F2E7BA9C5B2D9E6AA5A0F9E33268122472B6" },
+    { "role": "schedule", "path": "eng/gate0/g0.5-stage2a-schedule.json", "sha256": "C16D4A65EDDEA2A6213C0A60D371BE605FD3295EE2695EF2716762EA2F85B90E" },
+    { "role": "runner", "path": "eng/gate0/Invoke-G05Stage2AMatrix.ps1", "sha256": "919108CC7D91BC26E90A661DD1CA35B024835229B8A50BE66471187187FDCBF8" },
+    { "role": "preflight", "path": "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1", "sha256": "A5E0D8FCF4309B6CEDC3A043382DC08ACB77D6D8D4EEEC6D978996955855E4DC" },
+    { "role": "helper", "path": "eng/gate0/G05Stage2AMatrixHelpers.psm1", "sha256": "15D1DDC3DA0B94CA7A184376C3565B0A496F24C6676C61195749A596827DAA7A" },
+    { "role": "runtime-validator", "path": "eng/gate0/Validate-P2Runtime.ps1", "sha256": "CAA8A0B7DD67629273A6FAD1A30DC44BA1536F34861363341079860CC4327E49" },
+    { "role": "runtime-manifest", "path": "eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json", "sha256": "3ECF44CF6D5A878C69A0BD18C9C44777EFE8BD990C04C4F371383D2FAF1E1640" },
+    { "role": "workload-contract", "path": "eng/gate0/g0.5-stage2-workload-contract.json", "sha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC" },
+    { "role": "containment-contract", "path": "eng/gate0/g0.5-stage2-containment-dry-run-contract.json", "sha256": "CE2F7B7BB95421F6A909B305C1DD33C30361B9FB86073E78C381C9A45EF517B3" }
+  ],
+  "limitations": [
+    "This record deliberately does not unlock evidence writing or media execution until an independently reviewed semantic cell executor is bound.",
+    "It grants no product, WPF, concurrency, long-form, shipping-runtime, distribution, or legal authority."
+  ]
+}
