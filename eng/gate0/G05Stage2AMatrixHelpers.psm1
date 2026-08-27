@@ -19,6 +19,7 @@ function Read-G05Stage2AExecutionAuthorization([string] $Path, [string] $Reposit
         schedule = 'eng/gate0/g0.5-stage2a-schedule.json'
         runner = 'eng/gate0/Invoke-G05Stage2AMatrix.ps1'
         preflight = 'eng/gate0/Test-G05Stage2AMatrixPreflight.ps1'
+        'legacy-retention-validator' = 'eng/gate0/Test-Gate0ArtifactRetention.ps1'
         helper = 'eng/gate0/G05Stage2AMatrixHelpers.psm1'
         'semantic-executor' = 'eng/gate0/G05Stage2ASemanticExecutor.psm1'
         'semantic-helper' = 'eng/gate0/G05Stage2ASemanticHelpers.psm1'

@@ -466,6 +466,45 @@ public sealed class Gate0ArtifactRetentionTests
         finally { DeleteCorpus(corpus.TestRoot); }
     }
 
+    [Fact]
+    public void LegacyValidatorExcludesOnlyFutureStage2AfterSeparateContainmentValidation()
+    {
+        var corpus = CreateAppendTestCorpus();
+        try
+        {
+            var future = Path.Combine(corpus.ArtifactRoot, "future", "stage2", "run-a");
+            Directory.CreateDirectory(future);
+            File.WriteAllText(Path.Combine(future, "proof.txt"), "future");
+            var gate0 = Path.Combine(corpus.TestRoot, "repo", "eng", "gate0");
+            var separate = Path.Combine(gate0, "Test-Gate0EvidenceContainment.ps1");
+            File.WriteAllText(separate, "param([string]$ArtifactRoot,[switch]$RequireEffectiveSeal) if(-not$RequireEffectiveSeal){throw 'seal required'}; [pscustomobject]@{disposition='passed'}");
+            var validator = Path.Combine(gate0, "Test-Gate0ArtifactRetention.ps1").Replace("'", "''", StringComparison.Ordinal);
+            var root = corpus.ArtifactRoot.Replace("'", "''", StringComparison.Ordinal);
+
+            var strict = RunPowerShell($"& '{validator}' -ArtifactRoot '{root}'");
+            Assert.NotEqual(0, strict.ExitCode);
+            Assert.Contains("unmanifested", strict.Output, StringComparison.OrdinalIgnoreCase);
+
+            var separated = RunPowerShell($"& '{validator}' -ArtifactRoot '{root}' -ValidateIndexedFutureEvidenceSeparately");
+            Assert.Equal(0, separated.ExitCode);
+
+            var unrelatedFuture = Path.Combine(corpus.ArtifactRoot, "future", "not-stage2", "unexpected.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(unrelatedFuture)!);
+            File.WriteAllText(unrelatedFuture, "unexpected");
+            var narrowPrefix = RunPowerShell($"& '{validator}' -ArtifactRoot '{root}' -ValidateIndexedFutureEvidenceSeparately");
+            Assert.NotEqual(0, narrowPrefix.ExitCode);
+            Assert.Contains("unmanifested", narrowPrefix.Output, StringComparison.OrdinalIgnoreCase);
+            File.Delete(unrelatedFuture);
+            Directory.Delete(Path.GetDirectoryName(unrelatedFuture)!);
+
+            File.WriteAllText(separate, "param([string]$ArtifactRoot,[switch]$RequireEffectiveSeal) throw 'future validation failed'");
+            var rejected = RunPowerShell($"& '{validator}' -ArtifactRoot '{root}' -ValidateIndexedFutureEvidenceSeparately");
+            Assert.NotEqual(0, rejected.ExitCode);
+            Assert.Contains("future validation failed", rejected.Output, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { DeleteCorpus(corpus.TestRoot); }
+    }
+
     private static (string TestRoot, string ArtifactRoot, string TrackedManifest, string LocalManifest, string Command) CreateAppendTestCorpus()
     {
         var testRoot = Path.Combine(Path.GetTempPath(), "ReelForge-Gate0AppendFaultTests", Guid.NewGuid().ToString("N"));

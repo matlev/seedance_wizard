@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)] [string] $ArtifactRoot
+    [Parameter(Mandatory)] [string] $ArtifactRoot,
+    [switch] $ValidateIndexedFutureEvidenceSeparately
 )
 
 Set-StrictMode -Version Latest
@@ -38,6 +39,12 @@ function Assert-SafeRelativePath([string] $Value, [string] $Label) {
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $resolvedManifestPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'artifact-retention-manifest.json'))
+
+if ($ValidateIndexedFutureEvidenceSeparately) {
+    $futureValidator = Join-Path $PSScriptRoot 'Test-Gate0EvidenceContainment.ps1'
+    if (-not (Test-Path -LiteralPath $futureValidator -PathType Leaf)) { throw 'The separate future-evidence validator is missing.' }
+    & $futureValidator -ArtifactRoot $ArtifactRoot -RequireEffectiveSeal | Out-Null
+}
 $approvedArtifactRoot = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($repositoryRoot)) 'ReelForge.Gate0Artifacts')).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $candidateArtifactRoot = [IO.Path]::GetFullPath($ArtifactRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
 if (-not $candidateArtifactRoot.Equals($approvedArtifactRoot, [StringComparison]::OrdinalIgnoreCase)) {
@@ -166,6 +173,7 @@ if ($trackedManifestSha256 -ne $localManifestSha256) {
 $actualRelativeFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($item in @(Get-ChildItem -LiteralPath $resolvedArtifactRoot -Force -File -Recurse)) {
     $relative = [IO.Path]::GetRelativePath($resolvedArtifactRoot, $item.FullName).Replace('\', '/')
+    if ($ValidateIndexedFutureEvidenceSeparately -and $relative.StartsWith('future/stage2/', [StringComparison]::OrdinalIgnoreCase)) { continue }
     [void] $actualRelativeFiles.Add($relative)
 }
 $expectedRelativeFiles = [Collections.Generic.HashSet[string]]::new($retainedPaths, [StringComparer]::OrdinalIgnoreCase)

@@ -65,7 +65,7 @@ try {
     $observation.bindings.authorization = [ordered]@{path='eng/gate0/g0.5-stage2a-execution-authorization.json';sha256=$authorization.Sha256;status=$authorization.Authorization.status}
     & (Join-Path $PSScriptRoot 'Test-Gate0EvidenceContainment.ps1') -ArtifactRoot $artifact -RequireEffectiveSeal | Out-Null
     $observation.criteria.sealedCorpusAndFutureIndex = 'passed'
-    if (-not $PerCell) { & (Join-Path $PSScriptRoot 'Test-Gate0ArtifactRetention.ps1') -ArtifactRoot $artifact | Out-Null; $observation.criteria.fullLegacyCorpus = 'passed' }
+    if (-not $PerCell) { & (Join-Path $PSScriptRoot 'Test-Gate0ArtifactRetention.ps1') -ArtifactRoot $artifact -ValidateIndexedFutureEvidenceSeparately | Out-Null; $observation.criteria.fullLegacyCorpus = 'passed' }
     $environment = Get-G05Stage2AEnvironmentObservation
     $observation.environment = $environment
     if ([int]$environment.logicalProcessorCount -ne 16 -or [int64]$environment.totalPhysicalMemoryBytes -lt 32212254720 -or [int64]$environment.availablePhysicalMemoryBytes -lt 8589934592) { throw 'The owner reference-host processor or memory floor is not satisfied.' }
