@@ -52,16 +52,40 @@ foreach($value in @($ProofRunId,$EvidenceGroupId,$CellId)){Assert-Gate0EvidenceV
 foreach($identity in @($ContractIdentity)+@($ProducerRuntimeIdentity)+@($LicenseRecords)) { Assert-Gate0EvidenceV2MetadataText ([string]$identity) 'V2 append identity' }
 Assert-Gate0EvidenceV2MetadataText $Provenance 'V2 append provenance'
 if ([string]::IsNullOrWhiteSpace($Provenance) -or @($ContractIdentity).Count -eq 0 -or @($ProducerRuntimeIdentity).Count -eq 0) { throw 'V2 append metadata is required.' }
- $attempts=@()
+ $attempts=@();$liveScheduledRows=$null
  if($EvidenceBoundary -eq 'p2-runtime-route') {
-   if(-not $SkipRemoteForIsolatedTest) {
-     throw 'V2 runtime-route append is blocked until the fixed tracked continuation authorization, schedule, V5 freeze, and preflight bindings exist.'
+   $fixedWriterAuthorizationPath=Join-Path $PSScriptRoot 'g0.5-stage2a-continuation-v2-writer-authorization.json'
+   $fixedContinuationAuthorizationPath=Join-Path $PSScriptRoot 'g0.5-stage2a-continuation-authorization.json'
+   $fixedContinuationSchedulePath=Join-Path $PSScriptRoot 'g0.5-stage2a-continuation-schedule.json'
+   if($SkipRemoteForIsolatedTest) {
+     if(-not $ContinuationAuthorizationPath -or -not(Test-Path -LiteralPath $ContinuationAuthorizationPath -PathType Leaf)){throw 'V2 runtime-route append is blocked until an exact future continuation authorization exists.'}
+     $authText=Get-Content -LiteralPath $ContinuationAuthorizationPath -Raw;Assert-Gate0EvidenceV2MetadataText $authText 'V2 continuation authorization';$auth=$authText|ConvertFrom-Json -Depth 32
+     Assert-Gate0EvidenceV2ExactProperties $auth @('schemaVersion','authorizationId','authorizationScope','continuationProofRunIds','limitations') 'V2 continuation authorization'
+     if($auth.schemaVersion -ne 1 -or $auth.authorizationId -ne 'Gate0.Stage2Evidence.V2.ContinuationAuthorization.V1' -or $auth.authorizationScope -ne 'owner-authorized-v2-continuation' -or @($auth.continuationProofRunIds|Where-Object {$_ -eq $ProofRunId}).Count -ne 1){throw 'V2 continuation authorization is not exact for this proof run.'}
+   } else {
+     if(-not (Test-Path -LiteralPath $fixedWriterAuthorizationPath -PathType Leaf) -or -not (Test-Path -LiteralPath $fixedContinuationAuthorizationPath -PathType Leaf) -or -not (Test-Path -LiteralPath $fixedContinuationSchedulePath -PathType Leaf)){throw 'V2 runtime-route append is blocked until both fixed tracked continuation authorizations and the exact schedule exist.'}
+     if($ContinuationAuthorizationPath -and -not([IO.Path]::GetFullPath($ContinuationAuthorizationPath).Equals([IO.Path]::GetFullPath($fixedWriterAuthorizationPath),[StringComparison]::OrdinalIgnoreCase))){throw 'Live V2 runtime-route append cannot override the fixed tracked writer authorization.'}
+     Import-Module (Join-Path $PSScriptRoot 'G05Stage2AContinuationHelpers.psm1') -Force
+     $fullAuthorization=Read-G05Stage2AContinuationAuthorization $fixedContinuationAuthorizationPath $repo $fixedContinuationSchedulePath
+     $writerAuthorizationText=Get-Content -LiteralPath $fixedWriterAuthorizationPath -Raw;Assert-Gate0EvidenceV2MetadataText $writerAuthorizationText 'V2 continuation writer authorization';$auth=$writerAuthorizationText|ConvertFrom-Json -Depth 32
+     Assert-Gate0EvidenceV2ExactProperties $auth @('schemaVersion','authorizationId','authorizationScope','continuationProofRunIds','limitations') 'V2 continuation writer authorization'
+     $writerProofIds=@($auth.continuationProofRunIds|ForEach-Object{[string]$_})
+     $scheduledProofIds=@($fullAuthorization.Schedule.ProofRunIds|ForEach-Object{[string]$_}|Sort-Object)
+     if($auth.schemaVersion -ne 1 -or $auth.authorizationId -ne 'Gate0.Stage2Evidence.V2.ContinuationAuthorization.V1' -or $auth.authorizationScope -ne 'owner-authorized-v2-continuation' -or $writerProofIds.Count -ne 12 -or @($writerProofIds|Where-Object {[string]::IsNullOrWhiteSpace($_)}).Count -ne 0 -or $writerProofIds.Count -ne @($writerProofIds|Sort-Object -Unique).Count -or (@($writerProofIds|Sort-Object)-join'|') -ne ($scheduledProofIds-join'|') -or @($writerProofIds|Where-Object {$_ -eq $ProofRunId}).Count -ne 1){throw 'V2 continuation writer authorization is not the exact approved twelve-proof set for this proof run.'}
+     $writerBinding=@($fullAuthorization.Authorization.bindings|Where-Object { $_.role -eq 'v2-writer-authorization' })
+     if($writerBinding.Count -ne 1 -or $writerBinding[0].path -ne 'eng/gate0/g0.5-stage2a-continuation-v2-writer-authorization.json' -or $writerBinding[0].sha256 -ne (Get-G05Stage2AContinuationSha256 $fixedWriterAuthorizationPath)){throw 'The full continuation authorization does not bind the exact writer authorization bytes.'}
+     $liveScheduledRows=@($fullAuthorization.Schedule.Schedule.attempts|Where-Object { $_.proofRunId -eq $ProofRunId }|Sort-Object continuationOrdinal)
+     if($EvidenceGroupId -ne 'g05-stage2a-continuation-20260827'-or$liveScheduledRows.Count -ne 6-or@($liveScheduledRows|Where-Object { $_.cellId -ne $CellId }).Count -ne 0){throw 'V2 runtime-route append does not match the exact authorized continuation schedule cell.'}
    }
-   if(-not $ContinuationAuthorizationPath -or -not(Test-Path -LiteralPath $ContinuationAuthorizationPath -PathType Leaf)){throw 'V2 runtime-route append is blocked until an exact future continuation authorization exists.'}
-   $authText=Get-Content -LiteralPath $ContinuationAuthorizationPath -Raw;Assert-Gate0EvidenceV2MetadataText $authText 'V2 continuation authorization';$auth=$authText|ConvertFrom-Json -Depth 32
-   Assert-Gate0EvidenceV2ExactProperties $auth @('schemaVersion','authorizationId','authorizationScope','continuationProofRunIds','limitations') 'V2 continuation authorization'
-   if($auth.schemaVersion -ne 1 -or $auth.authorizationId -ne 'Gate0.Stage2Evidence.V2.ContinuationAuthorization.V1' -or $auth.authorizationScope -ne 'owner-authorized-v2-continuation' -or @($auth.continuationProofRunIds|Where-Object {$_ -eq $ProofRunId}).Count -ne 1){throw 'V2 continuation authorization is not exact for this proof run.'}
    if(-not $AttemptsPath -or -not(Test-Path -LiteralPath $AttemptsPath -PathType Leaf)){throw 'V2 continuation requires an exact attempt-binding document.'};$attemptText=Get-Content -LiteralPath $AttemptsPath -Raw;Assert-Gate0EvidenceV2MetadataText $attemptText 'V2 attempt bindings';$attempts=@($attemptText|ConvertFrom-Json -Depth 32)
+   if(-not $SkipRemoteForIsolatedTest) {
+     if($attempts.Count -ne 6){throw 'Live V2 continuation attempt bindings must contain the exact six scheduled rows.'}
+     for($attemptIndex=0;$attemptIndex-lt6;$attemptIndex++) {
+       $binding=$attempts[$attemptIndex];$scheduled=$liveScheduledRows[$attemptIndex]
+       Assert-Gate0EvidenceV2ExactProperties $binding @('attemptId','originalAttemptId','phase','ordinal','retentionClass','recordPath','recordSha256','disposition','completeClosureReference') 'Live V2 continuation attempt binding'
+       if([string]$binding.attemptId -ne "stage2a-continuation-$($scheduled.globalOrdinal)" -or [string]$binding.originalAttemptId -ne "stage2a-$($scheduled.originalScheduleOrdinal)" -or [string]$binding.phase -ne [string]$scheduled.phase -or [int]$binding.ordinal -ne [int]$scheduled.globalOrdinal){throw 'Live V2 continuation attempt bindings are missing, reordered, duplicated, or do not match the exact frozen schedule identities.'}
+     }
+   }
  } elseif($AttemptsPath){throw 'V2 infrastructure append cannot carry media attempt bindings.'}
 if(-not(Test-Path -LiteralPath $source -PathType Container)){throw 'V2 SourceRoot does not exist.'}
 Assert-DirectoryTreeHasNoReparsePoint $source 'V2 SourceRoot'
