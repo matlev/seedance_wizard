@@ -216,6 +216,11 @@ try {
     if ($projectedCandidateShape.Bytes -gt [int64]$root.Index.limits.maxRootIndexBytes -or $projectedCandidateShape.Lines -gt [int]$root.Index.limits.maxRootIndexLines) {
         throw 'Candidate root index exceeds its approved cap.'
     }
+    $projectedInfrastructureRuns = @($projectedCandidate.runs | Where-Object { $_.runKind -eq 'infrastructure' }).Count
+    $projectedCellRuns = @($projectedCandidate.runs | Where-Object { $_.runKind -eq 'stage2a-cell' }).Count
+    if ($projectedInfrastructureRuns -gt [int]$root.Index.limits.maxInfrastructureShards -or $projectedCellRuns -gt [int]$root.Index.limits.plannedCellShards) {
+        throw 'Candidate root exceeds its approved infrastructure or Stage 2A cell-shard count.'
+    }
 
     $journal = [ordered]@{
         schemaVersion = 1

@@ -408,6 +408,28 @@ public sealed class Gate0EvidenceContainmentTests
     }
 
     [Fact]
+    public void WriterRejectsProjectedInfrastructureShardOverflowBeforeCreatingJournalOrRemoteRetention()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            var before = PrepareNearCapRoot(corpus, limitationPaddingCount: 5, infrastructureRunCount: 2);
+            Assert.InRange(before.Lines, 1, 400);
+            var rootBefore = File.ReadAllText(corpus.RootIndex);
+
+            var result = RunPs(corpus.WriterCommand);
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("Candidate root exceeds its approved infrastructure or Stage 2A cell-shard count", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(rootBefore, File.ReadAllText(corpus.RootIndex));
+            Assert.False(File.Exists(corpus.ArtifactRoot + ".stage2-append-journal.json"));
+            Assert.False(Directory.Exists(corpus.Destination));
+            Assert.False(File.Exists(corpus.Shard));
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
     public void P2RuntimeRouteAppendRejectsAnOtherwiseExactPendingStage2AAuthorization()
     {
         var corpus = CreateIsolatedContainmentCorpus();
@@ -740,11 +762,12 @@ public sealed class Gate0EvidenceContainmentTests
         }
     }
 
-    private static (long Bytes, int Lines) PrepareNearCapRoot((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus, int limitationPaddingCount)
+    private static (long Bytes, int Lines) PrepareNearCapRoot((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus, int limitationPaddingCount, int infrastructureRunCount = 1)
     {
+        Assert.InRange(infrastructureRunCount, 1, 2);
         var module = Path.Combine(corpus.Gate0, "evidence", "Gate0EvidenceContainment.psm1");
         var stage2 = Path.Combine(corpus.Gate0, "evidence", "stage2");
-        var command = $"Import-Module '{PsQuote(module)}' -Force;$rootPath='{PsQuote(corpus.RootIndex)}';$stage2='{PsQuote(stage2)}';[IO.Directory]::CreateDirectory($stage2)|Out-Null;$root=Get-Content -LiteralPath $rootPath -Raw|ConvertFrom-Json -Depth 64;$runs=@();$previous=$null;1..19|%{{$ordinal=$_;$proofRunId=('existing-'+$ordinal);$cellId=('existing-cell-'+$ordinal);$shard=[ordered]@{{schemaVersion=1;shardId='Gate0.Stage2Evidence.Shard.V1';proofRunId=$proofRunId;evidenceGroupId=('existing-group-'+$ordinal);cellId=$cellId;evidenceBoundary='containment-no-media';createdUtc='2099-12-31T23:59:59.9999999+00:00';contractIdentity=@('repository:contract');provenance='isolated test';producerRuntimeIdentity=@('repository:producer');licenseRecords=@();artifacts=@();attempts=@();disposition='passed';localRetention='verified';r2Retention='independently-retrieved-and-verified';totals=[ordered]@{{logicalArtifactCount=0;logicalArtifactBytes=0}};limitations=@('test')}};$shardPath=Join-Path $stage2 ($proofRunId+'.manifest.json');[IO.File]::WriteAllText($shardPath,(($shard|ConvertTo-Json -Depth 32 -Compress)+\"`n\"),[Text.UTF8Encoding]::new($false));$entry=[ordered]@{{ordinal=$ordinal;runKind=if($ordinal-eq1){{'infrastructure'}}else{{'stage2a-cell'}};proofRunId=$proofRunId;evidenceGroupId=('existing-group-'+$ordinal);cellId=$cellId;shardPath=('stage2/'+$proofRunId+'.manifest.json');shardSha256=(Get-Gate0EvidenceSha256 $shardPath);entrySha256='';previousRunId=if($null-eq$previous){{$null}}else{{$previous.proofRunId}};previousRunEntrySha256=if($null-eq$previous){{$null}}else{{$previous.entrySha256}};disposition='passed';logicalArtifactCount=0;logicalArtifactBytes=0;localRetention='verified';r2Retention='independently-retrieved-and-verified'}};$entry.entrySha256=Get-Gate0EvidenceEntryHash ([pscustomobject]$entry);$entry=[pscustomobject]$entry;$runs+=@($entry);$previous=$entry}};$root.runs=$runs;$root.totals.runCount=$runs.Count;$root.totals.logicalArtifactCount=0;$root.totals.logicalArtifactBytes=0;$root.limitations=@();1..{limitationPaddingCount}|%{{$root.limitations+=('padding-'+$_)}};[IO.File]::WriteAllText($rootPath,(($root|ConvertTo-Json -Depth 64)+\"`n\"),[Text.UTF8Encoding]::new($false));[void](Read-Gate0EvidenceRootIndex $rootPath);Get-Gate0EvidenceFileShape $rootPath|ConvertTo-Json -Compress";
+        var command = $"Import-Module '{PsQuote(module)}' -Force;$rootPath='{PsQuote(corpus.RootIndex)}';$stage2='{PsQuote(stage2)}';[IO.Directory]::CreateDirectory($stage2)|Out-Null;$root=Get-Content -LiteralPath $rootPath -Raw|ConvertFrom-Json -Depth 64;$runs=@();$previous=$null;1..{18 + infrastructureRunCount}|%{{$ordinal=$_;$proofRunId=('existing-'+$ordinal);$cellId=('existing-cell-'+$ordinal);$shard=[ordered]@{{schemaVersion=1;shardId='Gate0.Stage2Evidence.Shard.V1';proofRunId=$proofRunId;evidenceGroupId=('existing-group-'+$ordinal);cellId=$cellId;evidenceBoundary='containment-no-media';createdUtc='2099-12-31T23:59:59.9999999+00:00';contractIdentity=@('repository:contract');provenance='isolated test';producerRuntimeIdentity=@('repository:producer');licenseRecords=@();artifacts=@();attempts=@();disposition='passed';localRetention='verified';r2Retention='independently-retrieved-and-verified';totals=[ordered]@{{logicalArtifactCount=0;logicalArtifactBytes=0}};limitations=@('test')}};$shardPath=Join-Path $stage2 ($proofRunId+'.manifest.json');[IO.File]::WriteAllText($shardPath,(($shard|ConvertTo-Json -Depth 32 -Compress)+\"`n\"),[Text.UTF8Encoding]::new($false));$entry=[ordered]@{{ordinal=$ordinal;runKind=if($ordinal-le{infrastructureRunCount}){{'infrastructure'}}else{{'stage2a-cell'}};proofRunId=$proofRunId;evidenceGroupId=('existing-group-'+$ordinal);cellId=$cellId;shardPath=('stage2/'+$proofRunId+'.manifest.json');shardSha256=(Get-Gate0EvidenceSha256 $shardPath);entrySha256='';previousRunId=if($null-eq$previous){{$null}}else{{$previous.proofRunId}};previousRunEntrySha256=if($null-eq$previous){{$null}}else{{$previous.entrySha256}};disposition='passed';logicalArtifactCount=0;logicalArtifactBytes=0;localRetention='verified';r2Retention='independently-retrieved-and-verified'}};$entry.entrySha256=Get-Gate0EvidenceEntryHash ([pscustomobject]$entry);$entry=[pscustomobject]$entry;$runs+=@($entry);$previous=$entry}};$root.runs=$runs;$root.totals.runCount=$runs.Count;$root.totals.logicalArtifactCount=0;$root.totals.logicalArtifactBytes=0;$root.limitations=@();1..{limitationPaddingCount}|%{{$root.limitations+=('padding-'+$_)}};[IO.File]::WriteAllText($rootPath,(($root|ConvertTo-Json -Depth 64)+\"`n\"),[Text.UTF8Encoding]::new($false));[void](Read-Gate0EvidenceRootIndex $rootPath);Get-Gate0EvidenceFileShape $rootPath|ConvertTo-Json -Compress";
         var result = RunPs(command);
         Assert.True(result.ExitCode == 0, result.Output);
         using var shape = JsonDocument.Parse(result.Output);
