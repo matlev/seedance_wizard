@@ -182,16 +182,20 @@ function Get-G05Stage2ACompleteClosureReference([object[]] $Bindings) {
 }
 
 function Assert-G05Stage2AAttemptSummary([object] $Summary) {
+    $view = if ($Summary -is [Collections.IDictionary]) { [pscustomobject]$Summary } else { $Summary }
     $required = @('attemptId','globalOrdinal','phase','disposition','selectedComponents','commands','validations','hashes','encodedByteEqualityClaim','cleanup')
-    foreach ($name in $required) { if ($null -eq $Summary.PSObject.Properties[$name]) { throw "Stage 2A attempt summary lacks $name." } }
+    foreach ($name in $required) { if ($null -eq $view.PSObject.Properties[$name]) { throw "Stage 2A attempt summary lacks $name." } }
     $approvedDispositions = @('passed','failed','blocked','cleanup-failed','orphan-producing','byte-divergent','semantically-divergent','structurally-divergent')
-    if ([string]$Summary.disposition -notin $approvedDispositions) { throw 'Stage 2A attempt summary has an unapproved disposition.' }
-    if ([bool]$Summary.encodedByteEqualityClaim) { throw 'Stage 2A evidence may not claim encoded-byte equality.' }
-    if ([string]$Summary.disposition -eq 'passed') {
+    if ([string]$view.disposition -notin $approvedDispositions) { throw 'Stage 2A attempt summary has an unapproved disposition.' }
+    if ([bool]$view.encodedByteEqualityClaim) { throw 'Stage 2A evidence may not claim encoded-byte equality.' }
+    if ([string]$view.disposition -eq 'passed') {
+        $validations = if ($view.validations -is [Collections.IDictionary]) { [pscustomobject]$view.validations } else { $view.validations }
+        $hashes = if ($view.hashes -is [Collections.IDictionary]) { [pscustomobject]$view.hashes } else { $view.hashes }
+        $cleanup = if ($view.cleanup -is [Collections.IDictionary]) { [pscustomobject]$view.cleanup } else { $view.cleanup }
         $names = @('encode','probe','timing','visual','audio','cleanup')
-        foreach ($name in $names) { if ($null -eq $Summary.validations.PSObject.Properties[$name] -or -not [bool]$Summary.validations.$name) { throw "A passed Stage 2A summary lacks $name validation." } }
-        foreach ($name in @('outputSha256','frameProbeSha256','packetProbeSha256','decodedVideoIdentitySha256','decodedAudioRawSha256','decodedAudioContentNormalizedSha256')) { if ([string]::IsNullOrWhiteSpace([string]$Summary.hashes.$name)) { throw "A passed Stage 2A summary lacks $name." } }
-        if (-not [bool]$Summary.cleanup.processTreeRootExited -or -not [bool]$Summary.cleanup.processTreeOrphanFree -or -not [bool]$Summary.cleanup.noUnvalidatedPartialOutput) { throw 'A passed Stage 2A summary lacks process-tree or partial-output cleanup evidence.' }
+        foreach ($name in $names) { if ($null -eq $validations.PSObject.Properties[$name] -or -not [bool]$validations.$name) { throw "A passed Stage 2A summary lacks $name validation." } }
+        foreach ($name in @('outputSha256','frameProbeSha256','packetProbeSha256','decodedVideoIdentitySha256','decodedAudioRawSha256','decodedAudioContentNormalizedSha256')) { if ([string]::IsNullOrWhiteSpace([string]$hashes.$name)) { throw "A passed Stage 2A summary lacks $name." } }
+        if (-not [bool]$cleanup.processTreeRootExited -or -not [bool]$cleanup.processTreeOrphanFree -or -not [bool]$cleanup.noUnvalidatedPartialOutput) { throw 'A passed Stage 2A summary lacks process-tree or partial-output cleanup evidence.' }
     }
 }
 

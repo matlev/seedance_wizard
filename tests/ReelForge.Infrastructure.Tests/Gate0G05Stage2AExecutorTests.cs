@@ -55,6 +55,14 @@ public sealed class Gate0G05Stage2AExecutorTests
     }
 
     [Fact]
+    public void SummaryValidationAcceptsTheRunnersOrderedDictionaryShape()
+    {
+        var command = Imports() + "; " +
+            "$summary=[ordered]@{attemptId='a';globalOrdinal=1;disposition='passed';phase='measured';selectedComponents=[ordered]@{};commands=[ordered]@{};encodedByteEqualityClaim=$false;cleanup=[ordered]@{processTreeRootExited=$true;processTreeOrphanFree=$true;noUnvalidatedPartialOutput=$true};validations=[ordered]@{encode=$true;probe=$true;timing=$true;visual=$true;audio=$true;cleanup=$true};hashes=[ordered]@{outputSha256='a';frameProbeSha256='b';packetProbeSha256='c';decodedVideoIdentitySha256='d';decodedAudioRawSha256='e';decodedAudioContentNormalizedSha256='f'}}; Assert-G05Stage2AAttemptSummary $summary; 'passed'";
+        Assert.Equal("passed", Run(command).Trim());
+    }
+
+    [Fact]
     public void ExactTimingRejectsWrongFrameCountWithoutMedia()
     {
         var command = Imports() + "; " +

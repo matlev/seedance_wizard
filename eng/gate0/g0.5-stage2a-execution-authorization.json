@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "authorizationId": "Gate0.G05.Stage2A.ExecutionAuthorization.V1",
-  "status": "owner-authorized-and-prerequisites-verified",
+  "status": "owner-authorized-execution-implementation-pending",
   "exactCellCount": 18,
   "exactAttemptCount": 108,
   "bindings": [
@@ -12,7 +12,7 @@
     { "role": "preflight", "path": "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1", "sha256": "E7407FA10EA43F7BDE0AFB8079A949BEF06FD75DCF4D18B4FDC73FC13566EEA6" },
     { "role": "legacy-retention-validator", "path": "eng/gate0/Test-Gate0ArtifactRetention.ps1", "sha256": "97DCFA4BB91C0EA8A009F5E4F1DE0ABEDD28E4B41AFB10C48C18CC2C086C8D98" },
     { "role": "helper", "path": "eng/gate0/G05Stage2AMatrixHelpers.psm1", "sha256": "7596C7DF08FE91932B319690814EDAAC2F49E4FAA8851B4E2A250ACA0FFEA537" },
-    { "role": "semantic-executor", "path": "eng/gate0/G05Stage2ASemanticExecutor.psm1", "sha256": "20EDA2AB1105F6BEA80D729928FD21B124E480978A602B52873C239691C34CA5" },
+    { "role": "semantic-executor", "path": "eng/gate0/G05Stage2ASemanticExecutor.psm1", "sha256": "36B7D7045BF6A140639073989E82E0A8BB8CFEF54F11852A1CDBDC473D56318B" },
     { "role": "semantic-helper", "path": "eng/gate0/G05Stage2ASemanticHelpers.psm1", "sha256": "D2EEE48541BA9411325D977AA5A6A1913FBFD4763BCF5C94CB1B97B071F620FE" },
     { "role": "smoke-helper", "path": "eng/gate0/G05Stage2SmokeHelpers.psm1", "sha256": "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4" },
     { "role": "marker-helper", "path": "eng/gate0/G05MarkerSurvivabilityHelpers.psm1", "sha256": "32793DB793CFA7F08092CED6F5CFAABA4EE3761F9FC593C2AB551838159071CC" },

@@ -1,6 +1,6 @@
 # Gate 0 current status
 
-Status: exact Stage 2A runtime-route matrix activated; execution not yet started
+Status: Stage 2A blocked after one local warm-up; retry requires owner disposition
 
 Updated: 2026-08-27
 
@@ -9,6 +9,8 @@ This is the small canonical current-status entry point for Gate 0. Historical de
 ## Current conclusion
 
 Gate 0 remains inside its approved research-and-proof boundary. It has not added editing UI, project persistence, product render-command changes, runtime enforcement, or Windows-specific project meaning. The narrow product-source runtime observation/validation seam remains unintegrated with production behavior.
+
+The first Stage 2A live start passed preflight and completed one local warm-up encode/semantic closure, then stopped before retention because the validator did not accept the runner's ordered-dictionary summary shape. The root index and R2 corpus were not changed. The defect is repaired and tested, but authorization is pending because restarting the exact 108-attempt schedule would produce one additional physical warm-up beyond the original approval. See the [first-execution block](gate-0-g0.5-stage2a-first-execution-block.md).
 
 The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. Independent playback, measured Stage 2 performance, WPF media-load evidence, cancellation/preview/resource evidence, long-form integrity, final Pro dispositions, and the G0.7 decision packet remain open.
 
@@ -32,7 +34,7 @@ The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. 
 | Durable artifact retention | Current 4,101-artifact corpus independently byte-verified in private R2 | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
 | Future evidence containment | Legacy corpus sealed; immutable shard/index path passed local and exact R2-byte no-media proof | [Containment result](gate-0-g0.5-stage2-containment-results.md) |
 | Stage 2A execution prerequisite | Exact 18-cell/108-attempt schedule, semantic executor, hash closure, runtime/resource preflight, bounded retention, and no-media activation review passed | [Execution prerequisite](gate-0-g0.5-stage2a-execution-prerequisite.md) |
-| Current owner authorization | Exact 18-cell/108-attempt Stage 2A matrix is effective; 2B and later work remain blocked | [Stage 2A execution approval](gate-0-g0.5-stage2a-execution-approval.md) |
+| Current owner authorization | Exact 18-cell/108-attempt Stage 2A matrix approved; retry pending disposition of one local proof-harness warm-up | [First-execution block](gate-0-g0.5-stage2a-first-execution-block.md) |
 
 ## Active bounded unit
 
@@ -45,7 +47,7 @@ The replacement-smoke unit completed:
 5. retained and independently verified the replacement evidence; and
 6. produced one compact owner packet with results, growth projections, containment recommendation, and the proposed full-matrix route/thread subset.
 
-The legacy seal, root index, immutable shard writer/validator, negative tests, no-media local/R2 round trip, deterministic schedule, hash-bound dependency closure, full/per-cell preflight, exact semantic cell executor, compact/full retention transformation, fail-fast route suspension, and bounded result aggregation are complete and independently reviewed. The exact execution authorization is effective. The active bounded unit is now only the frozen 18-cell/108-attempt Stage 2A runtime-route matrix and its owner completion packet. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
+The legacy seal, root index, immutable shard writer/validator, negative tests, no-media local/R2 round trip, deterministic schedule, hash-bound dependency closure, full/per-cell preflight, exact semantic cell executor, compact/full retention transformation, fail-fast route suspension, and bounded result aggregation are complete and independently reviewed. The live summary-shape defect is repaired, tested, and pending final review. The active bounded unit is blocked on disposition of the already-executed local warm-up before the frozen 18-cell/108-attempt Stage 2A runtime-route matrix may restart. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
 
 ## Containment and remaining sequence
 
@@ -53,6 +55,6 @@ No new codec/container/filter matrix, dependency, installation, fixture family, 
 
 F7/Matroska expansion has stopped. The final packet will classify the 83 non-passing rows rather than attempt further repairs unless a required Free 1.0 workflow is shown to depend on an exact row.
 
-The exact 18-cell/108-attempt matrix and [future evidence-containment contract](gate-0-evidence-containment.md) are approved. The writer/validator, legacy seal, atomic no-media local/R2 proof, fixed retention ceilings, counterbalanced schedule, hash closure, semantic executor, one-shard-per-cell retention integration, and preflight guards are committed and verified. Execution may proceed only under the effective hash-bound authorization and must stop after the Stage 2A owner packet.
+The exact 18-cell/108-attempt matrix and [future evidence-containment contract](gate-0-evidence-containment.md) are approved. The writer/validator, legacy seal, atomic no-media local/R2 proof, fixed retention ceilings, counterbalanced schedule, hash closure, semantic executor, one-shard-per-cell retention integration, and preflight guards are committed and verified. Execution remains pending until the owner dispositions the extra physical warm-up; any later effective run must stop after the Stage 2A owner packet.
 
 After any separately authorized measured work, Gate 0 still requires long-form sizing and authorization, suitable independent playback, documentation-only Pro repair dispositions, and the G0.7 exit packet.
