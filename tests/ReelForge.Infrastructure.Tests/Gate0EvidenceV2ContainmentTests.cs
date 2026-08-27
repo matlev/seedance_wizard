@@ -322,6 +322,55 @@ public sealed class Gate0EvidenceV2ContainmentTests
     }
 
     [Fact]
+    public void V2AllowsASourceSubdirectoryOnlyWithinAnExplicitApprovedSiblingRoot()
+    {
+        var corpus = CreateCorpus();
+        try
+        {
+            var nested = Path.Combine(corpus.Source, "proof-unit"); Directory.CreateDirectory(nested); File.WriteAllText(Path.Combine(nested, "nested.txt"), "nested");
+            var result = RunPs($"& '{Quote(corpus.Writer)}' -ArtifactRoot '{Quote(corpus.Artifact)}' -SourceRoot '{Quote(nested)}' -ApprovedSourceRoot '{Quote(corpus.Source)}' -ProofRunId nested-source -EvidenceGroupId group -CellId nested-source -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -SkipRemoteForIsolatedTest");
+            Assert.Equal(0, result.ExitCode);
+            Assert.True(File.Exists(Path.Combine(corpus.Artifact, "future", "stage2", "v2", "nested-source", "nested.txt")));
+        }
+        finally { Directory.Delete(corpus.Root, true); }
+    }
+
+    [Fact]
+    public void V2RejectsASourceOutsideTheExplicitApprovedSiblingRoot()
+    {
+        var corpus = CreateCorpus();
+        try
+        {
+            var other = Path.Combine(corpus.Root, "other-source"); Directory.CreateDirectory(other); File.WriteAllText(Path.Combine(other, "outside.txt"), "outside");
+            var result = RunPs($"& '{Quote(corpus.Writer)}' -ArtifactRoot '{Quote(corpus.Artifact)}' -SourceRoot '{Quote(other)}' -ApprovedSourceRoot '{Quote(corpus.Source)}' -ProofRunId escaped-source -EvidenceGroupId group -CellId escaped-source -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -SkipRemoteForIsolatedTest");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("escaped the approved source root", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(corpus.Artifact + ".stage2-v2-append-journal.json"));
+        }
+        finally { Directory.Delete(corpus.Root, true); }
+    }
+
+    [Theory]
+    [InlineData("repository")]
+    [InlineData("artifact")]
+    public void V2RejectsRepositoryAndArtifactRootsAsApprovedSourceBoundaries(string alias)
+    {
+        var corpus = CreateCorpus();
+        try
+        {
+            var repository = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(corpus.Writer)!, "..", ".."));
+            var boundary = alias == "repository" ? repository : corpus.Artifact;
+            var source = alias == "repository" ? corpus.Source : corpus.Artifact;
+            var result = RunPs($"& '{Quote(corpus.Writer)}' -ArtifactRoot '{Quote(corpus.Artifact)}' -SourceRoot '{Quote(source)}' -ApprovedSourceRoot '{Quote(boundary)}' -ProofRunId forbidden-boundary -EvidenceGroupId group -CellId forbidden-boundary -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -SkipRemoteForIsolatedTest");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("distinct from the repository and artifact root", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(corpus.Artifact + ".stage2-v2-append-journal.json"));
+            Assert.False(Directory.Exists(Path.Combine(corpus.Artifact, "future")));
+        }
+        finally { Directory.Delete(corpus.Root, true); }
+    }
+
+    [Fact]
     public void V2EnforcesExactlyTwoInfrastructureAndTwelveAuthorizedContinuationCellsBeforeJournal()
     {
         var corpus = CreateCorpus();

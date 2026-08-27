@@ -4,7 +4,7 @@ param(
  [Parameter(Mandatory)][string]$ProofRunId,[Parameter(Mandatory)][string]$EvidenceGroupId,[Parameter(Mandatory)][string]$CellId,
  [ValidateSet('containment-no-media','p2-runtime-route')][string]$EvidenceBoundary='containment-no-media',
  [Parameter(Mandatory)][string[]]$ContractIdentity,[Parameter(Mandatory)][string]$Provenance,[Parameter(Mandatory)][string[]]$ProducerRuntimeIdentity,
- [string[]]$LicenseRecords=@(),[string]$ContinuationAuthorizationPath='',[string]$AttemptsPath='',
+ [string[]]$LicenseRecords=@(),[string]$ContinuationAuthorizationPath='',[string]$AttemptsPath='',[string]$ApprovedSourceRoot='',
  [ValidateSet('None','BeforeRemoteVerification','AfterRemoteVerification','AfterPayloadMove','AfterShardMove','AfterRootReplacement')][string]$FaultInjection='None',[switch]$SkipRemoteForIsolatedTest)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
@@ -41,8 +41,11 @@ function New-Artifact([string]$File,[string]$Relative) {
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..')).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $artifact=[IO.Path]::GetFullPath($ArtifactRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $source=[IO.Path]::GetFullPath($SourceRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
+$sourceBoundary=if([string]::IsNullOrWhiteSpace($ApprovedSourceRoot)){$source}else{[IO.Path]::GetFullPath($ApprovedSourceRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)}
 if([IO.Path]::GetDirectoryName($repo)-ne[IO.Path]::GetDirectoryName($artifact)){throw 'V2 ArtifactRoot must be a non-reparse sibling of the repository.'}
-if([IO.Path]::GetDirectoryName($repo)-ne[IO.Path]::GetDirectoryName($source)){throw 'V2 SourceRoot must be an approved non-reparse sibling of the repository.'}
+if([IO.Path]::GetDirectoryName($repo)-ne[IO.Path]::GetDirectoryName($sourceBoundary)){throw 'V2 approved source root must be a non-reparse sibling of the repository.'}
+if($sourceBoundary.Equals($repo,[StringComparison]::OrdinalIgnoreCase)-or$sourceBoundary.Equals($artifact,[StringComparison]::OrdinalIgnoreCase)){throw 'V2 approved source root must be distinct from the repository and artifact root.'}
+if(-not($source.Equals($sourceBoundary,[StringComparison]::OrdinalIgnoreCase)-or$source.StartsWith($sourceBoundary+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase))){throw 'V2 SourceRoot escaped the approved source root.'}
 Assert-Gate0EvidenceV2NoReparsePointAncestors $repo ([IO.Path]::GetDirectoryName($repo));Assert-Gate0EvidenceV2NoReparsePointAncestors $artifact ([IO.Path]::GetDirectoryName($artifact))
 if($FaultInjection-ne'None'-or$SkipRemoteForIsolatedTest){Assert-Isolated $repo $artifact}
 foreach($value in @($ProofRunId,$EvidenceGroupId,$CellId)){Assert-Gate0EvidenceV2Identifier $value 'V2 identifier'}
@@ -66,7 +69,8 @@ $sourceFiles = @(Get-ChildItem -LiteralPath $source -File -Recurse | Sort-Object
 if($sourceFiles.Count -eq 0){throw 'V2 SourceRoot contains no evidence files.'}
 $sourceBytes = [int64](($sourceFiles | Measure-Object -Property Length -Sum).Sum)
 $rootPath=Join-Path $PSScriptRoot 'evidence/v2/root-index.json';$stage=Join-Path $PSScriptRoot 'evidence/v2/stage2';$destName="future/stage2/v2/$ProofRunId";$dest=Join-Path $artifact ($destName.Replace('/','\'));$shardPath=Join-Path $stage "$ProofRunId.manifest.json";$journal="$artifact.stage2-v2-append-journal.json";$lockPath="$artifact.stage2-v2-append-lock";$lock=$null;$staging="$artifact.stage2-v2-staging-$([guid]::NewGuid().ToString('N'))";$tmpShard='';$rootCommitted=$false;$preserveRecovery=$false;$journalWritten=$false;$stagingCreated=$false;$records=@()
-Assert-Gate0EvidenceV2NoReparsePointAncestors $source ([IO.Path]::GetDirectoryName($repo))
+Assert-Gate0EvidenceV2NoReparsePointAncestors $source $sourceBoundary
+Assert-Gate0EvidenceV2NoReparsePointAncestors $sourceBoundary ([IO.Path]::GetDirectoryName($repo))
 try {
  if((Test-Path -LiteralPath $lockPath)-and((Get-Item -LiteralPath $lockPath -Force).Attributes-band[IO.FileAttributes]::ReparsePoint)){throw 'V2 append lock is a reparse point.'}
  $lock=[IO.File]::Open($lockPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
