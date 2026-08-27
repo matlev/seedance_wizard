@@ -21,6 +21,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'evidence/Gate0EvidenceContainment.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Gate0ArtifactTools.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'G05Stage2AMatrixHelpers.psm1') -Force
 
 function Assert-DirectoryTreeHasNoReparsePoint([string] $Root, [string] $Label) {
     foreach ($item in @((Get-Item -LiteralPath $Root -Force)) + @(Get-ChildItem -LiteralPath $Root -Force -Recurse)) {
@@ -38,13 +39,6 @@ function Assert-IsolatedTestMode([string] $RepositoryRoot, [string] $ResolvedArt
     }
 }
 
-function Assert-Stage2AExactProperties($Value, [string[]] $Expected, [string] $Label) {
-    if ($null -eq $Value) { throw "$Label is missing." }
-    $actual = @($Value.PSObject.Properties.Name | Sort-Object)
-    $wanted = @($Expected | Sort-Object)
-    if (@(Compare-Object -ReferenceObject $wanted -DifferenceObject $actual).Count -ne 0) { throw "$Label does not match its closed schema." }
-}
-
 function Assert-Stage2AExecutionAuthorization([string] $RepositoryRoot, [string[]] $Identities) {
     $relativePath = 'eng/gate0/g0.5-stage2a-execution-authorization.json'
     $authorizationPath = Join-Path $RepositoryRoot $relativePath.Replace('/', [IO.Path]::DirectorySeparatorChar)
@@ -54,26 +48,15 @@ function Assert-Stage2AExecutionAuthorization([string] $RepositoryRoot, [string[
     Assert-Gate0EvidenceNoReparsePointAncestors $authorizationPath $RepositoryRoot
     $text = Get-Content -LiteralPath $authorizationPath -Raw
     Assert-Gate0EvidenceMetadataText $text 'Stage 2A execution authorization'
-    $authorization = $text | ConvertFrom-Json -Depth 16
-    Assert-Stage2AExactProperties $authorization @('schemaVersion','authorizationId','status','exactCellCount','exactAttemptCount','bindings','limitations') 'Stage 2A execution authorization'
-    if ($authorization.schemaVersion -ne 1 -or $authorization.authorizationId -ne 'Gate0.G05.Stage2A.ExecutionAuthorization.V1' -or
-        $authorization.status -ne 'owner-authorized-and-prerequisites-verified' -or [int]$authorization.exactCellCount -ne 18 -or [int]$authorization.exactAttemptCount -ne 108) {
-        throw 'Stage 2A execution authorization does not match the approved matrix contract.'
+    $verified = Read-G05Stage2AExecutionAuthorization $authorizationPath $RepositoryRoot
+    if ([string]$verified.Authorization.status -ne 'owner-authorized-and-prerequisites-verified') {
+        throw 'Stage 2A evidence append is blocked until the exact execution authorization is effective.'
     }
-    $requiredRoles = @('owner-decision','schedule','runner','preflight','workload-contract','containment-contract')
-    $roles = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-    foreach ($binding in @($authorization.bindings)) {
-        Assert-Stage2AExactProperties $binding @('role','path','sha256') 'Stage 2A execution authorization binding'
-        if ([string]$binding.role -notin $requiredRoles -or -not $roles.Add([string]$binding.role)) { throw 'Stage 2A execution authorization contains an unexpected or duplicate binding role.' }
-        Assert-Gate0EvidenceRelativePath ([string]$binding.path) 'Stage 2A authorization binding path'
-        if ([string]$binding.path -notmatch '^(docs|eng/gate0)/' -or [string]$binding.sha256 -notmatch '^[A-F0-9]{64}$') { throw 'Stage 2A execution authorization binding is outside the approved repository scope or has an invalid hash.' }
+    foreach ($binding in @($verified.Authorization.bindings)) {
         $boundPath = Join-Path $RepositoryRoot ([string]$binding.path).Replace('/', [IO.Path]::DirectorySeparatorChar)
-        if (-not (Test-Path -LiteralPath $boundPath -PathType Leaf)) { throw "Stage 2A execution authorization binding is missing: $($binding.role)" }
         Assert-Gate0EvidenceNoReparsePointAncestors $boundPath $RepositoryRoot
-        if ((Get-Gate0EvidenceSha256 $boundPath) -ne [string]$binding.sha256) { throw "Stage 2A execution authorization binding changed: $($binding.role)" }
     }
-    if (@($roles).Count -ne $requiredRoles.Count) { throw 'Stage 2A execution authorization is missing a required binding.' }
-    $authorizationSha = Get-Gate0EvidenceSha256 $authorizationPath
+    $authorizationSha = [string]$verified.Sha256
     if ($Identities -notcontains "repository:$relativePath" -or $Identities -notcontains "sha256:$authorizationSha") {
         throw 'Stage 2A evidence must bind the exact tracked execution authorization identity.'
     }

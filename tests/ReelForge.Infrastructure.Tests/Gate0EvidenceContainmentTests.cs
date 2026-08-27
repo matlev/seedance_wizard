@@ -334,6 +334,67 @@ public sealed class Gate0EvidenceContainmentTests
     }
 
     [Fact]
+    public void P2RuntimeRouteAppendRejectsAnOtherwiseExactPendingStage2AAuthorization()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            ConfigureExactStage2AAuthorization(corpus, "owner-authorized-execution-implementation-pending");
+            var result = RunPs(P2WriterCommand(corpus));
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("authorization is effective", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(0, JsonNode.Parse(File.ReadAllText(corpus.RootIndex))!["totals"]!["runCount"]!.GetValue<int>());
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
+    public void P2RuntimeRouteAppendAcceptsOnlyTheExactExpandedEffectiveStage2AAuthorization()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            ConfigureExactStage2AAuthorization(corpus, "owner-authorized-and-prerequisites-verified");
+            var result = RunPs(P2WriterCommand(corpus));
+            Assert.True(result.ExitCode == 0, result.Output);
+            Assert.DoesNotContain("unexpected or duplicate binding role", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(1, JsonNode.Parse(File.ReadAllText(corpus.RootIndex))!["totals"]!["runCount"]!.GetValue<int>());
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Theory]
+    [InlineData("duplicate")]
+    [InlineData("tamper")]
+    [InlineData("extra")]
+    [InlineData("missing")]
+    public void P2RuntimeRouteAppendRejectsAnyNonExactStage2AAuthorizationBindingSet(string mutation)
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            var authorizationPath = ConfigureExactStage2AAuthorization(corpus, "owner-authorized-and-prerequisites-verified");
+            var authorization = JsonNode.Parse(File.ReadAllText(authorizationPath))!.AsObject();
+            var bindings = authorization["bindings"]!.AsArray();
+            switch (mutation)
+            {
+                case "duplicate": bindings.Add(bindings[0]!.DeepClone()); break;
+                case "tamper": bindings[0]!["sha256"] = new string('0', 64); break;
+                case "extra": bindings.Add(new JsonObject { ["role"] = "unapproved", ["path"] = "eng/gate0/unapproved.txt", ["sha256"] = new string('A', 64) }); break;
+                case "missing": bindings.RemoveAt(bindings.Count - 1); break;
+                default: throw new InvalidOperationException(mutation);
+            }
+            File.WriteAllText(authorizationPath, authorization.ToJsonString());
+
+            var result = RunPs(P2WriterCommand(corpus));
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.DoesNotContain("unexpected or duplicate binding role", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(0, JsonNode.Parse(File.ReadAllText(corpus.RootIndex))!["totals"]!["runCount"]!.GetValue<int>());
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
     public void EffectiveSealBlocksDirectDefaultDurableLedgerMutation()
     {
         var corpus = CreateIsolatedContainmentCorpus();
@@ -453,7 +514,7 @@ public sealed class Gate0EvidenceContainmentTests
         var evidence = Path.Combine(gate0, "evidence");
         Directory.CreateDirectory(evidence);
         File.WriteAllText(Path.Combine(repo, ".gate0-containment-test-sentinel"), "isolated\n");
-        foreach (var file in new[] { "artifact-retention-manifest.json", "artifact-manifest.json", "Gate0ArtifactTools.psm1", "Gate0ArtifactR2Client.cs", "Add-Gate0EvidenceShard.ps1", "Resolve-Gate0EvidenceAppendJournal.ps1", "Test-Gate0EvidenceContainment.ps1" })
+        foreach (var file in new[] { "artifact-retention-manifest.json", "artifact-manifest.json", "Gate0ArtifactTools.psm1", "Gate0ArtifactR2Client.cs", "Add-Gate0EvidenceShard.ps1", "G05Stage2AMatrixHelpers.psm1", "Resolve-Gate0EvidenceAppendJournal.ps1", "Test-Gate0EvidenceContainment.ps1" })
             File.Copy(PathInRepo("eng", "gate0", file), Path.Combine(gate0, file));
         File.Copy(ModulePath(), Path.Combine(evidence, "Gate0EvidenceContainment.psm1"));
         var rootIndex = Path.Combine(evidence, "root-index.json");
@@ -487,6 +548,63 @@ public sealed class Gate0EvidenceContainmentTests
         var command = $"& '{PsQuote(writer)}' -ArtifactRoot '{PsQuote(artifactRoot)}' -SourceRoot '{PsQuote(source)}' -ProofRunId run-a -EvidenceGroupId group-a -CellId cell-a -DestinationName future/stage2/run-a -EvidenceBoundary containment-no-media -Disposition passed -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -SkipRemoteForIsolatedTest";
         return (testRoot, gate0, artifactRoot, source, rootIndex, destination, shard, command);
     }
+
+    private static string ConfigureExactStage2AAuthorization((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus, string status)
+    {
+        var repo = IsolatedRepoRoot(corpus);
+        var expected = new (string Role, string Path)[]
+        {
+            ("owner-decision", "docs/gate-0-g0.5-stage2a-owner-decisions.md"),
+            ("schedule", "eng/gate0/g0.5-stage2a-schedule.json"),
+            ("runner", "eng/gate0/Invoke-G05Stage2AMatrix.ps1"),
+            ("preflight", "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1"),
+            ("helper", "eng/gate0/G05Stage2AMatrixHelpers.psm1"),
+            ("semantic-executor", "eng/gate0/G05Stage2ASemanticExecutor.psm1"),
+            ("semantic-helper", "eng/gate0/G05Stage2ASemanticHelpers.psm1"),
+            ("smoke-helper", "eng/gate0/G05Stage2SmokeHelpers.psm1"),
+            ("runtime-validator", "eng/gate0/Validate-P2Runtime.ps1"),
+            ("runtime-manifest", "eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json"),
+            ("workload-contract", "eng/gate0/g0.5-stage2-workload-contract.json"),
+            ("containment-contract", "eng/gate0/g0.5-stage2-containment-dry-run-contract.json"),
+            ("audio-oracle-contract", "eng/gate0/g0.5-lossy-audio-oracle-contract.json"),
+            ("retention-contract", "eng/gate0/g0.5-stage2a-retention-contract.json"),
+            ("evidence-writer", "eng/gate0/Add-Gate0EvidenceShard.ps1"),
+            ("evidence-containment", "eng/gate0/evidence/Gate0EvidenceContainment.psm1")
+        };
+        var bindings = new JsonArray();
+        foreach (var (role, relativePath) in expected)
+        {
+            var source = PathInRepo(relativePath.Split('/'));
+            var destination = Path.Combine(repo, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            if (!File.Exists(destination)) File.Copy(source, destination);
+            bindings.Add(new JsonObject { ["role"] = role, ["path"] = relativePath, ["sha256"] = Sha256(destination) });
+        }
+        var authorization = new JsonObject
+        {
+            ["schemaVersion"] = 1,
+            ["authorizationId"] = "Gate0.G05.Stage2A.ExecutionAuthorization.V1",
+            ["status"] = status,
+            ["exactCellCount"] = 18,
+            ["exactAttemptCount"] = 108,
+            ["bindings"] = bindings,
+            ["limitations"] = new JsonArray("isolated no-media test")
+        };
+        var path = Path.Combine(corpus.Gate0, "g0.5-stage2a-execution-authorization.json");
+        File.WriteAllText(path, authorization.ToJsonString());
+        return path;
+    }
+
+    private static string P2WriterCommand((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus)
+    {
+        const string authorizationRelativePath = "eng/gate0/g0.5-stage2a-execution-authorization.json";
+        var authorization = Path.Combine(IsolatedRepoRoot(corpus), authorizationRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        var authorizationSha = Sha256(authorization);
+        return corpus.WriterCommand.Replace("-EvidenceBoundary containment-no-media", "-EvidenceBoundary p2-runtime-route", StringComparison.Ordinal)
+            .Replace("-ContractIdentity repository:contract", $"-ContractIdentity @('repository:contract','repository:{authorizationRelativePath}','sha256:{authorizationSha}')", StringComparison.Ordinal);
+    }
+
+    private static string Sha256(string path) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
 
     private static string IsolatedRepoRoot((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus)
         => Directory.GetParent(Directory.GetParent(corpus.Gate0)!.FullName)!.FullName;
