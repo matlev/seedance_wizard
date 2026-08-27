@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "activationId": "Gate0.G05.Stage2A.RetainedPathRestartActivation.20260827",
+  "status": "passed-and-ready-for-effective-authorization",
+  "ownerApproval": "docs/gate-0-g0.5-stage2a-retained-path-repair-approval.md",
+  "authorizationSha256BeforeActivation": "4830C3A5541B76FCC7A1F3971AFE8CD0BD216D6C989975015068EF5DD7F746AA",
+  "repair": {
+    "scope": "source-relative-to-retained-destination attempt-binding projection",
+    "semanticSourceRelativeBehaviorPreserved": true,
+    "immutableShardExactOneArtifactInvariantPreserved": true,
+    "focusedNoMediaTests": { "total": 65, "passed": 65, "failed": 0 },
+    "independentReview": "GO"
+  },
+  "fullPreflight": {
+    "checkedUtc": "2026-08-27T16:55:16.5853723+00:00",
+    "status": "passed",
+    "criteria": {
+      "roots": "passed",
+      "exactP2RuntimeIdentity": "passed",
+      "sealedCorpusAndFutureIndex": "passed",
+      "fullLegacyCorpus": "passed",
+      "referenceHostAndCleanMediaProcesses": "passed",
+      "incrementalRetentionReservation": "passed"
+    },
+    "profileId": "P2.BtbnLgplShared.WindowsX64.20260820",
+    "logicalProcessorCount": 16,
+    "totalPhysicalMemoryBytes": 34261430272,
+    "availablePhysicalMemoryBytes": 17568419840,
+    "activeMediaProcessCount": 0,
+    "availableFreeSpaceBytes": 131716169728,
+    "requiredFreeSpaceBytes": 3758096384,
+    "noMediaInvoked": true
+  },
+  "independentCorpusVerification": {
+    "legacy": {
+      "sourceManifestSha256": "AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0",
+      "logicalArtifactCount": 4101,
+      "logicalArtifactBytes": 1121540509,
+      "localByteVerificationPerformed": true,
+      "remoteByteVerificationPerformed": true,
+      "remotelyVerifiedThisRun": 4101,
+      "retentionCondition": "complete"
+    },
+    "future": {
+      "validatedUtc": "2026-08-27T17:01:32.1244114+00:00",
+      "rootIndexSha256": "98DB696B5A57341B41CBE18A030555B62952CDF80242D61E4FC767FCA8065500",
+      "runCount": 2,
+      "logicalArtifactCount": 4,
+      "logicalArtifactBytes": 2416,
+      "localByteVerificationPerformed": true,
+      "remoteByteVerificationPerformed": true,
+      "remotelyVerifiedThisRun": 4,
+      "mediaProcessesInvoked": 0,
+      "disposition": "passed"
+    }
+  },
+  "preservedDefectClosures": [
+    {
+      "proofRunId": "g05-stage2a-20260827T113709087Z-9c98c3d3",
+      "classification": "non-authoritative-pre-matrix-proof-harness-defect",
+      "fileCount": 18,
+      "totalBytes": 27125317,
+      "retention": "local-only-untouched"
+    },
+    {
+      "proofRunId": "g05-stage2a-20260827T162509165Z-9dc617af",
+      "classification": "non-authoritative-pre-matrix-proof-harness-defect",
+      "fileCount": 26,
+      "totalBytes": 27370400,
+      "retention": "local-only-untouched"
+    }
+  ],
+  "authorizedExecution": {
+    "freshProofRunRequired": true,
+    "restartGlobalOrdinal": 1,
+    "authoritativeAttemptCount": 108,
+    "physicalAttemptCountBeforeRestart": 7,
+    "totalPhysicalAttemptCountAfterSuccessfulCompletion": 115,
+    "priorAttemptReuseAuthorized": false,
+    "stopAfterStage2AOwnerPacket": true
+  },
+  "limitations": [
+    "This activation authorizes only the unchanged Stage 2A fresh restart and owner packet.",
+    "It grants no Stage 2B, concurrency, long-form, product integration, shipping-runtime, distribution, licensing, patent, or legal authority."
+  ]
+}
