@@ -371,6 +371,22 @@ public sealed class Gate0EvidenceV2ContainmentTests
     }
 
     [Fact]
+    public void V2RejectsAnOversizeCandidateShardBeforeJournalOrPayloadCommit()
+    {
+        var corpus = CreateCorpus();
+        try
+        {
+            for (var index = 0; index < 40; index++) File.WriteAllText(Path.Combine(corpus.Source, $"artifact-{index:D2}.txt"), index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            var result = RunAppend(corpus, "oversize-candidate", "containment-no-media", "");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("before journal or remote work", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(corpus.Artifact + ".stage2-v2-append-journal.json"));
+            Assert.False(Directory.Exists(Path.Combine(corpus.Artifact, "future")));
+        }
+        finally { Directory.Delete(corpus.Root, true); }
+    }
+
+    [Fact]
     public void V2EnforcesExactlyTwoInfrastructureAndTwelveAuthorizedContinuationCellsBeforeJournal()
     {
         var corpus = CreateCorpus();
@@ -448,7 +464,17 @@ public sealed class Gate0EvidenceV2ContainmentTests
         File.Copy(Path.Combine(RepoRoot(), "eng", "gate0", "evidence", "Gate0EvidenceContainmentV2.psm1"), Path.Combine(gate, "evidence", "Gate0EvidenceContainmentV2.psm1"));
         var v1 = Path.Combine(gate, "evidence", "root-index.json");
         File.Copy(Path.Combine(RepoRoot(), "eng", "gate0", "evidence", "root-index.json"), v1);
-        File.Copy(Path.Combine(RepoRoot(), "eng", "gate0", "evidence", "v2", "root-index.json"), Path.Combine(gate, "evidence", "v2", "root-index.json"));
+        var v2RootPath = Path.Combine(gate, "evidence", "v2", "root-index.json");
+        File.Copy(Path.Combine(RepoRoot(), "eng", "gate0", "evidence", "v2", "root-index.json"), v2RootPath);
+        var v2Root = JsonNode.Parse(File.ReadAllText(v2RootPath))!.AsObject();
+        v2Root["runs"] = new JsonArray();
+        v2Root["totals"] = new JsonObject
+        {
+            ["runCount"] = 0,
+            ["logicalArtifactCount"] = 0,
+            ["logicalArtifactBytes"] = 0
+        };
+        File.WriteAllText(v2RootPath, v2Root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }) + "\n");
         var artifact = Path.Combine(root, "ReelForge.Gate0Artifacts"); Directory.CreateDirectory(artifact);
         var source = Path.Combine(root, "source"); Directory.CreateDirectory(source); File.WriteAllText(Path.Combine(source, "proof.txt"), "proof");
         return (root, v1, artifact, source, Path.Combine(gate, "Add-Gate0EvidenceV2Shard.ps1"));
