@@ -108,14 +108,14 @@ public sealed class Gate0EvidenceContainmentTests
     }
 
     [Fact]
-    public void LegacyAppendPathRequiresEffectiveSealAndFaultInjectionIsIsolated()
+    public void ProductionSealIsEffectiveAndFaultInjectionRemainsIsolated()
     {
         var script = File.ReadAllText(PathInRepo("eng", "gate0", "Add-Gate0EvidenceShard.ps1"));
         Assert.Contains("Assert-Gate0LegacyEvidenceSeal $repositoryRoot -RequireEffective", script, StringComparison.Ordinal);
         Assert.Contains("FaultInjection", script, StringComparison.Ordinal);
         Assert.Contains("262144", File.ReadAllText(PathInRepo("eng", "gate0", "Test-Gate0EvidenceContainment.ps1")), StringComparison.Ordinal);
-        var result = RunPs($"Import-Module '{PsQuote(ModulePath())}' -Force; try {{ Assert-Gate0LegacyEvidenceSeal '{PsQuote(RepositoryRoot())}' -RequireEffective; exit 9 }} catch {{ if ($_.Exception.Message -notmatch 'not effective') {{ exit 8 }} }} ");
-        Assert.NotEqual(0, result.ExitCode);
+        var result = RunPs($"Import-Module '{PsQuote(ModulePath())}' -Force; Assert-Gate0LegacyEvidenceSeal '{PsQuote(RepositoryRoot())}' -RequireEffective | Out-Null");
+        Assert.Equal(0, result.ExitCode);
     }
 
     [Fact]
