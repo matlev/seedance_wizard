@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "shardId": "Gate0.Stage2Evidence.Shard.V2",
+  "proofRunId": "g05-stage2a-v5-infrastructure-20260827T220228625Z",
+  "evidenceGroupId": "g05-stage2a-v5-20260827",
+  "cellId": "v5-controls-reevaluation",
+  "evidenceBoundary": "containment-no-media",
+  "createdUtc": "2026-08-27T22:03:50.9305497+00:00",
+  "contractIdentity": [
+    "repository:eng/gate0/evidence/v2/root-index.json",
+    "sha256:508CBAD76BEAA4F4FBBC56B961217CBFF022997E80E25BCAA8EAA6C8C9427A07",
+    "repository:eng/gate0/g0.5-lossy-audio-oracle-amendment-v5-freeze.json",
+    "sha256:742CDFE200D9E380D8BE0F7451C8C5BB277C664803609F1E1BB63BA71FF967B9",
+    "repository:eng/gate0/g0.5-stage2a-v5-retained-output-reevaluation-authorization.json",
+    "sha256:138B9268E1818EFD392EDE7B0512C671288960CCCF6BE37AA21F4A61363A895A",
+    "repository:docs/gate-0-g0.5-stage2a-continuation-approval.md",
+    "sha256:1F2010061B28A2DD80E8F8ACFCDADA4A295ED390E35126D5968B77077780B517",
+    "sha256:1C19045636D1A0729AFAF9A42B833AE234381722760CBF6CDADA255F0FEFD8E3",
+    "sha256:70AC1D51980E4CC770D019CE78688592E9E13B4AF5BDCDB6DA141B28C491EB06"
+  ],
+  "provenance": "Owner-approved Gate 0 G0.5 Stage 2A V5 controls, retained-output reevaluation, compact evidence archive, and truthful retention-attempt record.",
+  "producerRuntimeIdentity": [
+    "repository:eng/gate0/Add-Gate0EvidenceV2Shard.ps1",
+    "sha256:96C40BA1C79D84CFCA73E2C606658D65C46262D3681E25A93B970EAABB814E2E",
+    "repository:eng/gate0/New-Gate0DeterministicEvidenceArchive.ps1",
+    "sha256:299BDAEC73D341F89FF2605BB11C70727A893C5163E368DE4B68B590E490605D"
+  ],
+  "licenseRecords": [],
+  "artifacts": [
+    {
+      "artifactId": "artifact-84540b93b9355772a162f105192341f6a510814bf4cd059454edd449145325b4",
+      "relativePath": "future/stage2/v2/g05-stage2a-v5-infrastructure-20260827T220228625Z/retention-attempt-records.json",
+      "byteSize": 1628,
+      "sha256": "28BC497AE9BC31BF2FEF7FAE626539376385C1DCB3F8B7803C9350A3FCD5ED6A",
+      "r2ObjectKey": "objects/sha256/28/28bc497ae9bc31bf2fef7fae626539376385c1dcb3f8b7803c9350a3fcd5ed6a",
+      "purpose": "Gate 0 V2 evidence.",
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T22:03:49.7496308+00:00"
+    },
+    {
+      "artifactId": "artifact-9a751ed3f82e2ab3f37ef555840c4a07efd92d6d5dd993b6e351dd2cef327d0b",
+      "relativePath": "future/stage2/v2/g05-stage2a-v5-infrastructure-20260827T220228625Z/v5-final-evidence.manifest.json",
+      "byteSize": 9994,
+      "sha256": "73F74CA9E32D0E1EC93D9E939A24C14350623EAB40455A785AA753E0C4E17A8A",
+      "r2ObjectKey": "objects/sha256/73/73f74ca9e32d0e1ec93d9e939a24c14350623eab40455a785aa753e0c4e17a8a",
+      "purpose": "Gate 0 V2 evidence.",
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T22:03:50.1641312+00:00"
+    },
+    {
+      "artifactId": "artifact-076f349ecfbdf2d98e878c552b6bcebcbe347e1a30538fe45490e9cd1a414a92",
+      "relativePath": "future/stage2/v2/g05-stage2a-v5-infrastructure-20260827T220228625Z/v5-final-evidence.zip",
+      "byteSize": 8011733,
+      "sha256": "70AC1D51980E4CC770D019CE78688592E9E13B4AF5BDCDB6DA141B28C491EB06",
+      "r2ObjectKey": "objects/sha256/70/70ac1d51980e4cc770d019ce78688592e9e13b4af5bdcdb6da141b28c491eb06",
+      "purpose": "Gate 0 V2 evidence.",
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T22:03:50.9264372+00:00"
+    }
+  ],
+  "attempts": [],
+  "disposition": "authoritative",
+  "localRetention": "verified",
+  "r2Retention": "independently-retrieved-and-verified",
+  "totals": {
+    "logicalArtifactCount": 3,
+    "logicalArtifactBytes": 8023355
+  },
+  "limitations": [
+    "V2 proof infrastructure only."
+  ]
+}

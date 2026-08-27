@@ -37,12 +37,29 @@
       "logicalArtifactBytes": 112822,
       "localRetention": "verified",
       "r2Retention": "independently-retrieved-and-verified"
+    },
+    {
+      "ordinal": 2,
+      "runKind": "infrastructure",
+      "proofRunId": "g05-stage2a-v5-infrastructure-20260827T220228625Z",
+      "evidenceGroupId": "g05-stage2a-v5-20260827",
+      "cellId": "v5-controls-reevaluation",
+      "shardPath": "stage2/g05-stage2a-v5-infrastructure-20260827T220228625Z.manifest.json",
+      "shardSha256": "0740FA764956BF1DCE8AD4D4F1C84B1B44CC6121DB047F023CDFF7CDA65416B3",
+      "entrySha256": "9A9470BE905212D8DD3672CB1CDE1E368783916E1DFF5D6CF2266F8AE147EDBE",
+      "previousRunId": "g05-stage2a-audio-diagnostic-20260827T183504426Z",
+      "previousRunEntrySha256": "629EAF6DF23EC919D294B9BACC4A426D7F6F0527CC55DACF1F5019B972E80EF6",
+      "disposition": "authoritative",
+      "logicalArtifactCount": 3,
+      "logicalArtifactBytes": 8023355,
+      "localRetention": "verified",
+      "r2Retention": "independently-retrieved-and-verified"
     }
   ],
   "totals": {
-    "runCount": 1,
-    "logicalArtifactCount": 3,
-    "logicalArtifactBytes": 112822
+    "runCount": 2,
+    "logicalArtifactCount": 6,
+    "logicalArtifactBytes": 8136177
   },
   "limitations": [
     "V2 is an append-only continuation segment anchored to immutable V1 evidence.",
