@@ -47,6 +47,42 @@ function Assert-G05Stage2AAudioDiagnosticExactLabels([string[]] $ReferenceLabels
     for ($index = 0; $index -lt $ReferenceLabels.Count; $index++) { if ($ReferenceLabels[$index] -ne $RetainedLabels[$index]) { throw "$Label retained finding label differs at index $index." } }
 }
 
+function Get-G05Stage2AThrowFixRegression([string] $MatrixRunnerPath) {
+    if (-not [IO.Path]::IsPathRooted($MatrixRunnerPath) -or -not (Test-Path -LiteralPath $MatrixRunnerPath -PathType Leaf)) { throw 'Matrix runner must be an existing absolute file.' }
+    $expectedHash = '68356CAF687F90A976293D4571724B5826C2DFD01C01127B496AF0FA744BF886'
+    $actualHash = Get-G05Stage2AAudioDiagnosticHash $MatrixRunnerPath
+    if ($actualHash -ne $expectedHash) { throw 'Matrix runner SHA-256 differs from the approved throw-fix revision.' }
+    $source = Get-Content -LiteralPath $MatrixRunnerPath -Raw
+    $audioAssignment = '$summary.audio=[ordered]@'
+    $friendlyThrow = "throw 'Audio timing or quality oracle failed.'"
+    $malformedThrow = "throw'Audio timing or quality oracle failed.'"
+    $retainedFailure = '$summary.failures+=,(ConvertTo-G05Stage2ASanitizedText $_.Exception.Message $portableRoots)'
+    $suspension = 'if(Test-G05Stage2ADeterministicIntegrityFailure $summary){[void]$suspended.Add([string]$row.routeId)}'
+    $assignmentIndex = $source.IndexOf($audioAssignment, [StringComparison]::Ordinal)
+    $throwIndex = $source.IndexOf($friendlyThrow, [StringComparison]::Ordinal)
+    $retentionIndex = $source.IndexOf($retainedFailure, [StringComparison]::Ordinal)
+    $suspensionIndex = $source.IndexOf($suspension, [StringComparison]::Ordinal)
+    $tokens = $null; $errors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseFile($MatrixRunnerPath, [ref]$tokens, [ref]$errors)
+    $throwExtents = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.ThrowStatementAst] }, $true) | ForEach-Object { $_.Extent.Text })
+    $passed = $errors.Count -eq 0 -and -not $source.Contains($malformedThrow, [StringComparison]::Ordinal) -and
+        $assignmentIndex -ge 0 -and $throwIndex -gt $assignmentIndex -and $retentionIndex -gt $throwIndex -and $suspensionIndex -gt $retentionIndex -and
+        $throwExtents -contains $friendlyThrow -and $source.Contains('$failureDisposition=''semantically-divergent'';$summary.audio', [StringComparison]::Ordinal)
+    if (-not $passed) { throw 'Throw-fix no-media regression failed.' }
+    [ordered]@{
+        passed = $true
+        runnerSha256 = $actualHash
+        friendlyException = 'Audio timing or quality oracle failed.'
+        parserErrorCount = $errors.Count
+        structuredAudioAssignedBeforeThrow = $true
+        caughtFailureRetainedBeforeSuspension = $true
+        semanticallyDivergentDispositionPreserved = $true
+        passFailBlockSemanticsChanged = $false
+        mediaInvoked = $false
+        focusedTest = 'Gate0G05Stage2AMatrixTests.AudioOracleFailureIsFriendlyRetainedAndRouteSuspendingWithoutMedia'
+    }
+}
+
 function Get-G05Stage2AAudioDiagnosticRms([int16[]] $Samples, [int] $Channel, [int] $Start, [int] $End) {
     if ($Channel -notin 0,1 -or $Start -lt 0 -or $End -le $Start -or $End -gt ($Samples.Length / 2)) { throw 'Invalid diagnostic PCM window.' }
     [double] $sum = 0
@@ -170,6 +206,7 @@ function Invoke-G05Stage2AAudioDiagnostic {
         [Parameter(Mandatory)] [string] $Mp4DecodedPcmPath,
         [Parameter(Mandatory)] [string] $Mp4AttemptSummaryPath,
         [Parameter(Mandatory)] [string] $Mp4AttemptSummarySha256,
+        [Parameter(Mandatory)] [string] $MatrixRunnerPath,
         [Parameter(Mandatory)] [string] $OutputPath,
         [int] $ExpectedRetainedFindingCount = 25
     )
@@ -182,6 +219,7 @@ function Invoke-G05Stage2AAudioDiagnostic {
     if ($workloadContract.contractId -ne 'Gate0.G05.Stage2.Workloads.V1.OwnerApproved.20260826' -or $oracleContract.contractId -ne 'Gate0.G05.LossyAudioOracle.V3.Frozen.20260826' -or $amendment.amendmentId -ne 'Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.20260827' -or $freeze.freezeId -ne 'Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.Frozen.20260827' -or @($amendment.scope.referenceDescriptorIds | Where-Object { $_ -eq 'stress-4v8a-30s' }).Count -ne 0 -or -not [bool]$amendment.scope.otherReferenceDescriptorsRemainExactV3) { throw 'Diagnostic inputs are not the exact frozen Stage 2A stress contracts.' }
     $webmSummary = Read-G05Stage2AAudioDiagnosticJson $WebmAttemptSummaryPath 'WebM retained attempt summary' $WebmAttemptSummarySha256
     $mp4Summary = Read-G05Stage2AAudioDiagnosticJson $Mp4AttemptSummaryPath 'MP4 retained attempt summary' $Mp4AttemptSummarySha256
+    $throwFixRegression = Get-G05Stage2AThrowFixRegression $MatrixRunnerPath
     $workload = @($workloadContract.workloads | Where-Object id -eq 'stress-4v8a')
     $descriptor = @($oracleContract.referenceDescriptors | Where-Object id -eq 'stress-4v8a-30s')
     if ($workload.Count -ne 1 -or $descriptor.Count -ne 1 -or [string]$workload[0].audioReferenceDescriptor -ne [string]$descriptor[0].id) { throw 'Frozen stress workload/descriptor binding is invalid.' }
@@ -217,10 +255,10 @@ function Invoke-G05Stage2AAudioDiagnostic {
             crossRouteMateriality = [ordered]@{ findingKeys = @($findings | ForEach-Object { "$($_.region):channel-$($_.channel):$($_.findingType)" }); sameExactFindingKeys = $true; maximumAbsoluteOutputToReferenceRmsRatioDifference = (@(for($index=0;$index-lt$webmFindings.Count;$index++){if($null-ne$webmFindings[$index].outputToReferenceRmsRatio-and$null-ne$mp4Findings[$index].outputToReferenceRmsRatio){[Math]::Abs($webmFindings[$index].outputToReferenceRmsRatio-$mp4Findings[$index].outputToReferenceRmsRatio)}})|Measure-Object -Maximum).Maximum; routeDefectInferred = $false; disposition = 'not-inferred-while-reference-fails-frozen-active-model' }
             classification = if (-not $self.qualityPassed) { 'A-oracle-descriptor-self-inconsistency' } else { 'unresolved-no-route-inference' }
             proposedAmendment = [ordered]@{ status='proposal-only-not-applied'; scope='stress-4v8a-30s only'; mode='reference-relative-active-windows-v1'; replacesOnly=@('qualityThresholds.minimumActiveChannelRmsFullScale','qualityThresholds.minimumActiveReferenceWindowOutputRmsFullScale'); retains='All other V3 structure, timing, correlation, NRMSE, SNR, aggregate RMS ratio, DC, tone, clipping, and onset checks remain required.'; ownerApprovalRequired=$true }
-            throwTokenization = [ordered]@{ correction = "throw 'Audio timing or quality oracle failed.'"; retainedDispositionChanged = $false }
+            throwTokenization = [ordered]@{ correction = "throw 'Audio timing or quality oracle failed.'"; regression = $throwFixRegression; retainedDispositionChanged = $false }
         }
         [IO.File]::WriteAllText($OutputPath, ($result | ConvertTo-Json -Depth 100), [Text.UTF8Encoding]::new($false)); [pscustomobject]$result
     } finally { if (Test-Path -LiteralPath $truthPath) { Remove-Item -LiteralPath $truthPath -Force } }
 }
 
-Export-ModuleMember -Function Get-G05Stage2AAudioDiagnosticHash,Get-G05Stage2AAudioDiagnosticRms,Get-G05Stage2AAudioDiagnosticMinimumWindow,Get-G05Stage2AAudioDiagnosticWindowMetrics,Get-G05Stage2AAudioDiagnosticFindingDetails,Invoke-G05Stage2AAudioDiagnostic
+Export-ModuleMember -Function Get-G05Stage2AAudioDiagnosticHash,Get-G05Stage2AAudioDiagnosticRms,Get-G05Stage2AAudioDiagnosticMinimumWindow,Get-G05Stage2AAudioDiagnosticWindowMetrics,Get-G05Stage2AAudioDiagnosticFindingDetails,Get-G05Stage2AThrowFixRegression,Invoke-G05Stage2AAudioDiagnostic

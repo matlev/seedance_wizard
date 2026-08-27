@@ -11,6 +11,7 @@ param(
     [Parameter(Mandatory)] [string] $Mp4DecodedPcmPath,
     [Parameter(Mandatory)] [string] $Mp4AttemptSummaryPath,
     [Parameter(Mandatory)] [string] $Mp4AttemptSummarySha256,
+    [Parameter(Mandatory)] [string] $MatrixRunnerPath,
     [Parameter(Mandatory)] [string] $OutputPath
 )
 

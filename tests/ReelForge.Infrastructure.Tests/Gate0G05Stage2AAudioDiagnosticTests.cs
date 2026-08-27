@@ -31,6 +31,9 @@ public sealed class Gate0G05Stage2AAudioDiagnosticTests
         Assert.Contains("retainedDispositionChanged = $false", module, StringComparison.Ordinal);
         Assert.Contains("A-oracle-descriptor-self-inconsistency", module, StringComparison.Ordinal);
         Assert.Contains("crossRouteMateriality", module, StringComparison.Ordinal);
+        Assert.Contains("Get-G05Stage2AThrowFixRegression", module, StringComparison.Ordinal);
+        Assert.Contains("structuredAudioAssignedBeforeThrow = $true", module, StringComparison.Ordinal);
+        Assert.Contains("passFailBlockSemanticsChanged = $false", module, StringComparison.Ordinal);
         Assert.Contains("signedCorrelation", module, StringComparison.Ordinal);
         Assert.Contains("normalizedRmsError", module, StringComparison.Ordinal);
         Assert.Contains("21ECAFCD94F71E58AA43955079EF9959C135DB12530D015E8380CFD09B5E9FBC", module, StringComparison.Ordinal);
@@ -43,6 +46,16 @@ public sealed class Gate0G05Stage2AAudioDiagnosticTests
         Assert.DoesNotContain("ffprobe", module, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ffmpeg", runner, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ffprobe", runner, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ThrowFixRegressionValidatesTheExactRunnerWithoutStartingMedia()
+    {
+        var module = PathInRepo("eng", "gate0", "G05Stage2AAudioDiagnostic.psm1").Replace("'", "''", StringComparison.Ordinal);
+        var runner = PathInRepo("eng", "gate0", "Invoke-G05Stage2AMatrix.ps1").Replace("'", "''", StringComparison.Ordinal);
+        var command = $"Import-Module '{module}' -Force; $r=Get-G05Stage2AThrowFixRegression '{runner}'; if(-not $r.passed -or $r.mediaInvoked -or $r.passFailBlockSemanticsChanged){{exit 31}}";
+        var result = RunPowerShell(command);
+        Assert.Equal(0, result.ExitCode);
     }
 
     [Fact]
