@@ -4,3 +4,7 @@ eng/gate0/g0.5-stage2-workload-contract.json text eol=lf
 eng/gate0/g0.5-stage2-preparation-result-summary.json text eol=lf
 eng/gate0/g0.5-stage2-smoke-preflight-result-summary.json text eol=lf
 eng/gate0/g0.5-r2-retention-result-summary.json text eol=lf
+eng/gate0/artifact-manifest.json linguist-generated=true
+eng/gate0/artifact-retention-manifest.json linguist-generated=true
+eng/gate0/g0.4-input-proof-contract.json linguist-generated=true
+eng/gate0/evidence/**/*.json text eol=lf linguist-generated=true

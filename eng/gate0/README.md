@@ -1,5 +1,7 @@
 # Gate 0 fixture primitives
 
+The canonical current state and active authorization are maintained in `docs/gate-0-current-status.md`. Historical decision/result documents retain the status that was true when their evidence was recorded. Future measured-evidence growth is governed by `docs/gate-0-evidence-containment.md`; no shard/index writer or full Stage 2 execution is authorized yet.
+
 This directory defines deterministic authored inputs and the opt-in executable Gate 0 media-proof harness. It does not contain generated media. The generator writes raw PPM, RGBA, PCM, recipe, and timestamp-truth files to a caller-supplied temporary directory; every proof runner likewise keeps generated media and evidence outside the repository.
 
 The checked-in `fixture-source-inventory.json` is the independent byte oracle for generated primitives. Generation fails before reporting if a file is missing, additional, drifted, path-escaping, or reached through a reparse point. A caller-supplied inventory override is test-only and is never eligible as approved Gate 0 proof input.

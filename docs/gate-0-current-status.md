@@ -1,0 +1,54 @@
+# Gate 0 current status
+
+Status: structured-audio oracle amendment and exactly three replacement pre-matrix smoke attempts authorized; full Stage 2 remains blocked
+
+Updated: 2026-08-27
+
+This is the small canonical current-status entry point for Gate 0. Historical decision and result records remain immutable even when their original status lines describe an earlier point in the evidence sequence.
+
+## Current conclusion
+
+Gate 0 remains inside its approved research-and-proof boundary. It has not added editing UI, project persistence, product render-command changes, runtime enforcement, or Windows-specific project meaning. The narrow product-source runtime observation/validation seam remains unintegrated with production behavior.
+
+The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. Independent playback, measured Stage 2 performance, WPF media-load evidence, cancellation/preview/resource evidence, long-form integrity, final Pro dispositions, and the G0.7 decision packet remain open.
+
+## Authoritative current evidence
+
+| Area | Current disposition | Authority |
+| --- | --- | --- |
+| Charter and exit contract | Owner/PM approved | [Gate 0 media capability charter](gate-0-media-capability-charter.md) |
+| G0.1/G0.2 and Checkpoint A | Complete and approved | [Checkpoint A](gate-0-checkpoint-a.md) |
+| G0.3 semantic proof | 13 automated capabilities passed; playback and long-form gates open | [G0.3 executable proof](gate-0-g0.3-executable-proof.md) |
+| Free delivery proof | 11 portable and two optional W1 routes passed; default remains conditional | [G0.4 delivery proof](gate-0-g0.4-executable-proof.md) |
+| Guaranteed-common candidate input subset | 173 passed rows; remaining 83 excluded from the candidate baseline pending final classification | [G0.4 input proof](gate-0-g0.4-input-proof-results.md) |
+| Independent playback | Two WebM Chromium controls passed; named browser/player, perceptual-sync, and suitable MP4 evidence remain open | [Independent-playback checkpoint](gate-0-independent-playback-checkpoint.md) |
+| G0.5 retained audio | Both routes passed all 48 retained Stage 1 rows under frozen V3 | [Retained-audio results](gate-0-g0.5-retained-audio-results.md) |
+| Marker survivability | 1,500 of 1,500 frames passed | [Marker results](gate-0-g0.5-marker-survivability-results.md) |
+| WPF no-media control | Passed; media-load behavior remains unexecuted | [WPF no-media results](gate-0-g0.5-wpf-no-media-results.md) |
+| Reference-host resource preflight | Passed for the bounded smoke | [Smoke preflight](gate-0-g0.5-smoke-preflight.md) |
+| Durable artifact retention | Current 4,013-artifact corpus independently byte-verified in private R2 | [Artifact retention](gate-0-artifact-retention.md) |
+| First pre-matrix smoke | Non-authoritative harness-discovery evidence; no route admitted or rejected | [Pre-matrix smoke result](gate-0-g0.5-stage2-pre-matrix-smoke-results.md) |
+| Current owner authorization | V4 amendment, controls, three replacement candidates, and containment planning only | [Smoke amendment decisions](gate-0-g0.5-stage2-smoke-amendment-decisions.md) |
+
+## Active bounded unit
+
+The active unit may:
+
+1. add the versioned, descriptor-scoped V4 reference-relative active-window amendment without changing V3;
+2. execute and freeze the approved amended controls before reading replacement route outputs;
+3. retain and independently verify that contract/control evidence locally and in R2;
+4. execute exactly one replacement smoke attempt for each of the three already approved candidates;
+5. retain and independently verify the replacement evidence; and
+6. return one compact owner packet with results, growth projections, containment recommendation, and a proposed full-matrix route/thread subset.
+
+The full 2A/2B matrix, concurrency comparison, 60-minute run, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
+
+## Containment and remaining sequence
+
+No new codec/container/filter matrix, dependency, installation, fixture family, performance dimension, or platform target may be added without a required exit condition first returning a genuine block and a new bounded owner approval.
+
+F7/Matroska expansion has stopped. The final packet will classify the 83 non-passing rows rather than attempt further repairs unless a required Free 1.0 workflow is shown to depend on an exact row.
+
+Before any full measured matrix, the owner must review the replacement-smoke packet and the [future evidence-containment plan](gate-0-evidence-containment.md). Successful smoke does not itself authorize the matrix.
+
+After any separately authorized measured work, Gate 0 still requires long-form sizing and authorization, suitable independent playback, documentation-only Pro repair dispositions, and the G0.7 exit packet.
