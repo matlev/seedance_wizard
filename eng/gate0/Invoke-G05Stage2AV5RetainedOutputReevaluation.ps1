@@ -31,6 +31,7 @@ function Assert-PortableJsonValue([object] $Value, [string] $Context = 'root') {
         if ([IO.Path]::IsPathRooted($Value) -or $Value -match '(?i)(?:https?://|[a-z]:\\|\\\\|credential|secret|accesskey|signed)') { throw "Non-portable or sensitive value at $Context." }
         return
     }
+    if ($Value -is [ValueType]) { return }
     if ($Value -is [Collections.IEnumerable] -and -not ($Value -is [Collections.IDictionary])) {
         $index = 0; foreach ($item in $Value) { Assert-PortableJsonValue $item "$Context[$index]"; $index++ }; return
     }
@@ -68,7 +69,7 @@ $closure = Assert-G05Stage2AV5FinalFreezeClosure $FinalFreezePath $ControlReport
 $FinalFreezePath = $closure.FinalFreezePath
 $freeze = $closure.Freeze
 $AuthorizationPath = Get-ExistingAbsoluteFile $AuthorizationPath 'AuthorizationPath'
-$authorization = Get-Content -LiteralPath $AuthorizationPath -Raw | ConvertFrom-Json -Depth 64
+$authorization = Get-Content -LiteralPath $AuthorizationPath -Raw | ConvertFrom-Json -Depth 64 -DateKind String
 Assert-PortableJsonValue $authorization
 Assert-ExactAuthorization $authorization (Get-Sha256 $FinalFreezePath)
 $StressReferencePcmPath = Get-ExistingAbsoluteFile $StressReferencePcmPath 'StressReferencePcmPath'
@@ -85,7 +86,7 @@ Import-Module (Join-Path $PSScriptRoot 'G05Stage2SmokeHelpers.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'G05Stage2AV5AudioOracle.psm1') -Force
 $routes = [ordered]@{}
 foreach ($route in @([ordered]@{ key='webm'; pcm=$WebmPcmPath; summary=$WebmOriginalSummaryPath; metadata=$authorization.inputs.webm }, [ordered]@{ key='mp4'; pcm=$Mp4PcmPath; summary=$Mp4OriginalSummaryPath; metadata=$authorization.inputs.mp4 })) {
-    $original = Get-Content -LiteralPath $route.summary -Raw | ConvertFrom-Json -Depth 128
+    $original = Get-Content -LiteralPath $route.summary -Raw | ConvertFrom-Json -Depth 128 -DateKind String
     Assert-PortableJsonValue $original "originalV3Summary.$($route.key)"
     $evaluation = Test-G05Stage2AV5StressAudio $StressReferencePcmPath $route.pcm $v3.qualityThresholds $descriptor[0] $overlay[0] 0
     $routes[$route.key] = [ordered]@{ routeId=$route.metadata.routeId; pcm=[ordered]@{ filename=[IO.Path]::GetFileName($route.pcm); sha256=Get-Sha256 $route.pcm; size=(Get-Item -LiteralPath $route.pcm).Length }; originalV3Summary=$original; originalV3SummarySha256=Get-Sha256 $route.summary; v5Evaluation=$evaluation }

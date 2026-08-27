@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "freezeId": "Gate0.G05.LossyAudioOracle.V5.ReferenceRelativeStress.Frozen.20260827",
   "status": "frozen-after-controls-passed-before-retained-output-reevaluation",
-  "frozenUtc": "2026-08-27T21:14:14.6837429+00:00",
+  "frozenUtc": "2026-08-27T21:31:28.7838103+00:00",
   "controlReport": {
     "path": "g0.5-v5-stress-audio-oracle-control-results.json",
     "sha256": "0151F65613560F245D6A5FC398CDA3EEC8DFAA1565B5C69EE856015EA6BB400F",
@@ -10,7 +10,7 @@
   },
   "freezeCandidate": {
     "path": "g0.5-v5-stress-audio-oracle-freeze-candidate.json",
-    "sha256": "45FD01E02951644F9EB5F86D41473511D3644567DC21CBADCBCBF928A9F88EEF",
+    "sha256": "906851F0FD47BC9024F07395E070DCD7FE258D873FEB8D4A0BA1C39241BD2598",
     "size": 4545
   },
   "frozenInputs": [
@@ -68,11 +68,11 @@
     },
     {
       "path": "eng/gate0/Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1",
-      "sha256": "B5D5D15F6F14211C32B7BD711629E97A5468CDC215B3C2F153F607FBDAEE576B"
+      "sha256": "4F9B637CE6DF257306FCA8A1B2D94A36F4D59BB7BD74894582EC30405DC616F1"
     },
     {
       "path": "eng/gate0/New-G05Stage2AV5RetainedOutputReevaluationAuthorization.ps1",
-      "sha256": "A15C5DE6A4F31D12CFAFB9236A47D7DB0368F4A3A260ACA8E36B48C8F0110947"
+      "sha256": "E0D9D3C4A073A6CDC21CBE7E9B203C5856946B1D340A83A41692FB3702B44317"
     },
     {
       "path": "eng/gate0/G05Stage2AV5FreezeValidation.psm1",

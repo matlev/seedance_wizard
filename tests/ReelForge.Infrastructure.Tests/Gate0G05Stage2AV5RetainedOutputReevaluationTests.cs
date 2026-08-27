@@ -32,6 +32,9 @@ public sealed class Gate0G05Stage2AV5RetainedOutputReevaluationTests
         Assert.Contains("stop-before-media-v5-route-failure", evaluator);
         Assert.Contains("originalV3RecordsModified=$false", evaluator);
         Assert.Contains("Assert-PortableJsonValue", evaluator);
+        Assert.Contains("$Value -is [ValueType]", evaluator);
+        Assert.Contains("ConvertFrom-Json -Depth 64 -DateKind String", evaluator);
+        Assert.Contains("ConvertFrom-Json -Depth 128 -DateKind String", evaluator);
         Assert.Contains("Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1", authorizer);
         Assert.Contains("Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1", controls);
         Assert.Contains("Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1", freezer);
@@ -128,6 +131,7 @@ public sealed class Gate0G05Stage2AV5RetainedOutputReevaluationTests
         Assert.Contains("ffmpegAuthorized = $false", authorizer);
         Assert.Contains("ffprobeAuthorized = $false", authorizer);
         Assert.Contains("mediaProcessAuthorized = $false", authorizer);
+        Assert.Contains("[DateTime]::UtcNow.ToString('O'", authorizer);
         Assert.DoesNotContain("Start-Process", evaluator, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("& pwsh", evaluator, StringComparison.OrdinalIgnoreCase);
     }

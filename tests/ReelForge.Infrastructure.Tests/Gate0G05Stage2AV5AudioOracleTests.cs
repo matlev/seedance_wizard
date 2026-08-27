@@ -103,6 +103,19 @@ public sealed class Gate0G05Stage2AV5AudioOracleTests
             AssertPortable(File.ReadAllText(candidatePath));
             AssertPortable(File.ReadAllText(freezePath));
 
+            var authorizationPath = Path.Combine(output, "g0.5-v5-retained-output-reevaluation-authorization.json");
+            var authorizer = PathInRepo("eng", "gate0", "New-G05Stage2AV5RetainedOutputReevaluationAuthorization.ps1");
+            var authorizationResult = RunProcess("pwsh", ["-NoProfile", "-File", authorizer, "-FinalFreezePath", freezePath, "-ControlReportPath", reportPath, "-FreezeCandidatePath", candidatePath, "-V4AuthoritativeControlReportPath", v4Report, "-OutputPath", authorizationPath]);
+            Assert.True(authorizationResult.ExitCode == 0, authorizationResult.Output);
+            var evaluator = PathInRepo("eng", "gate0", "Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1");
+            var noReadOutput = Path.Combine(output, "no-retained-read-result");
+            var noReadResult = RunProcess("pwsh", ["-NoProfile", "-File", evaluator, "-FinalFreezePath", freezePath, "-ControlReportPath", reportPath, "-FreezeCandidatePath", candidatePath, "-V4AuthoritativeControlReportPath", v4Report, "-AuthorizationPath", authorizationPath,
+                "-StressReferencePcmPath", Path.Combine(output, "missing-truth.pcm"), "-WebmPcmPath", Path.Combine(output, "missing-webm.pcm"), "-WebmOriginalSummaryPath", Path.Combine(output, "missing-webm.json"), "-Mp4PcmPath", Path.Combine(output, "missing-mp4.pcm"), "-Mp4OriginalSummaryPath", Path.Combine(output, "missing-mp4.json"), "-OutputDirectory", noReadOutput]);
+            Assert.NotEqual(0, noReadResult.ExitCode);
+            Assert.True(noReadResult.Output.Contains("StressReferencePcmPath must be an existing absolute file", StringComparison.Ordinal), noReadResult.Output);
+            Assert.DoesNotContain("call depth overflow", noReadResult.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.False(Directory.Exists(noReadOutput));
+
             var baseReport = JsonNode.Parse(File.ReadAllText(reportPath))!.AsObject();
             var baseCandidate = JsonNode.Parse(File.ReadAllText(candidatePath))!.AsObject();
 

@@ -34,7 +34,7 @@ $authorization = [ordered]@{
     schemaVersion = 1
     authorizationId = 'Gate0.G05.Stage2A.V5RetainedOutputReevaluation.20260827'
     status = 'owner-approved-after-final-v5-freeze'
-    createdUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    createdUtc = [DateTime]::UtcNow.ToString('O', [Globalization.CultureInfo]::InvariantCulture)
     finalFreeze = [ordered]@{ filename = [IO.Path]::GetFileName($FinalFreezePath); sha256 = Get-G05V5FreezeSha256 $FinalFreezePath; freezeId = $freeze.freezeId }
     evaluator = [ordered]@{ path = 'eng/gate0/Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1'; sha256 = $required['eng/gate0/Invoke-G05Stage2AV5RetainedOutputReevaluation.ps1'] }
     v5 = [ordered]@{
