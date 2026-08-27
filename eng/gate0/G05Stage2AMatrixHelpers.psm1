@@ -17,6 +17,7 @@ function Read-G05Stage2AExecutionAuthorization([string] $Path, [string] $Reposit
         'owner-decision' = 'docs/gate-0-g0.5-stage2a-owner-decisions.md'
         'execution-owner-approval' = 'docs/gate-0-g0.5-stage2a-execution-approval.md'
         'replacement-warmup-approval' = 'docs/gate-0-g0.5-stage2a-replacement-warmup-approval.md'
+        'replacement-activation-summary' = 'eng/gate0/g0.5-stage2a-replacement-activation-summary.json'
         schedule = 'eng/gate0/g0.5-stage2a-schedule.json'
         runner = 'eng/gate0/Invoke-G05Stage2AMatrix.ps1'
         preflight = 'eng/gate0/Test-G05Stage2AMatrixPreflight.ps1'

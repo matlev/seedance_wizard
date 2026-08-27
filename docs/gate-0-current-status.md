@@ -1,6 +1,6 @@
 # Gate 0 current status
 
-Status: Stage 2A replacement restart approved; activation preflight pending
+Status: Stage 2A replacement restart effective; exact matrix execution authorized
 
 Updated: 2026-08-27
 
@@ -34,7 +34,7 @@ The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. 
 | Durable artifact retention | Current 4,101-artifact corpus independently byte-verified in private R2 | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
 | Future evidence containment | Legacy corpus sealed; immutable shard/index path passed local and exact R2-byte no-media proof | [Containment result](gate-0-g0.5-stage2-containment-results.md) |
 | Stage 2A execution prerequisite | Exact 18-cell/108-attempt schedule, semantic executor, hash closure, runtime/resource preflight, bounded retention, and no-media activation review passed | [Execution prerequisite](gate-0-g0.5-stage2a-execution-prerequisite.md) |
-| Current owner authorization | One fresh restart of the exact 18-cell/108-attempt Stage 2A matrix approved; activation preflight pending | [Replacement warm-up approval](gate-0-g0.5-stage2a-replacement-warmup-approval.md) |
+| Current owner authorization | One fresh restart of the exact 18-cell/108-attempt Stage 2A matrix is effective after focused tests, independent review, full preflight, and complete local/R2 byte verification passed | [Replacement warm-up approval](gate-0-g0.5-stage2a-replacement-warmup-approval.md) |
 
 ## Active bounded unit
 
@@ -47,7 +47,7 @@ The replacement-smoke unit completed:
 5. retained and independently verified the replacement evidence; and
 6. produced one compact owner packet with results, growth projections, containment recommendation, and the proposed full-matrix route/thread subset.
 
-The legacy seal, root index, immutable shard writer/validator, negative tests, no-media local/R2 round trip, deterministic schedule, hash-bound dependency closure, full/per-cell preflight, exact semantic cell executor, compact/full retention transformation, fail-fast route suspension, and bounded result aggregation are complete and independently reviewed. The live summary-shape defect is repaired and the complete 28-test focused no-media suite passes. The owner-approved replacement restart is now being bound and preflighted before activation. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
+The legacy seal, root index, immutable shard writer/validator, negative tests, no-media local/R2 round trip, deterministic schedule, hash-bound dependency closure, full/per-cell preflight, exact semantic cell executor, compact/full retention transformation, fail-fast route suspension, and bounded result aggregation are complete and independently reviewed. The live summary-shape defect is repaired; the complete 28-test focused no-media suite, fresh full activation preflight, and independent local/R2 byte verification all pass. The owner-approved replacement restart is effective. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
 
 ## Containment and remaining sequence
 
@@ -55,6 +55,6 @@ No new codec/container/filter matrix, dependency, installation, fixture family, 
 
 F7/Matroska expansion has stopped. The final packet will classify the 83 non-passing rows rather than attempt further repairs unless a required Free 1.0 workflow is shown to depend on an exact row.
 
-The exact 18-cell/108-attempt matrix, one fresh restart from global ordinal 1, and [future evidence-containment contract](gate-0-evidence-containment.md) are approved. The writer/validator, legacy seal, atomic no-media local/R2 proof, fixed retention ceilings, counterbalanced schedule, hash closure, semantic executor, one-shard-per-cell retention integration, and preflight guards are committed and verified. Execution remains pending only until the approval binding is committed and the fresh full activation preflight passes; the effective run must stop after the Stage 2A owner packet.
+The exact 18-cell/108-attempt matrix, one fresh restart from global ordinal 1, and [future evidence-containment contract](gate-0-evidence-containment.md) are approved and effective. The writer/validator, legacy seal, atomic no-media local/R2 proof, fixed retention ceilings, counterbalanced schedule, hash closure, semantic executor, one-shard-per-cell retention integration, and preflight guards are committed and verified. The effective run must stop after the Stage 2A owner packet.
 
 After any separately authorized measured work, Gate 0 still requires long-form sizing and authorization, suitable independent playback, documentation-only Pro repair dispositions, and the G0.7 exit packet.
