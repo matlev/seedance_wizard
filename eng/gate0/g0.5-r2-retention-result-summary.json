@@ -5,20 +5,20 @@
   "authority": "docs/gate-0-artifact-retention.md",
   "sourceInventory": {
     "artifactSetId": "Gate0.InterimCorpus.20260825",
-    "manifestSha256": "AF4A7312E5182F82E2A022C1FF1CC0B9EF53FC914790C5B1D462E41107032477",
-    "logicalArtifactCount": 3971,
-    "logicalArtifactBytes": 996626827
+    "manifestSha256": "7F2D333378B8E8BCCB97624F19EB43D697B47C28C85B5E1E6BB3FCDF12238232",
+    "logicalArtifactCount": 4013,
+    "logicalArtifactBytes": 1024859725
   },
   "durableManifest": {
     "manifestId": "Gate0.DurableR2Retention.V1",
-    "sha256": "3145B9693A3F1F6E35A08826E33775A2A5B13C5427B4D40872FE833E3E20F96E",
+    "sha256": "5F115B863F623C1376AA672D06B4CD7122365DB9B8AB99BD657A82AC1000F507",
     "retentionCondition": "complete",
     "secondPrivateCopyVerified": true,
-    "verifiedLogicalArtifactCount": 3971,
-    "verifiedLogicalArtifactBytes": 996626827,
-    "verifiedDistinctObjectCount": 1971,
-    "verifiedDistinctObjectBytes": 587692245,
-    "lastReceiptUtc": "2026-08-26T15:58:44.6148974-07:00",
+    "verifiedLogicalArtifactCount": 4013,
+    "verifiedLogicalArtifactBytes": 1024859725,
+    "verifiedDistinctObjectCount": 2000,
+    "verifiedDistinctObjectBytes": 614337628,
+    "lastReceiptUtc": "2026-08-27T01:01:33.9981938+00:00",
     "blocker": null
   },
   "execution": {
@@ -34,6 +34,17 @@
       "remoteByteVerificationPerformed": true,
       "remotelyVerifiedLogicalArtifactsThisRun": 3971,
       "result": "passed"
+    },
+    "incrementalSmokeEvidenceRefresh": {
+      "completedUtc": "2026-08-27T00:32:42.9295317+00:00",
+      "newLogicalArtifactsIndependentlyRetrievedThisRun": 42,
+      "newLogicalArtifactBytes": 28232898,
+      "result": "passed"
+    },
+    "redundantVerificationReplay": {
+      "disposition": "cancelled-after-1006-logical-receipt-refreshes",
+      "completionRequired": false,
+      "reason": "Every prior artifact retained its complete-corpus receipt and every new smoke artifact already had a fresh independent retrieval receipt."
     }
   },
   "gates": {

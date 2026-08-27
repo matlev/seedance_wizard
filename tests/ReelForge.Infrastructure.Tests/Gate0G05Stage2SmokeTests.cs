@@ -32,7 +32,7 @@ public sealed class Gate0G05Stage2SmokeTests
             "try{Convert-G05SmokeTicks 1 '1/3'|Out-Null;exit 12}catch{};" +
             "if((Get-G05SmokeDemuxer mp4)-ne'mov,mp4,m4a,3gp,3g2,mj2'){exit 13};" +
             "if((Get-G05SmokeDemuxer webm)-ne'matroska,webm'){exit 14};" +
-            "$root='C:\\proof\\root';$tokens=ConvertTo-G05SmokePortableTokens @((Join-Path $root 'out.mp4')) @{stage=$root};if($tokens-ne'{stage}/out.mp4'){exit 15}";
+            "$root='C:\\proof\\root';$slashRoot=$root.Replace('\\','/');$hybridRoot=$root.Replace('\\root','/root');$tokens=ConvertTo-G05SmokePortableTokens @((Join-Path $root 'out.mp4'),($slashRoot+'/mixed.mp4'),$slashRoot,($hybridRoot+'/hybrid.mp4')) @{stage=$root};if($tokens[0]-ne'{stage}/out.mp4'-or$tokens[1]-ne'{stage}/mixed.mp4'-or$tokens[2]-ne'{stage}'-or$tokens[3]-ne'{stage}/hybrid.mp4'){exit 15}";
 
         var result = Run("pwsh", ["-NoProfile", "-Command", script]);
         Assert.True(result.ExitCode == 0, result.Output);
@@ -122,6 +122,7 @@ public sealed class Gate0G05Stage2SmokeTests
             "process-samples.ndjson", "visual-mae.ndjson", "Get-G05DecodedAudioTiming", "ConvertTo-G05SmokePortableTokens",
             "snapshotWorkload", "snapshotAudioContract", "snapshotR2Summary", "-ManifestPath $snapshotP2Manifest"
         }) Assert.Contains(text, script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("audioOracleIdentity", script, StringComparison.Ordinal);
         foreach (var text in new[] { "FrameMeanAbsoluteErrors", "MinimumWindowRmsFullScale", "OutputToReferenceAmplitudeRatio", "Kill($true)" })
             Assert.Contains(text, helper, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("libx264", script, StringComparison.OrdinalIgnoreCase);

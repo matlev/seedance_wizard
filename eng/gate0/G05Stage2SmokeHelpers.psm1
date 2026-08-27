@@ -78,9 +78,10 @@ function ConvertTo-G05SmokePortableTokens([string[]] $Tokens, [hashtable] $Roots
         $value = [string] $_
         foreach ($entry in $Roots.GetEnumerator()) {
             $root = [IO.Path]::GetFullPath([string] $entry.Value).TrimEnd([IO.Path]::DirectorySeparatorChar)
-            if ($value.Equals($root, [StringComparison]::OrdinalIgnoreCase)) { $value = "{$($entry.Key)}"; break }
-            if ($value.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-                $relative = [IO.Path]::GetRelativePath($root, $value).Replace('\', '/')
+            $normalizedValue = $value.Replace([IO.Path]::AltDirectorySeparatorChar, [IO.Path]::DirectorySeparatorChar)
+            if ($normalizedValue.Equals($root, [StringComparison]::OrdinalIgnoreCase)) { $value = "{$($entry.Key)}"; break }
+            if ($normalizedValue.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+                $relative = [IO.Path]::GetRelativePath($root, $normalizedValue).Replace('\', '/')
                 $value = "{$($entry.Key)}/$relative"
                 break
             }

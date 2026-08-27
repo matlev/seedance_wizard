@@ -8,7 +8,7 @@ Authority: owner durable-retention direction dated 2026-08-26 and the [Gate 0 me
 
 The dedicated private Cloudflare R2 bucket `reelforge-artifacts` is the durable engineering copy of the curated Gate 0 proof corpus. It has no automatic object-deletion lifecycle. It is separate from temporary provider-reference hosting and is not an application feature, general artifact service, production release store, user-media store, or public distribution surface.
 
-The existing `eng/gate0/artifact-retention-manifest.json` remains the canonical local byte inventory. It currently identifies 3,971 logical artifacts and 996,626,827 bytes curated into the local `ReelForge.Gate0Artifacts` working root; unmanifested staging and scratch files are excluded. This includes every retained-audio evaluator attempt, the owner-approved 90,000-marker atlas, all marker-qualifier attempts, both WPF no-media attempts, and all retained smoke-resource preflight attempts. `eng/gate0/artifact-manifest.json` separately records durable R2 verification status and inherits each artifact's provenance, producer/runtime, proof identity, and license records from that source inventory.
+The existing `eng/gate0/artifact-retention-manifest.json` remains the canonical local byte inventory. It currently identifies 4,013 logical artifacts and 1,024,859,725 bytes curated into the local `ReelForge.Gate0Artifacts` working root; unmanifested staging and scratch files are excluded. This includes every retained-audio evaluator attempt, the owner-approved 90,000-marker atlas, all marker-qualifier attempts, both WPF no-media attempts, all retained smoke-resource preflight attempts, and the non-authoritative pre-matrix smoke discovery group. `eng/gate0/artifact-manifest.json` separately records durable R2 verification status and inherits each artifact's provenance, producer/runtime, proof identity, and license records from that source inventory.
 
 R2 object identity is always:
 
@@ -79,11 +79,13 @@ This proved the configured engineering identity could execute the intended immut
 
 ## Complete-corpus result
 
-On 2026-08-26, all 3,971 logical artifacts and 996,626,827 logical bytes in source manifest SHA-256 `AF4A7312E5182F82E2A022C1FF1CC0B9EF53FC914790C5B1D462E41107032477` received post-retrieval size/SHA-256 receipts. Content addressing reduced the stored closure to 1,971 distinct objects and 587,692,245 distinct bytes without removing any logical identity.
+On 2026-08-26, all 3,971 logical artifacts and 996,626,827 logical bytes in source manifest SHA-256 `AF4A7312E5182F82E2A022C1FF1CC0B9EF53FC914790C5B1D462E41107032477` received post-retrieval size/SHA-256 receipts. Content addressing reduced that closure to 1,971 distinct objects and 587,692,245 distinct bytes without removing any logical identity.
 
 Two resumable upload attempts stopped on transient local access-denied errors during atomic receipt-manifest replacement. Every already completed receipt remained valid. Commit `75e37df` added a bounded retry for only wrapped `IOException` and `UnauthorizedAccessException` causes while preserving same-directory atomic replacement, temporary-file cleanup, and fail-closed exhaustion. The resumed upload completed, after which a separate clean `-Remote` pass independently retrieved and hash-verified the complete corpus again.
 
-The tracked durable manifest is SHA-256 `3145B9693A3F1F6E35A08826E33775A2A5B13C5427B4D40872FE833E3E20F96E`, reports `retentionCondition: complete`, `secondPrivateCopyVerified: true`, and no blocker. The machine-readable result is `eng/gate0/g0.5-r2-retention-result-summary.json`.
+On 2026-08-27, the 42-file, 28,232,898-byte pre-matrix smoke discovery group was appended to the source inventory. All 42 new logical artifacts were independently uploaded or reused, retrieved, size/hash-verified, and receipted. The previous 3,971 receipts remained bound to unchanged logical identities during source refresh. A later redundant full replay refreshed 1,006 of those existing receipts before being deliberately cancelled; completion does not depend on that replay because every current logical artifact already retained an independent byte-verification receipt.
+
+The current source manifest SHA-256 is `7F2D333378B8E8BCCB97624F19EB43D697B47C28C85B5E1E6BB3FCDF12238232`. It contains 4,013 logical artifacts and 1,024,859,725 logical bytes, represented by 2,000 distinct objects and 614,337,628 distinct bytes. The tracked durable manifest SHA-256 is `5F115B863F623C1376AA672D06B4CD7122365DB9B8AB99BD657A82AC1000F507`; it reports `retentionCondition: complete`, `secondPrivateCopyVerified: true`, and no blocker. The machine-readable result is `eng/gate0/g0.5-r2-retention-result-summary.json`.
 
 ## CI and completion
 
