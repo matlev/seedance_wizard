@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "indexId": "Gate0.Stage2Evidence.Root.V2",
+  "evidenceBoundary": "gate0-proof-infrastructure-only",
+  "predecessor": {
+    "rootIndexPath": "eng/gate0/evidence/root-index.json",
+    "rootIndexSha256": "C6D3CD9E7B0FC62E199E6FAD0A7D0FBAB6AFE1BBA6C8EFD4EAE427BBB79E30EA",
+    "indexId": "Gate0.Stage2Evidence.Root.V1",
+    "finalProofRunId": "g05-stage2a-20260827T170732499Z-df30a192-stress-1080p-webm-one",
+    "finalEntrySha256": "29E21E5A56B0D82B25D914698E3CFA30EFC565F42345F436A26BCF8C1F97EB94",
+    "logicalArtifactBytes": 78538843
+  },
+  "limits": {
+    "globalRetentionCeilingBytes": 805306368,
+    "maxShardBytes": 65536,
+    "maxShardLines": 300,
+    "maxRootIndexBytes": 131072,
+    "maxRootIndexLines": 400,
+    "maxCompactAttemptBytes": 262144,
+    "plannedContinuationCellShards": 12,
+    "maxInfrastructureShards": 2
+  },
+  "runs": [],
+  "totals": {
+    "runCount": 0,
+    "logicalArtifactCount": 0,
+    "logicalArtifactBytes": 0
+  },
+  "limitations": [
+    "V2 is an append-only continuation segment anchored to immutable V1 evidence.",
+    "This index is Gate 0 proof infrastructure and contains no product, distribution, or legal claim."
+  ]
+}
