@@ -6,6 +6,7 @@ $script:ShardSchemaId = 'Gate0.Stage2Evidence.Shard.V1'
 $script:SealId = 'Gate0.LegacyEvidenceSeal.20260827'
 $script:ExpectedSourceSha256 = 'AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0'
 $script:ExpectedDurableSha256 = 'AF9B368D44FDE3EFD2C45E2D847CB989D38E52066607A0D3E61384588D23C113'
+$script:ExpectedInitialRootIndexSha256 = '146936D12F54D0DC6D324F51330445E1B9F07C2C0DF13575F4EA0EB7C8643126'
 $script:ExpectedLogicalArtifactCount = 4101
 $script:ExpectedLogicalArtifactBytes = [int64]1121540509
 
@@ -259,12 +260,15 @@ function Read-Gate0EvidenceRootIndex([string] $Path, [switch] $AllowMissingShard
     if ([int64]$root.totals.logicalArtifactBytes -gt [int64]$root.limits.stage2ARetentionCeilingBytes) { throw 'Evidence root exceeds the approved Stage 2A retention ceiling.' }
     if (-not $AllowMissingShards) {
         $stage2 = Join-Path $rootDirectory 'stage2'
+        $stage2Items = @()
         if (Test-Path -LiteralPath $stage2 -PathType Container) {
             $stage2Items = @(Get-ChildItem -LiteralPath $stage2 -Force -Recurse)
             $stage2Reparse = @($stage2Items | Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 })
             if ($stage2Reparse.Count -ne 0) { throw "The tracked evidence shard tree contains a reparse point: $($stage2Reparse[0].FullName)" }
         }
-        $actual = if (Test-Path -LiteralPath $stage2 -PathType Container) { @(Get-ChildItem -LiteralPath $stage2 -File -Filter '*.manifest.json' | ForEach-Object { "stage2/$($_.Name)" }) } else { @() }
+        $unexpectedDirectories = @($stage2Items | Where-Object { $_.PSIsContainer })
+        if ($unexpectedDirectories.Count -ne 0) { throw "The tracked evidence shard tree contains an unexpected directory: $($unexpectedDirectories[0].FullName)" }
+        $actual = @($stage2Items | Where-Object { -not $_.PSIsContainer } | ForEach-Object { "stage2/$($_.Name)" })
         foreach ($pathValue in $actual) { if (-not $referencedShards.Contains($pathValue)) { throw "Evidence directory contains an unindexed shard: $pathValue" } }
     }
     return [pscustomobject]@{ Path = [IO.Path]::GetFullPath($Path); Text = $text; Index = $root; Sha256 = Get-Gate0EvidenceSha256 $Path; Shape = $shape }
@@ -296,7 +300,7 @@ function Assert-Gate0LegacyEvidenceSeal([string] $RepositoryRoot, [switch] $Requ
     Assert-Gate0EvidenceExactProperties $seal @('schemaVersion','sealId','effectiveUtc','sourceManifestPath','sourceManifestSha256','durableManifestPath','durableManifestSha256','logicalArtifactCount','logicalArtifactBytes','rootIndexPath','initialRootIndexSha256','retentionCondition','limitations') 'Legacy evidence seal'
     if ($seal.schemaVersion -ne 1 -or $seal.sealId -ne $script:SealId -or $seal.sourceManifestPath -ne 'eng/gate0/artifact-retention-manifest.json' -or $seal.sourceManifestSha256 -ne $script:ExpectedSourceSha256 -or
         $seal.durableManifestPath -ne 'eng/gate0/artifact-manifest.json' -or $seal.durableManifestSha256 -ne $script:ExpectedDurableSha256 -or [int]$seal.logicalArtifactCount -ne $script:ExpectedLogicalArtifactCount -or
-        [int64]$seal.logicalArtifactBytes -ne $script:ExpectedLogicalArtifactBytes -or $seal.rootIndexPath -ne 'eng/gate0/evidence/root-index.json' -or [string]$seal.initialRootIndexSha256 -notmatch '^[A-F0-9]{64}$' -or $seal.retentionCondition -ne 'complete-and-independently-byte-verified') {
+        [int64]$seal.logicalArtifactBytes -ne $script:ExpectedLogicalArtifactBytes -or $seal.rootIndexPath -ne 'eng/gate0/evidence/root-index.json' -or $seal.initialRootIndexSha256 -ne $script:ExpectedInitialRootIndexSha256 -or $seal.retentionCondition -ne 'complete-and-independently-byte-verified') {
         throw 'Legacy evidence seal does not match the approved effective seal contract.'
     }
     $effective = [DateTimeOffset]::MinValue

@@ -14,7 +14,7 @@ public sealed class Gate0EvidenceContainmentTests
         Assert.Equal(0, result.ExitCode);
         using var json = JsonDocument.Parse(result.Output);
         var document = json.RootElement;
-        Assert.Equal(0, document.GetProperty("runs").GetArrayLength());
+        Assert.Equal(document.GetProperty("runs").GetArrayLength(), document.GetProperty("totals").GetProperty("runCount").GetInt32());
         Assert.False(document.TryGetProperty("artifacts", out _));
         Assert.Equal("AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0", document.GetProperty("legacySeal").GetProperty("sourceManifestSha256").GetString());
     }
@@ -258,6 +258,82 @@ public sealed class Gate0EvidenceContainmentTests
     }
 
     [Fact]
+    public void LocalValidatorRejectsUnindexedTrackedStage2File()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            var passed = RunPs(corpus.WriterCommand);
+            Assert.True(passed.ExitCode == 0, passed.Output);
+
+            var trackedStage2 = Path.Combine(corpus.Gate0, "evidence", "stage2");
+            File.WriteAllText(Path.Combine(trackedStage2, "notes.txt"), "unindexed");
+            var validator = Path.Combine(corpus.Gate0, "Test-Gate0EvidenceContainment.ps1");
+            var result = RunPs($"& '{PsQuote(validator)}' -ArtifactRoot '{PsQuote(corpus.ArtifactRoot)}' -RequireEffectiveSeal");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("unindexed", result.Output, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
+    public void LocalValidatorRejectsUnexpectedTrackedStage2Directory()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            var passed = RunPs(corpus.WriterCommand);
+            Assert.True(passed.ExitCode == 0, passed.Output);
+
+            var trackedStage2 = Path.Combine(corpus.Gate0, "evidence", "stage2");
+            var nested = Directory.CreateDirectory(Path.Combine(trackedStage2, "unexpected")).FullName;
+            File.WriteAllText(Path.Combine(nested, "nested.txt"), "unindexed");
+
+            var validator = Path.Combine(corpus.Gate0, "Test-Gate0EvidenceContainment.ps1");
+            var result = RunPs($"& '{PsQuote(validator)}' -ArtifactRoot '{PsQuote(corpus.ArtifactRoot)}' -RequireEffectiveSeal");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("tracked evidence shard tree", result.Output, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
+    public void LegacySealRejectsChangedWellFormedInitialRootIndexHash()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            var baseline = RunPs($"Import-Module '{PsQuote(Path.Combine(corpus.Gate0, "evidence", "Gate0EvidenceContainment.psm1"))}' -Force; Assert-Gate0LegacyEvidenceSeal '{PsQuote(IsolatedRepoRoot(corpus))}' -RequireEffective | Out-Null");
+            Assert.True(baseline.ExitCode == 0, baseline.Output);
+
+            var sealPath = Path.Combine(corpus.Gate0, "evidence", "legacy-seal.json");
+            var seal = JsonNode.Parse(File.ReadAllText(sealPath))!.AsObject();
+            seal["initialRootIndexSha256"] = new string('F', 64);
+            File.WriteAllText(sealPath, seal.ToJsonString());
+
+            var result = RunPs($"Import-Module '{PsQuote(Path.Combine(corpus.Gate0, "evidence", "Gate0EvidenceContainment.psm1"))}' -Force; Assert-Gate0LegacyEvidenceSeal '{PsQuote(IsolatedRepoRoot(corpus))}' -RequireEffective | Out-Null");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("Legacy evidence seal", result.Output, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
+    public void P2RuntimeRouteAppendIsBlockedWithoutAnExactStage2AScheduleAndRunnerAuthorization()
+    {
+        var corpus = CreateIsolatedContainmentCorpus();
+        try
+        {
+            var p2Command = corpus.WriterCommand.Replace("-EvidenceBoundary containment-no-media", "-EvidenceBoundary p2-runtime-route", StringComparison.Ordinal);
+            var result = RunPs(p2Command);
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("Stage 2A evidence append is blocked", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(0, JsonNode.Parse(File.ReadAllText(corpus.RootIndex))!["totals"]!["runCount"]!.GetValue<int>());
+        }
+        finally { if (Directory.Exists(corpus.TestRoot)) Directory.Delete(corpus.TestRoot, recursive: true); }
+    }
+
+    [Fact]
     public void EffectiveSealBlocksDirectDefaultDurableLedgerMutation()
     {
         var corpus = CreateIsolatedContainmentCorpus();
@@ -336,7 +412,18 @@ public sealed class Gate0EvidenceContainmentTests
         var directory = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "ReelForge-Gate0-containment-" + Guid.NewGuid().ToString("N"))).FullName;
         var path = Path.Combine(directory, "root-index.json");
         File.Copy(PathInRepo("eng", "gate0", "evidence", "root-index.json"), path);
+        ResetFutureRuns(path);
         return path;
+    }
+
+    private static void ResetFutureRuns(string rootIndex)
+    {
+        var root = JsonNode.Parse(File.ReadAllText(rootIndex))!.AsObject();
+        root["runs"] = new JsonArray();
+        root["totals"]!["runCount"] = 0;
+        root["totals"]!["logicalArtifactCount"] = 0;
+        root["totals"]!["logicalArtifactBytes"] = 0;
+        File.WriteAllText(rootIndex, root.ToJsonString());
     }
 
     private static string WriteValidShard()
@@ -371,7 +458,7 @@ public sealed class Gate0EvidenceContainmentTests
         File.Copy(ModulePath(), Path.Combine(evidence, "Gate0EvidenceContainment.psm1"));
         var rootIndex = Path.Combine(evidence, "root-index.json");
         File.Copy(PathInRepo("eng", "gate0", "evidence", "root-index.json"), rootIndex);
-        var rootHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(rootIndex)));
+        ResetFutureRuns(rootIndex);
         var seal = new
         {
             schemaVersion = 1,
@@ -384,7 +471,7 @@ public sealed class Gate0EvidenceContainmentTests
             logicalArtifactCount = 4101,
             logicalArtifactBytes = 1121540509L,
             rootIndexPath = "eng/gate0/evidence/root-index.json",
-            initialRootIndexSha256 = rootHash,
+            initialRootIndexSha256 = "146936D12F54D0DC6D324F51330445E1B9F07C2C0DF13575F4EA0EB7C8643126",
             retentionCondition = "complete-and-independently-byte-verified",
             limitations = new[] { "isolated test" }
         };
@@ -400,6 +487,9 @@ public sealed class Gate0EvidenceContainmentTests
         var command = $"& '{PsQuote(writer)}' -ArtifactRoot '{PsQuote(artifactRoot)}' -SourceRoot '{PsQuote(source)}' -ProofRunId run-a -EvidenceGroupId group-a -CellId cell-a -DestinationName future/stage2/run-a -EvidenceBoundary containment-no-media -Disposition passed -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -SkipRemoteForIsolatedTest";
         return (testRoot, gate0, artifactRoot, source, rootIndex, destination, shard, command);
     }
+
+    private static string IsolatedRepoRoot((string TestRoot, string Gate0, string ArtifactRoot, string Source, string RootIndex, string Destination, string Shard, string WriterCommand) corpus)
+        => Directory.GetParent(Directory.GetParent(corpus.Gate0)!.FullName)!.FullName;
 
     private static JsonObject RunEntry(string id, string cell, string? shardPath, string? entryHash)
     {

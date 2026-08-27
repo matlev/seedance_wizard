@@ -20,11 +20,46 @@
     "plannedCellShards": 18,
     "maxInfrastructureShards": 2
   },
-  "runs": [],
+  "runs": [
+    {
+      "ordinal": 1,
+      "runKind": "infrastructure",
+      "proofRunId": "g05-stage2-containment-dry-run-20260827T092340819Z",
+      "evidenceGroupId": "g05-stage2-containment-dry-run",
+      "cellId": "containment-no-media-control",
+      "shardPath": "stage2/g05-stage2-containment-dry-run-20260827T092340819Z.manifest.json",
+      "shardSha256": "95CB3207D8ABE1C67D8942A64F97C6CB441C41B0BBEC14BE76A139339390261A",
+      "entrySha256": "4BF3D1E2509D3623BFF046447FBCF640F05572F34AFD5A8F8B5FAABF837FC47B",
+      "previousRunId": null,
+      "previousRunEntrySha256": null,
+      "disposition": "passed",
+      "logicalArtifactCount": 2,
+      "logicalArtifactBytes": 1200,
+      "localRetention": "verified",
+      "r2Retention": "independently-retrieved-and-verified"
+    },
+    {
+      "ordinal": 2,
+      "runKind": "infrastructure",
+      "proofRunId": "g05-stage2-containment-dry-run-20260827T092340819Z-result",
+      "evidenceGroupId": "g05-stage2-containment-dry-run-result",
+      "cellId": "containment-no-media-result",
+      "shardPath": "stage2/g05-stage2-containment-dry-run-20260827T092340819Z-result.manifest.json",
+      "shardSha256": "C4B679C27E60EC2A368C2C6A4C3ED9FA05F186090667FF60BB88225D25B4FD58",
+      "entrySha256": "03B0EA47FF8E0A41F6AD59B8541C81ED8923A4DE06B6ABB066179EAECD697B12",
+      "previousRunId": "g05-stage2-containment-dry-run-20260827T092340819Z",
+      "previousRunEntrySha256": "4BF3D1E2509D3623BFF046447FBCF640F05572F34AFD5A8F8B5FAABF837FC47B",
+      "disposition": "passed",
+      "logicalArtifactCount": 2,
+      "logicalArtifactBytes": 1216,
+      "localRetention": "verified",
+      "r2Retention": "independently-retrieved-and-verified"
+    }
+  ],
   "totals": {
-    "runCount": 0,
-    "logicalArtifactCount": 0,
-    "logicalArtifactBytes": 0
+    "runCount": 2,
+    "logicalArtifactCount": 4,
+    "logicalArtifactBytes": 2416
   },
   "limitations": [
     "This index is Gate 0 proof infrastructure and contains no per-artifact legacy array.",

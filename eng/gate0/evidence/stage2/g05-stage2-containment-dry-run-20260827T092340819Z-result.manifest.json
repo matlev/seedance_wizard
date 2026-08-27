@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "shardId": "Gate0.Stage2Evidence.Shard.V1",
+  "proofRunId": "g05-stage2-containment-dry-run-20260827T092340819Z-result",
+  "evidenceGroupId": "g05-stage2-containment-dry-run-result",
+  "cellId": "containment-no-media-result",
+  "evidenceBoundary": "containment-no-media",
+  "createdUtc": "2026-08-27T09:23:45.7939465+00:00",
+  "contractIdentity": [
+    "repository:eng/gate0/g0.5-stage2-containment-dry-run-contract.json"
+  ],
+  "provenance": "Retained result closure for the owner-authorized no-media containment proof.",
+  "producerRuntimeIdentity": [
+    "repository:eng/gate0/Invoke-Gate0EvidenceContainmentDryRun.ps1",
+    "repository:eng/gate0/Test-Gate0EvidenceContainment.ps1"
+  ],
+  "licenseRecords": [],
+  "artifacts": [
+    {
+      "artifactId": "g05-stage2-containment-dry-run-20260827T092340819Z-result.containment-dry-run-result",
+      "relativePath": "future/stage2/g05-stage2-containment-dry-run-20260827T092340819Z-result/containment-dry-run-result.json",
+      "byteSize": 694,
+      "sha256": "71B861AC0064FE736BFAE3237CE40BE919FB2B04D161572301A6E01C6C4BBF8F",
+      "r2ObjectKey": "objects/sha256/71/71b861ac0064fe736bfae3237ce40be919fb2b04d161572301a6e01c6c4bbf8f",
+      "purpose": "Gate 0 evidence retained for g05-stage2-containment-dry-run-20260827T092340819Z-result.",
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T09:23:46.1725280+00:00"
+    },
+    {
+      "artifactId": "g05-stage2-containment-dry-run-20260827T092340819Z-result.initial-remote-validation",
+      "relativePath": "future/stage2/g05-stage2-containment-dry-run-20260827T092340819Z-result/initial-remote-validation.json",
+      "byteSize": 522,
+      "sha256": "716592388BD62CBEE9B61641ABF64116303E2BCE7A5960696E0977EC8AF70D24",
+      "r2ObjectKey": "objects/sha256/71/716592388bd62cbee9b61641abf64116303e2bce7a5960696e0977ec8af70d24",
+      "purpose": "Gate 0 evidence retained for g05-stage2-containment-dry-run-20260827T092340819Z-result.",
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T09:23:46.6777930+00:00"
+    }
+  ],
+  "attempts": [],
+  "disposition": "passed",
+  "localRetention": "verified",
+  "r2Retention": "independently-retrieved-and-verified",
+  "totals": {
+    "logicalArtifactCount": 2,
+    "logicalArtifactBytes": 1216
+  },
+  "limitations": [
+    "This shard records Gate 0 proof infrastructure only and is not a product, shipping-runtime, distribution, or legal conclusion."
+  ]
+}

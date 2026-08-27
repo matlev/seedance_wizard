@@ -1,6 +1,6 @@
 # Gate 0 generated-evidence containment
 
-Status: future-only shard/index and compact-repeat adjustment owner-approved; implementation and no-media proof pending
+Status: implemented, legacy-sealed, and proven through the approved no-media local/R2 round trip
 
 Authority: owner and Project Manager containment approval dated 2026-08-27
 
@@ -12,15 +12,15 @@ This is a bounded repository-evidence design. It does not authorize a database, 
 
 ## Legacy closure
 
-The existing `eng/gate0/artifact-retention-manifest.json` and `eng/gate0/artifact-manifest.json` remain the authoritative legacy corpus inventories through the currently authorized oracle-control and replacement-smoke unit. The append machinery may extend them only through its existing verified append/receipt rules; it may not reinterpret, delete, reorder, or replace historical logical records.
+The existing `eng/gate0/artifact-retention-manifest.json` and `eng/gate0/artifact-manifest.json` are the sealed authoritative legacy corpus inventories through the oracle-control and replacement-smoke unit. The supported append path and durable-ledger mutation path now fail closed; neither manifest may be extended, reinterpreted, deleted, reordered, or replaced.
 
-The replacement-smoke evidence and R2 receipts are complete. The approved legacy seal points are source manifest SHA-256 `AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0` and durable-ledger SHA-256 `AF9B368D44FDE3EFD2C45E2D847CB989D38E52066607A0D3E61384588D23C113`. They cover 4,101 logical artifacts and 1,121,540,509 logical bytes. A future shard writer must reference those exact hashes rather than copy or transform historical entries. The seal is owner-approved but not effective until the exact files/R2 state are reverified, the root-index references validate, and the legacy append path is disabled.
+The replacement-smoke evidence and R2 receipts are complete. The effective legacy seal binds source manifest SHA-256 `AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0` and durable-ledger SHA-256 `AF9B368D44FDE3EFD2C45E2D847CB989D38E52066607A0D3E61384588D23C113`. They cover 4,101 logical artifacts and 1,121,540,509 logical bytes. Seal activation freshly verified the exact local corpus and independently retrieved and hashed every distinct R2 object. The seal SHA-256 is `91EA51E766448F35D832823E25A9DBF1A92523FF31790B1E0364BA9BC61C604C`.
 
 The 256-row `eng/gate0/g0.4-input-proof-contract.json` likewise remains an immutable expanded proof contract. Future input decisions refer to its hash and the 173-row candidate guaranteed subset; they do not regenerate or broaden it.
 
-## Proposed future layout
+## Implemented future layout
 
-No root index or writer is implemented by this planning unit. If the owner authorizes full Stage 2 and this design, future measured evidence uses:
+Future measured evidence uses:
 
 ```text
 eng/gate0/evidence/
@@ -60,6 +60,7 @@ The future root validator must fail closed on:
 - changed legacy hashes;
 - missing, duplicate, reordered, or mutated run identities;
 - a shard whose bytes do not match its indexed hash;
+- any unindexed file or unexpected directory under the tracked future-shard tree;
 - path traversal, rooted paths, backslashes, or reparse-point crossings;
 - a logical artifact without an exact size/SHA-256/object-key binding;
 - a claimed complete R2 disposition without an independent retrieval receipt; or
@@ -92,7 +93,7 @@ The bounded planning budget is 18 shards capped at 64 KiB/300 lines each, a root
 
 Actual retained bytes remain fail-closed against the existing ceiling. If exceptional closures exhaust the headroom, execution returns for owner review rather than discarding evidence or raising the ceiling.
 
-## Approved adoption
+## Adoption result
 
 The owner approved:
 
@@ -100,4 +101,6 @@ The owner approved:
 - adopt the future-only shard/index layout before measured execution; and
 - use the compact-repeat retention rule above rather than raising the ceiling.
 
-Implementation and the required no-media local/R2 proof are authorized. Stage 2A media remains blocked until they pass.
+The implementation and required no-media proof passed on 2026-08-27. The proof created two ordered infrastructure shards containing four logical artifacts and 2,416 logical bytes, independently retrieved all four exact R2 objects, and invoked zero media processes. The final root-index SHA-256 is `98DB696B5A57341B41CBE18A030555B62952CDF80242D61E4FC767FCA8065500`.
+
+Stage 2A media remains blocked only on the separately required deterministic schedule, incremental preflights, retention reservation, and exact runner review. The writer enforces this boundary by rejecting every `p2-runtime-route` append until a closed, hash-bound execution-authorization record binds the approved owner decision, schedule, runner, preflight, workload contract, and containment contract. The containment result does not authorize or make claims about Stage 2A media, product behavior, a shipping runtime, distribution, or legal suitability.

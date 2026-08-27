@@ -38,6 +38,47 @@ function Assert-IsolatedTestMode([string] $RepositoryRoot, [string] $ResolvedArt
     }
 }
 
+function Assert-Stage2AExactProperties($Value, [string[]] $Expected, [string] $Label) {
+    if ($null -eq $Value) { throw "$Label is missing." }
+    $actual = @($Value.PSObject.Properties.Name | Sort-Object)
+    $wanted = @($Expected | Sort-Object)
+    if (@(Compare-Object -ReferenceObject $wanted -DifferenceObject $actual).Count -ne 0) { throw "$Label does not match its closed schema." }
+}
+
+function Assert-Stage2AExecutionAuthorization([string] $RepositoryRoot, [string[]] $Identities) {
+    $relativePath = 'eng/gate0/g0.5-stage2a-execution-authorization.json'
+    $authorizationPath = Join-Path $RepositoryRoot $relativePath.Replace('/', [IO.Path]::DirectorySeparatorChar)
+    if (-not (Test-Path -LiteralPath $authorizationPath -PathType Leaf)) {
+        throw 'Stage 2A evidence append is blocked until the exact schedule and runner authorization is present and valid.'
+    }
+    Assert-Gate0EvidenceNoReparsePointAncestors $authorizationPath $RepositoryRoot
+    $text = Get-Content -LiteralPath $authorizationPath -Raw
+    Assert-Gate0EvidenceMetadataText $text 'Stage 2A execution authorization'
+    $authorization = $text | ConvertFrom-Json -Depth 16
+    Assert-Stage2AExactProperties $authorization @('schemaVersion','authorizationId','status','exactCellCount','exactAttemptCount','bindings','limitations') 'Stage 2A execution authorization'
+    if ($authorization.schemaVersion -ne 1 -or $authorization.authorizationId -ne 'Gate0.G05.Stage2A.ExecutionAuthorization.V1' -or
+        $authorization.status -ne 'owner-authorized-and-prerequisites-verified' -or [int]$authorization.exactCellCount -ne 18 -or [int]$authorization.exactAttemptCount -ne 108) {
+        throw 'Stage 2A execution authorization does not match the approved matrix contract.'
+    }
+    $requiredRoles = @('owner-decision','schedule','runner','preflight','workload-contract','containment-contract')
+    $roles = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($binding in @($authorization.bindings)) {
+        Assert-Stage2AExactProperties $binding @('role','path','sha256') 'Stage 2A execution authorization binding'
+        if ([string]$binding.role -notin $requiredRoles -or -not $roles.Add([string]$binding.role)) { throw 'Stage 2A execution authorization contains an unexpected or duplicate binding role.' }
+        Assert-Gate0EvidenceRelativePath ([string]$binding.path) 'Stage 2A authorization binding path'
+        if ([string]$binding.path -notmatch '^(docs|eng/gate0)/' -or [string]$binding.sha256 -notmatch '^[A-F0-9]{64}$') { throw 'Stage 2A execution authorization binding is outside the approved repository scope or has an invalid hash.' }
+        $boundPath = Join-Path $RepositoryRoot ([string]$binding.path).Replace('/', [IO.Path]::DirectorySeparatorChar)
+        if (-not (Test-Path -LiteralPath $boundPath -PathType Leaf)) { throw "Stage 2A execution authorization binding is missing: $($binding.role)" }
+        Assert-Gate0EvidenceNoReparsePointAncestors $boundPath $RepositoryRoot
+        if ((Get-Gate0EvidenceSha256 $boundPath) -ne [string]$binding.sha256) { throw "Stage 2A execution authorization binding changed: $($binding.role)" }
+    }
+    if (@($roles).Count -ne $requiredRoles.Count) { throw 'Stage 2A execution authorization is missing a required binding.' }
+    $authorizationSha = Get-Gate0EvidenceSha256 $authorizationPath
+    if ($Identities -notcontains "repository:$relativePath" -or $Identities -notcontains "sha256:$authorizationSha") {
+        throw 'Stage 2A evidence must bind the exact tracked execution authorization identity.'
+    }
+}
+
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..')).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $rootIndexPath = Join-Path $PSScriptRoot 'evidence/root-index.json'
 $stage2Directory = Join-Path $PSScriptRoot 'evidence/stage2'
@@ -49,6 +90,7 @@ Assert-Gate0EvidenceRelativePath $DestinationName 'DestinationName'
 foreach ($identity in $ContractIdentity) {
     if ($identity -notmatch '^(repository|sha256):[A-Za-z0-9._/-]+$' -or $identity.Contains('\') -or $identity.Contains('..')) { throw 'ContractIdentity must use a portable repository: or sha256: scope.' }
 }
+if ($EvidenceBoundary -eq 'p2-runtime-route') { Assert-Stage2AExecutionAuthorization $repositoryRoot $ContractIdentity }
 if ([string]::IsNullOrWhiteSpace($Provenance)) { throw 'Provenance is required.' }
 foreach ($identity in @($ProducerRuntimeIdentity) + @($LicenseRecords)) {
     if ($identity -notmatch '^(repository|sha256):[A-Za-z0-9._/-]+$' -or $identity.Contains('\') -or $identity.Contains('..')) { throw 'ProducerRuntimeIdentity and LicenseRecords must use portable repository: or sha256: scopes.' }
@@ -74,6 +116,7 @@ $lockPath = "$artifactRootResolved.stage2-append-lock"
 $journalPath = "$artifactRootResolved.stage2-append-journal.json"
 $lock = $null
 $staging = "$artifactRootResolved.stage2-staging-$([Guid]::NewGuid().ToString('N'))"
+$shardTemporary = Join-Path (Split-Path -Parent $stage2Directory) ".stage2-shard-$ProofRunId-$([Guid]::NewGuid().ToString('N')).tmp"
 $payloadMoved = $false
 $shardMoved = $false
 $rootCommitted = $false
@@ -147,7 +190,6 @@ try {
         totals = [ordered]@{ logicalArtifactCount = $artifactRecords.Count; logicalArtifactBytes = $totalBytes }
         limitations = @('This shard records Gate 0 proof infrastructure only and is not a product, shipping-runtime, distribution, or legal conclusion.')
     }
-    $shardTemporary = "$shardPath.tmp-$([Guid]::NewGuid().ToString('N'))"
     [IO.File]::WriteAllText($shardTemporary, (($shard | ConvertTo-Json -Depth 32) + "`n"), [Text.UTF8Encoding]::new($false))
     [void](Read-Gate0EvidenceShard $shardTemporary)
     if ([int64]$root.Shape.Bytes + 8192 -gt [int64]$root.Index.limits.maxRootIndexBytes -or [int]$root.Shape.Lines + 40 -gt [int]$root.Index.limits.maxRootIndexLines) { throw 'Candidate root index lacks conservative capacity for one bounded append.' }
@@ -280,7 +322,7 @@ catch {
 }
 finally {
     if (-not $preserveFailureEvidence) {
-        foreach ($temporary in @($staging, "$shardPath.tmp-*", "$rootIndexPath.tmp-*")) {
+        foreach ($temporary in @($staging, $shardTemporary, "$rootIndexPath.tmp-*")) {
             Get-Item -Path $temporary -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
         }
     }
