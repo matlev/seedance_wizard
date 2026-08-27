@@ -19,10 +19,17 @@ function Read-G05Stage2AExecutionAuthorization([string] $Path, [string] $Reposit
         runner = 'eng/gate0/Invoke-G05Stage2AMatrix.ps1'
         preflight = 'eng/gate0/Test-G05Stage2AMatrixPreflight.ps1'
         helper = 'eng/gate0/G05Stage2AMatrixHelpers.psm1'
+        'semantic-executor' = 'eng/gate0/G05Stage2ASemanticExecutor.psm1'
+        'semantic-helper' = 'eng/gate0/G05Stage2ASemanticHelpers.psm1'
+        'smoke-helper' = 'eng/gate0/G05Stage2SmokeHelpers.psm1'
         'runtime-validator' = 'eng/gate0/Validate-P2Runtime.ps1'
         'runtime-manifest' = 'eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json'
         'workload-contract' = 'eng/gate0/g0.5-stage2-workload-contract.json'
         'containment-contract' = 'eng/gate0/g0.5-stage2-containment-dry-run-contract.json'
+        'audio-oracle-contract' = 'eng/gate0/g0.5-lossy-audio-oracle-contract.json'
+        'retention-contract' = 'eng/gate0/g0.5-stage2a-retention-contract.json'
+        'evidence-writer' = 'eng/gate0/Add-Gate0EvidenceShard.ps1'
+        'evidence-containment' = 'eng/gate0/evidence/Gate0EvidenceContainment.psm1'
     }
     if (@($authorization.bindings).Count -ne $expected.Count) { throw 'Stage 2A execution authorization does not have the exact required binding count.' }
     foreach ($role in $expected.Keys) {

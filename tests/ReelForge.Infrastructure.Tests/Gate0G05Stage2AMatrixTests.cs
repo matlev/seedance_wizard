@@ -161,10 +161,17 @@ public sealed class Gate0G05Stage2AMatrixTests
             ["runner"] = "eng/gate0/Invoke-G05Stage2AMatrix.ps1",
             ["preflight"] = "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1",
             ["helper"] = "eng/gate0/G05Stage2AMatrixHelpers.psm1",
+            ["semantic-executor"] = "eng/gate0/G05Stage2ASemanticExecutor.psm1",
+            ["semantic-helper"] = "eng/gate0/G05Stage2ASemanticHelpers.psm1",
+            ["smoke-helper"] = "eng/gate0/G05Stage2SmokeHelpers.psm1",
             ["runtime-validator"] = "eng/gate0/Validate-P2Runtime.ps1",
             ["runtime-manifest"] = "eng/gate0/manifests/p2-btbn-lgplv3-shared-windows-x64-20260820.json",
             ["workload-contract"] = "eng/gate0/g0.5-stage2-workload-contract.json",
             ["containment-contract"] = "eng/gate0/g0.5-stage2-containment-dry-run-contract.json",
+            ["audio-oracle-contract"] = "eng/gate0/g0.5-lossy-audio-oracle-contract.json",
+            ["retention-contract"] = "eng/gate0/g0.5-stage2a-retention-contract.json",
+            ["evidence-writer"] = "eng/gate0/Add-Gate0EvidenceShard.ps1",
+            ["evidence-containment"] = "eng/gate0/evidence/Gate0EvidenceContainment.psm1",
         };
         foreach (var binding in auth.RootElement.GetProperty("bindings").EnumerateArray())
         {
@@ -173,6 +180,117 @@ public sealed class Gate0G05Stage2AMatrixTests
             Assert.Equal(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))), binding.GetProperty("sha256").GetString());
         }
         Assert.Equal(expected.Count, auth.RootElement.GetProperty("bindings").GetArrayLength());
+    }
+
+    [Fact]
+    public void RetentionContractAndSemanticSeamPreserveApprovedAttemptRules()
+    {
+        using var contract = ReadJson("eng", "gate0", "g0.5-stage2a-retention-contract.json");
+        var root = contract.RootElement;
+        Assert.Equal(805306368, root.GetProperty("stage2ARetentionCeilingBytes").GetInt64());
+        Assert.Equal(38878888, root.GetProperty("requiredReservationPerCellBytes").GetInt64());
+        Assert.Contains("that attempt independently", root.GetProperty("compactRule").GetString(), StringComparison.Ordinal);
+        Assert.Contains("first successfully completed measured attempt", root.GetProperty("ordinaryRule").GetString(), StringComparison.Ordinal);
+
+        var command = SemanticImportCommand() + "; " +
+            "$schedule=Read-G05Stage2ASchedule '" + Escape(PathInRepo("eng", "gate0", "g0.5-stage2a-schedule.json")) + "'; " +
+            "$workload=Get-Content -Raw '" + Escape(PathInRepo("eng", "gate0", "g0.5-stage2-workload-contract.json")) + "'|ConvertFrom-Json -Depth 100; " +
+            "$cell=Get-G05Stage2ACellRows $schedule.Schedule $workload 'baseline-720p-mp4-one'; " +
+            "$retention=Read-G05Stage2ARetentionContract '" + Escape(PathInRepo("eng", "gate0", "g0.5-stage2a-retention-contract.json")) + "'; " +
+            "[pscustomobject]@{attempts=$cell.Attempts.Count;threads=$cell.Threads;reservation=$retention.Contract.requiredReservationPerCellBytes}|ConvertTo-Json -Compress";
+        var result = RunPwsh(command);
+        Assert.True(result.ExitCode == 0, result.Output);
+        using var json = JsonDocument.Parse(result.Output);
+        Assert.Equal(6, json.RootElement.GetProperty("attempts").GetInt32());
+        Assert.Equal(1, json.RootElement.GetProperty("threads").GetInt32());
+        Assert.Equal(38878888, json.RootElement.GetProperty("reservation").GetInt64());
+    }
+
+    [Fact]
+    public void SemanticSeamRejectsUnknownWorkloadWithoutIndexingNull()
+    {
+        var workloadPath = PathInRepo("eng", "gate0", "g0.5-stage2-workload-contract.json");
+        using var workload = new TempFile(File.ReadAllText(workloadPath).Replace("\"baseline-1v1a\"", "\"removed-baseline\"", StringComparison.Ordinal));
+        var command = SemanticImportCommand() + "; " +
+            "$schedule=Read-G05Stage2ASchedule '" + Escape(PathInRepo("eng", "gate0", "g0.5-stage2a-schedule.json")) + "'; " +
+            "$workload=Get-Content -Raw '" + Escape(workload.Path) + "'|ConvertFrom-Json -Depth 100; " +
+            "Get-G05Stage2ACellRows $schedule.Schedule $workload 'baseline-720p-mp4-one'";
+        var result = RunPwsh(command);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("cannot resolve its frozen workload", result.Output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SemanticSeamRejectsMixedRowsAndWritesPortableImmutableBindings()
+    {
+        var scheduleText = File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-stage2a-schedule.json"));
+        using var schedule = new TempFile(scheduleText.Replace("\"globalOrdinal\": 2,", "\"globalOrdinal\": 2,", StringComparison.Ordinal)
+            .Replace("\"cellAttemptOrdinal\": 2,", "\"cellAttemptOrdinal\": 2,\n      \"routeIdTamperMarker\": true,", StringComparison.Ordinal));
+        using var parsed = JsonDocument.Parse(File.ReadAllText(schedule.Path));
+        var attempts = parsed.RootElement.GetProperty("attempts").EnumerateArray().Select(x => x.GetRawText()).ToArray();
+        attempts[1] = attempts[1].Replace("\"routeId\": \"mp4-openh264-aac\"", "\"routeId\": \"webm-vp9-opus\"", StringComparison.Ordinal);
+        File.WriteAllText(schedule.Path, ReplaceAttempts(parsed.RootElement, attempts));
+
+        var workload = Escape(PathInRepo("eng", "gate0", "g0.5-stage2-workload-contract.json"));
+        var mixedCommand = SemanticImportCommand() + "; " +
+            "$schedule=Get-Content -Raw '" + Escape(schedule.Path) + "'|ConvertFrom-Json -Depth 100; " +
+            "$workload=Get-Content -Raw '" + workload + "'|ConvertFrom-Json -Depth 100; " +
+            "Get-G05Stage2ACellRows $schedule $workload 'baseline-720p-mp4-one'";
+        var mixed = RunPwsh(mixedCommand);
+        Assert.NotEqual(0, mixed.ExitCode);
+        Assert.Contains("mixed or noncontiguous", mixed.Output, StringComparison.OrdinalIgnoreCase);
+
+        using var directory = new TempDirectory();
+        var nested = System.IO.Path.Combine(directory.Path, "nested");
+        Directory.CreateDirectory(nested);
+        var summary = System.IO.Path.Combine(nested, "summary.json");
+        var bindingCommand = SemanticImportCommand() + "; " +
+            "$attempt=[pscustomobject]@{globalOrdinal=1;phase='warmup'}; $summary=[ordered]@{disposition='passed'}; " +
+            "$binding=New-G05Stage2AAttemptBinding $attempt $summary '" + Escape(summary) + "' '" + Escape(directory.Path) + "' 'complete'; " +
+            "$secondFailed=$false; try { New-G05Stage2AAttemptBinding $attempt $summary '" + Escape(summary) + "' '" + Escape(directory.Path) + "' 'complete' | Out-Null } catch { $secondFailed=$true }; " +
+            "[pscustomobject]@{path=$binding.recordPath;secondFailed=$secondFailed}|ConvertTo-Json -Compress";
+        var binding = RunPwsh(bindingCommand);
+        Assert.True(binding.ExitCode == 0, binding.Output);
+        using var bindingJson = JsonDocument.Parse(binding.Output);
+        Assert.Equal("nested/summary.json", bindingJson.RootElement.GetProperty("path").GetString());
+        Assert.True(bindingJson.RootElement.GetProperty("secondFailed").GetBoolean());
+
+        var outside = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "outside-" + Guid.NewGuid().ToString("N") + ".json");
+        var outsideCommand = SemanticImportCommand() + "; " +
+            "$attempt=[pscustomobject]@{globalOrdinal=1;phase='warmup'}; try { New-G05Stage2AAttemptBinding $attempt ([ordered]@{disposition='passed'}) '" + Escape(outside) + "' '" + Escape(directory.Path) + "' 'complete' | Out-Null; 'not-blocked' } catch { $_.Exception.Message }";
+        var escaped = RunPwsh(outsideCommand);
+        Assert.True(escaped.ExitCode == 0, escaped.Output);
+        Assert.Contains("escaped its cell source root", escaped.Output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CompactBindingRejectsTamperedSemanticSummary()
+    {
+        using var directory = new TempDirectory();
+        var summaryPath = System.IO.Path.Combine(directory.Path, "compact.json");
+        var command = SemanticImportCommand() + "; " +
+            "$attempt=[pscustomobject]@{globalOrdinal=7;phase='measured'}; " +
+            "$hashes=[ordered]@{outputSha256=('A'*64);probeSha256=('B'*64);decodedVideoIdentitySha256=('C'*64);decodedAudioIdentitySha256=('D'*64)}; " +
+            "$validations=[ordered]@{encode=$true;probe=$true;timing=$true;visual=$true;audio=$true;cleanup=$true}; " +
+            "$summary=[ordered]@{disposition='passed';encodedByteEqualityClaim=$false;hashes=$hashes;validations=$validations}; " +
+            "$binding=New-G05Stage2AAttemptBinding $attempt $summary '" + Escape(summaryPath) + "' '" + Escape(directory.Path) + "' 'compact' 'stage2a-8'; " +
+            "Assert-G05Stage2ACompactBinding $binding '" + Escape(directory.Path) + "' 262144; " +
+            "Add-Content -LiteralPath '" + Escape(summaryPath) + "' -Value ' '; " +
+            "$blocked=$false;try{Assert-G05Stage2ACompactBinding $binding '" + Escape(directory.Path) + "' 262144}catch{$blocked=$true};if(-not$blocked){exit 32}";
+        var result = RunPwsh(command);
+        Assert.True(result.ExitCode == 0, result.Output);
+    }
+
+    [Fact]
+    public void SemanticArtifactDescriptorRejectsPathOutsideItsRoot()
+    {
+        using var directory = new TempDirectory();
+        using var outside = new TempFile("outside");
+        var command = SemanticImportCommand() + "; " +
+            "try { Get-G05Stage2ASemanticFile '" + Escape(outside.Path) + "' '" + Escape(directory.Path) + "' | Out-Null; 'not-blocked' } catch { $_.Exception.Message }";
+        var result = RunPwsh(command);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("escaped", result.Output, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -201,7 +319,7 @@ public sealed class Gate0G05Stage2AMatrixTests
         Assert.NotEqual(0, result.ExitCode);
         Assert.True(result.Output.Contains("implementation pending", StringComparison.OrdinalIgnoreCase)
             || result.Output.Contains("exact role bytes", StringComparison.OrdinalIgnoreCase)
-            || result.Output.Contains("effective authorization binding", StringComparison.OrdinalIgnoreCase), result.Output);
+            || result.Output.Contains("effective authorization", StringComparison.OrdinalIgnoreCase), result.Output);
         Assert.DoesNotContain("ffmpeg process", result.Output, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -211,6 +329,7 @@ public sealed class Gate0G05Stage2AMatrixTests
         var paths = new[]
         {
             "eng/gate0/G05Stage2AMatrixHelpers.psm1",
+            "eng/gate0/G05Stage2ASemanticHelpers.psm1",
             "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1",
             "eng/gate0/Invoke-G05Stage2AMatrix.ps1",
             "eng/gate0/g0.5-stage2a-execution-authorization.json",
@@ -258,6 +377,10 @@ public sealed class Gate0G05Stage2AMatrixTests
 
     private static JsonDocument ReadJson(params string[] parts) => JsonDocument.Parse(File.ReadAllText(PathInRepo(parts)));
     private static string ModulePath() => PathInRepo("eng", "gate0", "G05Stage2AMatrixHelpers.psm1").Replace("'", "''", StringComparison.Ordinal);
+    private static string SemanticModulePath() => PathInRepo("eng", "gate0", "G05Stage2ASemanticExecutor.psm1").Replace("'", "''", StringComparison.Ordinal);
+    private static string SemanticHelperModulePath() => PathInRepo("eng", "gate0", "G05Stage2ASemanticHelpers.psm1").Replace("'", "''", StringComparison.Ordinal);
+    private static string SmokeModulePath() => PathInRepo("eng", "gate0", "G05Stage2SmokeHelpers.psm1").Replace("'", "''", StringComparison.Ordinal);
+    private static string SemanticImportCommand() => $"Import-Module '{ModulePath()}'; Import-Module '{SmokeModulePath()}'; Import-Module '{SemanticHelperModulePath()}'; Import-Module '{SemanticModulePath()}'";
     private static string Escape(string path) => path.Replace("'", "''", StringComparison.Ordinal);
     private static string PathInRepo(params string[] parts)
     {
@@ -272,5 +395,13 @@ public sealed class Gate0G05Stage2AMatrixTests
         public TempFile(string content) { Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ReelForge-Stage2A-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(Path, content); }
         public string Path { get; }
         public void Dispose() { if (File.Exists(Path)) File.Delete(Path); }
+    }
+
+
+    private sealed class TempDirectory : IDisposable
+    {
+        public TempDirectory() { Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ReelForge-Stage2A-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(Path); }
+        public string Path { get; }
+        public void Dispose() { if (Directory.Exists(Path)) Directory.Delete(Path, true); }
     }
 }

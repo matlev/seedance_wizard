@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "contractId": "Gate0.G05.Stage2A.Retention.V1",
+  "status": "owner-approved-projection-frozen-for-executor-review",
+  "evidenceBoundary": "p2-runtime-route",
+  "cellCount": 18,
+  "attemptsPerCell": 6,
+  "measuredAttemptsPerCell": 5,
+  "ordinaryClosureBytes": 18784084,
+  "compactPassingRepeatMaximumBytes": 262144,
+  "exceptionalClosureBytes": 18784084,
+  "compactPassingRepeatsPerCell": 5,
+  "requiredReservationPerCellBytes": 38878888,
+  "stage2ARetentionCeilingBytes": 805306368,
+  "reservationRule": "Before a cell starts, reserve one ordinary full closure, five compact passing repeats, and one exceptional full closure. Stop before either the cell reservation or cumulative ceiling would be exceeded.",
+  "ordinaryRule": "The first successfully completed measured attempt retains the ordinary full closure.",
+  "compactRule": "A warmup or other passing measured repeat becomes compact only after that attempt independently completes every required semantic validation; it binds the exact semantic summary, probe, decoded identity hashes, and output hash without claiming encoded-byte equality.",
+  "exceptionalRule": "Every failed, blocked, cancelled, or integrity-exception attempt retains a complete closure.",
+  "limitations": [
+    "This is a Gate 0 evidence-retention contract only.",
+    "It does not authorize media execution, R2 access, product behavior, a shipping runtime, distribution, or legal conclusions."
+  ]
+}
