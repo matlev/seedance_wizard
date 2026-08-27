@@ -184,6 +184,12 @@ function Recover-KnownJournal([string] $JournalPath, [string] $Root, [string] $T
 }
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')).TrimEnd([IO.Path]::DirectorySeparatorChar)
+$effectiveLegacySeal = Join-Path $PSScriptRoot 'evidence/legacy-seal.json'
+if (Test-Path -LiteralPath $effectiveLegacySeal -PathType Leaf) {
+    Import-Module (Join-Path $PSScriptRoot 'evidence/Gate0EvidenceContainment.psm1') -Force
+    [void](Assert-Gate0LegacyEvidenceSeal $repositoryRoot -RequireEffective)
+    throw 'Legacy retained-proof append is disabled after the effective Gate 0 evidence-containment seal.'
+}
 $trackedManifest = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'artifact-retention-manifest.json'))
 $approvedRoot = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($repositoryRoot)) 'ReelForge.Gate0Artifacts')).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $resolvedRoot = [IO.Path]::GetFullPath($ArtifactRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)

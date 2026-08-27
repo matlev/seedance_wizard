@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "indexId": "Gate0.Stage2Evidence.Root.V1",
+  "evidenceBoundary": "gate0-proof-infrastructure-only",
+  "legacySeal": {
+    "sourceManifestPath": "eng/gate0/artifact-retention-manifest.json",
+    "sourceManifestSha256": "AE088727059D3686930C4422237A02E6691580D93C85E3862489C8F65FCDD0A0",
+    "durableManifestPath": "eng/gate0/artifact-manifest.json",
+    "durableManifestSha256": "AF9B368D44FDE3EFD2C45E2D847CB989D38E52066607A0D3E61384588D23C113",
+    "logicalArtifactCount": 4101,
+    "logicalArtifactBytes": 1121540509
+  },
+  "limits": {
+    "stage2ARetentionCeilingBytes": 805306368,
+    "maxShardBytes": 65536,
+    "maxShardLines": 300,
+    "maxRootIndexBytes": 131072,
+    "maxRootIndexLines": 400,
+    "maxCompactAttemptBytes": 262144,
+    "plannedCellShards": 18,
+    "maxInfrastructureShards": 2
+  },
+  "runs": [],
+  "totals": {
+    "runCount": 0,
+    "logicalArtifactCount": 0,
+    "logicalArtifactBytes": 0
+  },
+  "limitations": [
+    "This index is Gate 0 proof infrastructure and contains no per-artifact legacy array.",
+    "Git review, immutable shard names, hashes, and ordered entry bindings detect ordinary drift; this is not an external transparency log.",
+    "Hosted CI validates structure without credentials, media execution, or network access."
+  ]
+}

@@ -15,6 +15,15 @@ function Get-Gate0Sha256([string] $Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
 }
 
+function Assert-Gate0LegacyLedgerMutationAllowed([string] $ManifestPath) {
+    $defaultManifest = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'artifact-manifest.json'))
+    $candidate = [IO.Path]::GetFullPath($ManifestPath)
+    $sealPath = Join-Path $PSScriptRoot 'evidence/legacy-seal.json'
+    if ($candidate.Equals($defaultManifest, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $sealPath -PathType Leaf)) {
+        throw 'The legacy durable artifact ledger is sealed and cannot be rewritten.'
+    }
+}
+
 function Assert-Gate0SafeRelativePath([string] $Value, [string] $Label) {
     if ([string]::IsNullOrWhiteSpace($Value) -or [IO.Path]::IsPathRooted($Value) -or $Value.Contains('\')) {
         throw "Unsafe $Label."
@@ -378,6 +387,7 @@ function Invoke-Gate0LockedManifestMutation([string] $ManifestPath, [scriptblock
 }
 
 function Save-Gate0RemoteVerifiedReceipt($SourceInventory, [string] $ManifestPath, $Entry, [string] $Disposition, [string] $VerifiedUtc) {
+    Assert-Gate0LegacyLedgerMutationAllowed $ManifestPath
     return Invoke-Gate0LockedManifestMutation $ManifestPath {
         $current = Read-Gate0RemoteManifest ([IO.Path]::GetFullPath($ManifestPath))
         Assert-Gate0ManifestPair $SourceInventory $current
@@ -415,6 +425,7 @@ function Update-Gate0RemoteSourceInventoryUnlocked($SourceInventory, $RemoteMani
 }
 
 function Update-Gate0RemoteSourceInventory($SourceInventory, [string] $ManifestPath) {
+    Assert-Gate0LegacyLedgerMutationAllowed $ManifestPath
     return Invoke-Gate0LockedManifestMutation $ManifestPath {
         $current = Read-Gate0RemoteManifest ([IO.Path]::GetFullPath($ManifestPath))
         Update-Gate0RemoteSourceInventoryUnlocked $SourceInventory $current
