@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace ReelForge.Infrastructure.Tests;
 
@@ -67,6 +68,27 @@ public sealed class Gate0G05Stage2AAudioDiagnosticTests
         Assert.Contains("retained decoded PCM binding is invalid", module, StringComparison.Ordinal);
         Assert.Contains("Reference self-check produced", module, StringComparison.Ordinal);
         Assert.Contains("ExpectedRetainedFindingCount = 25", module, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResultSummaryPreservesTheNoMediaDispositionAndFailClosedRetentionBoundary()
+    {
+        using var summary = JsonDocument.Parse(File.ReadAllText(PathInRepo("eng", "gate0", "g0.5-stage2a-audio-diagnostic-result-summary.json")));
+        var root = summary.RootElement;
+
+        Assert.Equal("completed-no-media-retention-capacity-owner-decision-required", root.GetProperty("status").GetString());
+        Assert.Equal("A-oracle-descriptor-self-inconsistency", root.GetProperty("classification").GetString());
+        Assert.False(root.GetProperty("referenceSelfCheck").GetProperty("passed").GetBoolean());
+        Assert.Equal(25, root.GetProperty("referenceSelfCheck").GetProperty("findingCount").GetInt32());
+        Assert.False(root.GetProperty("retainedOutputComparison").GetProperty("routeDefectInferred").GetBoolean());
+        Assert.Equal(0, root.GetProperty("throwRegression").GetProperty("mediaProcessesInvoked").GetInt32());
+        Assert.Equal("not-written-capacity-blocked-before-mutation", root.GetProperty("retention").GetProperty("r2Status").GetString());
+        Assert.True(root.GetProperty("retention").GetProperty("existingRootIndexUnchanged").GetBoolean());
+        Assert.Equal(70, root.GetProperty("minimumContinuationIfApproved").GetProperty("recommendedPhysicalMediaAttempts").GetInt32());
+
+        var currentStatus = File.ReadAllText(PathInRepo("docs", "gate-0-current-status.md"));
+        Assert.Contains("gate-0-g0.5-stage2a-audio-diagnostic-results.md", currentStatus, StringComparison.Ordinal);
+        Assert.Contains("No further media execution is currently authorized", currentStatus, StringComparison.Ordinal);
     }
 
     private static (int ExitCode, string Output) RunPowerShell(string command) => RunProcess("pwsh", ["-NoProfile", "-Command", command]);

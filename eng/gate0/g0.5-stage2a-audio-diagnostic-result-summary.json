@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "resultId": "Gate0.G05.Stage2A.AudioDiagnostic.Result.20260827",
+  "diagnosticId": "Gate0.G05.Stage2A.AudioDiagnostic.V1",
+  "proofRunId": "g05-stage2a-audio-diagnostic-20260827T183504426Z",
+  "status": "completed-no-media-retention-capacity-owner-decision-required",
+  "resultArtifact": {
+    "filename": "g0.5-stage2a-audio-diagnostic-result.json",
+    "byteSize": 111771,
+    "sha256": "CA32B117FDB732F73EE28918501A59FD8901A884CBAAA94439CAE94ACD63ECE3"
+  },
+  "contractIdentity": {
+    "workloadSha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC",
+    "frozenOracleV3Sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4",
+    "typicalOnlyAmendmentV4Sha256": "21ECAFCD94F71E58AA43955079EF9959C135DB12530D015E8380CFD09B5E9FBC",
+    "typicalOnlyFreezeSha256": "E2EFFD683FFE21BE902D77D7564F81C550F555C0989871C5D98B2DBE580D4CB2",
+    "stressReferencePcmSha256": "299846E21A0AF6F1416CCA7BF1BF8ACAC4A5EDDA78EFF9BEB392CC7B992B8CF5"
+  },
+  "retainedInputIdentity": {
+    "webmSummarySha256": "1CF498BE47FFA394B9A5F6B0BFB2A4A9DEAE615A03F8F999B76B9375CFB96E9A",
+    "webmDecodedPcmSha256": "B59110445A1A45F31E5DDAF117184F4F40F9AD67D036DE697BD98CECE512D7B6",
+    "mp4SummarySha256": "4E4BACBC4BA0DB258215F93D41F411DE872DD69691B60949C5088824572DED97",
+    "mp4DecodedPcmRawSha256": "C1177ED32A9E17CB118FFBAE16504A1BFCD08815041B6A18E0C59D9E7E6D36B9"
+  },
+  "referenceSelfCheck": {
+    "passed": false,
+    "findingCount": 25,
+    "activeRmsFindingCount": 11,
+    "activeWindowFindingCount": 14,
+    "allFindingsExpectedClassification": "active",
+    "absoluteThresholdRmsFullScale": 0.05,
+    "minimumAffectedReferenceRmsFullScale": 0.00410742244121102,
+    "maximumAffectedReferenceRmsFullScale": 0.048334587157348514
+  },
+  "retainedOutputComparison": {
+    "webmFindingCount": 25,
+    "mp4FindingCount": 25,
+    "sameExactOrderedFindingKeys": true,
+    "maximumAbsoluteOutputToReferenceRmsRatioDifference": 0.006448311917596428,
+    "routeDefectInferred": false
+  },
+  "classification": "A-oracle-descriptor-self-inconsistency",
+  "routeDisposition": "Neither retained route is shown defective. Both original warm-ups remain immutable semantically-divergent evidence until an owner-approved amendment is frozen and a no-media reevaluation passes.",
+  "proposedAmendment": {
+    "status": "proposal-only-not-applied",
+    "version": "V5",
+    "scope": "stress-4v8a-30s only",
+    "mode": "reference-relative-active-windows-v1",
+    "minimumOutputToReferenceRmsRatio": 0.9,
+    "maximumOutputToReferenceRmsRatio": 1.1,
+    "replacesOnly": [
+      "qualityThresholds.minimumActiveChannelRmsFullScale",
+      "qualityThresholds.minimumActiveReferenceWindowOutputRmsFullScale"
+    ],
+    "allOtherV3AndV4SemanticsRemainRequired": true,
+    "ownerApprovalRequired": true
+  },
+  "throwRegression": {
+    "passed": true,
+    "runnerSha256": "68356CAF687F90A976293D4571724B5826C2DFD01C01127B496AF0FA744BF886",
+    "friendlyException": "Audio timing or quality oracle failed.",
+    "structuredAudioAssignedBeforeThrow": true,
+    "caughtFailureRetainedBeforeSuspension": true,
+    "semanticallyDivergentDispositionPreserved": true,
+    "passFailBlockSemanticsChanged": false,
+    "mediaProcessesInvoked": 0
+  },
+  "retention": {
+    "localStatus": "hash-verified-project-controlled-sibling-staging",
+    "r2Status": "not-written-capacity-blocked-before-mutation",
+    "existingRootRunCount": 20,
+    "existingInfrastructureShards": 2,
+    "approvedMaximumInfrastructureShards": 2,
+    "existingCellShards": 18,
+    "approvedPlannedCellShards": 18,
+    "existingRootIndexUnchanged": true,
+    "existingShardsUnchanged": true
+  },
+  "minimumContinuationIfApproved": {
+    "noMediaContractAndRetainedOutputReevaluationRequiredFirst": true,
+    "recommendedPhysicalMediaAttempts": 70,
+    "optionalReplacementWarmupsIfOwnerRequiresFreshWarmups": 2,
+    "unaffectedPassedAttempts": 36,
+    "affectedCellCount": 12,
+    "conservativeAdditionalArtifactBytes": 240613360,
+    "projectedRemainingRetentionHeadroomAfterDiagnosticAndContinuationBytes": 486042394,
+    "operatorWindowEstimate": "60-120 minutes; planning estimate only, not an acceptance threshold"
+  },
+  "limitations": [
+    "No FFmpeg or ffprobe process was invoked by this diagnostic.",
+    "No threshold, workload, retained result, or retained disposition was changed.",
+    "The proposed V5 amendment has not been implemented, controlled, frozen, or applied.",
+    "No media continuation is authorized.",
+    "A future-only evidence-containment segment requires owner approval before this diagnostic or any continuation can enter the authoritative local/R2 index."
+  ]
+}
