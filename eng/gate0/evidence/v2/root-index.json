@@ -20,11 +20,29 @@
     "plannedContinuationCellShards": 12,
     "maxInfrastructureShards": 2
   },
-  "runs": [],
+  "runs": [
+    {
+      "ordinal": 1,
+      "runKind": "infrastructure",
+      "proofRunId": "g05-stage2a-audio-diagnostic-20260827T183504426Z",
+      "evidenceGroupId": "g05-stage2a-audio-diagnostic-20260827",
+      "cellId": "audio-diagnostic",
+      "shardPath": "stage2/g05-stage2a-audio-diagnostic-20260827T183504426Z.manifest.json",
+      "shardSha256": "1EDA8AF9BCBAE1541732D3C2465BD0944C23B2D54A310A7BC9C5C110E1C74AD3",
+      "entrySha256": "629EAF6DF23EC919D294B9BACC4A426D7F6F0527CC55DACF1F5019B972E80EF6",
+      "previousRunId": null,
+      "previousRunEntrySha256": null,
+      "disposition": "authoritative",
+      "logicalArtifactCount": 3,
+      "logicalArtifactBytes": 112822,
+      "localRetention": "verified",
+      "r2Retention": "independently-retrieved-and-verified"
+    }
+  ],
   "totals": {
-    "runCount": 0,
-    "logicalArtifactCount": 0,
-    "logicalArtifactBytes": 0
+    "runCount": 1,
+    "logicalArtifactCount": 3,
+    "logicalArtifactBytes": 112822
   },
   "limitations": [
     "V2 is an append-only continuation segment anchored to immutable V1 evidence.",

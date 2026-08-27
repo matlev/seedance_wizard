@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "shardId": "Gate0.Stage2Evidence.Shard.V2",
+  "proofRunId": "g05-stage2a-audio-diagnostic-20260827T183504426Z",
+  "evidenceGroupId": "g05-stage2a-audio-diagnostic-20260827",
+  "cellId": "audio-diagnostic",
+  "evidenceBoundary": "containment-no-media",
+  "createdUtc": "2026-08-27T21:12:46.8988363+00:00",
+  "contractIdentity": [
+    "repository:eng/gate0/evidence/v2/root-index.json",
+    "sha256:C0335112AB0089CD41344442BF30A95F35CE3BDFA34A84CC19EE5CA1B42D90DC",
+    "repository:eng/gate0/g0.5-stage2a-audio-diagnostic-result-summary.json",
+    "sha256:2D1EE6451873C6D532E88ED07695595ED826C7F9A2EDA9D8418D3818BC9AAA18",
+    "repository:docs/gate-0-g0.5-stage2a-audio-diagnostic-results.md",
+    "sha256:AB2F233672CB1D15B2CBD1D7CB7A20259B5C403D701AF2CF60CB87A42556328C",
+    "repository:docs/gate-0-g0.5-stage2a-continuation-approval.md",
+    "sha256:1F2010061B28A2DD80E8F8ACFCDADA4A295ED390E35126D5968B77077780B517"
+  ],
+  "provenance": "Owner-approved Gate 0 G0.5 Stage 2A audio diagnostic and V2 containment validation evidence.",
+  "producerRuntimeIdentity": [
+    "repository:eng/gate0/Add-Gate0EvidenceV2Shard.ps1",
+    "sha256:BC2FDE8208FC4B30F0ACBBFDEB837E5ED3D1C34151994BC573D3558C8149667B"
+  ],
+  "licenseRecords": [],
+  "artifacts": [
+    {
+      "artifactId": "artifact-ae8bd18507d6aa8c894b4cf70c91c35ee29942a17c355edca8efdd12b472d7a4",
+      "relativePath": "future/stage2/v2/g05-stage2a-audio-diagnostic-20260827T183504426Z/g0.5-stage2a-audio-diagnostic-result.json",
+      "byteSize": 111771,
+      "sha256": "CA32B117FDB732F73EE28918501A59FD8901A884CBAAA94439CAE94ACD63ECE3",
+      "r2ObjectKey": "objects/sha256/ca/ca32b117fdb732f73ee28918501a59fd8901a884cbaaa94439cae94acd63ece3",
+      "purpose": "Gate 0 V2 evidence.",
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T21:12:45.8812243+00:00"
+    },
+    {
+      "artifactId": "artifact-8e8493312c5b28e26ff9e6de4b175041d5323d237d8359f2cdff7ce2a7be7e8f",
+      "relativePath": "future/stage2/v2/g05-stage2a-audio-diagnostic-20260827T183504426Z/v2-preappend-local-r2-validation.json",
+      "byteSize": 525,
+      "sha256": "ED49407C424D38131BD56C5712BEC4323916C6A8D72159817AF4F20DF58CD5F4",
+      "r2ObjectKey": "objects/sha256/ed/ed49407c424d38131bd56c5712bec4323916c6a8d72159817af4f20df58cd5f4",
+      "purpose": "Gate 0 V2 evidence.",
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T21:12:46.3455157+00:00"
+    },
+    {
+      "artifactId": "artifact-8b0f67d5b76bde8d0f7753997b67d6eaf9babc8feccd294922aee97ad692da12",
+      "relativePath": "future/stage2/v2/g05-stage2a-audio-diagnostic-20260827T183504426Z/v2-preappend-local-validation.json",
+      "byteSize": 526,
+      "sha256": "F99214B68DE816EDCB47B3FCA2FC6D4292A04F66E62E3E5CE73A67A006A14657",
+      "r2ObjectKey": "objects/sha256/f9/f99214b68de816edcb47b3fca2fc6d4292a04f66e62e3e5ce73a67a006a14657",
+      "purpose": "Gate 0 V2 evidence.",
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T21:12:46.8954133+00:00"
+    }
+  ],
+  "attempts": [],
+  "disposition": "authoritative",
+  "localRetention": "verified",
+  "r2Retention": "independently-retrieved-and-verified",
+  "totals": {
+    "logicalArtifactCount": 3,
+    "logicalArtifactBytes": 112822
+  },
+  "limitations": [
+    "V2 proof infrastructure only."
+  ]
+}
