@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "resultId": "Gate0.G05.Stage2A.Result.20260827",
+  "runId": "g05-stage2a-20260827T170732499Z-df30a192",
+  "status": "completed-with-failures-owner-disposition-required",
+  "attemptAccounting": {
+    "authoritativeAttemptCount": 108,
+    "passedAttemptCount": 36,
+    "semanticallyDivergentAttemptCount": 2,
+    "blockedAttemptCount": 70,
+    "physicalAttemptCountAcrossAllStage2AStarts": 115,
+    "nonAuthoritativePriorPhysicalAttemptCount": 7
+  },
+  "cellAccounting": {
+    "total": 18,
+    "passed": 6,
+    "failed": 2,
+    "blocked": 10
+  },
+  "cells": [
+    { "cellId": "baseline-720p-mp4-one", "disposition": "passed", "logicalArtifactCount": 23, "logicalArtifactBytes": 10090221, "shardSha256": "01D525E0BB2F7F46368B392B467F3B25DAFF2A39C33129A3FBA5B472228154DA" },
+    { "cellId": "baseline-720p-webm-one", "disposition": "passed", "logicalArtifactCount": 23, "logicalArtifactBytes": 9580891, "shardSha256": "E59305AB25E11093E8C66CC5990CFF5E5E1544C2BCA7B5FCB0789DEED4F5B306" },
+    { "cellId": "baseline-720p-webm-eight", "disposition": "passed", "logicalArtifactCount": 23, "logicalArtifactBytes": 9549307, "shardSha256": "7ED9EBAF36D764AFEDBB3DA3C404D9D8ABB0CBDA65ED55A37E2DA7EA73BD8B88" },
+    { "cellId": "typical-720p-webm-one", "disposition": "passed", "logicalArtifactCount": 23, "logicalArtifactBytes": 9819441, "shardSha256": "0393E0067F9308DD12438A34E605487B90DE8BBA968544A31D1417CB25EE843E" },
+    { "cellId": "typical-720p-webm-eight", "disposition": "passed", "logicalArtifactCount": 23, "logicalArtifactBytes": 9828853, "shardSha256": "774C97DB0D8CB606E2D3CF657A186B254A7D9545040C840DED4CC3AAFC38E126" },
+    { "cellId": "typical-720p-mp4-one", "disposition": "passed", "logicalArtifactCount": 23, "logicalArtifactBytes": 10287970, "shardSha256": "D1B09D0D3654BFB7026D57D312BA35236DE7FEED37A8718315DB3A09112A6CF1" },
+    { "cellId": "stress-720p-webm-eight", "disposition": "failed", "logicalArtifactCount": 23, "logicalArtifactBytes": 9186249, "shardSha256": "778D75DF8F0F65A43BD3BB29233F6C4FF18666830814422DA83AAC0F097EC9EB" },
+    { "cellId": "stress-720p-mp4-one", "disposition": "failed", "logicalArtifactCount": 23, "logicalArtifactBytes": 9789745, "shardSha256": "6EAC9F4CE356DB7EF790E6A24826CCDFA71B60963C80CBFF79454CA278B7574C" },
+    { "cellId": "stress-720p-webm-one", "disposition": "blocked", "logicalArtifactCount": 10, "logicalArtifactBytes": 40672, "shardSha256": "CAA970FE07FE31C404E16A58A95DB1ED8EE868CDB8FBB97DB61417FB989EFE82" },
+    { "cellId": "baseline-1080p-mp4-one", "disposition": "blocked", "logicalArtifactCount": 10, "logicalArtifactBytes": 37084, "shardSha256": "F40658440CE9599EBFE57F03D637B9041B76F74DDD63ACA2043E0BE709F4F933" },
+    { "cellId": "baseline-1080p-webm-one", "disposition": "blocked", "logicalArtifactCount": 10, "logicalArtifactBytes": 37024, "shardSha256": "B488ED1310D79074187314C40C51A2E0DE449FBE25C3D8775842636CA9AE0FE0" },
+    { "cellId": "baseline-1080p-webm-eight", "disposition": "blocked", "logicalArtifactCount": 10, "logicalArtifactBytes": 37048, "shardSha256": "CBB8277D37B52D7AA3FA34340DB0C981F598B765C430612BBB14A74C93545BAF" },
+    { "cellId": "typical-1080p-webm-one", "disposition": "blocked", "logicalArtifactCount": 10, "logicalArtifactBytes": 38488, "shardSha256": "326DB056F5DAABD2FB9C9BE7B39A230321A049EC3A0934B853DD2C3C45E2E6D8" },
+    { "cellId": "typical-1080p-webm-eight", "disposition": "blocked", "logicalArtifactCount": 10, "logicalArtifactBytes": 38512, "shardSha256": "18277E0BBF1452C0A3BB2D039BC6D60670C2D86CFD9767BCE497FF7EC80295D8" },
+    { "cellId": "typical-1080p-mp4-one", "disposition": "blocked", "logicalArtifactCount": 10, "logicalArtifactBytes": 38548, "shardSha256": "6450375ED9602EB12E2E945CB6620E1417E00522D60B6C4593F1E516397B8FBC" },
+    { "cellId": "stress-1080p-webm-eight", "disposition": "blocked", "logicalArtifactCount": 10, "logicalArtifactBytes": 40709, "shardSha256": "D8FB873D86CD6BB3FEA71EFFEF0EC3EBF0CFFE29CEA4E0D968BEE3B4335F2390" },
+    { "cellId": "stress-1080p-mp4-one", "disposition": "blocked", "logicalArtifactCount": 10, "logicalArtifactBytes": 40762, "shardSha256": "B7968685924B466E44F3D2726829B37589F84B50A594B27D03CB761E76AACD2B" },
+    { "cellId": "stress-1080p-webm-one", "disposition": "blocked", "logicalArtifactCount": 11, "logicalArtifactBytes": 54903, "shardSha256": "35E4DDFEC667A02CDF9FFC30B28AA50F9AD0C514F13A985CB2ADE65CD5679AA1" }
+  ],
+  "passedCellMedians": [
+    { "cellId": "baseline-720p-mp4-one", "wallClockMilliseconds": 1714, "peakWorkingSetBytes": 44351488, "peakPrivateMemoryBytes": 48578560, "meanNormalizedCpuPercent": 9.772385252069226, "outputBytes": 1590688, "maximumFrameMeanAbsoluteError": 1.5042263454861111 },
+    { "cellId": "baseline-720p-webm-one", "wallClockMilliseconds": 26526, "peakWorkingSetBytes": 181026816, "peakPrivateMemoryBytes": 180887552, "meanNormalizedCpuPercent": 6.436392622575226, "outputBytes": 653859, "maximumFrameMeanAbsoluteError": 1.1679463252314815 },
+    { "cellId": "baseline-720p-webm-eight", "wallClockMilliseconds": 24758, "peakWorkingSetBytes": 183324672, "peakPrivateMemoryBytes": 183447552, "meanNormalizedCpuPercent": 6.5504709254709255, "outputBytes": 653859, "maximumFrameMeanAbsoluteError": 1.1679463252314815 },
+    { "cellId": "typical-720p-webm-one", "wallClockMilliseconds": 25286, "peakWorkingSetBytes": 210341888, "peakPrivateMemoryBytes": 210132992, "meanNormalizedCpuPercent": 7.0973302333039365, "outputBytes": 659944, "maximumFrameMeanAbsoluteError": 1.6319798900462963 },
+    { "cellId": "typical-720p-webm-eight", "wallClockMilliseconds": 25591, "peakWorkingSetBytes": 217329664, "peakPrivateMemoryBytes": 217923584, "meanNormalizedCpuPercent": 7.402022190408017, "outputBytes": 659944, "maximumFrameMeanAbsoluteError": 1.6319798900462963 },
+    { "cellId": "typical-720p-mp4-one", "wallClockMilliseconds": 2989, "peakWorkingSetBytes": 70770688, "peakPrivateMemoryBytes": 75550720, "meanNormalizedCpuPercent": 10.859696742792961, "outputBytes": 1516766, "maximumFrameMeanAbsoluteError": 1.9912109375 }
+  ],
+  "failureFindings": [
+    {
+      "cellId": "stress-720p-webm-eight",
+      "globalOrdinal": 37,
+      "phase": "warmup",
+      "disposition": "semantically-divergent",
+      "audioTimingPassed": true,
+      "audioQualityPassed": false,
+      "onsetTimingPassed": true,
+      "audioQualityFailureCount": 25,
+      "fullRegionChannelMetrics": [
+        { "channel": 0, "signedCorrelation": 0.9999466820794531, "normalizedRmsError": 0.010445952372489154, "snrDb": 39.62103917253134, "rmsRatio": 1.0015222913752917 },
+        { "channel": 1, "signedCorrelation": 0.9999452697718936, "normalizedRmsError": 0.010478470983645207, "snrDb": 39.594041697831734, "rmsRatio": 1.0005289552593728 }
+      ],
+      "cleanupPassed": true
+    },
+    {
+      "cellId": "stress-720p-mp4-one",
+      "globalOrdinal": 43,
+      "phase": "warmup",
+      "disposition": "semantically-divergent",
+      "audioTimingPassed": true,
+      "audioQualityPassed": false,
+      "onsetTimingPassed": true,
+      "audioQualityFailureCount": 25,
+      "fullRegionChannelMetrics": [
+        { "channel": 0, "signedCorrelation": 0.9999963694382645, "normalizedRmsError": 0.0027487058270006547, "snrDb": 51.21743473784554, "rmsRatio": 0.999453904998304 },
+        { "channel": 1, "signedCorrelation": 0.9999962413754165, "normalizedRmsError": 0.0028019951026082516, "snrDb": 51.05065256239011, "rmsRatio": 0.999418364481277 }
+      ],
+      "cleanupPassed": true
+    }
+  ],
+  "diagnosticFinding": {
+    "message": "The retained exception text contains `throwAudio timing or quality oracle failed.` because the proof runner omitted whitespace after the PowerShell `throw` keyword.",
+    "impact": "The structured audio object independently records that timing and onset passed while the frozen quality gate failed. The typo obscures the friendly exception message but did not cause the false quality-gate result or bypass fail-fast route suspension.",
+    "disposition": "proof-harness diagnostic defect; no correction or rerun authorized by this result packet"
+  },
+  "routeSuspension": {
+    "suspendedRouteIds": ["webm-vp9-opus", "mp4-openh264-aac"],
+    "effect": "All later cells using either route were retained as blocked without media execution. No 1080p cell received measured evidence."
+  },
+  "retention": {
+    "startingLogicalArtifactBytes": 2416,
+    "endingLogicalArtifactBytes": 78538843,
+    "logicalBytesAdded": 78536427,
+    "distinctR2BytesAdded": 42032462,
+    "retentionCeilingBytes": 805306368,
+    "remainingHeadroomBytes": 726767525
+  },
+  "independentVerification": {
+    "validatedUtc": "2026-08-27T17:32:23.1756128+00:00",
+    "rootIndexSha256": "C6D3CD9E7B0FC62E199E6FAD0A7D0FBAB6AFE1BBA6C8EFD4EAE427BBB79E30EA",
+    "rootRunCount": 20,
+    "logicalArtifactCount": 289,
+    "logicalArtifactBytes": 78538843,
+    "localByteVerificationPerformed": true,
+    "remoteByteVerificationPerformed": true,
+    "remotelyVerifiedThisRun": 289,
+    "mediaProcessesInvoked": 0,
+    "disposition": "passed"
+  },
+  "limitations": [
+    "Stage 2A is runtime-route evidence, not current ReelForge product-composition or WPF evidence.",
+    "Blocked 1080p cells are not evidence that 1080p capability failed.",
+    "The route-independent stress-audio quality failures require owner disposition before they can be treated as a route defect, oracle/workload mismatch, or basis for rerun.",
+    "No Stage 2B, concurrency, long-form, product integration, shipping-runtime, distribution, licensing, patent, or legal conclusion is authorized."
+  ]
+}

@@ -634,6 +634,8 @@ public sealed class Gate0EvidenceContainmentTests
             ("replacement-execution-block", "docs/gate-0-g0.5-stage2a-replacement-execution-block.md"),
             ("retained-path-repair-approval", "docs/gate-0-g0.5-stage2a-retained-path-repair-approval.md"),
             ("retained-path-restart-activation", "eng/gate0/g0.5-stage2a-retained-path-restart-activation-summary.json"),
+            ("stage2a-result-summary", "eng/gate0/g0.5-stage2a-result-summary.json"),
+            ("stage2a-owner-packet", "docs/gate-0-g0.5-stage2a-results.md"),
             ("schedule", "eng/gate0/g0.5-stage2a-schedule.json"),
             ("runner", "eng/gate0/Invoke-G05Stage2AMatrix.ps1"),
             ("preflight", "eng/gate0/Test-G05Stage2AMatrixPreflight.ps1"),
