@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "resultId": "Gate0.G05.StructuredAudioOracleControls.Result.20260827.001",
+  "completedUtc": "2026-08-27T07:06:29Z",
+  "status": "passed-controls-only-retention-pending",
+  "amendmentId": "Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.20260827",
+  "freezeId": "Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.Frozen.20260827",
+  "controlReport": {
+    "logicalId": "g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+    "size": 134434,
+    "sha256": "2CAEE1C652F292BBF7E9DB6E1DAA0DD7C5E68788C3E5D74F63997DC3775F2AF6"
+  },
+  "structuredControls": [
+    { "id": "typical-identity", "expectedPass": true, "actualPass": true },
+    { "id": "typical-panned-gain-95-percent", "expectedPass": true, "actualPass": true },
+    { "id": "typical-right-low-level-960-sample-dropout", "expectedPass": false, "actualPass": false, "requiredFailureObserved": "reference-relative-window-rms-ratio" },
+    { "id": "typical-gain-75-percent", "expectedPass": false, "actualPass": false },
+    { "id": "typical-gain-125-percent", "expectedPass": false, "actualPass": false }
+  ],
+  "attenuatedPannedEvidence": {
+    "a0RightChannelActiveRmsFullScale": 0.01,
+    "belowHistoricalAbsoluteFloor": true,
+    "identityReferenceRelativePass": true,
+    "gain95ReferenceRelativePass": true
+  },
+  "legacyV3Controls": {
+    "count": 12,
+    "allFrozenHashesAndDispositionsPreserved": true,
+    "allNoOverlayEffectiveOracleDispositionsPreserved": true
+  },
+  "executionBoundaries": {
+    "routeOutputsEvaluated": false,
+    "routeReencodePerformed": false,
+    "mediaEncoderOrDecoderExecuted": false,
+    "r2AccessedDuringControlExecution": false
+  },
+  "generatedClosure": {
+    "fileCount": 20,
+    "logicalBytes": 53152489
+  }
+}

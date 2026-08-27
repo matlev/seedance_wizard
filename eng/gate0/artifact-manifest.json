@@ -4,9 +4,9 @@
   "sourceInventory": {
     "path": "eng/gate0/artifact-retention-manifest.json",
     "artifactSetId": "Gate0.InterimCorpus.20260825",
-    "sha256": "7F2D333378B8E8BCCB97624F19EB43D697B47C28C85B5E1E6BB3FCDF12238232",
-    "logicalArtifactCount": 4013,
-    "logicalArtifactBytes": 1024859725
+    "sha256": "932880622DF1D26D6140C06FA38ED5AC19D018C3AF737059AE2837B490780438",
+    "logicalArtifactCount": 4041,
+    "logicalArtifactBytes": 1078136024
   },
   "storage": {
     "provider": "cloudflare-r2",
@@ -33,14 +33,658 @@
   "status": {
     "retentionCondition": "complete",
     "secondPrivateCopyVerified": true,
-    "verifiedLogicalArtifactCount": 4013,
-    "verifiedLogicalArtifactBytes": 1024859725,
-    "verifiedDistinctObjectCount": 2000,
-    "verifiedDistinctObjectBytes": 614337628,
-    "lastRemoteVerificationUtc": "2026-08-27T01:01:33.9981938+00:00",
+    "verifiedLogicalArtifactCount": 4041,
+    "verifiedLogicalArtifactBytes": 1078136024,
+    "verifiedDistinctObjectCount": 2010,
+    "verifiedDistinctObjectBytes": 637569724,
+    "lastRemoteVerificationUtc": "2026-08-27T07:10:59.2565894+00:00",
     "blocker": null
   },
   "artifacts": [
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "g0.5-lossy-audio-oracle-amendment-v4-freeze.json",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json",
+      "byteSize": 2268,
+      "sha256": "E2EFFD683FFE21BE902D77D7564F81C550F555C0989871C5D98B2DBE580D4CB2",
+      "r2ObjectKey": "objects/sha256/e2/e2effd683ffe21be902d77d7564f81c550f555c0989871c5d98b2dbe580d4cb2",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:09:54.0355291-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4.json",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "g0.5-lossy-audio-oracle-amendment-v4.json",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4.json",
+      "byteSize": 3101,
+      "sha256": "21ECAFCD94F71E58AA43955079EF9959C135DB12530D015E8380CFD09B5E9FBC",
+      "r2ObjectKey": "objects/sha256/21/21ecafcd94f71e58aa43955079ef9959c135db12530d015e8380cfd09b5e9fbc",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:09:56.9353828-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-contract.json",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "g0.5-lossy-audio-oracle-contract.json",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-contract.json",
+      "byteSize": 16652,
+      "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4",
+      "r2ObjectKey": "objects/sha256/11/119a4c179bfa010f3202dbf6aa368e42ede5fd0fc23ef2781aa9c7f63540cbe4",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:09:59.1166972-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-stage2-workload-contract.json",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "g0.5-stage2-workload-contract.json",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-stage2-workload-contract.json",
+      "byteSize": 36757,
+      "sha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC",
+      "r2ObjectKey": "objects/sha256/cb/cbb93cc1483fecd65489485cb1bbf03cd3bf24c2419d28c587c62758c3ead7ec",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:01.3554504-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-structured-audio-control-result-summary.json",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "g0.5-structured-audio-control-result-summary.json",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-structured-audio-control-result-summary.json",
+      "byteSize": 1793,
+      "sha256": "83097DA638B80D048F84CC86B29BB24463C0B2BF9C2D3ED78CAF658FC73BF5EE",
+      "r2ObjectKey": "objects/sha256/83/83097da638b80d048f84cc86b29bb24463c0b2bf9c2d3ed78caf658fc73bf5ee",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:03.8455071-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/G05Stage2SmokeHelpers.psm1",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "G05Stage2SmokeHelpers.psm1",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/G05Stage2SmokeHelpers.psm1",
+      "byteSize": 41601,
+      "sha256": "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4",
+      "r2ObjectKey": "objects/sha256/13/13763e718e35f5794c39835b46f69ef3eaf0ece4c7c1b562b956dbcbed48e8e4",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:06.178241-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/Invoke-G05LossyAudioOracleControls.ps1",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "Invoke-G05LossyAudioOracleControls.ps1",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/Invoke-G05LossyAudioOracleControls.ps1",
+      "byteSize": 12739,
+      "sha256": "D0A7CA6BF8D2AA1963BDC1A318979EE7B3525141BADA4C2DDCFC5D6B74F15F66",
+      "r2ObjectKey": "objects/sha256/d0/d0a7ca6bf8d2aa1963bdc1a318979ee7b3525141bada4c2ddcfc5d6b74f15f66",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:08.2648876-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/Invoke-G05StructuredAudioOracleControls.ps1",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "Invoke-G05StructuredAudioOracleControls.ps1",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/Invoke-G05StructuredAudioOracleControls.ps1",
+      "byteSize": 8899,
+      "sha256": "E2925520E0E577640887F79C3CA789AF196E590752018814A9B90A46E5E9475A",
+      "r2ObjectKey": "objects/sha256/e2/e2925520e0e577640887f79c3ca789af196e590752018814a9b90a46e5e9475a",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:10.8147572-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/g0.5-structured-audio-oracle-control-results.json",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "g0.5-structured-audio-oracle-control-results.json",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+      "byteSize": 134434,
+      "sha256": "2CAEE1C652F292BBF7E9DB6E1DAA0DD7C5E68788C3E5D74F63997DC3775F2AF6",
+      "r2ObjectKey": "objects/sha256/2c/2caee1c652f292bbf7e9db6e1daa0dd7c5e68788c3e5d74f63997dc3775f2af6",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:13.2275943-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/channel-swap.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "channel-swap.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/channel-swap.s16le",
+      "byteSize": 1536000,
+      "sha256": "F86F8A8ECC01320F9A1932489445431F69B545C7C086AD2C60E53D8FBBC0A9F4",
+      "r2ObjectKey": "objects/sha256/f8/f86f8a8ecc01320f9a1932489445431f69b545c7c086ad2c60e53d8fbbc0a9f4",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:15.6388275-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/clipping.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "clipping.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/clipping.s16le",
+      "byteSize": 1536000,
+      "sha256": "DA31E73872C8F6EC302DFF3AA1DC8E0E166FEDF3CCF316952BF7927738E4F4B7",
+      "r2ObjectKey": "objects/sha256/da/da31e73872c8f6ec302dff3aa1dc8e0e166fedf3ccf316952bf7927738e4f4b7",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:17.9435107-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/frequency-offset.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "frequency-offset.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/frequency-offset.s16le",
+      "byteSize": 1536000,
+      "sha256": "8A145EA2F224724DEFB83A48CFA833BE459FB59F9E281EAE2B3837F0178602F3",
+      "r2ObjectKey": "objects/sha256/8a/8a145ea2f224724defb83a48cfa833be459fb59f9e281eae2b3837f0178602f3",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:20.3892806-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/g0.5-lossy-audio-control-results.json",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "g0.5-lossy-audio-control-results.json",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/g0.5-lossy-audio-control-results.json",
+      "byteSize": 26055,
+      "sha256": "C30734212AD29DF3723D94280BA3BBFCE20E235F8F6843907D3C4E6D85533DEF",
+      "r2ObjectKey": "objects/sha256/c3/c30734212ad29df3723d94280ba3bbfce20e235f8f6843907d3c4e6d85533def",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:22.6157265-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/gain-75-percent.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "gain-75-percent.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/gain-75-percent.s16le",
+      "byteSize": 1536000,
+      "sha256": "9FBC6DBA5D92292D3A619C839A24BF28CD2991AB54C58597013E277FF94F68A5",
+      "r2ObjectKey": "objects/sha256/9f/9fbc6dba5d92292d3a619c839a24bf28cd2991ab54c58597013e277ff94f68a5",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:25.072875-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/gain-95-percent.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "gain-95-percent.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/gain-95-percent.s16le",
+      "byteSize": 1536000,
+      "sha256": "6713183958B360BBAB3BB7598D96A2EDF4E9B8DC8E19F76314D26E40F6B2524E",
+      "r2ObjectKey": "objects/sha256/67/6713183958b360bbab3bb7598d96a2edf4e9b8dc8e19f76314d26e40f6b2524e",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:27.6263147-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/identity.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "identity.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/identity.s16le",
+      "byteSize": 1536000,
+      "sha256": "3A9BF240990CB5EC08026C83D6E2FC64A95011C8D35D2B2B7FECFF55B91639EA",
+      "r2ObjectKey": "objects/sha256/3a/3a9bf240990cb5ec08026c83d6e2fc64a95011c8d35d2b2b7fecff55b91639ea",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:29.5791048-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/midstream-960-sample-dropout.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "midstream-960-sample-dropout.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/midstream-960-sample-dropout.s16le",
+      "byteSize": 1536000,
+      "sha256": "009781E77A219764CA6D6C34A1114B36F835F7B58886AC8B5DD4314F6BEE2210",
+      "r2ObjectKey": "objects/sha256/00/009781e77a219764ca6d6c34a1114b36f835f7b58886ac8b5dd4314f6bee2210",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:31.7048004-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/noise-15db-snr.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "noise-15db-snr.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/noise-15db-snr.s16le",
+      "byteSize": 1536000,
+      "sha256": "F3429BFFDA86149B57BA9AD95616EAE653BFC2349FE1E754D736AF9B0481D202",
+      "r2ObjectKey": "objects/sha256/f3/f3429bffda86149b57ba9ad95616eae653bfc2349fe1e754d736af9b0481d202",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:33.4451284-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/noise-24db-snr.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "noise-24db-snr.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/noise-24db-snr.s16le",
+      "byteSize": 1536000,
+      "sha256": "5695D7EE505CF8395B8E27FFC9952AD654A11F80BA53900A624717ECB452F2BE",
+      "r2ObjectKey": "objects/sha256/56/5695d7ee505cf8395b8e27ffc9952ad654a11f80ba53900a624717ecb452f2be",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:35.4631405-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/one-percent-crosstalk.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "one-percent-crosstalk.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/one-percent-crosstalk.s16le",
+      "byteSize": 1536000,
+      "sha256": "185D9EAA8E3655430A95E3EA505CADE2C9B741AA13585CC43ABB0C47083DF2AD",
+      "r2ObjectKey": "objects/sha256/18/185d9eaa8e3655430a95e3ea505cade2c9b741aa13585cc43abb0c47083df2ad",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:37.4118813-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/polarity-inversion.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "polarity-inversion.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/polarity-inversion.s16le",
+      "byteSize": 1536000,
+      "sha256": "868D294ADFE196191432F92C7FCD1265C3CF6B5C10DBC0E1EE48B13CB7734ED7",
+      "r2ObjectKey": "objects/sha256/86/868d294adfe196191432f92c7fcd1265c3cf6b5c10dbc0e1ee48b13cb7734ed7",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:39.3656823-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/silence.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "silence.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/silence.s16le",
+      "byteSize": 1536000,
+      "sha256": "626DB8BEA999709C8FAEAD0EC9D60025604676FCC44130ABE6C1168B90989B3B",
+      "r2ObjectKey": "objects/sha256/62/626db8bea999709c8faead0ec9d60025604676fcc44130abe6c1168b90989b3b",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:41.2510228-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-2v4a-30s.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "typical-2v4a-30s.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/typical-2v4a-30s.s16le",
+      "byteSize": 5760000,
+      "sha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A",
+      "r2ObjectKey": "objects/sha256/81/81b41cd4db85568930c15282a7268e2ced2610d27d48c6cb258e1d1c5c1b8c5a",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "existing-object-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:43.2563506-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-gain-125-percent.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "typical-gain-125-percent.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/typical-gain-125-percent.s16le",
+      "byteSize": 5760000,
+      "sha256": "7DFA1534D218370D416AE2FAF77A3CAFDF541E770D5BF2AB98654CD71A8428CE",
+      "r2ObjectKey": "objects/sha256/7d/7dfa1534d218370d416ae2faf77a3cafdf541e770d5bf2ab98654cd71a8428ce",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:46.0131751-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-gain-75-percent.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "typical-gain-75-percent.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/typical-gain-75-percent.s16le",
+      "byteSize": 5760000,
+      "sha256": "23BBEEA98FB9C402284018678E04D9DF943EEED971B1EB5A74BAE00A6ED0759A",
+      "r2ObjectKey": "objects/sha256/23/23bbeea98fb9c402284018678e04d9df943eeed971b1eb5a74bae00a6ed0759a",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:51.563577-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-identity.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "typical-identity.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/typical-identity.s16le",
+      "byteSize": 5760000,
+      "sha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A",
+      "r2ObjectKey": "objects/sha256/81/81b41cd4db85568930c15282a7268e2ced2610d27d48c6cb258e1d1c5c1b8c5a",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "deduplicated-object-verified-in-this-run",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:53.3373822-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-panned-gain-95-percent.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "typical-panned-gain-95-percent.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/typical-panned-gain-95-percent.s16le",
+      "byteSize": 5760000,
+      "sha256": "286A8B217E9F53D1437C4AEE7378B94CAD06E7E4FDEDD71FAD0834F4E1A36D9D",
+      "r2ObjectKey": "objects/sha256/28/286a8b217e9f53d1437c4aee7378b94cad06e7e4fdedd71fad0834f4e1a36d9d",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T00:10:56.3303347-07:00"
+    },
+    {
+      "logicalArtifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-right-low-level-960-sample-dropout.s16le",
+      "purpose": "Durable Gate 0 proof input or evidence from G05-V4-Structured-Audio-Controls-20260827-001.",
+      "originalFilename": "typical-right-low-level-960-sample-dropout.s16le",
+      "localRelativePath": "g0.5/v4-structured-audio-controls/20260827-001/typical-right-low-level-960-sample-dropout.s16le",
+      "byteSize": 5760000,
+      "sha256": "46BD4100CE1D0BD257429C3F00E31D24B6E667FCE4C3DE47E47F8C9B5AC6D076",
+      "r2ObjectKey": "objects/sha256/46/46bd4100ce1d0bd257429c3f00e31d24b6e667fce4c3de47e47f8c9b5ac6d076",
+      "sourceProvenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "proofRunOrContractIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "licenseProvenanceRecords": [],
+      "retentionStatus": "remote-verified",
+      "transferDisposition": "uploaded-and-verified",
+      "remotelyVerifiedUtc": "2026-08-27T07:10:59.2565894+00:00"
+    },
     {
       "logicalArtifactId": "Gate0.Fixtures.F1-F8.20260824/expected-truths.json",
       "purpose": "Durable Gate 0 proof input or evidence from Gate0.Fixtures.F1-F8.20260824.",
@@ -17917,7 +18561,7 @@
       ],
       "retentionStatus": "remote-verified",
       "transferDisposition": "independently-retrieved-and-verified",
-      "remotelyVerifiedUtc": "2026-08-27T01:01:33.9981938+00:00"
+      "remotelyVerifiedUtc": "2026-08-26T18:01:33.9981938-07:00"
     },
     {
       "logicalArtifactId": "Gate0.G04.Input.Corrected.20260825/logs/decode-V-MKV-MP4-H264-HIGH-VIDEOONLY-25_1-0_v_0.stderr.txt",

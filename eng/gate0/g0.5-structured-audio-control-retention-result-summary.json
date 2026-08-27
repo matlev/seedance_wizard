@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "resultId": "Gate0.G05.StructuredAudioOracleControls.Retention.20260827.001",
+  "status": "complete",
+  "controlGroup": {
+    "groupId": "G05-V4-Structured-Audio-Controls-20260827-001",
+    "destinationName": "g0.5/v4-structured-audio-controls/20260827-001",
+    "fileCount": 28,
+    "logicalBytes": 53276299,
+    "controlReportSha256": "2CAEE1C652F292BBF7E9DB6E1DAA0DD7C5E68788C3E5D74F63997DC3775F2AF6"
+  },
+  "freeze": {
+    "freezeId": "Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.Frozen.20260827",
+    "retainedSnapshotSha256": "E2EFFD683FFE21BE902D77D7564F81C550F555C0989871C5D98B2DBE580D4CB2"
+  },
+  "corpusAfterAppend": {
+    "sourceManifestSha256": "932880622DF1D26D6140C06FA38ED5AC19D018C3AF737059AE2837B490780438",
+    "durableManifestSha256": "9E14C86F2956B47B24A7B841050E9C17861DC55936075AD518BF4BF9E6D0EA62",
+    "requiredLogicalArtifactCount": 4041,
+    "logicalBytes": 1078136024,
+    "recordedRemoteVerifiedLogicalArtifacts": 4041,
+    "secondPrivateCopyVerified": true,
+    "retentionCondition": "complete"
+  },
+  "verification": "Every pending logical artifact was uploaded or resolved by content-addressed deduplication, then independently retrieved and SHA-256 verified by Upload-Gate0Artifact.ps1 before its receipt was recorded.",
+  "boundaries": {
+    "routeOutputsEvaluated": false,
+    "routeReencodePerformed": false,
+    "fullStage2Authorized": false
+  }
+}

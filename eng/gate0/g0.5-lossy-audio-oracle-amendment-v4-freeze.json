@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "freezeId": "Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.Frozen.20260827",
+  "frozenUtc": "2026-08-27T07:06:29Z",
+  "status": "frozen-after-owner-approved-controls-passed-before-route-output-evaluation",
+  "v3Contract": {
+    "path": "eng/gate0/g0.5-lossy-audio-oracle-contract.json",
+    "contractId": "Gate0.G05.LossyAudioOracle.V3.Frozen.20260826",
+    "size": 16652,
+    "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4"
+  },
+  "v4Amendment": {
+    "path": "eng/gate0/g0.5-lossy-audio-oracle-amendment-v4.json",
+    "amendmentId": "Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.20260827",
+    "size": 3101,
+    "sha256": "21ECAFCD94F71E58AA43955079EF9959C135DB12530D015E8380CFD09B5E9FBC"
+  },
+  "implementation": [
+    {
+      "path": "eng/gate0/G05Stage2SmokeHelpers.psm1",
+      "size": 41601,
+      "sha256": "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4"
+    },
+    {
+      "path": "eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+      "size": 8899,
+      "sha256": "E2925520E0E577640887F79C3CA789AF196E590752018814A9B90A46E5E9475A"
+    },
+    {
+      "path": "eng/gate0/Invoke-G05LossyAudioOracleControls.ps1",
+      "size": 12739,
+      "sha256": "D0A7CA6BF8D2AA1963BDC1A318979EE7B3525141BADA4C2DDCFC5D6B74F15F66"
+    },
+    {
+      "path": "eng/gate0/g0.5-stage2-workload-contract.json",
+      "size": 36757,
+      "sha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC"
+    }
+  ],
+  "controlEvidence": {
+    "logicalId": "g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+    "size": 134434,
+    "sha256": "2CAEE1C652F292BBF7E9DB6E1DAA0DD7C5E68788C3E5D74F63997DC3775F2AF6",
+    "structuredControlCount": 5,
+    "legacyV3ControlCount": 12,
+    "allDeclaredDispositionsPassed": true,
+    "legacyHashesAndDispositionsPreserved": true,
+    "noOverlayEffectiveV3DispositionsPreserved": true,
+    "routeOutputsEvaluated": false,
+    "routeReencodePerformed": false
+  },
+  "retentionPrerequisite": "This freeze becomes eligible for replacement-route evaluation only after its complete control closure is retained locally and independently byte-verified in the approved private R2 bucket."
+}

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "artifactSetId": "Gate0.InterimCorpus.20260825",
-  "generatedUtc": "2026-08-27T00:21:31.4070699+00:00",
+  "generatedUtc": "2026-08-27T07:08:37.0891955+00:00",
   "storage": {
     "rootName": "ReelForge.Gate0Artifacts",
     "pathPolicy": "Project-controlled sibling directory; manifest paths are relative and machine-independent.",
@@ -24684,12 +24684,198 @@
           "sha256": "976FF1FEA74A6F3AEEC2203584551922A7E8A9B2DB21D2CB5715DFDCD689B748"
         }
       ]
+    },
+    {
+      "groupId": "G05-V4-Structured-Audio-Controls-20260827-001",
+      "provenance": "Owner-approved descriptor-scoped V4 reference-relative audio oracle amendment controls, executed before route-output evaluation.",
+      "producerRuntimeIdentity": [
+        "repository:eng/gate0/G05Stage2SmokeHelpers.psm1",
+        "repository:eng/gate0/Invoke-G05StructuredAudioOracleControls.ps1",
+        "repository:eng/gate0/Invoke-G05LossyAudioOracleControls.ps1"
+      ],
+      "licenseRecords": [],
+      "proofRunIdentity": [
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+        "artifact:g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json"
+      ],
+      "fileCount": 28,
+      "totalBytes": 53276299,
+      "files": [
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4-freeze.json",
+          "size": 2268,
+          "sha256": "E2EFFD683FFE21BE902D77D7564F81C550F555C0989871C5D98B2DBE580D4CB2"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4.json",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-amendment-v4.json",
+          "size": 3101,
+          "sha256": "21ECAFCD94F71E58AA43955079EF9959C135DB12530D015E8380CFD09B5E9FBC"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-contract.json",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-lossy-audio-oracle-contract.json",
+          "size": 16652,
+          "sha256": "119A4C179BFA010F3202DBF6AA368E42EDE5FD0FC23EF2781AA9C7F63540CBE4"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-stage2-workload-contract.json",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-stage2-workload-contract.json",
+          "size": 36757,
+          "sha256": "CBB93CC1483FECD65489485CB1BBF03CD3BF24C2419D28C587C62758C3EAD7EC"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/g0.5-structured-audio-control-result-summary.json",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/g0.5-structured-audio-control-result-summary.json",
+          "size": 1793,
+          "sha256": "83097DA638B80D048F84CC86B29BB24463C0B2BF9C2D3ED78CAF658FC73BF5EE"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/G05Stage2SmokeHelpers.psm1",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/G05Stage2SmokeHelpers.psm1",
+          "size": 41601,
+          "sha256": "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/Invoke-G05LossyAudioOracleControls.ps1",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/Invoke-G05LossyAudioOracleControls.ps1",
+          "size": 12739,
+          "sha256": "D0A7CA6BF8D2AA1963BDC1A318979EE7B3525141BADA4C2DDCFC5D6B74F15F66"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/contract-snapshots/Invoke-G05StructuredAudioOracleControls.ps1",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/contract-snapshots/Invoke-G05StructuredAudioOracleControls.ps1",
+          "size": 8899,
+          "sha256": "E2925520E0E577640887F79C3CA789AF196E590752018814A9B90A46E5E9475A"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/g0.5-structured-audio-oracle-control-results.json",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/g0.5-structured-audio-oracle-control-results.json",
+          "size": 134434,
+          "sha256": "2CAEE1C652F292BBF7E9DB6E1DAA0DD7C5E68788C3E5D74F63997DC3775F2AF6"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/channel-swap.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/channel-swap.s16le",
+          "size": 1536000,
+          "sha256": "F86F8A8ECC01320F9A1932489445431F69B545C7C086AD2C60E53D8FBBC0A9F4"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/clipping.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/clipping.s16le",
+          "size": 1536000,
+          "sha256": "DA31E73872C8F6EC302DFF3AA1DC8E0E166FEDF3CCF316952BF7927738E4F4B7"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/frequency-offset.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/frequency-offset.s16le",
+          "size": 1536000,
+          "sha256": "8A145EA2F224724DEFB83A48CFA833BE459FB59F9E281EAE2B3837F0178602F3"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/g0.5-lossy-audio-control-results.json",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/g0.5-lossy-audio-control-results.json",
+          "size": 26055,
+          "sha256": "C30734212AD29DF3723D94280BA3BBFCE20E235F8F6843907D3C4E6D85533DEF"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/gain-75-percent.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/gain-75-percent.s16le",
+          "size": 1536000,
+          "sha256": "9FBC6DBA5D92292D3A619C839A24BF28CD2991AB54C58597013E277FF94F68A5"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/gain-95-percent.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/gain-95-percent.s16le",
+          "size": 1536000,
+          "sha256": "6713183958B360BBAB3BB7598D96A2EDF4E9B8DC8E19F76314D26E40F6B2524E"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/identity.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/identity.s16le",
+          "size": 1536000,
+          "sha256": "3A9BF240990CB5EC08026C83D6E2FC64A95011C8D35D2B2B7FECFF55B91639EA"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/midstream-960-sample-dropout.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/midstream-960-sample-dropout.s16le",
+          "size": 1536000,
+          "sha256": "009781E77A219764CA6D6C34A1114B36F835F7B58886AC8B5DD4314F6BEE2210"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/noise-15db-snr.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/noise-15db-snr.s16le",
+          "size": 1536000,
+          "sha256": "F3429BFFDA86149B57BA9AD95616EAE653BFC2349FE1E754D736AF9B0481D202"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/noise-24db-snr.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/noise-24db-snr.s16le",
+          "size": 1536000,
+          "sha256": "5695D7EE505CF8395B8E27FFC9952AD654A11F80BA53900A624717ECB452F2BE"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/one-percent-crosstalk.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/one-percent-crosstalk.s16le",
+          "size": 1536000,
+          "sha256": "185D9EAA8E3655430A95E3EA505CADE2C9B741AA13585CC43ABB0C47083DF2AD"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/polarity-inversion.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/polarity-inversion.s16le",
+          "size": 1536000,
+          "sha256": "868D294ADFE196191432F92C7FCD1265C3CF6B5C10DBC0E1EE48B13CB7734ED7"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/legacy-v3-controls/silence.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/legacy-v3-controls/silence.s16le",
+          "size": 1536000,
+          "sha256": "626DB8BEA999709C8FAEAD0EC9D60025604676FCC44130ABE6C1168B90989B3B"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-2v4a-30s.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/typical-2v4a-30s.s16le",
+          "size": 5760000,
+          "sha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-gain-125-percent.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/typical-gain-125-percent.s16le",
+          "size": 5760000,
+          "sha256": "7DFA1534D218370D416AE2FAF77A3CAFDF541E770D5BF2AB98654CD71A8428CE"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-gain-75-percent.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/typical-gain-75-percent.s16le",
+          "size": 5760000,
+          "sha256": "23BBEEA98FB9C402284018678E04D9DF943EEED971B1EB5A74BAE00A6ED0759A"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-identity.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/typical-identity.s16le",
+          "size": 5760000,
+          "sha256": "81B41CD4DB85568930C15282A7268E2CED2610D27D48C6CB258E1D1C5C1B8C5A"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-panned-gain-95-percent.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/typical-panned-gain-95-percent.s16le",
+          "size": 5760000,
+          "sha256": "286A8B217E9F53D1437C4AEE7378B94CAD06E7E4FDEDD71FAD0834F4E1A36D9D"
+        },
+        {
+          "artifactId": "G05-V4-Structured-Audio-Controls-20260827-001/typical-right-low-level-960-sample-dropout.s16le",
+          "filename": "g0.5/v4-structured-audio-controls/20260827-001/typical-right-low-level-960-sample-dropout.s16le",
+          "size": 5760000,
+          "sha256": "46BD4100CE1D0BD257429C3F00E31D24B6E667FCE4C3DE47E47F8C9B5AC6D076"
+        }
+      ]
     }
   ],
   "totals": {
-    "groupCount": 31,
-    "fileCount": 4013,
-    "totalBytes": 1024859725
+    "groupCount": 32,
+    "fileCount": 4041,
+    "totalBytes": 1078136024
   },
   "limitations": [
     "This manifest proves one verified local retained copy only.",

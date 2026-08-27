@@ -146,6 +146,40 @@ public sealed class Gate0G05Stage2DesignTests
         Assert.Contains("5000, 960", runner);
         Assert.DoesNotContain("ffmpeg", runner, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ffprobe", runner, StringComparison.OrdinalIgnoreCase);
+
+        using var freeze = ReadJson("eng", "gate0", "g0.5-lossy-audio-oracle-amendment-v4-freeze.json");
+        var frozen = freeze.RootElement;
+        Assert.Equal("Gate0.G05.LossyAudioOracle.V4.ReferenceRelativeTypical.Frozen.20260827", frozen.GetProperty("freezeId").GetString());
+        Assert.False(frozen.GetProperty("controlEvidence").GetProperty("routeOutputsEvaluated").GetBoolean());
+        Assert.True(frozen.GetProperty("controlEvidence").GetProperty("allDeclaredDispositionsPassed").GetBoolean());
+        var frozenFiles = new[] { frozen.GetProperty("v3Contract"), frozen.GetProperty("v4Amendment") }
+            .Concat(frozen.GetProperty("implementation").EnumerateArray());
+        foreach (var record in frozenFiles)
+        {
+            var path = record.GetProperty("path").GetString()!;
+            using var stream = File.OpenRead(PathInRepo(path.Split('/')));
+            Assert.Equal(record.GetProperty("size").GetInt64(), stream.Length);
+            Assert.Equal(record.GetProperty("sha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+        }
+
+        using var controlSummary = ReadJson("eng", "gate0", "g0.5-structured-audio-control-result-summary.json");
+        Assert.Equal(5, controlSummary.RootElement.GetProperty("structuredControls").GetArrayLength());
+        Assert.Equal(12, controlSummary.RootElement.GetProperty("legacyV3Controls").GetProperty("count").GetInt32());
+        Assert.False(controlSummary.RootElement.GetProperty("executionBoundaries").GetProperty("routeOutputsEvaluated").GetBoolean());
+
+        using var retentionSummary = ReadJson("eng", "gate0", "g0.5-structured-audio-control-retention-result-summary.json");
+        using var sourceManifest = ReadJson("eng", "gate0", "artifact-retention-manifest.json");
+        using var durableManifest = ReadJson("eng", "gate0", "artifact-manifest.json");
+        var corpus = retentionSummary.RootElement.GetProperty("corpusAfterAppend");
+        Assert.Equal(4041, corpus.GetProperty("requiredLogicalArtifactCount").GetInt32());
+        Assert.True(corpus.GetProperty("secondPrivateCopyVerified").GetBoolean());
+        Assert.Equal(4041, durableManifest.RootElement.GetProperty("artifacts").GetArrayLength());
+        using (var stream = File.OpenRead(PathInRepo("eng", "gate0", "artifact-retention-manifest.json")))
+            Assert.Equal(corpus.GetProperty("sourceManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+        using (var stream = File.OpenRead(PathInRepo("eng", "gate0", "artifact-manifest.json")))
+            Assert.Equal(corpus.GetProperty("durableManifestSha256").GetString(), Convert.ToHexString(SHA256.HashData(stream)));
+        Assert.Single(sourceManifest.RootElement.GetProperty("groups").EnumerateArray(), group =>
+            group.GetProperty("groupId").GetString() == "G05-V4-Structured-Audio-Controls-20260827-001");
     }
 
     [Fact]
