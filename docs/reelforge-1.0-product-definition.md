@@ -41,7 +41,7 @@ The desktop feature program should therefore finish the editing and reliability 
 The product and release labels are deliberately separated:
 
 1. **Free Desktop Feature Complete** is the implementation target defined by the Free contract and Slices A-J below.
-2. **External Free Beta** follows Feature Complete plus a separate reproducible beta-package gate, diagnostic/feedback readiness, and friends-and-family acceptance. It does not require Pro, Ingots, final signing, a production installer, marketplace publication, or a production update pipeline. A beta either requires an approved user-configured media tool and bundles none, or separately reviews any included beta runtime for redistribution and license compliance; Gate 0 capability evidence alone never authorizes shipping a binary.
+2. **External Free Beta** follows Feature Complete plus a separate reproducible beta-package gate, diagnostic/feedback readiness, and friends-and-family acceptance. It does not require Pro, Ingots, final signing, a production installer, marketplace publication, or a production update pipeline. A beta either requires an approved user-configured media tool and bundles none, or separately reviews any included beta runtime for redistribution and license compliance; the development media profile never authorizes shipping a binary.
 3. **Full 1.0.0** is the target for adding a separately implemented first Pro continuity/repair offer and managed Ingots soon after Free beta. Accounts, billing, entitlements, security, managed compute, and payment processing remain a distinct backend/commercial program; no desktop feature slice below owns them.
 4. **Production Release Ready** remains a separate release-engineering outcome: the exact bundled media runtime, license audit, legal review where required, signing, production installers, CI/CD release pipeline, updates, distribution, and store work.
 
@@ -139,7 +139,7 @@ Why Free: a creator should be able to add a title, credit, or accessible caption
 
 ### 6. Predictable preview and export
 
-- Named composition, re-encode, and export profiles covering media type, container, codec, canvas, resolution, frame rate, quality, and audio behavior. Free includes ordinary single-item and composition conversion to the common delivery formats approved at Gate 0; it is not restricted to one video and one audio format merely to create a Pro gate. The likely defaults remain MP4 video and M4A audio, but Gate 0 must approve the actual free-to-use-and-distribute baseline rather than treating today's `libx264`/AAC commands as a contract.
+- Named composition, re-encode, and export profiles covering media type, container, codec, canvas, resolution, frame rate, quality, and audio behavior. Free includes ordinary single-item and composition conversion to the common delivery formats in the [media runtime contract](media-runtime-contract.md); it is not restricted to one video and one audio format merely to create a Pro gate. MP4 video and M4A audio remain Conditional compatibility defaults until release engineering closes their exact distribution route; today's `libx264`/AAC commands are not a contract.
 - Export or re-encode a selected physical/virtual video, a selected audio asset/range, and the Working Composition without modifying the source. Batch conversion, custom profile builders, and specialty/professional delivery formats may be Pro; ordinary broadly useful formats supported by the approved baseline remain Free.
 - Preview-quality policy that stays responsive, clearly identifies draft versus final fidelity, and never exports from a stale revision. Basic automatic reduced-quality preview or disposable proxy use is Free when required to meet the performance contract; Pro may add manual proxy, cache, and queue controls.
 - Stage-aware progress, cancellation, retry, deterministic cache identity, and atomic final output.
@@ -198,14 +198,14 @@ This is product-planning metadata, not an entitlement design. Free beta does not
 | Performance controls | Explicit proxy generation/attachment, preview quality controls, cache diagnostics, and render queue controls when measured projects need them. | High | Stable render graph, capability discovery, cache identity. |
 | Assisted audio | Loudness analysis/normalization, auto-ducking, and selected speech cleanup when engine and license review pass. | High | Waveforms, analysis artifacts, audio time model, engine discovery. |
 | Automatic transcription/captions | Optional local or approved remote transcription feeding the Free caption model, with editable text and timing. | High | Caption model, analysis jobs, language/model packaging and privacy review. |
-| Continuity and repair toolkit | Assisted **Match to Previous Clip**, stabilization, deflicker, denoise, sharpen, and format/loudness matching. Each operation is independently capability-gated and creates typed settings/analysis artifacts rather than assuming one FFmpeg filter family. | High to very high | Stable effect/analysis model, Gate 0 engine candidates, performance budgets, code/model/data license review, preview/export agreement. |
+| Continuity and repair toolkit | Assisted **Match to Previous Clip**, stabilization, deflicker, denoise, sharpen, and format/loudness matching. Each operation is independently capability-gated and creates typed settings/analysis artifacts rather than assuming one FFmpeg filter family. | High to very high | Stable effect/analysis model, final media-contract candidates, performance budgets, code/model/data license review, preview/export agreement. |
 | Deeper finishing | Reverse playback, a broader audited transition/effect catalog, LUTs, reusable effect presets, adjustment layers, and nested compositions when demand is demonstrated. | High to very high | Stable effects/render graph, automation, nesting/cycle rules, capability discovery. |
 | Media intelligence and provenance | Scene detection, semantic media search, generation-graph visualization, and stronger provenance browsing. | High to very high | Analysis jobs/indexes, privacy/storage policy, stable provenance graph. |
 | Advanced audio and captions | Voiceover recording, richer meters, dialogue cleanup, caption translation, and deeper audio matching. | High | Audio timing/mix model, device abstraction, engine/language review. |
 | Provider-assisted repair | Provider-neutral regenerate/extend/object/background operations that always ingest new durable media before an explicit replace. | Very high | Separate media-edit provider contract, immutable requests, cost authorization, jobs, provenance, provider/legal review. |
 | Direct delivery integrations | Social/publishing delivery only where evidence shows material value beyond ordinary Free export. | High | External APIs/accounts, credential/security/support policy; separate from core export. |
 
-The continuity and repair toolkit is the target first Pro bundle alongside an owner-approved subset of keyframes, comparison, or productivity. It is not permission to depend on GPL-only filters or ship an unverified engine: `libvidstab` stabilization and several FFmpeg denoisers are known GPL-path blockers for an LGPL-only runtime. Gate 0 must evaluate each operation separately and the owner must approve its actual implementation contract. Provider/cloud repair is not required for Free beta or the first local Pro bundle.
+The continuity and repair toolkit is the target first Pro bundle alongside an owner-approved subset of keyframes, comparison, or productivity. It is not permission to depend on GPL-only filters or ship an unverified engine: `libvidstab` stabilization and GPL-path denoisers are excluded from the LGPL-first baseline. The [media runtime contract](media-runtime-contract.md) records preliminary dispositions; the owner must approve each actual implementation contract. Provider/cloud repair is not required for Free beta or the first local Pro bundle.
 
 ## Candidate evaluation summary
 
@@ -290,29 +290,11 @@ Optional external engines depend on capability discovery, engine/version identit
 
 These slices are dependency units, not preassigned milestone numbers. The high-risk model and rendering slices should not be hidden inside one oversized “editing features” milestone.
 
-### Gate 0 — distribution-realistic media capability and licensing feasibility
+### Gate 0 — complete
 
-The owner-approved [Gate 0 media capability charter](gate-0-media-capability-charter.md) is authoritative for execution and checkpoints.
+Gate 0 is closed. The concise [media runtime contract](media-runtime-contract.md), [dependency/licensing inventory](media-dependencies-and-licensing.md), [final summary](gate-0-final-summary.md), and machine-readable development profile under `eng/media-runtime/` replace the former proof laboratory.
 
-Scope: a bounded decision-and-proof phase before render, visual, text, or Pro-repair implementation. Define a platform-neutral semantic media capability contract, technically prove approved candidates on Windows, and identify an LGPL-compatible development/CI profile realistic for eventual free distribution. Replace today's accidental reliance on arbitrary developer installations and `libx264`; evaluate Free video/audio input, conversion, and delivery, required filters, text/font behavior, thread/concurrency policy, and preliminary Pro repair feasibility. The current development runtime is audit input only. macOS proof, exact public-binary selection/audit/build/signing/packaging, and user-facing editing behavior remain later work.
-
-Gate 0 may add fixtures, probes, manifests, CI, and the smallest reusable runtime capability discovery/validation component required to enforce the contract. It may not add editing features, speculative engine/plugin frameworks, or production behavior changes without separate approval.
-
-Checkpoint A: after the current dependency audit and candidate-profile research, stop and present the hard-coded assumptions, one or two recommended profiles, dependency risks, fixture/proof matrix, semantic manifest design, expected blockers, and any proposed reusable validation component. The owner selects which candidates may proceed to executable proof.
-
-Acceptance:
-
-- `RequiredCapabilities` describes ReelForge semantics separately from `ObservedRuntimeCapabilities` and the concrete codecs, containers, filters, libraries, and build flags mapped by a runtime profile;
-- the approved development capability matrix proposes a common Free video/audio conversion and delivery baseline, identifies enhanced local-tool and optional Windows-acceleration profiles, and reports portability/support limits without claiming macOS proof or public-binary approval;
-- generated/licensed fixtures prove required operations through inspection, re-decode, representative independent playback, and visual/golden-frame validation where applicable;
-- named baseline, typical, stress, and long-form workloads produce repeatable responsiveness/resource metrics and proposed numeric thresholds on the reference Windows machine;
-- Match to Previous Clip, stabilization, deflicker, denoise, sharpen, format matching, and loudness matching each receive a preliminary `Proven`, `Conditional`, `Blocked`, or `Deferred` disposition without holding the Free baseline hostage;
-- any GPL, nonfree, patent, font, code/model/data, or external-library implication is visible to the later release-engineering/legal gate;
-- user-local enhanced capabilities are checked before work starts, labeled clearly, and never silently change creative meaning or become necessary to open a baseline Free project;
-- CI detects deviation from the reviewed technical profile but never claims patent safety, legal compliance, or redistribution approval; and
-- a blocked mandatory path presents explicit owner options and consequences before dependent implementation; it never forces a weak or questionable workaround.
-
-Risk: Medium as a spike; it retires high-impact licensing and feasibility risk before high-cost implementation.
+Feature work may rely on the documented semantic capability families and LGPL-first route order. It may not treat the development profile as a shipping-binary approval, persist engine names as project meaning, silently fall back to GPL components, or infer that component presence proves product behavior. Focused production-path tests accompany each implementation slice; final runtime packaging, legal review, macOS validation, and release-candidate performance/playback remain later work.
 
 ### Slice A — project recovery and relink
 
@@ -361,7 +343,7 @@ Risk: High.
 
 ### Slice D — render/playback/conversion/export graph
 
-Scope: track-aware render planning, effect-aware preview, Free conversion/export profiles, progress, cancellation, stale-result rejection, automatic reduced-quality preview/proxy behavior, resource constraints, and the capability policy established by Gate 0.
+Scope: track-aware render planning, effect-aware preview, Free conversion/export profiles, progress, cancellation, stale-result rejection, automatic reduced-quality preview/proxy behavior, resource constraints, and the final media-runtime capability policy.
 
 Acceptance:
 
@@ -407,7 +389,7 @@ Risk: High.
 
 ### Slice G — minimal text and captions
 
-Scope: typed timed text items, basic title/lower-third UI, caption authoring, SRT import/export, and burn-in through the text/font capability chosen at Gate 0.
+Scope: typed timed text items, basic title/lower-third UI, caption authoring, SRT import/export, and burn-in through the final text/font baseline.
 
 Acceptance:
 
@@ -475,7 +457,7 @@ Risk: High because it exposes integration and performance debt, even though it s
 - **Audio:** audio boundaries require an audio-appropriate exact time representation. Waveforms and loudness scans are reconstructable analysis artifacts, not project truth.
 - **Text:** titles and captions need a typed overlay model plus an audited font shaping/render path. Font files, Unicode behavior, fallback, and any FFmpeg/font-library dependency are part of the capability contract.
 - **Cache/performance:** effects, waveforms, proxies, and analysis keys include exact source/revision, engine/version, settings, and purpose. Automatic reduced-quality previews/proxies are Free disposable artifacts when the performance policy needs them; Pro may add manual/cache/queue controls. The reference profile is 32 GB RAM, Ryzen 7 3700X, RTX 3070 Ti 8 GB, primarily 30-second to 10-minute 720p/1080p editing. Track-count and lower-hardware floors remain measured outcomes. Higher-resolution source and 4K import/export do not imply full-resolution real-time 4K playback.
-- **FFmpeg:** pivot development and CI to the Gate 0 pinned LGPL-compatible capability profile before dependent feature work. The current command builder requests `libx264`, which cannot be assumed there. Most FFmpeg code is LGPL, while optional GPL components and external libraries can change the resulting obligations; `--enable-nonfree` builds are unredistributable, and codec/patent review is separate. The known GPL list includes `libx264`, `libx265`, `libvidstab`, `librubberband`, and several denoise filters. Enhanced user-local tools may expose optional capabilities, but no baseline feature depends on them. Selecting, producing, auditing, signing, and packaging the exact public binary and final encoder contract remains release-engineering work.
+- **FFmpeg:** develop against the pinned LGPL-first profile and [media dependency policy](media-dependencies-and-licensing.md). The current command builder's `libx264` request is not a baseline contract. `--enable-gpl`, `--enable-nonfree`, `libx264`, `libx265`, `libvidstab`, `librubberband`, `eq`, and `hqdn3d` are excluded from the redistributable baseline. Enhanced user-local tools may expose optional capabilities, but no baseline feature depends on them. Selecting, producing, auditing, signing, and packaging the exact public binary and final encoder contract remains release-engineering work.
 - **Optional engines:** stabilization, transcription, interpolation, upscale, segmentation, tracking, and repair require separate code/model/data license, hardware, integrity, privacy, update, and fallback gates. No engine name belongs in project-domain concepts.
 - **Providers and cost:** ordinary local edits never require Ingots. A future media-edit provider is a separate semantic capability family from video generation and retains explicit human authorization for billable execution.
 - **Workspace presentation:** docking, floating windows, monitor/DPI recovery, viewer mode, and layout persistence belong to the App/platform presentation boundary. They project one shared application/editor state and remain outside Core, Application, and `.rfp` project truth.
@@ -490,7 +472,7 @@ ReelForge Free desktop is Feature Complete when:
 2. every item in the 1.0 Free contract is implemented or the owner explicitly amends this contract with documented evidence;
 3. the generate/import → exact reference → edit/finish → preview/export → edit-to-generation/replace loop works in one project without another editor for routine output;
 4. project state, history, media identity, and durable outputs survive save/reopen, cache deletion, cancellation, expected failure, and approved recovery scenarios;
-5. preview and export share creative semantics and meet the approved Gate 0 capability, supported-media, and performance matrix;
+5. preview and export share creative semantics and meet the final media-runtime contract plus the focused production-path acceptance for their implemented features;
 6. Free remains useful offline for local project/edit/export work and supports BYOK without Pro or Ingots;
 7. no account, billing, entitlement, installer, store, updater, managed compute, or macOS requirement is hidden inside desktop feature completion;
 8. automated and manual acceptance pass without automated paid-provider calls; and
@@ -502,17 +484,16 @@ External Beta Ready additionally requires an explicit diagnostic bundle, accepta
 
 Full 1.0.0 is targeted to combine the already-validated Free editor with separately delivered Ingots and an approved first Pro continuity/repair subset. Production Release Ready additionally requires the exact bundled media runtime and license audit, signing, production packaging/installers, CI/CD release pipeline, updates/distribution, support policy, and legal review before public commerce. Those outcomes remain outside Slices A-J.
 
-Gate 0 does not itself certify an H.264 encoder or public FFmpeg distribution. It proves desktop behavior against an approved distribution-realistic LGPL-compatible development profile; release engineering chooses and verifies the exact binaries ReelForge may ship.
+Gate 0 does not certify an H.264 encoder or public FFmpeg distribution. It establishes a practical LGPL-first development baseline; release engineering chooses and verifies the exact binaries ReelForge may ship.
 
-## Evidence and approval gates remaining
+## Product and release decisions remaining
 
-The owner's eight product-direction questions are resolved. These narrower decisions require research or measured evidence rather than another statement of principle:
+The owner's product-direction questions and Gate 0 media baseline are resolved. These later decisions require product-path evidence or release work:
 
-1. **Gate 0 media contract:** approve the exact pinned LGPL-compatible development/CI capability matrix after candidate formats, encoders, filters, fonts, repair engines, patent issues, and performance behavior are demonstrated. The exact bundled runtime still waits for release engineering.
-2. **Measured performance floor:** benchmark representative sources and 1, 2, 4, and 8-track stress cases on the reference machine, then set interaction, preview, export, memory/disk, concurrency, and practical track-count thresholds. Later hardware expands this into a customer minimum.
-3. **First Pro implementation subset:** approve the actual engine/license/quality route and final launch subset for Match to Previous Clip, stabilization, deflicker, denoise, sharpen, and format/loudness matching. A blocked operation is re-scoped explicitly rather than implemented through an incompatible bundled dependency.
-4. **Release naming gate:** confirm whether both the first Pro subset and Ingots are hard requirements for the `1.0.0` label after Free beta, or whether either may follow without renaming the already-complete Free product.
-5. **Beta package mechanism:** the release-engineering roadmap must choose the reproducible friends/family and creator-test package/preliminary installer. This choice does not pull the final signing, update, store, or production-distribution system into desktop feature slices.
+1. **Measured production-path performance:** benchmark representative sources and track/effect shapes as the renderer, proxy system, and UI integration land; set customer-facing floors only after those paths exist.
+2. **First Pro implementation subset:** approve the actual engine/license/quality route and launch subset for Match to Previous Clip, stabilization, deflicker, denoise, sharpen, and format/loudness matching. A blocked operation is narrowed or deferred rather than implemented through an incompatible bundled dependency.
+3. **Release naming gate:** confirm whether both the first Pro subset and Ingots are hard requirements for the `1.0.0` label after Free beta, or whether either may follow without renaming the already-complete Free product.
+4. **Beta and production packaging:** release engineering chooses the reproducible beta package, exact audited media runtime, signing, installers, updates, and distribution path.
 
 ## Research basis
 

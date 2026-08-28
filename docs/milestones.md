@@ -392,7 +392,22 @@ The [manual regression acceptance matrix](manual-acceptance.md) is the active hu
 
 ## Post-Milestone 3 desktop 1.0 product definition
 
-The accepted [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) audits the current product, defines the minimum complete Free workflow, stages the intended Pro continuity/repair value, and sequences missing desktop capabilities by dependency. The owner-approved [Gate 0 media capability charter](gate-0-media-capability-charter.md) governs the first media decision-and-proof phase. G0.1/G0.2 are complete, [Checkpoint A](gate-0-checkpoint-a.md) is approved with amendments, and the current [G0.3 executable proof](gate-0-g0.3-executable-proof.md) produced 13 automated passes against the exact P2 LGPLv3-path proof candidate plus a narrow optional W1 wrapper result. The owner-approved basic-color and Unicode text mappings have passed. The owner approved the four [G0.4 Free media and delivery decisions](gate-0-g0.4-owner-decisions.md), and the resulting [G0.4 executable delivery proof](gate-0-g0.4-executable-proof.md) passed eleven portable output routes plus two optional W1 variants. The [independent-playback checkpoint](gate-0-independent-playback-checkpoint.md) now retains partial executable results: both WebM routes passed native Chromium controls, both long MP4 corpus routes were rejected rather than timestamp-repaired, and optional WMP Legacy could not open the available WebM routes on the reference host. The default remains unfinalized. The owner approved all four [G0.4 common-input proof decisions](gate-0-g0.4-input-owner-decisions.md); the corrected [common-input proof](gate-0-g0.4-input-proof-results.md) executed all 256 rows, and the retained [P3 JPEG follow-up](gate-0-g0.4-p3-jpeg-results.md) resolved its two blocked rows for a current aggregate of 173 passes and 83 failures without substitution. The bounded F7 correction is blocked, which also blocks the six-family direct-Matroska pilot. OpenH264's no-frame-skip bitrate warning remains a G0.5 quality-policy finding; a separately backed-up artifact copy, remaining playback rows, and G0.5 long-form/resource evidence remain open. Gate 0 cannot exit before its retained gates are completed or explicitly dispositioned. Its implementation slices remain deliberately unnumbered until Gate 0 and measured evidence resolve the exact media, engine, performance, and release contracts. Free desktop work, Pro features, Ingots/backend, beta packaging, production release engineering, distribution, and macOS remain separate roadmap workstreams even where a named release depends on several of them.
+The accepted [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) audits the current product, defines the minimum complete Free workflow, stages the intended Pro continuity/repair value, and sequences missing desktop capabilities by dependency.
+
+Gate 0 is closed. Its maintainable outputs are the [media runtime contract](media-runtime-contract.md), [dependency/licensing inventory](media-dependencies-and-licensing.md), [final summary](gate-0-final-summary.md), and the small `eng/media-runtime` profile/validator/smoke suite. Feature work now follows the LGPL-first route order and adds focused product-path tests as each renderer, effect, text, proxy, or delivery mapping is implemented. The exact public runtime, release-candidate performance/playback qualification, legal review, signing, packaging, and distribution remain release-engineering work.
+
+Recommended desktop implementation order remains dependency-driven rather than compressed into one oversized milestone:
+
+1. project recovery/relink plus the final pre-beta track/time/persistence correction;
+2. structural multitrack editing, snapping/markers, and session undo/redo;
+3. deterministic track-aware rendering, preview profiles, proxy behavior, and ordinary Free conversion/export against the media contract;
+4. constant visual properties, practical audio finishing, waveform/range editing, and a restrained transition set;
+5. titles, manual captions, SRT workflows, and the pinned Unicode/font path;
+6. dockable/floating workspace surfaces and the Source/Edit/Rendered viewer contexts;
+7. exact edit-to-generation/range-reference/replace workflows;
+8. diagnostics, accessibility, acceptance, and measured production-path performance hardening.
+
+The first Pro continuity/repair bundle, Ingots/backend, beta packaging, production release engineering, distribution, and macOS remain separate workstreams even where a named release depends on several of them.
 
 ## Unscheduled Project Media bulk operations
 

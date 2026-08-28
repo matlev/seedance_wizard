@@ -80,8 +80,8 @@ public sealed record MediaRuntimeProfile(
 public sealed record MediaRuntimeValidationIssue(string Code, string Message);
 
 /// <summary>
-/// A profile match is operational identity/component evidence only. Executed semantic media
-/// proofs are recorded by the separate Gate 0 proof matrix, not by this assessment.
+/// A profile match is operational identity/component evidence only. Representative product or
+/// engineering smoke tests establish semantic behavior separately from this assessment.
 /// </summary>
 public sealed record MediaRuntimeProfileAssessment(
     string ProfileId,
