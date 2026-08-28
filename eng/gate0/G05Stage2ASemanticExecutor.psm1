@@ -10,6 +10,18 @@ function Get-G05Stage2ASemanticProperty([object] $Value, [string] $Name, $Defaul
     $property.Value
 }
 
+function Get-G05Stage2ASemanticExecutorSha256([string] $Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Required file is missing: $Path" }
+    (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+}
+
+function Assert-G05Stage2ASemanticExecutorExactProperties([object] $Value, [string[]] $Expected, [string] $Label) {
+    if ($null -eq $Value) { throw "$Label is missing." }
+    $actual = @($Value.PSObject.Properties.Name | Sort-Object)
+    $wanted = @($Expected | Sort-Object)
+    if (@(Compare-Object -ReferenceObject $wanted -DifferenceObject $actual).Count -ne 0) { throw "$Label does not match its closed schema." }
+}
+
 function Write-G05Stage2ASemanticJson([string] $Path, [object] $Value) {
     $partial = "$Path.partial"
     if (Test-Path -LiteralPath $Path -PathType Leaf) { throw 'Stage 2A semantic evidence is immutable and already exists.' }
@@ -26,14 +38,14 @@ function Write-G05Stage2ASemanticJson([string] $Path, [object] $Value) {
 function Read-G05Stage2ARetentionContract([string] $Path) {
     $value = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -Depth 16
     $expected = @('schemaVersion','contractId','status','evidenceBoundary','cellCount','attemptsPerCell','measuredAttemptsPerCell','ordinaryClosureBytes','compactPassingRepeatMaximumBytes','exceptionalClosureBytes','compactPassingRepeatsPerCell','requiredReservationPerCellBytes','stage2ARetentionCeilingBytes','reservationRule','ordinaryRule','compactRule','exceptionalRule','limitations')
-    Assert-G05Stage2AExactProperties $value $expected 'Stage 2A retention contract'
+    Assert-G05Stage2ASemanticExecutorExactProperties $value $expected 'Stage 2A retention contract'
     if ($value.schemaVersion -ne 1 -or $value.contractId -ne 'Gate0.G05.Stage2A.Retention.V1' -or $value.status -ne 'owner-approved-projection-frozen-for-executor-review' -or
         $value.evidenceBoundary -ne 'p2-runtime-route' -or [int]$value.cellCount -ne 18 -or [int]$value.attemptsPerCell -ne 6 -or [int]$value.measuredAttemptsPerCell -ne 5 -or
         [int64]$value.ordinaryClosureBytes -ne 18784084 -or [int64]$value.compactPassingRepeatMaximumBytes -ne 262144 -or [int64]$value.exceptionalClosureBytes -ne 18784084 -or
         [int]$value.compactPassingRepeatsPerCell -ne 5 -or [int64]$value.requiredReservationPerCellBytes -ne 38878888 -or [int64]$value.stage2ARetentionCeilingBytes -ne 805306368) {
         throw 'Stage 2A retention contract differs from the approved fixed projection.'
     }
-    [pscustomobject]@{ Contract=$value; Sha256=(Get-G05Stage2ASha256 $Path) }
+    [pscustomobject]@{ Contract=$value; Sha256=(Get-G05Stage2ASemanticExecutorSha256 $Path) }
 }
 
 function Get-G05Stage2ACellRows([object] $Schedule, [object] $WorkloadContract, [string] $CellId) {
@@ -135,7 +147,7 @@ function ConvertTo-G05Stage2ARetainedAttemptBindings([object[]] $Bindings, [stri
 
 function Assert-G05Stage2ACompactBinding([object] $Binding, [string] $SourceRoot, [int64] $MaximumBytes) {
     $required = @('attemptId','phase','ordinal','retentionClass','recordPath','recordSha256','disposition','completeClosureReference')
-    Assert-G05Stage2AExactProperties $Binding $required 'Stage 2A compact attempt binding'
+    Assert-G05Stage2ASemanticExecutorExactProperties $Binding $required 'Stage 2A compact attempt binding'
     if ($Binding.retentionClass -ne 'compact' -or $Binding.disposition -ne 'passed' -or [string]::IsNullOrWhiteSpace($Binding.completeClosureReference)) { throw 'A compact Stage 2A record lacks its passed disposition or complete closure reference.' }
     $relative = [string]$Binding.recordPath
     if ([IO.Path]::IsPathRooted($relative) -or $relative.Contains('\') -or $relative -match '(^|/)\.\.(/|$)') { throw 'A compact Stage 2A record path is not portable and contained.' }

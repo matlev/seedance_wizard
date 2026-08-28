@@ -74,6 +74,40 @@ public sealed class Gate0G05Stage2AContinuationRunnerTests
     }
 
     [Fact]
+    public void PostBootstrapImportsKeepTheSemanticExecutorIndependentOfMatrixHelpers()
+    {
+        var contract = PathInRepo("eng", "gate0", "g0.5-stage2a-retention-contract.json");
+        var command = $@"
+$ErrorActionPreference = 'Stop'
+$before = @(Get-Process -Name ffmpeg,ffprobe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+Import-Module '{Escape(PathInRepo("eng", "gate0", "G05Stage2AContinuationHelpers.psm1"))}' -Force
+Import-Module '{Escape(PathInRepo("eng", "gate0", "G05Stage2SmokeHelpers.psm1"))}' -Force
+Import-Module '{Escape(PathInRepo("eng", "gate0", "G05Stage2ASemanticHelpers.psm1"))}' -Force
+Import-Module '{Escape(PathInRepo("eng", "gate0", "G05Stage2ASemanticExecutor.psm1"))}' -Force
+Import-Module '{Escape(PathInRepo("eng", "gate0", "G05Stage2AV5AudioOracle.psm1"))}' -Force
+Import-Module '{Escape(PathInRepo("eng", "gate0", "G05Stage2AV5FreezeValidation.psm1"))}' -Force
+Import-Module '{Escape(PathInRepo("eng", "gate0", "G05MarkerSurvivabilityHelpers.psm1"))}' -Force
+$result = Read-G05Stage2ARetentionContract '{Escape(contract)}'
+$after = @(Get-Process -Name ffmpeg,ffprobe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+[pscustomobject]@{{
+    matrixHelpersLoaded = @((Get-Module | Where-Object {{ $_.Path -like '*G05Stage2AMatrixHelpers.psm1' }})).Count -gt 0
+    contractId = [string]$result.Contract.contractId
+    contractSha256 = [string]$result.Sha256
+    newMediaProcessIds = @($after | Where-Object {{ $_ -notin $before }})
+}} | ConvertTo-Json -Compress
+";
+
+        var result = RunPwsh(command);
+        Assert.True(result.ExitCode == 0, result.Output);
+        using var json = JsonDocument.Parse(result.Output);
+        var root = json.RootElement;
+        Assert.False(root.GetProperty("matrixHelpersLoaded").GetBoolean());
+        Assert.Equal("Gate0.G05.Stage2A.Retention.V1", root.GetProperty("contractId").GetString());
+        Assert.Equal("4E27689ECF0ACE0996C682D2F42B43E7D12A184F46EEFD8605A46EC687270E98", root.GetProperty("contractSha256").GetString());
+        Assert.Empty(root.GetProperty("newMediaProcessIds").EnumerateArray());
+    }
+
+    [Fact]
     public void RunnerKeepsBootstrapAndEvidenceContainmentFailClosed()
     {
         var source = File.ReadAllText(PathInRepo("eng", "gate0", "Invoke-G05Stage2AContinuation.ps1"));

@@ -194,11 +194,14 @@ public sealed class Gate0G05Stage2AMatrixTests
             var role = binding.GetProperty("role").GetString()!;
             var path = PathInRepo(binding.GetProperty("path").GetString()!.Split('/'));
             var authorizedHash = binding.GetProperty("sha256").GetString();
-            if (role is "smoke-helper" or "legacy-retention-validator")
+            if (role is "smoke-helper" or "legacy-retention-validator" or "semantic-executor")
             {
-                var historicalHash = role == "smoke-helper"
-                    ? "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4"
-                    : "97DCFA4BB91C0EA8A009F5E4F1DE0ABEDD28E4B41AFB10C48C18CC2C086C8D98";
+                var historicalHash = role switch
+                {
+                    "smoke-helper" => "13763E718E35F5794C39835B46F69EF3EAF0ECE4C7C1B562B956DBCBED48E8E4",
+                    "legacy-retention-validator" => "97DCFA4BB91C0EA8A009F5E4F1DE0ABEDD28E4B41AFB10C48C18CC2C086C8D98",
+                    _ => "E7D20517480E3100F0B73EB7598C1D1D045F5E6CCCDDCE64A63C7FC4325FD614",
+                };
                 Assert.Equal(historicalHash, authorizedHash);
                 Assert.NotEqual(authorizedHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))));
                 continue;
