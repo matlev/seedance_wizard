@@ -15,9 +15,6 @@ internal static class AssetInvariantValidator
 
         foreach (var asset in project.Assets)
         {
-            if (asset.IsDeleted && asset.StorageKind != AssetStorageKind.Physical)
-                errors.Add($"Deleted asset '{asset.Id}' must retain physical storage metadata.");
-
             if (asset.StorageKind == AssetStorageKind.Physical)
             {
                 if (asset.Physical is null || asset.Virtual is not null)

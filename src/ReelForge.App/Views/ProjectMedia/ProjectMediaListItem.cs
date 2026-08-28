@@ -1,20 +1,24 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows.Media.Imaging;
 using ReelForge.Core;
 
 namespace ReelForge.App.Views.ProjectMedia;
 
-public sealed class ProjectMediaListItem
+public sealed class ProjectMediaListItem : INotifyPropertyChanged
 {
-    public ProjectMediaListItem(ProjectAsset asset, bool canRestoreDeletedSource = false)
+    public ProjectMediaListItem(ProjectAsset asset, bool canRestoreDeletedSource = false, bool isDegraded = false)
     {
         Asset = asset;
         CanRestoreDeletedSource = canRestoreDeletedSource;
+        IsDegradedDerivedAsset = isDegraded;
     }
 
-    public ProjectMediaListItem(FrameAnchor anchor, FrameAnchorRevision revision)
+    public ProjectMediaListItem(FrameAnchor anchor, FrameAnchorRevision revision, bool isDegraded = false)
     {
         Anchor = anchor;
         AnchorRevision = revision;
+        IsDegradedDerivedAsset = isDegraded;
     }
 
     public ProjectAsset? Asset { get; }
@@ -26,11 +30,24 @@ public sealed class ProjectMediaListItem
         StorageKind: AssetStorageKind.Physical,
         Physical.Availability: PhysicalAssetAvailability.Missing
     };
+    /// <summary>True for active derived media whose exact pinned dependencies can no longer be materialized.</summary>
+    public bool IsDegradedDerivedAsset { get; private set; }
+
+    public void UpdateDegradedState(bool isDegradedDerivedAsset)
+    {
+        if (IsDegradedDerivedAsset == isDegradedDerivedAsset) return;
+        IsDegradedDerivedAsset = isDegradedDerivedAsset;
+        OnPropertyChanged(nameof(IsDegradedDerivedAsset));
+        OnPropertyChanged(nameof(Glyph));
+        OnPropertyChanged(nameof(GlyphToolTip));
+    }
     /// <summary>True only for an active verified physical asset that matches a deleted source identity.</summary>
     public bool CanRestoreDeletedSource { get; }
     public string? GlyphToolTip => IsMissingPhysicalAsset
         ? "Source media is missing. Right-click and choose Relink source…"
-        : null;
+        : IsDegradedDerivedAsset
+            ? "This media depends on unavailable project media. Cleanup Project will delete it."
+            : null;
     public string DisplayName => Anchor?.DisplayLabel ??
                                  (Asset!.StorageKind == AssetStorageKind.Physical
                                      ? Asset.FileName
@@ -57,7 +74,7 @@ public sealed class ProjectMediaListItem
         "COMPOSITIONS" => 5,
         _ => 6
     };
-    public string Glyph => IsMissingPhysicalAsset ? "⚠" : Anchor is not null ? "▣" : Asset!.StorageKind == AssetStorageKind.Virtual
+    public string Glyph => IsMissingPhysicalAsset || IsDegradedDerivedAsset ? "⚠" : Anchor is not null ? "▣" : Asset!.StorageKind == AssetStorageKind.Virtual
         ? IsComposition ? "▤" : "✂"
         : Asset.MediaType switch
         {
@@ -69,4 +86,9 @@ public sealed class ProjectMediaListItem
 
     private bool IsSavedClip => Asset?.Virtual?.Kind == VirtualAssetKind.SavedClip;
     private bool IsComposition => Asset?.Virtual?.Kind == VirtualAssetKind.Composition;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

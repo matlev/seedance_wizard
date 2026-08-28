@@ -153,6 +153,7 @@
                         <Style TargetType="TreeViewItem" BasedOn="{StaticResource SettingsTreeItemStyle}" />
                     </TreeView.Resources>
                     <TreeViewItem x:Name="GeneralCategory" Header="General" Tag="General" />
+                    <TreeViewItem x:Name="ProjectCategory" Header="Project" Tag="Project" />
                     <TreeViewItem Header="Media Tools" Tag="Media Tools" />
                     <TreeViewItem Header="Temporary Asset Hosting" IsExpanded="True" FontWeight="SemiBold">
                         <TreeViewItem Header="Cloudflare R2" Tag="Temporary Asset Hosting / Cloudflare R2"

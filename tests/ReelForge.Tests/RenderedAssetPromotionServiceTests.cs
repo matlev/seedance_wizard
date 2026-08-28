@@ -97,6 +97,77 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportUsesExactMaterializationBeforeConsideringCachedRepresentation()
+    {
+        var (workspace, composition, revision, renderedPath) = await CreateCompositionAsync();
+        var materializer = new FailingOrCachedMaterializer(renderedPath, failExactMaterialization: false);
+        var service = new RenderedAssetPromotionService(
+            workspace,
+            materializer,
+            new Sha256ContentHashService(),
+            new StubInspector());
+        var destination = Path.Combine(_root, "delivery", "exact.mp4");
+
+        await service.ExportAsync(composition.Id, revision.Id, destination);
+
+        Assert.Equal(1, materializer.MaterializeCallCount);
+        Assert.Equal(0, materializer.OpenCachedCallCount);
+        Assert.Equal(await File.ReadAllBytesAsync(renderedPath), await File.ReadAllBytesAsync(destination));
+    }
+
+    [Fact]
+    public async Task DegradedExportCopiesIndexedCachedRepresentationWithoutMutatingProjectOrCache()
+    {
+        var (workspace, composition, revision, _) = await CreateCompositionAsync();
+        var source = workspace.Project!.Assets.Single(asset => asset.StorageKind == AssetStorageKind.Physical);
+        source.IsDeleted = true;
+        source.Physical!.Availability = PhysicalAssetAvailability.Missing;
+        var cachePath = Path.Combine(_root, "cache", "rescued.mp4");
+        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+        await File.WriteAllBytesAsync(cachePath, [7, 8, 9]);
+        var originalTimestamp = File.GetLastWriteTimeUtc(cachePath);
+        var originalAssetCount = workspace.Project.Assets.Count;
+        var materializer = new FailingOrCachedMaterializer(cachePath, failExactMaterialization: true);
+        var service = new RenderedAssetPromotionService(
+            workspace,
+            materializer,
+            new Sha256ContentHashService(),
+            new StubInspector());
+        var destination = Path.Combine(_root, "delivery", "rescued.mp4");
+
+        await service.ExportAsync(composition.Id, revision.Id, destination);
+
+        Assert.Equal([7, 8, 9], await File.ReadAllBytesAsync(destination));
+        Assert.Equal(1, materializer.MaterializeCallCount);
+        Assert.Equal(1, materializer.OpenCachedCallCount);
+        Assert.Equal(originalAssetCount, workspace.Project.Assets.Count);
+        Assert.Equal(originalTimestamp, File.GetLastWriteTimeUtc(cachePath));
+    }
+
+    [Fact]
+    public async Task DegradedExportPreservesExactFailureWhenCachedRepresentationIsStale()
+    {
+        var (workspace, composition, revision, _) = await CreateCompositionAsync();
+        var source = workspace.Project!.Assets.Single(asset => asset.StorageKind == AssetStorageKind.Physical);
+        source.IsDeleted = true;
+        source.Physical!.Availability = PhysicalAssetAvailability.Missing;
+        var materializer = new FailingOrCachedMaterializer(null, failExactMaterialization: true);
+        var service = new RenderedAssetPromotionService(
+            workspace,
+            materializer,
+            new Sha256ContentHashService(),
+            new StubInspector());
+        var destination = Path.Combine(_root, "delivery", "stale.mp4");
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ExportAsync(composition.Id, revision.Id, destination));
+
+        Assert.Equal("Exact materialization failed.", failure.Message);
+        Assert.Equal(1, materializer.OpenCachedCallCount);
+        Assert.False(File.Exists(destination));
+    }
+
+    [Fact]
     public async Task ExportCancellationReachesMaterializerAndLeavesNoDestination()
     {
         var (workspace, composition, revision, _) = await CreateCompositionAsync();
@@ -232,6 +303,49 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
             Started.TrySetResult();
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("The blocking materializer should only finish through cancellation.");
+        }
+    }
+
+    private sealed class FailingOrCachedMaterializer(string? cachedPath, bool failExactMaterialization)
+        : IMediaMaterializer, IProjectMediaCacheLeaseSource
+    {
+        public int MaterializeCallCount { get; private set; }
+        public int OpenCachedCallCount { get; private set; }
+
+        public Task<MaterializedMediaLease> MaterializeAsync(
+            VideoProject project,
+            ProjectLocation location,
+            MaterializationRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            MaterializeCallCount++;
+            if (failExactMaterialization) throw new InvalidOperationException("Exact materialization failed.");
+            return Task.FromResult(new MaterializedMediaLease(
+                cachedPath!,
+                new ContentIdentity { Sha256 = new string('b', 64), Status = ContentHashStatus.Verified },
+                null,
+                isDurableSource: false));
+        }
+
+        public Task<bool> HasCachedRepresentationAsync(
+            VideoProject project,
+            MaterializationTarget target,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(cachedPath is not null && File.Exists(cachedPath));
+
+        public Task<MaterializedMediaLease?> OpenCachedRepresentationAsync(
+            VideoProject project,
+            MaterializationTarget target,
+            CancellationToken cancellationToken = default)
+        {
+            OpenCachedCallCount++;
+            if (cachedPath is null || !File.Exists(cachedPath))
+                return Task.FromResult<MaterializedMediaLease?>(null);
+            return Task.FromResult<MaterializedMediaLease?>(new MaterializedMediaLease(
+                cachedPath,
+                new ContentIdentity { Sha256 = new string('b', 64), Status = ContentHashStatus.Verified },
+                null,
+                isDurableSource: false));
         }
     }
 

@@ -3,6 +3,7 @@ using ReelForge.App.Views.ProjectMedia;
 using ReelForge.App.Views.Projects;
 using ReelForge.Application;
 using ReelForge.Core;
+using ReelForge.Infrastructure;
 
 namespace ReelForge.App.Tests;
 
@@ -178,6 +179,49 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task OpenProjectFromDialogAsync_ReconcilesMissingSourcesBeforeProjectMediaRefresh()
+    {
+        var projectPath = CreateProjectFile("missing-source.rfp");
+        var source = new ProjectAsset
+        {
+            FileName = "missing.mp4",
+            DisplayName = "missing.mp4",
+            MediaType = MediaType.Video,
+            Physical = new PhysicalAssetStorage
+            {
+                RelativePath = "assets/videos/missing.mp4",
+                Availability = PhysicalAssetAvailability.Available
+            }
+        };
+        var clip = new ProjectAsset
+        {
+            FileName = "Broken clip",
+            DisplayName = "Broken clip",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.SavedClip }
+        };
+        var project = new VideoProject { Name = "Missing source", Assets = [source, clip] };
+        project.CommitRecipe(clip.Id, new TrimRecipe
+        {
+            Source = new AssetRevisionReference { AssetId = source.Id },
+            Start = RecipeBoundary.SourceStart,
+            End = RecipeBoundary.SourceEnd
+        });
+        var fixture = CreateFixture();
+        fixture.Dialogs.ProjectFilePath = projectPath;
+        fixture.Store.ProjectToOpen = project;
+
+        await fixture.Coordinator.OpenProjectFromDialogAsync();
+
+        Assert.Equal(PhysicalAssetAvailability.Missing, source.Physical!.Availability);
+        Assert.True(new ProjectDegradationAnalyzer().Analyze(project).IsDegradedAsset(clip.Id));
+        Assert.Equal(1, fixture.Store.SaveCount);
+        Assert.Equal(1, fixture.Host.RefreshCount);
+    }
+
+    [Fact]
     public async Task OpenProjectFromDialogAsync_WhenRememberingFails_LeavesOpenedProjectAndReportsNonFatalStatus()
     {
         var projectPath = CreateProjectFile("chosen.rfp");
@@ -296,6 +340,7 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
                 dialogs,
                 settingsStore,
                 () => settings,
+                new PhysicalAssetSelectionPreparationService(workspace, new FakeInspector()),
                 host));
     }
 
@@ -353,6 +398,7 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
         public ProjectLocation? CreatedLocation { get; set; }
         public Exception? OpenException { get; set; }
         public Guid OpenedProjectId { get; } = Guid.NewGuid();
+        public VideoProject? ProjectToOpen { get; set; }
         public int SaveCount { get; private set; }
 
         public Task<(VideoProject Project, ProjectLocation Location)> CreateAsync(string rootDirectory, string name, CancellationToken cancellationToken = default)
@@ -366,7 +412,7 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
         {
             OpenedPaths.Add(projectFilePath);
             return OpenException is null
-                ? Task.FromResult((new VideoProject { Id = OpenedProjectId, Name = Path.GetFileNameWithoutExtension(projectFilePath) }, new ProjectLocation(Path.GetDirectoryName(projectFilePath)!, projectFilePath)))
+                ? Task.FromResult((ProjectToOpen ?? new VideoProject { Id = OpenedProjectId, Name = Path.GetFileNameWithoutExtension(projectFilePath) }, new ProjectLocation(Path.GetDirectoryName(projectFilePath)!, projectFilePath)))
                 : Task.FromException<(VideoProject Project, ProjectLocation Location)>(OpenException);
         }
 
@@ -375,6 +421,14 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
             SaveCount++;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeInspector : IMediaInspectionService
+    {
+        public Task<MediaEncodingMetadata> InspectAsync(
+            string mediaPath,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Availability reconciliation must not inspect media encoding.");
     }
 
     private sealed class FakeRecoveryStore : IProjectRecoveryStore

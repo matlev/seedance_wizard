@@ -38,6 +38,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly PhysicalAssetSelectionPreparationService _physicalAssetSelectionPreparationService;
     private readonly ExactVideoFrameService _exactFrameService;
     private readonly RecipeMediaMaterializer _mediaMaterializer;
+    private readonly IProjectMediaCacheProbe _projectMediaCacheProbe;
     private readonly FfmpegAudioExtractionEngine _audioExtractionEngine;
     private readonly ISecretStore _secretStore;
     private readonly FileApplicationDiagnosticLog _diagnosticLog;
@@ -75,15 +76,18 @@ public partial class MainWindow : Window, IDisposable
         _mediaInspector = _runtime.MediaInspector;
         _exactFrameService = _runtime.ExactFrameService;
         _mediaMaterializer = _runtime.MediaMaterializer;
+        _projectMediaCacheProbe = _runtime.MediaMaterializer;
         _audioExtractionEngine = _runtime.AudioExtractionEngine;
         _projectStore = _runtime.ProjectStore;
         _workspace = _runtime.Workspace;
+        _physicalAssetSelectionPreparationService = new PhysicalAssetSelectionPreparationService(_workspace, _mediaInspector);
         _projectLifecycleCoordinator = new ProjectLifecycleCoordinator(
             _workspace,
             _runtime.RecentProjectTracker,
             _projectDialogs,
             _applicationSettingsStore,
             () => _applicationSettings,
+            _physicalAssetSelectionPreparationService,
             new ProjectLifecyclePresentation(this));
         _projectCloneCoordinator = new ProjectCloneCoordinator(
             this,
@@ -109,7 +113,6 @@ public partial class MainWindow : Window, IDisposable
         _mediaImportCoordinator = new MediaImportCoordinator(
             _projectMediaOperationsCoordinator,
             new MediaImportPresentation(this));
-        _physicalAssetSelectionPreparationService = new PhysicalAssetSelectionPreparationService(_workspace, _mediaInspector);
         _mediaPreviewCoordinator = new MediaPreviewCoordinator(
             _workspace, _mediaMaterializer, _exactFrameService, MediaPreviewPanelControl,
             CompositionTimelineControl, new MediaPreviewCoordinatorHost(this));
@@ -287,7 +290,16 @@ public partial class MainWindow : Window, IDisposable
             _secretStore,
             _mediaToolDiscovery,
             _temporaryAssetHost,
-            _diagnosticLog)
+            _diagnosticLog,
+            new ProjectSettingsActions(
+                new ProjectSettingsActionsHost(this),
+                _workspace,
+                _runtime.ProjectRelocationService,
+                _runtime.ProjectCleanupService,
+                _physicalAssetSelectionPreparationService,
+                _runtime.RecentProjectTracker,
+                () => _applicationSettings,
+                _jobCoordinator.GetSnapshot))
         {
             Owner = this
         };
@@ -303,7 +315,8 @@ public partial class MainWindow : Window, IDisposable
         {
             _generationWorkspace.LoadDraft(activeDraft);
         }
-        StatusText.Text = "Application settings and provider availability applied.";
+        if (!window.ProjectActionExecuted)
+            StatusText.Text = "Application settings and provider availability applied.";
     }
 
     private void GenerationWorkspace_ReferenceSelectionRequested(
@@ -480,7 +493,7 @@ public partial class MainWindow : Window, IDisposable
                     !selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem))
                     return;
 
-                ProjectMediaPanelControl.RefreshItems();
+                RefreshProjectMediaDegradationIndicators();
 
                 if (resolution.Kind is PhysicalAssetSelectionPreparationKind.Missing or
                     PhysicalAssetSelectionPreparationKind.Inaccessible or
@@ -700,6 +713,25 @@ public partial class MainWindow : Window, IDisposable
         if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
         var item = selection.Item;
         if (item.Anchor is not { } anchor || item.AnchorRevision is not { } revision) return;
+        var hasCachedRepresentation = item.IsDegradedDerivedAsset && await TryProbeCachedRepresentationAsync(
+            selection.Project,
+            new AnchorMaterializationTarget(anchor.Id, revision.Id),
+            selection.CancellationToken).ConfigureAwait(true);
+        if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
+        if (item.IsDegradedDerivedAsset)
+        {
+            const string detail = "The source media required by this Saved Frame is unavailable.";
+            _mediaPreviewCoordinator.Clear();
+            MediaPreviewPanelControl.ShowPlaceholder(BuildUnavailablePreviewMessage(
+                "Saved Frame",
+                new InvalidOperationException(detail),
+                isDegraded: true,
+                hasCachedRepresentation));
+            InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
+                new SavedFrameListItem(anchor, revision, thumbnail: null, detail));
+            StatusText.Text = $"Could not display {item.DisplayName}.";
+            return;
+        }
 
         await RunProjectMediaSelectionActionAsync(selection, $"Loading {item.DisplayName}…", async cancellationToken =>
         {
@@ -735,7 +767,11 @@ public partial class MainWindow : Window, IDisposable
             {
                 if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
                 _mediaPreviewCoordinator.Clear();
-                MediaPreviewPanelControl.ShowPlaceholder($"Saved Frame preview unavailable\n\n{exception.Message}");
+                MediaPreviewPanelControl.ShowPlaceholder(BuildUnavailablePreviewMessage(
+                    "Saved Frame",
+                    exception,
+                    item.IsDegradedDerivedAsset,
+                    hasCachedRepresentation));
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
                     new SavedFrameListItem(anchor, revision, thumbnail: null, exception.Message));
                 StatusText.Text = $"Could not display {item.DisplayName}.";
@@ -850,7 +886,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
         var selectedItem = selection.Item;
-        if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
+        if (asset.Virtual?.Kind == VirtualAssetKind.Composition && !selectedItem.IsDegradedDerivedAsset)
         {
             InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
             var revision = selection.Project.RecipeRevisions.Single(candidate => candidate.Id == asset.Virtual.CurrentRecipeRevisionId);
@@ -872,6 +908,24 @@ public partial class MainWindow : Window, IDisposable
         var kindName = asset.Virtual?.Kind == VirtualAssetKind.Composition
             ? "Working Composition"
             : "Saved Clip";
+        var hasCachedRepresentation = selectedItem.IsDegradedDerivedAsset && await TryProbeCachedRepresentationAsync(
+            selection.Project,
+            new AssetMaterializationTarget(asset.Id, asset.Virtual?.CurrentRecipeRevisionId),
+            selection.CancellationToken).ConfigureAwait(true);
+        if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
+        if (selectedItem.IsDegradedDerivedAsset)
+        {
+            const string detail = "The source media required by this item is unavailable.";
+            InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
+            _mediaPreviewCoordinator.Clear();
+            MediaPreviewPanelControl.ShowPlaceholder(BuildUnavailablePreviewMessage(
+                kindName,
+                new InvalidOperationException(detail),
+                isDegraded: true,
+                hasCachedRepresentation));
+            StatusText.Text = $"Could not prepare {asset.EffectiveDisplayName}.";
+            return;
+        }
         await RunProjectMediaSelectionActionAsync(selection, $"Preparing {asset.EffectiveDisplayName}…", async cancellationToken =>
         {
             MaterializedMediaLease? lease = null;
@@ -907,7 +961,11 @@ public partial class MainWindow : Window, IDisposable
             {
                 if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
                 _mediaPreviewCoordinator.Clear();
-                MediaPreviewPanelControl.ShowPlaceholder($"{kindName} preview unavailable\n\n{exception.Message}");
+                MediaPreviewPanelControl.ShowPlaceholder(BuildUnavailablePreviewMessage(
+                    kindName,
+                    exception,
+                    selectedItem.IsDegradedDerivedAsset,
+                    hasCachedRepresentation));
                 StatusText.Text = $"Could not prepare {asset.EffectiveDisplayName}.";
             }
             finally
@@ -915,6 +973,41 @@ public partial class MainWindow : Window, IDisposable
                 if (lease is not null) await lease.DisposeAsync();
             }
         });
+    }
+
+    private static string BuildUnavailablePreviewMessage(
+        string kindName,
+        Exception exception,
+        bool isDegraded,
+        bool hasCachedRepresentation)
+    {
+        var message = $"{kindName} preview unavailable\n\n{exception.Message}";
+        if (!isDegraded) return message;
+
+        if (hasCachedRepresentation)
+            message += "\n\nThis media can be exported as a permanent asset if you wish to save it.";
+        return message + "\n\nThis media will be deleted by a Cleanup Project action.";
+    }
+
+    private async Task<bool> TryProbeCachedRepresentationAsync(
+        VideoProject project,
+        MaterializationTarget target,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _projectMediaCacheProbe.HasCachedRepresentationAsync(project, target, cancellationToken)
+                .ConfigureAwait(true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch
+        {
+            // Cache is advisory. A probe failure must never hide the primary degraded-media guidance.
+            return false;
+        }
     }
 
     private void ResetFrameWorkspace()
@@ -1108,7 +1201,8 @@ public partial class MainWindow : Window, IDisposable
             _workspace.Project,
             _workspace.GetAbsoluteAssetPath,
             LoadBitmap,
-            _referenceChoices);
+            _referenceChoices,
+            _runtime.ProjectDegradationAnalyzer.Analyze(_workspace.Project));
         _assets.Clear();
         _referenceChoices.Clear();
 
@@ -1197,6 +1291,34 @@ public partial class MainWindow : Window, IDisposable
         StatusText.Text = exception.Message;
         InspectorPanelControl.Text = $"{title}\n\n{exception}";
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private void RefreshProjectMediaDegradationIndicators()
+    {
+        if (_workspace.Project is null) return;
+        var degradation = _runtime.ProjectDegradationAnalyzer.Analyze(_workspace.Project);
+        foreach (var item in _assets)
+        {
+            item.UpdateDegradedState(item.Anchor is { } anchor
+                ? degradation.IsDegradedAnchor(anchor.Id)
+                : item.Asset is { } asset && degradation.IsDegradedAsset(asset.Id));
+        }
+        ProjectMediaPanelControl.RefreshItems();
+    }
+
+    private sealed class ProjectSettingsActionsHost(MainWindow window) : IProjectSettingsActionsHost
+    {
+        public void SetProjectActionsEnabled(bool isEnabled) => window.SetProjectActionsEnabled(isEnabled);
+
+        public void RefreshProjectUi() => window.RefreshProjectUi();
+
+        public void ClearProjectMediaSelectionAndPreview() => window.ClearProjectMediaSelectionAndPreview();
+
+        public void ResetFrameWorkspace() => window.ResetFrameWorkspace();
+
+        public void RefreshProjectCollections() => window.RefreshProjectCollections();
+
+        public void SetStatus(string status) => window.StatusText.Text = status;
     }
 
     private sealed class ProjectLifecyclePresentation(MainWindow window) : IProjectLifecycleCoordinatorHost

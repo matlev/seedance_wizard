@@ -17,6 +17,7 @@ internal sealed class ProjectLifecycleCoordinator
     private readonly IProjectLifecycleDialogs _dialogs;
     private readonly IApplicationSettingsStore _settingsStore;
     private readonly Func<ApplicationSettings> _currentSettings;
+    private readonly IPhysicalAssetAvailabilityReconciler _physicalAssetAvailability;
     private readonly IProjectLifecycleCoordinatorHost _host;
 
     public ProjectLifecycleCoordinator(
@@ -25,6 +26,7 @@ internal sealed class ProjectLifecycleCoordinator
         IProjectLifecycleDialogs dialogs,
         IApplicationSettingsStore settingsStore,
         Func<ApplicationSettings> currentSettings,
+        IPhysicalAssetAvailabilityReconciler physicalAssetAvailability,
         IProjectLifecycleCoordinatorHost host)
     {
         _workspace = workspace;
@@ -32,6 +34,7 @@ internal sealed class ProjectLifecycleCoordinator
         _dialogs = dialogs;
         _settingsStore = settingsStore;
         _currentSettings = currentSettings;
+        _physicalAssetAvailability = physicalAssetAvailability;
         _host = host;
     }
 
@@ -53,6 +56,7 @@ internal sealed class ProjectLifecycleCoordinator
         try
         {
             await _workspace.OpenAsync(projectFilePath);
+            await ReconcilePhysicalAssetAvailabilityIfSafeAsync();
             _host.RefreshProjectUi();
             await OfferRecoveryAsync();
         }
@@ -88,6 +92,7 @@ internal sealed class ProjectLifecycleCoordinator
             async () =>
             {
                 await _workspace.OpenAsync(projectFilePath);
+                await ReconcilePhysicalAssetAvailabilityIfSafeAsync();
                 _host.RefreshProjectUi();
                 await RememberCurrentProjectAsync();
                 await OfferRecoveryAsync();
@@ -219,6 +224,7 @@ internal sealed class ProjectLifecycleCoordinator
 
             case ProjectRecoveryDecision.DiscardRecovery:
                 await _workspace.DiscardRecoveryAsync();
+                await ReconcilePhysicalAssetAvailabilityIfSafeAsync();
                 _host.RefreshProjectUi();
                 _host.SetStatus("Recovery data discarded. The saved project remains open.");
                 break;
@@ -230,6 +236,20 @@ internal sealed class ProjectLifecycleCoordinator
             default:
                 throw new ArgumentOutOfRangeException();
         }
+    }
+
+    private async Task ReconcilePhysicalAssetAvailabilityIfSafeAsync()
+    {
+        if (_workspace.Project is not { } project || _workspace.Location is not { } location ||
+            _workspace.State is not (ProjectWorkspaceState.Clean or ProjectWorkspaceState.Saved or ProjectWorkspaceState.Degraded))
+            return;
+
+        var result = await _physicalAssetAvailability
+            .ReconcileActivePhysicalAssetsAsync(project, location)
+            .ConfigureAwait(true);
+        if (result.Failure is not null)
+            throw new InvalidOperationException(
+                "Project media availability could not be reconciled safely.", result.Failure);
     }
 
     private ProjectUserInterfaceState? GetOrCreateCurrentProjectState()

@@ -46,6 +46,33 @@ public sealed class RecentProjectTracker
         await _settingsStore.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Replaces all references to a moved project's former path without creating a duplicate
+    /// Recent Projects entry. The relocated project becomes the active recent project.
+    /// </summary>
+    public async Task RelocateAsync(
+        ApplicationSettings settings,
+        string formerProjectFilePath,
+        string relocatedProjectFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentException.ThrowIfNullOrWhiteSpace(formerProjectFilePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(relocatedProjectFilePath);
+        var former = Path.GetFullPath(formerProjectFilePath);
+        var relocated = Path.GetFullPath(relocatedProjectFilePath);
+        settings.General.RecentProjectFilePaths.RemoveAll(path => PathsEqual(path, former) || PathsEqual(path, relocated));
+        settings.General.RecentProjectFilePaths.Insert(0, relocated);
+        if (settings.General.RecentProjectFilePaths.Count > MaximumRecentProjects)
+        {
+            settings.General.RecentProjectFilePaths.RemoveRange(
+                MaximumRecentProjects,
+                settings.General.RecentProjectFilePaths.Count - MaximumRecentProjects);
+        }
+        settings.General.LastProjectFilePath = relocated;
+        await _settingsStore.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+    }
+
     public static IReadOnlyList<string> GetExistingRecentProjectFiles(ApplicationSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);

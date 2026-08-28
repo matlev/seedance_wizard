@@ -7,7 +7,7 @@ namespace ReelForge.Infrastructure;
 /// Resolves a physical asset's file availability and lazily persists its media metadata.
 /// Presentation routing remains with the caller.
 /// </summary>
-public sealed class PhysicalAssetSelectionPreparationService
+public sealed class PhysicalAssetSelectionPreparationService : IPhysicalAssetAvailabilityReconciler
 {
     private readonly ProjectWorkspace _workspace;
     private readonly IMediaInspectionService _mediaInspector;
@@ -144,6 +144,169 @@ public sealed class PhysicalAssetSelectionPreparationService
         return PhysicalAssetSelectionPreparationResult.Ready;
     }
 
+    /// <summary>
+    /// Reconciles availability for every active physical asset in the captured project session.
+    /// File observations are collected before any project state changes, then persisted through one
+    /// recovery-aware workspace mutation so derived-media analysis sees a coherent availability view.
+    /// </summary>
+    public async Task<PhysicalAssetAvailabilityReconciliationResult> ReconcileActivePhysicalAssetsAsync(
+        VideoProject selectedProject,
+        ProjectLocation selectedLocation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(selectedProject);
+        ArgumentNullException.ThrowIfNull(selectedLocation);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!IsSelectedProjectCurrent(selectedProject, selectedLocation))
+            return PhysicalAssetAvailabilityReconciliationResult.Stale;
+
+        var observations = new List<AvailabilityObservation>();
+        foreach (var asset in selectedProject.Assets.Where(asset =>
+                     !asset.IsDeleted &&
+                     asset.StorageKind == AssetStorageKind.Physical &&
+                     asset.Physical is not null))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var availability = await DetermineAvailabilityAsync(asset, selectedLocation, cancellationToken)
+                .ConfigureAwait(false);
+            observations.Add(new AvailabilityObservation(asset, availability));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsSelectedProjectCurrent(selectedProject, selectedLocation))
+            return PhysicalAssetAvailabilityReconciliationResult.Stale;
+
+        var changes = observations.Where(observation =>
+                observation.Asset.Physical!.Availability != observation.Availability)
+            .ToArray();
+        if (changes.Length == 0)
+            return PhysicalAssetAvailabilityReconciliationResult.Unchanged;
+
+        var priorModifiedAt = selectedProject.ModifiedAt;
+        var priorAvailabilities = changes.ToDictionary(
+            change => change.Asset.Id,
+            change => change.Asset.Physical!.Availability);
+        var mutation = await _workspace.SaveMutationIfCurrentAsync(
+                selectedProject,
+                selectedLocation,
+                () =>
+                {
+                    foreach (var change in changes)
+                        change.Asset.Physical!.Availability = change.Availability;
+                },
+                () =>
+                {
+                    foreach (var change in changes)
+                        change.Asset.Physical!.Availability = priorAvailabilities[change.Asset.Id];
+                    selectedProject.ModifiedAt = priorModifiedAt;
+                    return Task.CompletedTask;
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!mutation.Committed)
+        {
+            return mutation.Failure is null
+                ? PhysicalAssetAvailabilityReconciliationResult.Stale
+                : new PhysicalAssetAvailabilityReconciliationResult(false, false, mutation.Failure);
+        }
+
+        return new PhysicalAssetAvailabilityReconciliationResult(true, false);
+    }
+
+    private async Task<PhysicalAssetAvailability> DetermineAvailabilityAsync(
+        ProjectAsset asset,
+        ProjectLocation location,
+        CancellationToken cancellationToken)
+    {
+        string absolutePath;
+        try
+        {
+            absolutePath = ProjectPathPolicy.ResolveContainedPath(location, asset.Physical!.RelativePath);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return PhysicalAssetAvailability.Inaccessible;
+        }
+
+        var probe = await ProbeReadableFileAsync(absolutePath, cancellationToken).ConfigureAwait(false);
+        if (probe.Availability is { } unavailable)
+            return unavailable;
+
+        var identity = asset.Physical!.ContentIdentity;
+        if (!HasVerifiedSha256(identity))
+            return PhysicalAssetAvailability.Available;
+
+        if (HasTrustedPersistedSignature(identity, probe.Signature))
+            return PhysicalAssetAvailability.Available;
+
+        try
+        {
+            var verification = await _contentHashService
+                .VerifyAsync(absolutePath, identity, cancellationToken)
+                .ConfigureAwait(false);
+            return verification.MatchesExpected
+                ? PhysicalAssetAvailability.Available
+                : PhysicalAssetAvailability.Mismatched;
+        }
+        catch (FileNotFoundException)
+        {
+            return PhysicalAssetAvailability.Missing;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return PhysicalAssetAvailability.Missing;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return PhysicalAssetAvailability.Inaccessible;
+        }
+    }
+
+    private static bool HasVerifiedSha256(ContentIdentity identity) =>
+        identity.Status == ContentHashStatus.Verified &&
+        string.Equals(identity.Algorithm, ContentIdentity.Sha256Algorithm, StringComparison.OrdinalIgnoreCase) &&
+        identity.Sha256 is { Length: 64 } sha256 && sha256.All(Uri.IsHexDigit);
+
+    private static bool HasTrustedPersistedSignature(ContentIdentity identity, FileSignature? signature) =>
+        signature is not null &&
+        identity.LengthBytes == signature.LengthBytes &&
+        identity.ObservedLastWriteTimeUtc == signature.LastWriteTimeUtc;
+
+    private static async Task<FileProbe> ProbeReadableFileAsync(
+        string absolutePath,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            await using var stream = new FileStream(
+                absolutePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                1,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var info = new FileInfo(absolutePath);
+            return new FileProbe(null, new FileSignature(
+                stream.Length,
+                new DateTimeOffset(info.LastWriteTimeUtc)));
+        }
+        catch (FileNotFoundException)
+        {
+            return new FileProbe(PhysicalAssetAvailability.Missing, null);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new FileProbe(PhysicalAssetAvailability.Missing, null);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return new FileProbe(PhysicalAssetAvailability.Inaccessible, null);
+        }
+    }
+
     private static async Task<PhysicalAssetAvailability?> ProbeAvailabilityAsync(
         string absolutePath,
         CancellationToken cancellationToken)
@@ -174,6 +337,10 @@ public sealed class PhysicalAssetSelectionPreparationService
             return PhysicalAssetAvailability.Inaccessible;
         }
     }
+
+    private sealed record AvailabilityObservation(ProjectAsset Asset, PhysicalAssetAvailability Availability);
+    private sealed record FileSignature(long LengthBytes, DateTimeOffset LastWriteTimeUtc);
+    private sealed record FileProbe(PhysicalAssetAvailability? Availability, FileSignature? Signature);
 
     private bool IsSelectedProjectCurrent(VideoProject selectedProject, ProjectLocation selectedLocation) =>
         ReferenceEquals(_workspace.Project, selectedProject) &&

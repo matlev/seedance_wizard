@@ -297,6 +297,149 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
         Assert.DoesNotContain(store.SavedProjects, project => ReferenceEquals(project, workspace.Project));
     }
 
+    [Fact]
+    public async Task ReconciliationFindsMissingActiveSourceWithoutSelectingIt()
+    {
+        var inspector = new RecordingInspector();
+        var (workspace, asset, path) = await CreateWorkspaceWithAssetAsync(inspector);
+        File.Delete(path);
+
+        var result = await new PhysicalAssetSelectionPreparationService(workspace, inspector)
+            .ReconcileActivePhysicalAssetsAsync(workspace.Project!, workspace.Location!);
+
+        Assert.True(result.Changed);
+        Assert.False(result.IsStale);
+        Assert.Equal(PhysicalAssetAvailability.Missing, asset.Physical!.Availability);
+        Assert.Equal(0, inspector.CallCount);
+        var reopened = await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath);
+        Assert.Equal(PhysicalAssetAvailability.Missing, Assert.Single(reopened.Project.Assets).Physical!.Availability);
+    }
+
+    [Fact]
+    public async Task ReconciliationMarksChangedVerifiedBytesMismatched()
+    {
+        var inspector = new RecordingInspector();
+        var (workspace, asset, path) = await CreateWorkspaceWithAssetAsync(inspector);
+        asset.Physical!.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(path);
+        await workspace.SaveAsync();
+        await File.WriteAllTextAsync(path, "changed bytes");
+
+        var result = await new PhysicalAssetSelectionPreparationService(workspace, inspector)
+            .ReconcileActivePhysicalAssetsAsync(workspace.Project!, workspace.Location!);
+
+        Assert.True(result.Changed);
+        Assert.Equal(PhysicalAssetAvailability.Mismatched, asset.Physical.Availability);
+    }
+
+    [Fact]
+    public async Task ReconciliationTrustsMatchingPersistedSignatureWithoutRehashing()
+    {
+        var inspector = new RecordingInspector();
+        var (workspace, asset, path) = await CreateWorkspaceWithAssetAsync(inspector);
+        asset.Physical!.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(path);
+        asset.Physical.Availability = PhysicalAssetAvailability.Missing;
+        await workspace.SaveAsync();
+        var hash = new VerifyMustNotRunHashService();
+
+        var result = await new PhysicalAssetSelectionPreparationService(workspace, inspector, hash)
+            .ReconcileActivePhysicalAssetsAsync(workspace.Project!, workspace.Location!);
+
+        Assert.True(result.Changed);
+        Assert.Equal(0, hash.VerifyCallCount);
+        Assert.Equal(PhysicalAssetAvailability.Available, asset.Physical.Availability);
+    }
+
+    [Fact]
+    public async Task ReconciliationPersistsAllAvailabilityChangesInOneSave()
+    {
+        var store = new BlockingSaveProjectStore();
+        var inspector = new RecordingInspector();
+        var (workspace, asset, path) = await CreateWorkspaceWithAssetAsync(inspector, store: store);
+        var second = new ProjectAsset
+        {
+            FileName = "second.mp4",
+            DisplayName = "second.mp4",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Physical,
+            Physical = new PhysicalAssetStorage
+            {
+                RelativePath = "assets/videos/second.mp4",
+                Availability = PhysicalAssetAvailability.Available,
+                ContentIdentity = new ContentIdentity { Status = ContentHashStatus.Pending }
+            }
+        };
+        workspace.Project!.AddAsset(second);
+        var secondPath = workspace.GetAbsoluteAssetPath(second);
+        Directory.CreateDirectory(Path.GetDirectoryName(secondPath)!);
+        await File.WriteAllTextAsync(secondPath, "second media bytes");
+        await workspace.SaveAsync();
+        store.SavedProjects.Clear();
+        File.Delete(path);
+        File.Delete(secondPath);
+
+        var result = await new PhysicalAssetSelectionPreparationService(workspace, inspector)
+            .ReconcileActivePhysicalAssetsAsync(workspace.Project!, workspace.Location!);
+
+        Assert.True(result.Changed);
+        Assert.Equal(PhysicalAssetAvailability.Missing, asset.Physical!.Availability);
+        Assert.Equal(PhysicalAssetAvailability.Missing, second.Physical!.Availability);
+        Assert.Single(store.SavedProjects);
+    }
+
+    [Fact]
+    public async Task ReconciliationCancellationDuringSaveRollsBackAvailabilityChanges()
+    {
+        var store = new BlockingSaveProjectStore();
+        var inspector = new RecordingInspector();
+        var (workspace, asset, path) = await CreateWorkspaceWithAssetAsync(inspector, store: store);
+        File.Delete(path);
+        store.BlockNextSave = true;
+        using var cancellation = new CancellationTokenSource();
+
+        var reconciliation = new PhysicalAssetSelectionPreparationService(workspace, inspector)
+            .ReconcileActivePhysicalAssetsAsync(workspace.Project!, workspace.Location!, cancellation.Token);
+        await store.SaveStarted.Task;
+        cancellation.Cancel();
+
+        var result = await reconciliation;
+
+        Assert.False(result.Changed);
+        Assert.True(result.IsStale);
+        Assert.Equal(PhysicalAssetAvailability.Available, asset.Physical!.Availability);
+    }
+
+    [Fact]
+    public async Task ReconciliationSaveFailureRollsBackAvailabilityChanges()
+    {
+        var store = new BlockingSaveProjectStore();
+        var inspector = new RecordingInspector();
+        var (workspace, asset, path) = await CreateWorkspaceWithAssetAsync(inspector, store: store);
+        File.Delete(path);
+        store.ThrowNextSave = true;
+
+        var result = await new PhysicalAssetSelectionPreparationService(workspace, inspector)
+            .ReconcileActivePhysicalAssetsAsync(workspace.Project!, workspace.Location!);
+
+        Assert.False(result.Changed);
+        Assert.False(result.IsStale);
+        Assert.IsType<IOException>(result.Failure);
+        Assert.Equal(PhysicalAssetAvailability.Available, asset.Physical!.Availability);
+    }
+
+    [Fact]
+    public async Task ReconciliationRejectsStaleProjectBeforeInspectingFiles()
+    {
+        var inspector = new RecordingInspector();
+        var (workspace, _, _) = await CreateWorkspaceWithAssetAsync(inspector);
+
+        var result = await new PhysicalAssetSelectionPreparationService(workspace, inspector)
+            .ReconcileActivePhysicalAssetsAsync(new VideoProject(), workspace.Location!);
+
+        Assert.False(result.Changed);
+        Assert.True(result.IsStale);
+        Assert.Equal(0, inspector.CallCount);
+    }
+
     private async Task<(ProjectWorkspace Workspace, ProjectAsset Asset, string Path)> CreateWorkspaceWithAssetAsync(
         IMediaInspectionService inspector,
         MediaEncodingMetadata? encoding = null,
@@ -389,11 +532,29 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
             throw new UnauthorizedAccessException("Injected media access failure.");
     }
 
+    private sealed class VerifyMustNotRunHashService : IContentHashService
+    {
+        public int VerifyCallCount { get; private set; }
+
+        public Task<ContentIdentity> ComputeAsync(string path, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("This test only verifies the no-rehash path.");
+
+        public Task<ContentVerificationResult> VerifyAsync(
+            string path,
+            ContentIdentity expected,
+            CancellationToken cancellationToken = default)
+        {
+            VerifyCallCount++;
+            throw new InvalidOperationException("A trusted persisted signature must not be rehashed.");
+        }
+    }
+
     private sealed class BlockingSaveProjectStore : IProjectStore, IProjectCommitGuardedStore
     {
         private readonly PortableProjectStore _inner = new();
 
         public bool BlockNextSave { get; set; }
+        public bool ThrowNextSave { get; set; }
         public TaskCompletionSource SaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<VideoProject> SavedProjects { get; } = [];
@@ -431,6 +592,11 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
             Func<Action, bool> tryCommit,
             CancellationToken cancellationToken = default)
         {
+            if (ThrowNextSave)
+            {
+                ThrowNextSave = false;
+                throw new IOException("Injected project save failure.");
+            }
             if (BlockNextSave)
             {
                 BlockNextSave = false;

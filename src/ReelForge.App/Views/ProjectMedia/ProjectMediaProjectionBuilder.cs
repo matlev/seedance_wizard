@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media.Imaging;
 using ReelForge.App.Views.Generation;
+using ReelForge.Application;
 using ReelForge.Core;
 
 namespace ReelForge.App.Views.ProjectMedia;
@@ -15,7 +16,8 @@ public static class ProjectMediaProjectionBuilder
         VideoProject project,
         Func<ProjectAsset, string> resolvePhysicalAssetPath,
         Func<string, BitmapSource> loadBitmap,
-        IEnumerable<GenerationReferenceChoice> existingChoices)
+        IEnumerable<GenerationReferenceChoice> existingChoices,
+        ProjectDegradationReport? degradation = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(resolvePhysicalAssetPath);
@@ -33,7 +35,10 @@ public static class ProjectMediaProjectionBuilder
                 PreserveDeletedDraftReferences(asset, project.CurrentGenerationDraft, choices, projectedChoices);
                 continue;
             }
-            var mediaItem = new ProjectMediaListItem(asset, CanRestoreDeletedSource(project, asset));
+            var mediaItem = new ProjectMediaListItem(
+                asset,
+                CanRestoreDeletedSource(project, asset),
+                degradation?.IsDegradedAsset(asset.Id) == true);
             if (asset is { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Image })
             {
                 var path = resolvePhysicalAssetPath(asset);
@@ -74,7 +79,7 @@ public static class ProjectMediaProjectionBuilder
             if (revision is null) continue;
 
             var source = project.Assets.SingleOrDefault(asset => asset.Id == revision.SourceAssetId);
-            mediaItems.Add(new ProjectMediaListItem(anchor, revision));
+            mediaItems.Add(new ProjectMediaListItem(anchor, revision, degradation?.IsDegradedAnchor(anchor.Id) == true));
             if (source?.IsDeleted == true)
             {
                 PreserveDeletedAnchorDraftReferences(anchor, revision, source, project.CurrentGenerationDraft, choices,

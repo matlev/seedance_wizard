@@ -153,6 +153,20 @@ public sealed class MaterializationTargetTests : IDisposable
         Assert.Equal(1, runner.TrimCount);
         Assert.Equal(1, frames.WindowIndexCount);
         Assert.Contains("3.1", runner.TrimRequest!.Arguments);
+
+        Assert.True(await materializer.HasCachedRepresentationAsync(project, request.Target));
+
+        using var restartedMaterializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", runner, frames, Path.Combine(_root, "cache"));
+        Assert.True(await restartedMaterializer.HasCachedRepresentationAsync(project, request.Target));
+        await using var cached = await restartedMaterializer.OpenCachedRepresentationAsync(project, request.Target);
+        Assert.NotNull(cached);
+        Assert.Equal(first.Path, cached.Path);
+        Assert.Equal(1, runner.TrimCount);
+
+        File.Delete(first.Path);
+        Assert.False(await restartedMaterializer.HasCachedRepresentationAsync(project, request.Target));
+        Assert.Equal(1, runner.TrimCount);
     }
 
     [Fact]
@@ -387,6 +401,9 @@ public sealed class MaterializationTargetTests : IDisposable
         Assert.True(File.Exists(preview.Path));
         Assert.False(preview.IsDurableSource);
         Assert.Equal(originalAssetCount, project.Assets.Count);
+        Assert.False(await materializer.HasCachedRepresentationAsync(
+            project,
+            new AssetMaterializationTarget(composition.Id, revision.Id)));
     }
 
     [Fact]

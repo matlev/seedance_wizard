@@ -34,13 +34,14 @@ internal sealed class MediaRenderCache : IDisposable
     public async Task<MaterializedMediaLease> OpenLeaseAsync(
         string cachePath,
         MediaEncodingMetadata? fallbackEncoding,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool updateLastUsed = true)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var normalizedPath = MediaCacheLeaseRegistry.Acquire(cachePath);
         try
         {
-            File.SetLastWriteTimeUtc(normalizedPath, DateTime.UtcNow);
+            if (updateLastUsed) File.SetLastWriteTimeUtc(normalizedPath, DateTime.UtcNow);
             var identity = await _contentHashService.ComputeAsync(normalizedPath, cancellationToken).ConfigureAwait(false);
             var encoding = fallbackEncoding;
             if (_mediaInspector is not null)

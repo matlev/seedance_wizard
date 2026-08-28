@@ -77,6 +77,30 @@ public interface IMediaMaterializer
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Reads the local disposable-media cache without attempting to render or materialize media.
+/// Cache availability is advisory only: it is never persisted as project state.
+/// </summary>
+public interface IProjectMediaCacheProbe
+{
+    Task<bool> HasCachedRepresentationAsync(
+        VideoProject project,
+        MaterializationTarget target,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Opens an already-indexed disposable representation for read-only export. Implementations must
+/// not render media or promote the representation into project storage.
+/// </summary>
+public interface IProjectMediaCacheLeaseSource : IProjectMediaCacheProbe
+{
+    Task<MaterializedMediaLease?> OpenCachedRepresentationAsync(
+        VideoProject project,
+        MaterializationTarget target,
+        CancellationToken cancellationToken = default);
+}
+
 public interface ICompositionSegmentMaterializer
 {
     Task<MaterializedMediaLease> MaterializeSegmentAsync(

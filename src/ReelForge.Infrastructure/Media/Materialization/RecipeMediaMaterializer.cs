@@ -3,12 +3,13 @@ using ReelForge.Core;
 
 namespace ReelForge.Infrastructure;
 
-public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSegmentMaterializer, IDisposable
+public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSegmentMaterializer, IProjectMediaCacheLeaseSource, IDisposable
 {
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly FrameAnchorMaterializer _frameAnchorMaterializer;
     private readonly MediaRenderCache _renderCache;
     private readonly ModifiedMediaRetentionService _retentionService;
+    private readonly CachedProjectMediaRepresentationIndex _representationIndex;
     private readonly SavedClipTrimRenderer _trimRenderer;
     private readonly CompositionAuditionAudioRenderer _auditionAudioRenderer;
     private readonly CompositionAudioRenderer _compositionAudioRenderer;
@@ -33,6 +34,7 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         _fingerprintProvider = new FfmpegRendererFingerprintProvider(runner, SavedClipTrimRenderer.AlgorithmVersion);
         var resolvedContentHashService = contentHashService ?? new Sha256ContentHashService();
         _renderCache = new MediaRenderCache(cacheRoot, resolvedContentHashService, mediaInspector);
+        _representationIndex = new CachedProjectMediaRepresentationIndex(cacheRoot);
         _retentionService = new ModifiedMediaRetentionService(
             _renderCache, resolvedContentHashService, persistModifiedMediaOnDisk);
         var boundaryResolver = new RecipeBoundaryResolver(exactFrameService);
@@ -77,9 +79,12 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                     MaterializeAsync,
                     cancellationToken)
                 .ConfigureAwait(false);
-            return await _retentionService.PersistIfRequestedAsync(
+            await RecordCachedRepresentationAsync(project, request.Target, anchorMedia)
+                .ConfigureAwait(false);
+            var retained = await _retentionService.PersistIfRequestedAsync(
                     project, location, request.Target, anchorMedia, cancellationToken)
                 .ConfigureAwait(false);
+            return retained;
         }
         if (request.Target is not AssetMaterializationTarget assetTarget)
             throw new NotSupportedException(
@@ -96,9 +101,65 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
         var plan = RecipeRenderPlanner.Plan(project, assetTarget, request.Purpose, request.Profile);
         var media = await ExecuteNodeAsync(project, location, asset, plan.Root, request, cancellationToken)
             .ConfigureAwait(false);
-        return await _retentionService.PersistIfRequestedAsync(
+        await RecordCachedRepresentationAsync(project, request.Target, media)
+            .ConfigureAwait(false);
+        var retainedMedia = await _retentionService.PersistIfRequestedAsync(
                 project, location, request.Target, media, cancellationToken)
             .ConfigureAwait(false);
+        return retainedMedia;
+    }
+
+    public async Task<bool> HasCachedRepresentationAsync(
+        VideoProject project,
+        MaterializationTarget target,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(target);
+        try
+        {
+            return await _representationIndex.HasCachedRepresentationAsync(project, target, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    public async Task<MaterializedMediaLease?> OpenCachedRepresentationAsync(
+        VideoProject project,
+        MaterializationTarget target,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(target);
+        try
+        {
+            var cachePath = await _representationIndex
+                .FindCachedRepresentationPathAsync(project, target, cancellationToken)
+                .ConfigureAwait(false);
+            return cachePath is null
+                ? null
+                : await _renderCache.OpenLeaseAsync(
+                        cachePath,
+                        fallbackEncoding: null,
+                        cancellationToken: cancellationToken,
+                        updateLastUsed: false)
+                    .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     public async Task<MaterializedMediaLease?> MaterializeCompositionAuditionAudioAsync(
@@ -318,11 +379,31 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
             cancellationToken);
     }
 
+    private async Task RecordCachedRepresentationAsync(
+        VideoProject project,
+        MaterializationTarget target,
+        MaterializedMediaLease media)
+    {
+        if (media.IsDurableSource) return;
+        try
+        {
+            // The representation already exists at this point. Cache discovery is advisory, so a
+            // late caller cancellation must not discard an otherwise successful materialization.
+            await _representationIndex.RecordAsync(project, target, media.Path, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Cache availability is advisory and must never make a successful render fail.
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         _fingerprintProvider.Dispose();
+        _representationIndex.Dispose();
         _renderCache.Dispose();
     }
 }

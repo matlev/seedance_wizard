@@ -5,26 +5,38 @@ namespace ReelForge.Core.Tests;
 public sealed class PhaseTwoDomainTests
 {
     [Fact]
-    public void DeletedAssetsMustBeMissingPhysicalRecords()
+    public void DeletedPhysicalAssetsMustBeMissing()
     {
         var unavailablePhysical = CreatePhysicalAsset();
         unavailablePhysical.IsDeleted = true;
         unavailablePhysical.Physical!.Availability = PhysicalAssetAvailability.Available;
+        var errors = ProjectInvariantValidator.Validate(new VideoProject
+        {
+            Assets = [unavailablePhysical]
+        });
+
+        Assert.Contains(errors, error => error.Contains("Deleted physical asset", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DeletedVirtualAssetsRetainTheirRecipesForHistory()
+    {
+        var source = CreatePhysicalAsset();
         var virtualAsset = new ProjectAsset
         {
-            IsDeleted = true,
+            MediaType = MediaType.Video,
             StorageKind = AssetStorageKind.Virtual,
             Physical = null,
             Virtual = new VirtualAssetState { Kind = VirtualAssetKind.SavedClip }
         };
-
-        var errors = ProjectInvariantValidator.Validate(new VideoProject
+        var project = new VideoProject { Assets = [source, virtualAsset] };
+        project.CommitRecipe(virtualAsset.Id, new TrimRecipe
         {
-            Assets = [unavailablePhysical, virtualAsset]
+            Source = new AssetRevisionReference { AssetId = source.Id }
         });
+        virtualAsset.IsDeleted = true;
 
-        Assert.Contains(errors, error => error.Contains("Deleted physical asset", StringComparison.Ordinal));
-        Assert.Contains(errors, error => error.Contains("Deleted asset", StringComparison.Ordinal));
+        Assert.Empty(ProjectInvariantValidator.Validate(project));
     }
 
     [Fact]

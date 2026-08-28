@@ -188,6 +188,33 @@ public sealed class ApplicationSettingsTests
     }
 
     [Fact]
+    public async Task RecentProjectTrackerRelocationReplacesFormerPathWithoutDuplicate()
+    {
+        var store = new CountingSettingsStore();
+        var tracker = new RecentProjectTracker(store);
+        var directory = CreateDirectory();
+        var former = Path.Combine(directory, "Former", "Former.rfp");
+        var relocated = Path.Combine(directory, "Moved", "Former.rfp");
+        var settings = new ApplicationSettings();
+        settings.General.LastProjectFilePath = Path.Combine(directory, "Another", "Another.rfp");
+        settings.General.RecentProjectFilePaths.Add(former);
+        settings.General.RecentProjectFilePaths.Add(relocated);
+
+        try
+        {
+            await tracker.RelocateAsync(settings, former, relocated);
+
+            Assert.Equal(Path.GetFullPath(relocated), settings.General.LastProjectFilePath);
+            Assert.Single(settings.General.RecentProjectFilePaths);
+            Assert.Equal(Path.GetFullPath(relocated), settings.General.RecentProjectFilePaths[0]);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PerProjectWorkspaceAndViewerSelectionRoundTripAsMachineLocalState()
     {
         var directory = CreateDirectory();

@@ -58,6 +58,13 @@ internal sealed class ApplicationRuntime : IDisposable
             ProjectSaveCoordinator);
         AssetImporter = new AssetImportService(MediaInspector);
         Workspace = new ProjectWorkspace(ProjectStore, AssetImporter, ProjectStore, ProjectSaveCoordinator);
+        ProjectRelocationService = new ProjectRelocationService(
+            Workspace,
+            ProjectStore,
+            new PortableProjectRelocationFileSystem(),
+            ProjectSaveCoordinator);
+        ProjectDegradationAnalyzer = new ProjectDegradationAnalyzer();
+        ProjectCleanupService = new ProjectCleanupService(ProjectDegradationAnalyzer);
         AssetTransferService = new ProjectAssetTransferService(ProjectStore, AssetImporter, Workspace);
         ContentHashService = new Sha256ContentHashService();
         RenderedAssetPromotionService = new RenderedAssetPromotionService(
@@ -122,6 +129,9 @@ internal sealed class ApplicationRuntime : IDisposable
     public PortableProjectStore ProjectStore { get; }
     public ProjectSaveCoordinator ProjectSaveCoordinator { get; }
     public ProjectCloneService ProjectCloneService { get; }
+    public ProjectRelocationService ProjectRelocationService { get; }
+    public ProjectDegradationAnalyzer ProjectDegradationAnalyzer { get; }
+    public ProjectCleanupService ProjectCleanupService { get; }
     public AssetImportService AssetImporter { get; }
     public ProjectWorkspace Workspace { get; }
     public ProjectAssetTransferService AssetTransferService { get; }

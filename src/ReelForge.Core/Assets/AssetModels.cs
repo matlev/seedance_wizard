@@ -12,9 +12,10 @@ public sealed class ProjectAsset
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     /// <summary>
-    /// Retains the logical asset record after its physical project media was deliberately removed
-    /// so that durable recipes, provenance, and generation history remain resolvable.
-    /// Deleted records are not offered as ordinary Project Media or generation references.
+    /// Retains the logical asset record after project media was deliberately removed from active
+    /// use so durable recipes, provenance, and generation history remain resolvable. Physical
+    /// tombstones also retain their former storage identity; virtual tombstones retain recipes.
+    /// Deleted records are not offered as ordinary Project Media or new generation references.
     /// </summary>
     public bool IsDeleted { get; set; }
     public string DisplayName { get; set; } = string.Empty;

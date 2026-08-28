@@ -68,6 +68,15 @@ Diagnostics identify affected assets and dependent recipes, anchors, generation 
 - A content mismatch cannot replace the existing identity. The user may deliberately import those bytes as new media through the ordinary import workflow.
 - Partial copies, failed saves, or cancellation roll back without claiming a successful relink.
 
+### 4A.5 Explicit project relocation and derived-media cleanup
+
+- The active project folder can be moved without changing project identity, portable meaning, or project-relative references. The move preserves the complete folder; it is distinct from Clone Project, which creates a new identity and omits cache/recovery artifacts.
+- Relocation is allowed only from a stable clean, saved, or degraded workspace and while no active or unreconciled generation job targets the old path. Unsafe lifecycle states must be resolved explicitly.
+- Same-volume relocation uses a directory rename. Cross-volume relocation stages and validates a complete copy before publication, rebinds the exact active workspace, updates recent/last-project paths, and retires the source after the destination is authoritative.
+- On stable project open and immediately before cleanup, active physical-media availability is reconciled transactionally before Project Media derives a red degraded state for Saved Frames, Saved Clips, and compositions whose pinned dependencies reach deleted or unavailable physical media; missing physical media retains its distinct yellow state.
+- **Cleanup Project** is an explicit irreversible action. It removes degraded items from active Project Media in one recovery-aware save while retaining only the hidden tombstone/archive records required for exact history and invariant validity. Unsafe lifecycle states and active or unreconciled project jobs must be resolved first.
+- Cache availability is advisory and machine-local. A surviving indexed representation may be exported before cleanup, but cleanup never treats cache as project truth, prunes cache, renders media, or authorizes provider activity.
+
 ### Phase 4A acceptance
 
 - A killed process leaves either the last committed project or one valid, clearly offered recovery candidate.
@@ -76,6 +85,8 @@ Diagnostics identify affected assets and dependent recipes, anchors, generation 
 - Clean shutdown and successful explicit save retire obsolete recovery data deterministically.
 - Missing, inaccessible, mismatched, and verified media states produce distinct actionable results.
 - Relink accepts only matching SHA-256 bytes and preserves all logical identities and dependencies.
+- Relocation preserves the complete project and stable identity, rejects unsafe paths/lifecycle/job state, and reopens from the new location.
+- Degraded derived media is visibly distinct from missing physical media; cleanup is explicit, transactional, history-safe, and cache-independent.
 - Recovery and relink preserve immutable recipes, anchors, generation snapshots, provenance, and cache independence.
 - Fault-injection coverage exercises interrupted serialization, interrupted replacement, invalid recovery bytes, relink copy failure, save failure, cancellation, and restart.
 - Startup, recovery, autosave, and tests cannot reach provider submission authorization.

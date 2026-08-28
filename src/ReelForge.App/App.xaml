@@ -11,6 +11,7 @@
         <SolidColorBrush x:Key="MutedTextBrush" Color="#AAB1C0" />
         <SolidColorBrush x:Key="AccentBrush" Color="#8C7CFF" />
         <SolidColorBrush x:Key="WarningBrush" Color="#F2C94C" />
+        <SolidColorBrush x:Key="DangerBrush" Color="#B54A59" />
 
         <Style TargetType="Window">
             <Setter Property="Background" Value="{StaticResource WindowBrush}" />

@@ -9,11 +9,31 @@ public sealed record ProjectPhysicalAssetRelinkSaveResult(bool Committed, Except
     public static ProjectPhysicalAssetRelinkSaveResult CommittedResult { get; } = new(true);
 }
 
+/// <summary>
+/// Result of a focused active-project mutation that was persisted through the workspace's
+/// recovery-aware save transaction.
+/// </summary>
+public sealed record ProjectWorkspaceMutationSaveResult(bool Committed, Exception? Failure = null)
+{
+    public static ProjectWorkspaceMutationSaveResult NotCommitted { get; } = new(false);
+    public static ProjectWorkspaceMutationSaveResult CommittedResult { get; } = new(true);
+}
+
 internal sealed record ProjectWorkspaceOperationalState(
     ProjectWorkspaceState State,
     bool IsDegraded,
     string? FailureDetail,
     ProjectRecoveryCandidate? RecoveryCandidate);
+
+/// <summary>
+/// Captures the exact active workspace session for a relocation that is serialized by the shared
+/// project save coordinator. It is intentionally not a portable project value.
+/// </summary>
+internal sealed record ProjectWorkspaceRelocationSnapshot(
+    VideoProject Project,
+    ProjectLocation Location,
+    long SessionGeneration,
+    ProjectWorkspaceState State);
 
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification =
     "The asynchronous gates and active-session token are held for the workspace lifetime and own no external resources.")]
@@ -276,6 +296,67 @@ public sealed class ProjectWorkspace
     }
 
     /// <summary>
+    /// Applies a focused active-project mutation immediately before the authoritative save. If
+    /// that save cannot commit, the caller's compensating action restores the in-memory project
+    /// state before this method returns or throws.
+    /// </summary>
+    public async Task<ProjectWorkspaceMutationSaveResult> SaveMutationIfCurrentAsync(
+        VideoProject expectedProject,
+        ProjectLocation expectedLocation,
+        Action applyMutation,
+        Func<Task> rollbackUncommittedAsync,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(expectedProject);
+        ArgumentNullException.ThrowIfNull(expectedLocation);
+        ArgumentNullException.ThrowIfNull(applyMutation);
+        ArgumentNullException.ThrowIfNull(rollbackUncommittedAsync);
+
+        CancellationToken sessionCancellation = default;
+        long sessionGeneration = default;
+        ProjectWorkspaceOperationalState? priorOperationalState = null;
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!IsCurrent(expectedProject, expectedLocation))
+                return ProjectWorkspaceMutationSaveResult.NotCommitted;
+
+            sessionCancellation = _sessionCancellation.Token;
+            sessionGeneration = _sessionGeneration;
+            priorOperationalState = new ProjectWorkspaceOperationalState(
+                State, IsDegraded, FailureDetail, RecoveryCandidate);
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+
+        Task RestorePriorOperationalStateAsync() => RestoreOperationalStateIfCurrentAsync(
+            expectedProject, expectedLocation, sessionGeneration, priorOperationalState!);
+
+        try
+        {
+            var committed = await SaveCapturedAsync(
+                    expectedProject,
+                    expectedLocation,
+                    sessionGeneration,
+                    sessionCancellation,
+                    cancellationToken,
+                    applyMutation,
+                    rollbackUncommittedAsync,
+                    restoreUncommittedCallerCancellationAsync: RestorePriorOperationalStateAsync)
+                .ConfigureAwait(false);
+            return committed
+                ? ProjectWorkspaceMutationSaveResult.CommittedResult
+                : ProjectWorkspaceMutationSaveResult.NotCommitted;
+        }
+        catch (Exception exception)
+        {
+            return new ProjectWorkspaceMutationSaveResult(false, exception);
+        }
+    }
+
+    /// <summary>
     /// Prevents a relink from writing or retiring recovery data until an existing recovery
     /// decision or failed save has been explicitly resolved.
     /// </summary>
@@ -291,6 +372,64 @@ public sealed class ProjectWorkspace
                 throw new InvalidOperationException(
                     "Save or discard the pending recovery or failed project state before relinking media.");
             }
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Captures an operationally stable current session for an external folder relocation. Callers
+    /// must hold the shared <see cref="ProjectSaveCoordinator"/> for the complete relocation.
+    /// </summary>
+    internal async Task<ProjectWorkspaceRelocationSnapshot> CaptureRelocationSnapshotAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureProjectIsOpen();
+            if (!IsRelocationStateEligible())
+            {
+                throw new InvalidOperationException(
+                    "Save or discard pending recovery or failed project changes before moving the project.");
+            }
+
+            return new ProjectWorkspaceRelocationSnapshot(Project!, Location!, _sessionGeneration, State);
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Publishes a store-validated relocation only if the exact source session is still current.
+    /// A relocation changes machine-local location, not portable project meaning.
+    /// </summary>
+    internal async Task RebindRelocatedProjectAsync(
+        ProjectWorkspaceRelocationSnapshot snapshot,
+        VideoProject relocatedProject,
+        ProjectLocation relocatedLocation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(relocatedProject);
+        ArgumentNullException.ThrowIfNull(relocatedLocation);
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!IsCurrentSession(snapshot.Project, snapshot.Location, snapshot.SessionGeneration))
+                throw new InvalidOperationException("The active project changed before relocation could be completed.");
+            if (relocatedProject.Id != snapshot.Project.Id)
+                throw new InvalidDataException("A relocated project must retain the active project identity.");
+
+            Publish(relocatedProject, relocatedLocation, IsProjectDegraded(relocatedProject)
+                ? ProjectWorkspaceState.Degraded
+                : snapshot.State is ProjectWorkspaceState.Degraded
+                    ? ProjectWorkspaceState.Degraded
+                    : ProjectWorkspaceState.Saved);
         }
         finally
         {
@@ -621,6 +760,9 @@ public sealed class ProjectWorkspace
     }
 
     private bool IsPhysicalAssetRelinkStateEligible() =>
+        State is ProjectWorkspaceState.Clean or ProjectWorkspaceState.Saved or ProjectWorkspaceState.Degraded;
+
+    private bool IsRelocationStateEligible() =>
         State is ProjectWorkspaceState.Clean or ProjectWorkspaceState.Saved or ProjectWorkspaceState.Degraded;
 
     private async Task RestoreOperationalStateIfCurrentAsync(

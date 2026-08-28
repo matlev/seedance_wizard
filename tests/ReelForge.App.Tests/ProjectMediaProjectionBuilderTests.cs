@@ -1,6 +1,7 @@
 using System.Windows.Media.Imaging;
 using ReelForge.App.Views.Generation;
 using ReelForge.App.Views.ProjectMedia;
+using ReelForge.Application;
 using ReelForge.Core;
 
 namespace ReelForge.App.Tests;
@@ -106,6 +107,56 @@ public sealed class ProjectMediaProjectionBuilderTests
 
         Assert.True(projection.MediaItems.Single(item => item.Asset?.Id == active.Id).CanRestoreDeletedSource);
         Assert.False(projection.MediaItems.Single(item => item.Asset?.Id == differentHash.Id).CanRestoreDeletedSource);
+    }
+
+    [Fact]
+    public void BuildMarksOnlyReportedDerivedProjectMediaAsDegraded()
+    {
+        var source = PhysicalAsset("source.mp4", MediaType.Video);
+        var savedClip = VirtualAsset("Broken clip", VirtualAssetKind.SavedClip);
+        var composition = VirtualAsset("Working Composition", VirtualAssetKind.Composition);
+        var anchor = new FrameAnchor { DisplayLabel = "Broken frame" };
+        var revision = AnchorRevision(anchor.Id, source.Id);
+        anchor.CurrentRevisionId = revision.Id;
+        var project = new VideoProject
+        {
+            Assets = [source, savedClip, composition],
+            Anchors = [anchor],
+            AnchorRevisions = [revision]
+        };
+        var degradation = new ProjectDegradationReport(
+        [
+            new ProjectDegradedMediaItem(anchor.Id, ProjectDegradedMediaKind.SavedFrame, anchor.DisplayLabel!),
+            new ProjectDegradedMediaItem(savedClip.Id, ProjectDegradedMediaKind.SavedClip, savedClip.EffectiveDisplayName)
+        ]);
+
+        var projection = ProjectMediaProjectionBuilder.Build(
+            project,
+            _ => "C:\\media\\not-used.mp4",
+            _ => throw new InvalidOperationException("No images are present."),
+            [],
+            degradation);
+
+        Assert.True(projection.MediaItems.Single(item => item.Anchor?.Id == anchor.Id).IsDegradedDerivedAsset);
+        Assert.True(projection.MediaItems.Single(item => item.Asset?.Id == savedClip.Id).IsDegradedDerivedAsset);
+        Assert.False(projection.MediaItems.Single(item => item.Asset?.Id == composition.Id).IsDegradedDerivedAsset);
+        Assert.False(projection.MediaItems.Single(item => item.Asset?.Id == source.Id).IsDegradedDerivedAsset);
+    }
+
+    [Fact]
+    public void UpdateDegradedStateNotifiesWarningBindings()
+    {
+        var item = new ProjectMediaListItem(VirtualAsset("Saved clip", VirtualAssetKind.SavedClip));
+        var changed = new List<string?>();
+        item.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        item.UpdateDegradedState(true);
+
+        Assert.True(item.IsDegradedDerivedAsset);
+        Assert.Equal("⚠", item.Glyph);
+        Assert.Contains(nameof(ProjectMediaListItem.IsDegradedDerivedAsset), changed);
+        Assert.Contains(nameof(ProjectMediaListItem.Glyph), changed);
+        Assert.Contains(nameof(ProjectMediaListItem.GlyphToolTip), changed);
     }
 
     [Fact]

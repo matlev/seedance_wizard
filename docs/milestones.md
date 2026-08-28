@@ -409,7 +409,7 @@ Recommended desktop implementation order remains dependency-driven rather than c
 
 The approved near-term milestone structure is recorded in [Milestone 4 plan — Project Trust and Multitrack Foundation](milestone-4-plan.md):
 
-- **Milestone 4** contains only Phase 4A recovery/verified relinking and Phase 4B track/time/history plus the candidate development-format correction.
+- **Milestone 4** contains Phase 4A project trust work—recovery, verified relinking, project relocation, and explicit degraded-media cleanup—and Phase 4B track/time/history plus the candidate development-format correction.
 - **Tentative Milestone 5** contains the Slice C structural editing grammar and session composition undo/redo.
 - **Tentative Milestone 6** contains the Slice D track-aware render plan, preview/proxy execution, and ordinary Free conversion/export program, with an architecture checkpoint after its initial render-plan integration.
 
