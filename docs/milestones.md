@@ -447,6 +447,33 @@ Do not schedule billing, accounts, licensing, entitlements, telemetry, or manage
 
 Exact pricing, Ingot rules, subscriptions versus perpetual licensing, Free/Pro feature lists, promotional credits, local-engine packaging, telemetry, accounts for local-only users, team plans, and marketplaces remain intentionally unresolved.
 
+## Unscheduled exploration — AI editing and prompt assistant
+
+ReelForge may eventually offer an optional conversational assistant for composition-editing guidance and video-generation prompt authoring. This entry records a research topic only. It does not approve an implementation, add the feature to Milestone 4 or another scheduled milestone, select an LLM provider, authorize an account system, or permit autonomous project or billable-provider actions.
+
+Candidate access routes to investigate:
+
+1. Reuse the existing BYOK pattern: let the user configure a supported OpenAI, xAI/Grok, or other LLM API credential, store it through the platform secret store, and keep it out of project files, logs, and diagnostics.
+2. Evaluate provider-supported delegated sign-in only where the provider publishes a suitable desktop authorization flow. Do not assume that signing into a consumer chat account grants API access, exposes an API token, or shares the account's subscription/billing entitlement; never scrape sessions or retrieve credentials through an undocumented flow.
+3. Keep provider choice explicit and replaceable. Conversation transport, model catalogs, pricing, retention policies, tool support, and authentication capabilities must be re-verified from current provider contracts before any implementation decision.
+
+Potential product experiments:
+
+- a project-aware chat surface that can explain editing concepts, review a composition summary, suggest structural edits, or help draft and refine video-generation prompts;
+- user-controlled context selection so project metadata, prompts, transcripts, frames, or media summaries are not uploaded implicitly;
+- a small provider-neutral tool surface, potentially exposed through an MCP-compatible adapter where current provider support makes that practical, for narrowly scoped reads and proposed composition operations;
+- an explicit preview/confirm/apply workflow in which the assistant proposes commands but the ReelForge application remains the authority for validation, history, persistence, and execution.
+
+Feasibility research must resolve:
+
+- official OpenAI and xAI/Grok authentication options, API-account separation, model/tool availability, rate limits, pricing, regional availability, data retention, training-use controls, and commercial terms;
+- credential custody, prompt and project-data privacy, consent, redaction, diagnostics, conversation retention/deletion, and offline behavior;
+- prompt-injection and untrusted-media defenses, least-privilege tool permissions, per-action confirmation, auditability, cancellation, transactional failure behavior, and undo/history integration;
+- a minimal application-owned command vocabulary that cannot bypass track locks, project invariants, recovery rules, billable generation confirmation, or the normal provider-submission boundary;
+- whether useful assistance can begin read-only, and which measured user problems justify any later write-capable tools.
+
+The first approved research slice should remain documentation and prototypes against fake/local adapters. Automated tests must be network-isolated, and no assistant path may submit generation work, spend money, disclose credentials, or mutate a project without explicit human authorization. Only evidence from that research may justify a later architecture preflight and scheduled implementation proposal.
+
 ## Unscheduled exploration — local ComfyUI / MiniMax H3
 
 This is intentionally outside the committed Milestone 2 implementation path. MiniMax H3 now has official native ComfyUI workflows, but its weight footprint, runtime performance, incomplete local 2K stack, and territory-restricted license make it inappropriate to schedule before hardware and distribution feasibility are known. No model download or implementation is approved by this roadmap entry.
