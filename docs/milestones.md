@@ -402,7 +402,7 @@ Recommended desktop implementation order remains dependency-driven rather than c
 2. structural multitrack editing, snapping/markers, and session undo/redo;
 3. deterministic track-aware rendering, preview profiles, proxy behavior, and ordinary Free conversion/export against the media contract;
 4. constant visual properties, practical audio finishing, waveform/range editing, and a restrained transition set;
-5. titles, manual captions, SRT workflows, and the pinned Unicode/font path;
+5. titles, manual captions, SRT workflows, project-owned custom font import, and the pinned Unicode/font path;
 6. dockable/floating workspace surfaces and the Source/Edit/Rendered viewer contexts;
 7. exact edit-to-generation/range-reference/replace workflows;
 8. diagnostics, accessibility, acceptance, and measured production-path performance hardening.

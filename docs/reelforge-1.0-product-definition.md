@@ -131,6 +131,8 @@ Why Free: a waveform and editable ranges are basic placement tools, not professi
 ### 5. Minimal text and captions
 
 - Timed plain title and lower-third items with font, size, color, alignment, position, and background/shadow from a restrained model.
+- Basic custom-font import is Free: users may import `.ttf` and `.otf` font files accepted by the declared font capability matrix into project-controlled storage for titles, captions, credits, watermarks, lower thirds, and other text overlays. Each imported face is identified by stable project identity, exact file hash, family, face, and style rather than a system-font name or machine path. An extension alone never establishes support.
+- ReelForge's pinned, redistributable font set remains the dependable default. An existing text item never silently substitutes a missing custom font; it enters an explicit degraded state with relink or deliberate replacement guidance.
 - Manual caption creation/editing plus SRT import.
 - Caption styling, burned-in export, and SRT sidecar export.
 - No bundled transcription model, motion-graphics template system, karaoke styling, or translation requirement.
@@ -198,6 +200,7 @@ This is product-planning metadata, not an entitlement design. Free beta does not
 | Performance controls | Explicit proxy generation/attachment, preview quality controls, cache diagnostics, and render queue controls when measured projects need them. | High | Stable render graph, capability discovery, cache identity. |
 | Assisted audio | Loudness analysis/normalization, auto-ducking, and selected speech cleanup when engine and license review pass. | High | Waveforms, analysis artifacts, audio time model, engine discovery. |
 | Automatic transcription/captions | Optional local or approved remote transcription feeding the Free caption model, with editable text and timing. | High | Caption model, analysis jobs, language/model packaging and privacy review. |
+| Typography productivity | Reusable cross-project font collections, favorites, organization, and brand-kit conveniences beyond basic Free project font import. | Medium | Stable font-asset contract, licensing guidance, settings/library persistence, and text UI. |
 | Continuity and repair toolkit | Assisted **Match to Previous Clip**, stabilization, deflicker, denoise, sharpen, and format/loudness matching. Each operation is independently capability-gated and creates typed settings/analysis artifacts rather than assuming one FFmpeg filter family. | High to very high | Stable effect/analysis model, final media-contract candidates, performance budgets, code/model/data license review, preview/export agreement. |
 | Deeper finishing | Reverse playback, a broader audited transition/effect catalog, LUTs, reusable effect presets, adjustment layers, and nested compositions when demand is demonstrated. | High to very high | Stable effects/render graph, automation, nesting/cycle rules, capability discovery. |
 | Media intelligence and provenance | Scene detection, semantic media search, generation-graph visualization, and stronger provenance browsing. | High to very high | Analysis jobs/indexes, privacy/storage policy, stable provenance graph. |
@@ -217,7 +220,7 @@ The continuity and repair toolkit is the target first Pro bundle alongside an ow
 | Constant speed and freeze | Useful for fitting generated shots; variable ramps are not necessary. | Medium to high after time model; audio/time mapping and render cost. | Free 1.0; ramps Pro |
 | Waveforms and audio ranges | Placement without waveforms/trim is needlessly blind; ordinary video-audio workflow. | High; analysis cache plus audio-exact time and mixing updates; FFmpeg-capable. | Free 1.0 |
 | Basic transitions and color | Hard cuts only and unmatchable AI shots undermine finishing; catalog breadth and LUT import are unnecessary. | High; effect graph and preview fidelity. Some FFmpeg filters/external libraries can alter license profile. | Small Free set; LUT later/Pro |
-| Titles and manual captions | Omitting both forces another tool for credits/accessibility; current creator-editor expectation. | Medium to high; timed overlay/caption model, font shaping/rendering, Unicode, SRT; font/render dependencies need audit. | Narrow Free 1.0 |
+| Titles, manual captions, and custom project fonts | Omitting titles/captions forces another tool for credits/accessibility, while custom fonts enable ordinary personal and brand typography. | Medium to high; timed overlay/caption model, hash-identified font assets, untrusted-font validation, shaping/rendering, Unicode, SRT, and font-license guidance. | Narrow Free 1.0; advanced font management may be Pro |
 | Common re-encode/export profiles | A fixed opaque export or one-format tax is not credible delivery; competitors expose format/preset choices as ordinary workflow. | High after render graph; capability-reported codecs/containers, audio-only output, patent/distribution review. | Free 1.0 common baseline |
 | Advanced delivery | Batch conversion, queues, reusable/custom profiles, and specialty/professional formats create productivity and support cost without blocking ordinary output. | Medium to high; batch failure policy and exact runtime support. | Pro |
 | Dockable workspace and clear viewer contexts | Fixed panels constrain real editing work; conflating source, live edit, and rendered output risks state mistakes. | Medium to high presentation work; shared coordinators, reparenting, multi-monitor/DPI restore, stale-revision identity. | Free 1.0 |
@@ -398,12 +401,19 @@ Risk: High.
 
 ### Slice G — minimal text and captions
 
-Scope: typed timed text items, basic title/lower-third UI, caption authoring, SRT import/export, and burn-in through the final text/font baseline.
+Scope: typed timed text items, basic title/lower-third UI, caption authoring, SRT import/export, project-owned custom `.ttf`/`.otf` font import, and burn-in through the final text/font baseline. Basic project font import is Free; reusable font-library organization and brand-kit productivity may be later Pro depth.
+
+Before implementation, a font capability/security gate must approve the exact initial subset—including static/variable faces, collections, color-font formats, supported tables, and face/style selection—plus the parser, shaping, and render path. It must define fail-closed malformed/adversarial-input handling, resource limits, isolation boundaries, and unsupported-feature diagnostics. File extension or successful metadata inspection alone is not proof that a font can be rendered deterministically.
 
 Acceptance:
 
 - title and caption timing survives trim/ripple/undo/reopen according to explicit attachment rules;
-- fonts, missing fonts, Unicode, line wrapping, safe areas, and aspect-ratio changes have deterministic behavior;
+- imported fonts are validated as untrusted input before use, copied into project-controlled storage, assigned stable asset/content identity, and referenced without absolute paths or installed-system-font assumptions;
+- the exact imported font face/style and hash reopen deterministically; missing or changed font bytes create an explicit degraded state and never silently substitute another font;
+- malformed, adversarial, resource-excessive, and capability-unsupported fonts fail closed before becoming usable project assets and cannot silently fall through to a system font;
+- users receive clear guidance that they are responsible for rights to use and share imported fonts; ReelForge does not claim redistribution approval for user-provided font files;
+- imported font bytes are user content: they are never automatically uploaded to providers, included in diagnostic bundles, or classified as ReelForge-redistributable dependencies;
+- pinned default fonts, Unicode, fallback within the approved pinned set, line wrapping, safe areas, and aspect-ratio changes have deterministic behavior;
 - SRT round-trip preserves supported timing/text and reports unsupported constructs;
 - burned-in captions match preview and sidecar export remains available;
 - transcription, translation, and template marketplaces remain out of scope.
@@ -464,7 +474,7 @@ Risk: High because it exposes integration and performance debt, even though it s
 - **Rendering:** multiple video tracks, overlays, transitions, text, effects, and retiming require a richer deterministic render graph rather than isolated flags appended to `FfmpegCommandBuilder`. Preview/final profiles may differ in quality, never in creative meaning.
 - **Playback:** the existing fast source-by-source audition cannot display every future overlay/effect. Slice D must define when live composition is possible, when partial preview rendering is required, and how stale results are rejected.
 - **Audio:** audio boundaries require an audio-appropriate exact time representation. Waveforms and loudness scans are reconstructable analysis artifacts, not project truth.
-- **Text:** titles and captions need a typed overlay model plus an audited font shaping/render path. Font files, Unicode behavior, fallback, and any FFmpeg/font-library dependency are part of the capability contract.
+- **Text:** titles and captions need a typed overlay model plus an audited font shaping/render path. User-provided fonts are project-owned, hash-identified logical assets rather than system font names or machine paths; their bytes are untrusted user content and require a declared format/feature subset, fail-closed resource-bounded validation, an approved parsing/isolation boundary, explicit missing/mismatch behavior, and user-facing license/share guidance. They remain excluded from provider preparation and diagnostic bundles by default. Pinned defaults, Unicode behavior, fallback, and any FFmpeg/font-library dependency remain part of the capability contract.
 - **Cache/performance:** effects, waveforms, proxies, and analysis keys include exact source/revision, engine/version, settings, and purpose. Automatic reduced-quality previews/proxies are Free disposable artifacts when the performance policy needs them; Pro may add manual/cache/queue controls. The reference profile is 32 GB RAM, Ryzen 7 3700X, RTX 3070 Ti 8 GB, primarily 30-second to 10-minute 720p/1080p editing. Track-count and lower-hardware floors remain measured outcomes. Higher-resolution source and 4K import/export do not imply full-resolution real-time 4K playback.
 - **FFmpeg:** develop against the pinned LGPL-first profile and [media dependency policy](media-dependencies-and-licensing.md). The current command builder's `libx264` request is not a baseline contract. `--enable-gpl`, `--enable-nonfree`, `libx264`, `libx265`, `libvidstab`, `librubberband`, `eq`, and `hqdn3d` are excluded from the redistributable baseline. Enhanced user-local tools may expose optional capabilities, but no baseline feature depends on them. Selecting, producing, auditing, signing, and packaging the exact public binary and final encoder contract remains release-engineering work.
 - **Optional engines:** stabilization, transcription, interpolation, upscale, segmentation, tracking, and repair require separate code/model/data license, hardware, integrity, privacy, update, and fallback gates. No engine name belongs in project-domain concepts.

@@ -248,7 +248,7 @@ The later dependency order remains:
 
 1. visual finishing;
 2. audio finishing;
-3. text and captions;
+3. text, captions, and Free project-owned custom font import;
 4. workspace/viewer contexts, including Free floating and dockable timeline/Edit Tools surfaces;
 5. edit-to-generation bridge;
 6. Free hardening and external-beta readiness.
