@@ -50,6 +50,83 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task TryReopenLastProjectAsync_WhenRecoveryIsAccepted_OpensRecoveredWorkingStateWithoutSaving()
+    {
+        var projectPath = CreateProjectFile("recovered-last.rfp");
+        var fixture = CreateFixture();
+        fixture.Settings.General.LastProjectFilePath = projectPath;
+        fixture.RecoveryStore.Probe = new ProjectRecoveryProbe(
+            new ProjectRecoveryCandidate(new VideoProject { Id = fixture.Store.OpenedProjectId, Name = "Recovered project" }));
+        fixture.Dialogs.RecoveryDecision = ProjectRecoveryDecision.OpenRecoveredWorkingState;
+
+        await fixture.Coordinator.TryReopenLastProjectAsync();
+
+        Assert.Equal("Recovered project", fixture.Workspace.Project!.Name);
+        Assert.Equal(ProjectWorkspaceState.Recovered, fixture.Workspace.State);
+        Assert.Equal(2, fixture.Host.RefreshCount);
+        Assert.Equal(0, fixture.Store.SaveCount);
+        Assert.Equal(0, fixture.RecoveryStore.DiscardCount);
+        Assert.Contains(fixture.Host.Statuses, status => status.Contains("until you explicitly save", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task OpenProjectFromDialogAsync_WhenRecoveryIsDiscarded_LeavesCommittedProjectOpen()
+    {
+        var projectPath = CreateProjectFile("discard-recovery.rfp");
+        var fixture = CreateFixture();
+        fixture.Dialogs.ProjectFilePath = projectPath;
+        fixture.RecoveryStore.Probe = new ProjectRecoveryProbe(
+            new ProjectRecoveryCandidate(new VideoProject { Id = fixture.Store.OpenedProjectId, Name = "Recovered project" }));
+        fixture.Dialogs.RecoveryDecision = ProjectRecoveryDecision.DiscardRecovery;
+
+        await fixture.Coordinator.OpenProjectFromDialogAsync();
+
+        Assert.Equal("discard-recovery", fixture.Workspace.Project!.Name);
+        Assert.Equal(ProjectWorkspaceState.Clean, fixture.Workspace.State);
+        Assert.Equal(1, fixture.RecoveryStore.DiscardCount);
+        Assert.Equal(2, fixture.Host.RefreshCount);
+        Assert.Equal(0, fixture.Store.SaveCount);
+    }
+
+    [Fact]
+    public async Task OpenProjectFromDialogAsync_WhenRecoveryIsDeferred_KeepsCandidateAndCommittedProjectOpen()
+    {
+        var projectPath = CreateProjectFile("defer-recovery.rfp");
+        var fixture = CreateFixture();
+        fixture.Dialogs.ProjectFilePath = projectPath;
+        fixture.RecoveryStore.Probe = new ProjectRecoveryProbe(
+            new ProjectRecoveryCandidate(new VideoProject { Id = fixture.Store.OpenedProjectId, Name = "Recovered project" }));
+        fixture.Dialogs.RecoveryDecision = ProjectRecoveryDecision.Defer;
+
+        await fixture.Coordinator.OpenProjectFromDialogAsync();
+
+        Assert.Equal("defer-recovery", fixture.Workspace.Project!.Name);
+        Assert.NotNull(fixture.Workspace.RecoveryCandidate);
+        Assert.Equal(ProjectWorkspaceState.RecoveryAvailable, fixture.Workspace.State);
+        Assert.Equal(0, fixture.RecoveryStore.DiscardCount);
+        Assert.Equal(1, fixture.Host.RefreshCount);
+        Assert.Equal(0, fixture.Store.SaveCount);
+        Assert.Contains(fixture.Host.Statuses, status => status.Contains("remains available", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TryReopenLastProjectAsync_WhenRecoveryIsInvalid_LeavesCommittedProjectInspectableAndReportsStatus()
+    {
+        var projectPath = CreateProjectFile("invalid-recovery.rfp");
+        var fixture = CreateFixture();
+        fixture.Settings.General.LastProjectFilePath = projectPath;
+        fixture.RecoveryStore.Probe = new ProjectRecoveryProbe(null, "Recovery data was ignored because it is invalid.");
+
+        await fixture.Coordinator.TryReopenLastProjectAsync();
+
+        Assert.Equal("invalid-recovery", fixture.Workspace.Project!.Name);
+        Assert.Equal(ProjectWorkspaceState.Failed, fixture.Workspace.State);
+        Assert.Equal(1, fixture.Host.RefreshCount);
+        Assert.Equal(0, fixture.Store.SaveCount);
+        Assert.Contains(fixture.Host.Statuses, status => status.Contains("recovery data was not used", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task TryReopenLastProjectAsync_WhenOpenFails_ReportsDiagnosticDetails()
     {
         var projectPath = CreateProjectFile("broken.rfp");
@@ -201,13 +278,15 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
         var settings = new ApplicationSettings();
         var settingsStore = new FakeSettingsStore();
         var store = new FakeProjectStore();
-        var workspace = new ProjectWorkspace(store, new FakeAssetImporter());
+        var recoveryStore = new FakeRecoveryStore();
+        var workspace = new ProjectWorkspace(store, new FakeAssetImporter(), recoveryStore);
         var host = new FakeHost();
         var dialogs = new FakeDialogs();
         return new Fixture(
             settings,
             settingsStore,
             store,
+            recoveryStore,
             workspace,
             host,
             dialogs,
@@ -238,6 +317,7 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
         ApplicationSettings Settings,
         FakeSettingsStore SettingsStore,
         FakeProjectStore Store,
+        FakeRecoveryStore RecoveryStore,
         ProjectWorkspace Workspace,
         FakeHost Host,
         FakeDialogs Dialogs,
@@ -247,8 +327,10 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
     {
         public NewProjectSelection? NewProjectSelection { get; set; }
         public string? ProjectFilePath { get; set; }
+        public ProjectRecoveryDecision RecoveryDecision { get; set; } = ProjectRecoveryDecision.Defer;
         public NewProjectSelection? SelectNewProject(ApplicationSettings settings) => NewProjectSelection;
         public string? SelectProjectToOpen(ApplicationSettings settings) => ProjectFilePath;
+        public ProjectRecoveryDecision DecideRecovery(ProjectRecoveryCandidate candidate) => RecoveryDecision;
     }
 
     private sealed class FakeSettingsStore : IApplicationSettingsStore
@@ -270,6 +352,8 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
         public List<string> OpenedPaths { get; } = [];
         public ProjectLocation? CreatedLocation { get; set; }
         public Exception? OpenException { get; set; }
+        public Guid OpenedProjectId { get; } = Guid.NewGuid();
+        public int SaveCount { get; private set; }
 
         public Task<(VideoProject Project, ProjectLocation Location)> CreateAsync(string rootDirectory, string name, CancellationToken cancellationToken = default)
         {
@@ -282,11 +366,33 @@ public sealed class ProjectLifecycleCoordinatorTests : IDisposable
         {
             OpenedPaths.Add(projectFilePath);
             return OpenException is null
-                ? Task.FromResult((new VideoProject { Name = Path.GetFileNameWithoutExtension(projectFilePath) }, new ProjectLocation(Path.GetDirectoryName(projectFilePath)!, projectFilePath)))
+                ? Task.FromResult((new VideoProject { Id = OpenedProjectId, Name = Path.GetFileNameWithoutExtension(projectFilePath) }, new ProjectLocation(Path.GetDirectoryName(projectFilePath)!, projectFilePath)))
                 : Task.FromException<(VideoProject Project, ProjectLocation Location)>(OpenException);
         }
 
-        public Task SaveAsync(VideoProject project, ProjectLocation location, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SaveAsync(VideoProject project, ProjectLocation location, CancellationToken cancellationToken = default)
+        {
+            SaveCount++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeRecoveryStore : IProjectRecoveryStore
+    {
+        public ProjectRecoveryProbe Probe { get; set; } = ProjectRecoveryProbe.None;
+        public int DiscardCount { get; private set; }
+
+        public Task<ProjectRecoveryProbe> ProbeAsync(ProjectLocation location, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Probe);
+
+        public Task WriteAsync(VideoProject project, ProjectLocation location, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task DiscardAsync(ProjectLocation location, CancellationToken cancellationToken = default)
+        {
+            DiscardCount++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeAssetImporter : IAssetImportService

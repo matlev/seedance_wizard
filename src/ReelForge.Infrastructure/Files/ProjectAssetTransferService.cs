@@ -22,11 +22,19 @@ public sealed class ProjectAssetTransferService
 {
     private readonly IProjectStore _projectStore;
     private readonly IAssetImportService _assetImporter;
+    private readonly ProjectWorkspace _saveWorkspace;
 
-    public ProjectAssetTransferService(IProjectStore projectStore, IAssetImportService assetImporter)
+    public ProjectAssetTransferService(
+        IProjectStore projectStore,
+        IAssetImportService assetImporter,
+        ProjectWorkspace? saveWorkspace = null)
     {
         _projectStore = projectStore;
         _assetImporter = assetImporter;
+        _saveWorkspace = saveWorkspace ?? new ProjectWorkspace(
+            projectStore,
+            assetImporter,
+            projectStore as IProjectRecoveryStore);
     }
 
     public async Task<ProjectAssetCopyResult> CopyToProjectAsync(
@@ -98,7 +106,7 @@ public sealed class ProjectAssetTransferService
             throw new FileNotFoundException("The materialized media file is missing and cannot be copied.", sourceMediaPath);
 
         var targetProjectPath = Path.GetFullPath(targetProjectFilePath);
-        var (targetProject, targetLocation) = await _projectStore
+        var (_, targetLocation) = await _projectStore
             .OpenAsync(targetProjectPath, cancellationToken)
             .ConfigureAwait(false);
         var copiedAssets = await _assetImporter
@@ -110,14 +118,22 @@ public sealed class ProjectAssetTransferService
 
         copiedAsset.Origin = metadata.Origin;
         copiedAsset.Provenance = metadata.Provenance;
-        targetProject.AddAsset(copiedAsset);
+        string? targetProjectName = null;
         try
         {
-            await _projectStore.SaveAsync(targetProject, targetLocation, cancellationToken).ConfigureAwait(false);
+            await _saveWorkspace
+                .UpdateDetachedWithRollbackAsync(
+                    targetProjectPath,
+                    (targetProject, _) =>
+                    {
+                        targetProject.AddAsset(copiedAsset);
+                        targetProjectName = targetProject.Name;
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
         catch
         {
-            targetProject.Assets.Remove(copiedAsset);
             var copiedPath = Path.GetFullPath(Path.Combine(
                 targetLocation.RootDirectory,
                 copiedAsset.Physical!.RelativePath.Replace('/', Path.DirectorySeparatorChar)));
@@ -125,6 +141,6 @@ public sealed class ProjectAssetTransferService
             throw;
         }
 
-        return new ProjectAssetCopyResult(targetProject.Name, targetLocation.ProjectFilePath, copiedAsset);
+        return new ProjectAssetCopyResult(targetProjectName!, targetLocation.ProjectFilePath, copiedAsset);
     }
 }

@@ -208,7 +208,7 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ProjectSwitchDuringSaveReturnsStale()
+    public async Task ProjectSwitchDuringSaveWaitsForCoordinatedCommit()
     {
         var store = new BlockingSaveProjectStore();
         var inspector = new RecordingInspector();
@@ -216,18 +216,22 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
         var service = new PhysicalAssetSelectionPreparationService(workspace, inspector);
         var selectedProject = workspace.Project!;
         var selectedLocation = workspace.Location!;
+        store.SavedProjects.Clear();
         store.BlockNextSave = true;
 
         var preparation = service.PrepareAsync(asset, selectedProject, selectedLocation, isFfprobeAvailable: true);
         await store.SaveStarted.Task;
-        await workspace.CreateAsync(Path.Combine(_temporaryRoot, "save-switch-project"), "Other project");
+        var projectSwitch = workspace.CreateAsync(Path.Combine(_temporaryRoot, "save-switch-project"), "Other project");
+        await Task.Delay(50);
+        Assert.False(projectSwitch.IsCompleted);
         store.ReleaseSave.SetResult();
 
         var result = await preparation;
+        await projectSwitch;
 
-        Assert.Equal(PhysicalAssetSelectionPreparationKind.Stale, result.Kind);
+        Assert.True(result.Kind is PhysicalAssetSelectionPreparationKind.Ready or PhysicalAssetSelectionPreparationKind.Stale);
         Assert.NotNull(asset.Encoding);
-        Assert.Contains(selectedProject, store.SavedProjects);
+        Assert.Contains(store.SavedProjects, project => ReferenceEquals(project, selectedProject));
         Assert.DoesNotContain(store.SavedProjects, project => ReferenceEquals(project, workspace.Project));
     }
 
@@ -311,7 +315,7 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
             throw new InvalidOperationException("This test does not import assets.");
     }
 
-    private sealed class BlockingSaveProjectStore : IProjectStore
+    private sealed class BlockingSaveProjectStore : IProjectStore, IProjectCommitGuardedStore
     {
         private readonly PortableProjectStore _inner = new();
 
@@ -336,15 +340,37 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
             ProjectLocation location,
             CancellationToken cancellationToken = default)
         {
+            _ = await SaveIfAsync(
+                project,
+                location,
+                static commit =>
+                {
+                    commit();
+                    return true;
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<bool> SaveIfAsync(
+            VideoProject project,
+            ProjectLocation location,
+            Func<Action, bool> tryCommit,
+            CancellationToken cancellationToken = default)
+        {
             if (BlockNextSave)
             {
                 BlockNextSave = false;
                 SaveStarted.SetResult();
-                await ReleaseSave.Task.ConfigureAwait(false);
+                await ReleaseSave.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
-            SavedProjects.Add(project);
-            await _inner.SaveAsync(project, location, cancellationToken).ConfigureAwait(false);
+            var committed = await _inner
+                .SaveIfAsync(project, location, tryCommit, cancellationToken)
+                .ConfigureAwait(false);
+            if (committed)
+                SavedProjects.Add(project);
+            return committed;
         }
     }
 }

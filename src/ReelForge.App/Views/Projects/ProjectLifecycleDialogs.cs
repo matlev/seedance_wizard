@@ -8,6 +8,13 @@ namespace ReelForge.App.Views.Projects;
 
 internal sealed record NewProjectSelection(string ProjectDirectory, string ProjectName);
 
+internal enum ProjectRecoveryDecision
+{
+    OpenRecoveredWorkingState,
+    DiscardRecovery,
+    Defer
+}
+
 /// <summary>
 /// Narrows project-creation and project-opening dialog policy for lifecycle coordination.
 /// Import dialogs deliberately remain outside this contract because they belong to the
@@ -17,6 +24,7 @@ internal interface IProjectLifecycleDialogs
 {
     NewProjectSelection? SelectNewProject(ApplicationSettings settings);
     string? SelectProjectToOpen(ApplicationSettings settings);
+    ProjectRecoveryDecision DecideRecovery(ProjectRecoveryCandidate candidate);
 }
 
 /// <summary>
@@ -76,6 +84,29 @@ internal sealed class ProjectLifecycleDialogs(Window owner, ApplicationPaths pat
             Owner = owner
         };
         return dialog.ShowDialog() == true ? dialog.ProjectFilePath : null;
+    }
+
+    public ProjectRecoveryDecision DecideRecovery(ProjectRecoveryCandidate candidate)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+
+        var choice = MessageBox.Show(
+            owner,
+            "ReelForge found recovery data from an earlier interrupted session.\n\n" +
+            "Yes opens the recovered working state. It does not replace the saved project until you explicitly Save.\n\n" +
+            "No permanently discards the recovery data and keeps the saved project open.\n\n" +
+            "Cancel keeps the saved project open and leaves recovery data available for a later decision.",
+            "Project recovery available",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+
+        return choice switch
+        {
+            MessageBoxResult.Yes => ProjectRecoveryDecision.OpenRecoveredWorkingState,
+            MessageBoxResult.No => ProjectRecoveryDecision.DiscardRecovery,
+            _ => ProjectRecoveryDecision.Defer
+        };
     }
 
     public IReadOnlyList<string> SelectMediaToImport()

@@ -54,6 +54,7 @@ internal sealed class ProjectLifecycleCoordinator
         {
             await _workspace.OpenAsync(projectFilePath);
             _host.RefreshProjectUi();
+            await OfferRecoveryAsync();
         }
         catch (Exception exception)
         {
@@ -89,6 +90,7 @@ internal sealed class ProjectLifecycleCoordinator
                 await _workspace.OpenAsync(projectFilePath);
                 _host.RefreshProjectUi();
                 await RememberCurrentProjectAsync();
+                await OfferRecoveryAsync();
             });
     }
 
@@ -190,6 +192,43 @@ internal sealed class ProjectLifecycleCoordinator
         catch (Exception exception)
         {
             _host.AppendStatus($" ReelForge could not remember this project for the next launch: {exception.Message}");
+        }
+    }
+
+    private async Task OfferRecoveryAsync()
+    {
+        if (_workspace.RecoveryCandidate is not { } candidate)
+        {
+            if (_workspace.State == ProjectWorkspaceState.Failed && !string.IsNullOrWhiteSpace(_workspace.FailureDetail))
+            {
+                _host.SetStatus(
+                    $"The saved project opened, but recovery data was not used: {_workspace.FailureDetail}");
+            }
+
+            return;
+        }
+
+        switch (_dialogs.DecideRecovery(candidate))
+        {
+            case ProjectRecoveryDecision.OpenRecoveredWorkingState:
+                await _workspace.AcceptRecoveryAsync();
+                _host.RefreshProjectUi();
+                _host.SetStatus(
+                    "Recovered working state opened. The saved project remains unchanged until you explicitly save.");
+                break;
+
+            case ProjectRecoveryDecision.DiscardRecovery:
+                await _workspace.DiscardRecoveryAsync();
+                _host.RefreshProjectUi();
+                _host.SetStatus("Recovery data discarded. The saved project remains open.");
+                break;
+
+            case ProjectRecoveryDecision.Defer:
+                _host.SetStatus("Recovery data remains available. The saved project remains open.");
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException();
         }
     }
 

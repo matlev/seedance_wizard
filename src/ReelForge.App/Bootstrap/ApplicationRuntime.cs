@@ -51,9 +51,10 @@ internal sealed class ApplicationRuntime : IDisposable
         AudioExtractionEngine = new FfmpegAudioExtractionEngine(MediaTools.FfmpegPath, ProcessRunner);
 
         ProjectStore = new PortableProjectStore();
+        ProjectSaveCoordinator = new ProjectSaveCoordinator();
         AssetImporter = new AssetImportService(MediaInspector);
-        Workspace = new ProjectWorkspace(ProjectStore, AssetImporter);
-        AssetTransferService = new ProjectAssetTransferService(ProjectStore, AssetImporter);
+        Workspace = new ProjectWorkspace(ProjectStore, AssetImporter, ProjectStore, ProjectSaveCoordinator);
+        AssetTransferService = new ProjectAssetTransferService(ProjectStore, AssetImporter, Workspace);
         ContentHashService = new Sha256ContentHashService();
         RenderedAssetPromotionService = new RenderedAssetPromotionService(
             Workspace,
@@ -103,6 +104,7 @@ internal sealed class ApplicationRuntime : IDisposable
     public ApplicationSettings Settings { get; private set; }
     public MediaToolAvailability MediaTools { get; private set; }
     public PortableProjectStore ProjectStore { get; }
+    public ProjectSaveCoordinator ProjectSaveCoordinator { get; }
     public AssetImportService AssetImporter { get; }
     public ProjectWorkspace Workspace { get; }
     public ProjectAssetTransferService AssetTransferService { get; }
@@ -218,7 +220,7 @@ internal sealed class ApplicationRuntime : IDisposable
         new(workspace, MediaMaterializer, OutputIngestion, preparationService);
 
     public ProjectWorkspace CreateProjectWorkspace() =>
-        new(ProjectStore, AssetImporter);
+        new(ProjectStore, AssetImporter, ProjectStore, ProjectSaveCoordinator);
 
     private ApplicationSettings LoadSettings()
     {

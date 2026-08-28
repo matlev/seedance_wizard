@@ -1,43 +1,126 @@
 using ReelForge.Core;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ReelForge.Application;
 
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification =
+    "The asynchronous gates and active-session token are held for the workspace lifetime and own no external resources.")]
 public sealed class ProjectWorkspace
 {
     private readonly IProjectStore _projectStore;
     private readonly IAssetImportService _assetImporter;
+    private readonly IProjectRecoveryStore? _recoveryStore;
+    private readonly ProjectSaveCoordinator _saveCoordinator;
+    private readonly SemaphoreSlim _sessionGate = new(1, 1);
+    private readonly object _sessionCommitBarrier = new();
+    private CancellationTokenSource _sessionCancellation = new();
+    private long _sessionGeneration;
 
-    public ProjectWorkspace(IProjectStore projectStore, IAssetImportService assetImporter)
+    public ProjectWorkspace(
+        IProjectStore projectStore,
+        IAssetImportService assetImporter,
+        IProjectRecoveryStore? recoveryStore = null,
+        ProjectSaveCoordinator? saveCoordinator = null)
     {
         _projectStore = projectStore;
         _assetImporter = assetImporter;
+        _recoveryStore = recoveryStore;
+        _saveCoordinator = saveCoordinator ?? new ProjectSaveCoordinator();
     }
 
     public VideoProject? Project { get; private set; }
     public ProjectLocation? Location { get; private set; }
+    public ProjectWorkspaceState State { get; private set; } = ProjectWorkspaceState.Clean;
+    public bool IsDegraded { get; private set; }
+    public string? FailureDetail { get; private set; }
+    public ProjectRecoveryCandidate? RecoveryCandidate { get; private set; }
 
     public async Task CreateAsync(
         string rootDirectory,
         string name,
         CancellationToken cancellationToken = default)
     {
-        (Project, Location) = await _projectStore
-            .CreateAsync(rootDirectory, name, cancellationToken)
-            .ConfigureAwait(false);
+        using var saveLease = await _saveCoordinator.EnterAsync(cancellationToken).ConfigureAwait(false);
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var (project, location) = await _projectStore
+                .CreateAsync(rootDirectory, name, cancellationToken)
+                .ConfigureAwait(false);
+            Publish(project, location, ProjectWorkspaceState.Saved);
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
     }
 
     public async Task OpenAsync(string projectFilePath, CancellationToken cancellationToken = default)
     {
-        (Project, Location) = await _projectStore
-            .OpenAsync(projectFilePath, cancellationToken)
-            .ConfigureAwait(false);
+        using var saveLease = await _saveCoordinator.EnterAsync(cancellationToken).ConfigureAwait(false);
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var (project, location) = await _projectStore
+                .OpenAsync(projectFilePath, cancellationToken)
+                .ConfigureAwait(false);
+            ProjectRecoveryProbe? probe = _recoveryStore is null
+                ? null
+                : await _recoveryStore.ProbeAsync(location, cancellationToken).ConfigureAwait(false);
+            Publish(project, location, IsProjectDegraded(project)
+                ? ProjectWorkspaceState.Degraded
+                : ProjectWorkspaceState.Clean);
+
+            if (probe is null)
+                return;
+
+            if (probe.FailureDetail is not null)
+            {
+                FailureDetail = probe.FailureDetail;
+                State = ProjectWorkspaceState.Failed;
+                return;
+            }
+
+            if (probe.Candidate is not null && probe.Candidate.Project.Id != project.Id)
+            {
+                FailureDetail = "Recovery data belongs to a different project and was not activated.";
+                State = ProjectWorkspaceState.Failed;
+                return;
+            }
+
+            RecoveryCandidate = probe.Candidate;
+            if (RecoveryCandidate is not null)
+                State = ProjectWorkspaceState.RecoveryAvailable;
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
     }
 
-    public Task SaveAsync(CancellationToken cancellationToken = default)
+    public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
-        EnsureProjectIsOpen();
-        Project!.Touch();
-        return _projectStore.SaveAsync(Project, Location!, cancellationToken);
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        VideoProject project;
+        ProjectLocation location;
+        CancellationToken sessionCancellation;
+        long sessionGeneration;
+        try
+        {
+            EnsureProjectIsOpen();
+            project = Project!;
+            location = Location!;
+            sessionCancellation = _sessionCancellation.Token;
+            sessionGeneration = _sessionGeneration;
+            project.Touch();
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+
+        await SaveCapturedAsync(
+            project, location, sessionGeneration, sessionCancellation, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -52,15 +135,34 @@ public sealed class ProjectWorkspace
     {
         ArgumentNullException.ThrowIfNull(expectedProject);
         ArgumentNullException.ThrowIfNull(expectedLocation);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!ReferenceEquals(Project, expectedProject) || !ReferenceEquals(Location, expectedLocation))
-            return false;
+        CancellationToken sessionCancellation;
+        long sessionGeneration;
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!IsCurrent(expectedProject, expectedLocation))
+                return false;
+            expectedProject.Touch();
+            sessionCancellation = _sessionCancellation.Token;
+            sessionGeneration = _sessionGeneration;
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
 
-        expectedProject.Touch();
-        await _projectStore.SaveAsync(expectedProject, expectedLocation, cancellationToken).ConfigureAwait(false);
-        return !cancellationToken.IsCancellationRequested &&
-               ReferenceEquals(Project, expectedProject) &&
-               ReferenceEquals(Location, expectedLocation);
+        var committed = await SaveCapturedAsync(
+                expectedProject, expectedLocation, sessionGeneration, sessionCancellation, cancellationToken)
+            .ConfigureAwait(false);
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return committed && IsCurrentSession(expectedProject, expectedLocation, sessionGeneration);
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
     }
 
     public async Task<IReadOnlyList<ProjectAsset>> ImportAssetsAsync(
@@ -75,8 +177,127 @@ public sealed class ProjectWorkspace
         foreach (var asset in imported)
             Project!.AddAsset(asset);
 
-        await _projectStore.SaveAsync(Project!, Location!, cancellationToken).ConfigureAwait(false);
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
         return imported;
+    }
+
+    /// <summary>
+    /// Reloads an owning project and applies a focused mutation under the same recovery transaction
+    /// and serialization used by active-project saves, so detached stale aggregates cannot overwrite
+    /// unrelated committed changes.
+    /// </summary>
+    public Task UpdateDetachedAsync(
+        string projectFilePath,
+        Action<VideoProject, ProjectLocation> update,
+        CancellationToken cancellationToken = default)
+        => UpdateDetachedCoreAsync(projectFilePath, update, discardRecoveryOnFailure: false, cancellationToken);
+
+    /// <summary>
+    /// Applies a detached update whose caller rolls back associated file work when persistence fails.
+    /// Its recovery candidate is retired before the serialized transaction is released.
+    /// </summary>
+    public Task UpdateDetachedWithRollbackAsync(
+        string projectFilePath,
+        Action<VideoProject, ProjectLocation> update,
+        CancellationToken cancellationToken = default)
+        => UpdateDetachedCoreAsync(projectFilePath, update, discardRecoveryOnFailure: true, cancellationToken);
+
+    private async Task UpdateDetachedCoreAsync(
+        string projectFilePath,
+        Action<VideoProject, ProjectLocation> update,
+        bool discardRecoveryOnFailure,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectFilePath);
+        ArgumentNullException.ThrowIfNull(update);
+        using var saveLease = await _saveCoordinator.EnterAsync(cancellationToken).ConfigureAwait(false);
+        var (project, location) = await _projectStore
+            .OpenAsync(projectFilePath, cancellationToken)
+            .ConfigureAwait(false);
+        update(project, location);
+        project.Touch();
+
+        try
+        {
+            await PersistDetachedAsync(project, location, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            if (discardRecoveryOnFailure && _recoveryStore is not null)
+                await _recoveryStore.DiscardAsync(location, CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task PersistDetachedAsync(
+        VideoProject project,
+        ProjectLocation location,
+        CancellationToken cancellationToken)
+    {
+        if (_recoveryStore is IProjectRecoveryCommitGuardedStore guardedRecoveryStore)
+            _ = await guardedRecoveryStore.WriteIfAsync(project, location, CommitUnconditionally, cancellationToken)
+                .ConfigureAwait(false);
+        else if (_recoveryStore is not null)
+            await _recoveryStore.WriteAsync(project, location, cancellationToken).ConfigureAwait(false);
+
+        if (_projectStore is IProjectCommitGuardedStore guardedProjectStore)
+            _ = await guardedProjectStore
+                .SaveIfAsync(project, location, CommitUnconditionally, cancellationToken)
+                .ConfigureAwait(false);
+        else
+            await _projectStore.SaveAsync(project, location, cancellationToken).ConfigureAwait(false);
+
+        if (_recoveryStore is not null)
+        {
+            try
+            {
+                await _recoveryStore.DiscardAsync(location, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // The committed project is authoritative; an identical leftover candidate is retired on probe.
+            }
+        }
+    }
+
+    public async Task AcceptRecoveryAsync(CancellationToken cancellationToken = default)
+    {
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureProjectIsOpen();
+            if (RecoveryCandidate is null)
+                throw new InvalidOperationException("There is no recovery candidate to accept.");
+
+            var recovered = RecoveryCandidate.Project;
+            Publish(recovered, Location!, ProjectWorkspaceState.Recovered);
+            RecoveryCandidate = null;
+            FailureDetail = null;
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    public async Task DiscardRecoveryAsync(CancellationToken cancellationToken = default)
+    {
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureProjectIsOpen();
+            if (_recoveryStore is null)
+                throw new InvalidOperationException("Recovery storage is not configured for this workspace.");
+
+            await _recoveryStore.DiscardAsync(Location!, cancellationToken).ConfigureAwait(false);
+            RecoveryCandidate = null;
+            FailureDetail = null;
+            State = IsDegraded ? ProjectWorkspaceState.Degraded : ProjectWorkspaceState.Clean;
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
     }
 
     public string GetAbsoluteAssetPath(ProjectAsset asset)
@@ -94,5 +315,260 @@ public sealed class ProjectWorkspace
     {
         if (Project is null || Location is null)
             throw new InvalidOperationException("Create or open a project first.");
+    }
+
+    private async Task<bool> SaveCapturedAsync(
+        VideoProject project,
+        ProjectLocation location,
+        long sessionGeneration,
+        CancellationToken sessionCancellation,
+        CancellationToken cancellationToken)
+    {
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, sessionCancellation);
+        var operationCancellation = linkedCancellation.Token;
+        var recoveryWritten = false;
+        IDisposable? saveLease = null;
+        try
+        {
+            saveLease = await _saveCoordinator.EnterAsync(operationCancellation).ConfigureAwait(false);
+            await _sessionGate.WaitAsync(operationCancellation).ConfigureAwait(false);
+            try
+            {
+                if (!IsCurrentSession(project, location, sessionGeneration))
+                    return false;
+                State = ProjectWorkspaceState.Dirty;
+                FailureDetail = null;
+            }
+            finally
+            {
+                _sessionGate.Release();
+            }
+
+            Func<Action, bool> tryCommit = commit => TryCommitForSession(sessionGeneration, commit);
+            if (_recoveryStore is IProjectRecoveryCommitGuardedStore guardedRecoveryStore)
+            {
+                if (!await guardedRecoveryStore
+                        .WriteIfAsync(project, location, tryCommit, operationCancellation)
+                        .ConfigureAwait(false))
+                    return false;
+                recoveryWritten = true;
+            }
+            else if (_recoveryStore is not null)
+            {
+                if (!IsSessionGenerationCurrent(sessionGeneration))
+                    return false;
+                await _recoveryStore.WriteAsync(project, location, operationCancellation).ConfigureAwait(false);
+                recoveryWritten = true;
+                if (!IsSessionGenerationCurrent(sessionGeneration))
+                {
+                    await DiscardStaleRecoveryAsync(location).ConfigureAwait(false);
+                    return false;
+                }
+            }
+
+            await _sessionGate.WaitAsync(operationCancellation).ConfigureAwait(false);
+            try
+            {
+                if (!IsCurrentSession(project, location, sessionGeneration) ||
+                    sessionCancellation.IsCancellationRequested)
+                {
+                    if (recoveryWritten)
+                        await DiscardStaleRecoveryAsync(location).ConfigureAwait(false);
+                    return false;
+                }
+                State = ProjectWorkspaceState.Saving;
+                FailureDetail = null;
+            }
+            finally
+            {
+                _sessionGate.Release();
+            }
+
+            operationCancellation.ThrowIfCancellationRequested();
+            var committed = _projectStore is IProjectCommitGuardedStore guardedProjectStore
+                ? await guardedProjectStore
+                    .SaveIfAsync(project, location, tryCommit, operationCancellation)
+                    .ConfigureAwait(false)
+                : await SaveWithoutCommitGuardAsync(
+                    project, location, sessionGeneration, operationCancellation).ConfigureAwait(false);
+            if (!committed)
+            {
+                if (recoveryWritten && !IsSessionGenerationCurrent(sessionGeneration))
+                    await DiscardStaleRecoveryAsync(location).ConfigureAwait(false);
+                return false;
+            }
+
+            await _sessionGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (IsCurrentSession(project, location, sessionGeneration) &&
+                    !sessionCancellation.IsCancellationRequested)
+                {
+                    RecoveryCandidate = null;
+                    IsDegraded = IsProjectDegraded(project);
+                    State = ProjectWorkspaceState.Saved;
+                }
+            }
+            finally
+            {
+                _sessionGate.Release();
+            }
+
+            if (_recoveryStore is not null)
+            {
+                try
+                {
+                    await _recoveryStore.DiscardAsync(location, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    await SetRecoveryCleanupWarningIfCurrentAsync(project, location, exception).ConfigureAwait(false);
+                }
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException) when (sessionCancellation.IsCancellationRequested)
+        {
+            if (recoveryWritten)
+                await DiscardStaleRecoveryAsync(location).ConfigureAwait(false);
+            return false;
+        }
+        catch (Exception exception)
+        {
+            await SetOperationalStateIfCurrentAsync(project, location, ProjectWorkspaceState.Failed, exception.Message)
+                .ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            saveLease?.Dispose();
+        }
+    }
+
+    private async Task SetRecoveryCleanupWarningIfCurrentAsync(
+        VideoProject project,
+        ProjectLocation location,
+        Exception exception)
+    {
+        await _sessionGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (IsCurrent(project, location))
+            {
+                State = ProjectWorkspaceState.Saved;
+                FailureDetail = $"Project was saved, but recovery cleanup failed: {exception.Message}";
+            }
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    private void ResetOperationalState(ProjectWorkspaceState state)
+    {
+        State = state;
+        IsDegraded = Project is not null && IsProjectDegraded(Project);
+        FailureDetail = null;
+        RecoveryCandidate = null;
+    }
+
+    private void Publish(VideoProject project, ProjectLocation location, ProjectWorkspaceState state)
+    {
+        lock (_sessionCommitBarrier)
+        {
+            var previousSession = _sessionCancellation;
+            previousSession.Cancel();
+            previousSession.Dispose();
+            _sessionCancellation = new CancellationTokenSource();
+            Interlocked.Increment(ref _sessionGeneration);
+            Project = project;
+            Location = location;
+            ResetOperationalState(state);
+        }
+    }
+
+    private static bool IsProjectDegraded(VideoProject project) => project.Assets.Any(asset =>
+        asset.StorageKind == AssetStorageKind.Physical &&
+        asset.Physical is not null &&
+        asset.Physical.Availability != PhysicalAssetAvailability.Available);
+
+    private bool IsCurrent(VideoProject project, ProjectLocation location) =>
+        ReferenceEquals(Project, project) && ReferenceEquals(Location, location);
+
+    private bool IsCurrentSession(VideoProject project, ProjectLocation location, long sessionGeneration) =>
+        IsCurrent(project, location) && IsSessionGenerationCurrent(sessionGeneration);
+
+    private bool IsSessionGenerationCurrent(long sessionGeneration) =>
+        Volatile.Read(ref _sessionGeneration) == sessionGeneration;
+
+    private async Task<bool> SaveWithoutCommitGuardAsync(
+        VideoProject project,
+        ProjectLocation location,
+        long sessionGeneration,
+        CancellationToken cancellationToken)
+    {
+        if (!IsSessionGenerationCurrent(sessionGeneration))
+            return false;
+        await _projectStore.SaveAsync(project, location, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    private bool TryCommitForSession(long sessionGeneration, Action commit)
+    {
+        lock (_sessionCommitBarrier)
+        {
+            if (!IsSessionGenerationCurrent(sessionGeneration))
+                return false;
+            commit();
+            return true;
+        }
+    }
+
+    private static bool CommitUnconditionally(Action commit)
+    {
+        commit();
+        return true;
+    }
+
+    private async Task DiscardStaleRecoveryAsync(ProjectLocation location)
+    {
+        if (_recoveryStore is null)
+            return;
+        try
+        {
+            await _recoveryStore.DiscardAsync(location, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+            // A stale candidate is still bound to its exact committed base and will fail closed if it cannot be retired.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // A stale candidate is still bound to its exact committed base and will fail closed if it cannot be retired.
+        }
+    }
+
+    private async Task SetOperationalStateIfCurrentAsync(
+        VideoProject project,
+        ProjectLocation location,
+        ProjectWorkspaceState state,
+        string? failureDetail)
+    {
+        await _sessionGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!IsCurrent(project, location))
+                return;
+
+            State = state;
+            FailureDetail = failureDetail;
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
     }
 }

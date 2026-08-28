@@ -148,7 +148,7 @@ public partial class MainWindow : Window, IDisposable
             _referenceChoices);
         _generationWorkspace.ReferenceSelectionRequested += GenerationWorkspace_ReferenceSelectionRequested;
         _generationContinuation = new GenerationContinuationCoordinator(
-            _workspace, _projectStore, _exactFrameService, _mediaMaterializer,
+            _workspace, _exactFrameService, _mediaMaterializer,
             new GenerationContinuationPresentation(this),
             draft => _generationWorkspace.LoadDraft(draft),
             () => _generationWorkspace.ProviderChoices,
