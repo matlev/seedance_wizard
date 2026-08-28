@@ -507,6 +507,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
     [InlineData("reordered")]
     [InlineData("duplicate")]
     [InlineData("mismatched")]
+    [InlineData("doubled-closure-reference")]
     public void V2LiveContinuationRejectsNonExactScheduledAttemptBindingsBeforeStagingOrRemote(string mutation)
     {
         var corpus = CreateLiveAuthorizationCorpus();
@@ -521,6 +522,25 @@ public sealed class Gate0EvidenceV2ContainmentTests
             Assert.False(File.Exists(corpus.Artifact + ".stage2-v2-append-journal.json"));
             Assert.False(Directory.Exists(Path.Combine(corpus.Artifact, "future")));
             Assert.DoesNotContain("ffmpeg", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("ReelForge.Engineering.R2", result.Output, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { Directory.Delete(corpus.Root, true); }
+    }
+
+    [Fact]
+    public void V2LiveContinuationAcceptsExactCompactClosureReferencesThroughThePreparedJournalBoundary()
+    {
+        var corpus = CreateLiveAuthorizationCorpus();
+        try
+        {
+            var proof = corpus.ProofIds[0];
+            var attempts = Path.Combine(corpus.Root, "attempts.json");
+            WriteLiveAttempts(corpus, proof, attempts, "none");
+            var result = RunPs($"& '{Quote(corpus.Writer)}' -ArtifactRoot '{Quote(corpus.Artifact)}' -SourceRoot '{Quote(corpus.Source)}' -ProofRunId '{proof}' -EvidenceGroupId g05-stage2a-continuation-20260827 -CellId '{corpus.CellsByProof[proof]}' -EvidenceBoundary p2-runtime-route -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -AttemptsPath '{Quote(attempts)}' -FaultInjection BeforeRemoteVerification");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("Injected V2 fault", result.Output, StringComparison.Ordinal);
+            Assert.True(File.Exists(corpus.Artifact + ".stage2-v2-append-journal.json"));
+            Assert.False(Directory.Exists(Path.Combine(corpus.Artifact, "future")));
             Assert.DoesNotContain("ReelForge.Engineering.R2", result.Output, StringComparison.OrdinalIgnoreCase);
         }
         finally { Directory.Delete(corpus.Root, true); }
@@ -576,6 +596,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var repository = Path.Combine(root, "repo");
         var gate0 = Path.Combine(repository, "eng", "gate0");
         Directory.CreateDirectory(gate0);
+        File.WriteAllText(Path.Combine(repository, ".gate0-containment-test-sentinel"), "isolated");
         foreach (var path in new[]
         {
             "docs/gate-0-g0.5-stage2a-continuation-approval.md",
@@ -608,7 +629,11 @@ public sealed class Gate0EvidenceV2ContainmentTests
             "eng/gate0/Test-Gate0EvidenceContainment.ps1",
             "eng/gate0/Test-Gate0ArtifactRetention.ps1",
             "eng/gate0/Test-Gate0ArtifactManifest.ps1",
-            "eng/gate0/evidence/Gate0EvidenceContainment.psm1"
+            "eng/gate0/evidence/Gate0EvidenceContainment.psm1",
+            "eng/gate0/evidence/root-index.json",
+            "eng/gate0/evidence/v2/root-index.json",
+            "eng/gate0/evidence/v2/stage2/g05-stage2a-audio-diagnostic-20260827T183504426Z.manifest.json",
+            "eng/gate0/evidence/v2/stage2/g05-stage2a-v5-infrastructure-20260827T220228625Z.manifest.json"
         })
         {
             var source = Path.Combine(RepoRoot(), path.Replace('/', Path.DirectorySeparatorChar));
@@ -630,6 +655,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var corpus = (root, Path.Combine(root, "ReelForge.Gate0Artifacts"), Path.Combine(root, "source"), Path.Combine(gate0, "Add-Gate0EvidenceV2Shard.ps1"), writerAuthorization, fullAuthorization, schedule, proofIds, cellsByProof);
         Directory.CreateDirectory(corpus.Item2);
         Directory.CreateDirectory(corpus.Item3);
+        File.WriteAllText(Path.Combine(corpus.Item3, "proof.txt"), "proof");
         WriteFullAuthorization(corpus);
         return corpus;
     }
@@ -716,6 +742,12 @@ public sealed class Gate0EvidenceV2ContainmentTests
                 ["completeClosureReference"] = null
             })
             .ToList();
+        var completeAttemptId = attempts[1]["attemptId"]!.GetValue<string>();
+        for (var index = 0; index < attempts.Count; index++)
+        {
+            attempts[index]["retentionClass"] = index == 1 ? "complete" : "compact";
+            attempts[index]["completeClosureReference"] = index == 1 ? null : completeAttemptId;
+        }
         switch (mutation)
         {
             case "missing": attempts.RemoveAt(attempts.Count - 1); break;
@@ -723,6 +755,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
             case "reordered": attempts.Reverse(); break;
             case "duplicate": attempts[1]["attemptId"] = attempts[0]["attemptId"]!.GetValue<string>(); break;
             case "mismatched": attempts[0]["originalAttemptId"] = "stage2a-not-the-frozen-row"; break;
+            case "doubled-closure-reference": attempts[0]["completeClosureReference"] = "stage2a-continuation-" + completeAttemptId; break;
         }
         File.WriteAllText(path, new JsonArray(attempts.Select(static attempt => (JsonNode?)attempt).ToArray()).ToJsonString(IndentedJson) + "\n");
     }

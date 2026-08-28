@@ -85,6 +85,15 @@ if ([string]::IsNullOrWhiteSpace($Provenance) -or @($ContractIdentity).Count -eq
        Assert-Gate0EvidenceV2ExactProperties $binding @('attemptId','originalAttemptId','phase','ordinal','retentionClass','recordPath','recordSha256','disposition','completeClosureReference') 'Live V2 continuation attempt binding'
        if([string]$binding.attemptId -ne "stage2a-continuation-$($scheduled.globalOrdinal)" -or [string]$binding.originalAttemptId -ne "stage2a-$($scheduled.originalScheduleOrdinal)" -or [string]$binding.phase -ne [string]$scheduled.phase -or [int]$binding.ordinal -ne [int]$scheduled.globalOrdinal){throw 'Live V2 continuation attempt bindings are missing, reordered, duplicated, or do not match the exact frozen schedule identities.'}
      }
+     $completePassedAttempts=@($attempts|Where-Object { [string]$_.retentionClass -eq 'complete' -and [string]$_.disposition -eq 'passed' })
+     foreach($binding in $attempts) {
+       if([string]$binding.retentionClass -eq 'compact') {
+         $target=@($completePassedAttempts|Where-Object { [string]$_.attemptId -eq [string]$binding.completeClosureReference })
+         if([string]$binding.disposition -ne 'passed' -or [string]::IsNullOrWhiteSpace([string]$binding.completeClosureReference) -or $target.Count -ne 1){throw 'Live V2 continuation attempt bindings contain a compact closure reference that does not resolve to exactly one complete passed attempt.'}
+       } elseif([string]$binding.retentionClass -eq 'complete') {
+         if(-not [string]::IsNullOrWhiteSpace([string]$binding.completeClosureReference)){throw 'Live V2 continuation attempt bindings contain a complete attempt with a closure reference.'}
+       } else { throw 'Live V2 continuation attempt bindings contain an unknown retention class.' }
+     }
    }
  } elseif($AttemptsPath){throw 'V2 infrastructure append cannot carry media attempt bindings.'}
 if(-not(Test-Path -LiteralPath $source -PathType Container)){throw 'V2 SourceRoot does not exist.'}

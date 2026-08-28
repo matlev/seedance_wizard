@@ -232,7 +232,9 @@ $after = @(Get-Process -Name ffmpeg,ffprobe -ErrorAction SilentlyContinue | Sele
         var source = File.ReadAllText(PathInRepo("eng", "gate0", "Invoke-G05Stage2AContinuation.ps1"));
 
         Assert.Contains("$binding=New-G05Stage2AAttemptBinding", source, StringComparison.Ordinal);
+        Assert.Contains("[string]$binding.completeClosureReference", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Write-G05Stage2ASemanticJson $path $summary", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Replace('stage2a-','stage2a-continuation-')", source, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -28,7 +28,7 @@
     {
       "role": "runner",
       "path": "eng/gate0/Invoke-G05Stage2AContinuation.ps1",
-      "sha256": "B15A4F2800925982572C9DDCE5865031C60294822320EFE0DB9B5693E90AE5F6"
+      "sha256": "088C190CDD624515C04904FF4325720E4BC8E3F9B19561A08052CA78D9B1403F"
     },
     {
       "role": "preflight",
@@ -43,7 +43,7 @@
     {
       "role": "v2-writer",
       "path": "eng/gate0/Add-Gate0EvidenceV2Shard.ps1",
-      "sha256": "4B7EA889150442480E44180F282F810286D3C7DF52D7408C8E61F3E1E48DBF53"
+      "sha256": "D4B2C29EF54B7383480BB1B902EF6D87BAEACF44D6F8E454A12D6443BFFDE880"
     },
     {
       "role": "v2-containment",
