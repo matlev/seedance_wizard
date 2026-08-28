@@ -68,6 +68,12 @@ internal sealed class ApplicationRuntime : IDisposable
             ContentHashService,
             MediaInspector);
         ProjectAssetDependencyAnalyzer = new ProjectAssetDependencyAnalyzer();
+        PhysicalAssetRelinkStager = new PhysicalAssetRelinkStager();
+        PhysicalAssetRelinkService = new PhysicalAssetRelinkService(
+            Workspace,
+            ContentHashService,
+            PhysicalAssetRelinkStager,
+            ProjectAssetDependencyAnalyzer);
         PhysicalAssetRemovalService = new PhysicalAssetRemovalService();
         ProjectAssetTransferWorkflow = new ProjectAssetTransferWorkflow(
             Workspace,
@@ -112,6 +118,8 @@ internal sealed class ApplicationRuntime : IDisposable
     public RenderedAssetPromotionService RenderedAssetPromotionService { get; }
     public AudioExtractionService AudioExtractionService { get; }
     public ProjectAssetDependencyAnalyzer ProjectAssetDependencyAnalyzer { get; }
+    public PhysicalAssetRelinkStager PhysicalAssetRelinkStager { get; }
+    public PhysicalAssetRelinkService PhysicalAssetRelinkService { get; }
     public PhysicalAssetRemovalService PhysicalAssetRemovalService { get; }
     public ProjectAssetTransferWorkflow ProjectAssetTransferWorkflow { get; }
     public MaterializedProjectMediaTransferService MaterializedProjectMediaTransferService { get; }

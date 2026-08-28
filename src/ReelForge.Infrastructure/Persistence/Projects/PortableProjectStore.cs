@@ -261,11 +261,35 @@ public sealed class PortableProjectStore :
     {
         foreach (var asset in project.Assets.Where(asset => asset.StorageKind == AssetStorageKind.Physical && asset.Physical is not null))
         {
-            asset.Physical!.Availability =
-                ProjectPathPolicy.TryResolveContainedPath(location, asset.Physical.RelativePath, out var candidate) &&
-                File.Exists(candidate)
-                ? PhysicalAssetAvailability.Available
-                : PhysicalAssetAvailability.Missing;
+            var physical = asset.Physical!;
+            if (!ProjectPathPolicy.TryResolveContainedPath(location, physical.RelativePath, out var candidate))
+            {
+                physical.Availability = PhysicalAssetAvailability.Missing;
+                continue;
+            }
+
+            try
+            {
+                using var stream = new FileStream(
+                    candidate,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    1,
+                    FileOptions.SequentialScan);
+            }
+            catch (FileNotFoundException)
+            {
+                physical.Availability = PhysicalAssetAvailability.Missing;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                physical.Availability = PhysicalAssetAvailability.Missing;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                physical.Availability = PhysicalAssetAvailability.Inaccessible;
+            }
         }
     }
 

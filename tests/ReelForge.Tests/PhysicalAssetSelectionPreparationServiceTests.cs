@@ -47,6 +47,68 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ChangedVerifiedFileMarksAssetMismatchedWithoutReplacingExpectedIdentity()
+    {
+        var inspector = new RecordingInspector();
+        var (workspace, asset, path) = await CreateWorkspaceWithAssetAsync(inspector);
+        var expected = await new Sha256ContentHashService().ComputeAsync(path);
+        asset.Physical!.ContentIdentity = expected;
+        await workspace.SaveAsync();
+        await File.WriteAllTextAsync(path, "different media bytes");
+
+        var result = await new PhysicalAssetSelectionPreparationService(workspace, inspector)
+            .PrepareAsync(asset, workspace.Project!, workspace.Location!, isFfprobeAvailable: false);
+
+        Assert.Equal(PhysicalAssetSelectionPreparationKind.Mismatched, result.Kind);
+        Assert.Equal(PhysicalAssetAvailability.Mismatched, asset.Physical.Availability);
+        Assert.Equal(ContentHashStatus.Verified, asset.Physical.ContentIdentity.Status);
+        Assert.Equal(expected.Sha256, asset.Physical.ContentIdentity.Sha256);
+        var reopened = await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath);
+        Assert.Equal(PhysicalAssetAvailability.Mismatched, Assert.Single(reopened.Project.Assets).Physical!.Availability);
+    }
+
+    [Fact]
+    public async Task HashAccessFailureMarksAssetInaccessibleAndPersistsIt()
+    {
+        var inspector = new RecordingInspector();
+        var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector);
+        asset.Physical!.ContentIdentity = new ContentIdentity
+        {
+            Status = ContentHashStatus.Verified,
+            Sha256 = new string('a', 64)
+        };
+        await workspace.SaveAsync();
+        var service = new PhysicalAssetSelectionPreparationService(
+            workspace,
+            inspector,
+            new AccessDeniedHashService());
+
+        var result = await service.PrepareAsync(asset, workspace.Project!, workspace.Location!, isFfprobeAvailable: false);
+
+        Assert.Equal(PhysicalAssetSelectionPreparationKind.Inaccessible, result.Kind);
+        Assert.Equal(PhysicalAssetAvailability.Inaccessible, asset.Physical.Availability);
+        var reopened = await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath);
+        Assert.Equal(PhysicalAssetAvailability.Inaccessible, Assert.Single(reopened.Project.Assets).Physical!.Availability);
+    }
+
+    [Fact]
+    public async Task ReadableUnverifiedFileRestoresAvailableAvailability()
+    {
+        var inspector = new RecordingInspector();
+        var (workspace, asset, _) = await CreateWorkspaceWithAssetAsync(inspector);
+        asset.Physical!.Availability = PhysicalAssetAvailability.Missing;
+        await workspace.SaveAsync();
+
+        var result = await new PhysicalAssetSelectionPreparationService(workspace, inspector)
+            .PrepareAsync(asset, workspace.Project!, workspace.Location!, isFfprobeAvailable: false);
+
+        Assert.Equal(PhysicalAssetSelectionPreparationKind.Ready, result.Kind);
+        Assert.Equal(PhysicalAssetAvailability.Available, asset.Physical.Availability);
+        var reopened = await new PortableProjectStore().OpenAsync(workspace.Location!.ProjectFilePath);
+        Assert.Equal(PhysicalAssetAvailability.Available, Assert.Single(reopened.Project.Assets).Physical!.Availability);
+    }
+
+    [Fact]
     public async Task UnavailableFfprobeSkipsInspection()
     {
         var inspector = new RecordingInspector();
@@ -313,6 +375,18 @@ public sealed class PhysicalAssetSelectionPreparationServiceTests : IDisposable
             IEnumerable<string> sourcePaths,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("This test does not import assets.");
+    }
+
+    private sealed class AccessDeniedHashService : IContentHashService
+    {
+        public Task<ContentIdentity> ComputeAsync(string path, CancellationToken cancellationToken = default) =>
+            throw new UnauthorizedAccessException("Injected media access failure.");
+
+        public Task<ContentVerificationResult> VerifyAsync(
+            string path,
+            ContentIdentity expected,
+            CancellationToken cancellationToken = default) =>
+            throw new UnauthorizedAccessException("Injected media access failure.");
     }
 
     private sealed class BlockingSaveProjectStore : IProjectStore, IProjectCommitGuardedStore

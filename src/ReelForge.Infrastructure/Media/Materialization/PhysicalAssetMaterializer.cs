@@ -114,7 +114,9 @@ public sealed class PhysicalAssetMaterializer : IMediaMaterializer
                 .ConfigureAwait(false);
             if (!verification.MatchesExpected)
             {
-                asset.Physical.ContentIdentity.Status = ContentHashStatus.Mismatch;
+                // Keep the recorded verified identity intact. The observed mismatching bytes
+                // are not a replacement identity and may only be imported as new media.
+                asset.Physical.Availability = PhysicalAssetAvailability.Mismatched;
                 throw new InvalidDataException(
                     $"'{asset.EffectiveDisplayName}' has changed since ingestion. Re-import or explicitly replace it before generation.");
             }

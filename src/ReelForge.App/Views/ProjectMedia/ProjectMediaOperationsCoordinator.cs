@@ -16,6 +16,7 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
     private readonly RenderedAssetPromotionService _renderedAssetPromotionService;
     private readonly AudioExtractionService _audioExtractionService;
     private readonly ProjectAssetDependencyAnalyzer _dependencyAnalyzer;
+    private readonly PhysicalAssetRelinkService _physicalAssetRelinkService;
     private readonly PhysicalAssetRemovalService _physicalAssetRemovalService;
     private readonly ProjectAssetTransferWorkflow _projectAssetTransferWorkflow;
     private readonly MaterializedProjectMediaTransferService _materializedProjectMediaTransferService;
@@ -25,6 +26,7 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
         RenderedAssetPromotionService renderedAssetPromotionService,
         AudioExtractionService audioExtractionService,
         ProjectAssetDependencyAnalyzer dependencyAnalyzer,
+        PhysicalAssetRelinkService physicalAssetRelinkService,
         PhysicalAssetRemovalService physicalAssetRemovalService,
         ProjectAssetTransferWorkflow projectAssetTransferWorkflow,
         MaterializedProjectMediaTransferService materializedProjectMediaTransferService)
@@ -34,6 +36,7 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
         _renderedAssetPromotionService = renderedAssetPromotionService;
         _audioExtractionService = audioExtractionService;
         _dependencyAnalyzer = dependencyAnalyzer;
+        _physicalAssetRelinkService = physicalAssetRelinkService;
         _physicalAssetRemovalService = physicalAssetRemovalService;
         _projectAssetTransferWorkflow = projectAssetTransferWorkflow;
         _materializedProjectMediaTransferService = materializedProjectMediaTransferService;
@@ -119,6 +122,15 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
         ArgumentNullException.ThrowIfNull(asset);
         var project = _workspace.Project ?? throw new InvalidOperationException("Create or open a project first.");
         return _dependencyAnalyzer.Analyze(project, asset.Id);
+    }
+
+    public Task<PhysicalAssetRelinkResult> RelinkPhysicalAssetAsync(
+        ProjectAsset asset,
+        string candidatePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return _physicalAssetRelinkService.RelinkAsync(asset.Id, candidatePath, cancellationToken);
     }
 
     public Task DeletePhysicalAssetAsync(Guid assetId, CancellationToken cancellationToken = default) =>

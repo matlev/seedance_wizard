@@ -6,7 +6,7 @@ public enum AssetStorageKind { Physical, Virtual }
 public enum VirtualAssetKind { Other, SavedClip, Composition, ExtractedFrame }
 public enum PhysicalAssetDurability { Source, Generated, Exported, Promoted }
 public enum ContentHashStatus { Pending, Verified, Mismatch, Failed }
-public enum PhysicalAssetAvailability { Unknown, Available, Missing }
+public enum PhysicalAssetAvailability { Unknown, Available, Missing, Inaccessible, Mismatched }
 
 public sealed class ProjectAsset
 {

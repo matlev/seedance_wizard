@@ -89,6 +89,7 @@ public partial class MainWindow : Window, IDisposable
             _runtime.RenderedAssetPromotionService,
             _runtime.AudioExtractionService,
             _runtime.ProjectAssetDependencyAnalyzer,
+            _runtime.PhysicalAssetRelinkService,
             _runtime.PhysicalAssetRemovalService,
             _runtime.ProjectAssetTransferWorkflow,
             _runtime.MaterializedProjectMediaTransferService);
@@ -476,12 +477,24 @@ public partial class MainWindow : Window, IDisposable
                     !selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem))
                     return;
 
-                if (resolution.Kind == PhysicalAssetSelectionPreparationKind.Missing)
+                if (resolution.Kind is PhysicalAssetSelectionPreparationKind.Missing or
+                    PhysicalAssetSelectionPreparationKind.Inaccessible or
+                    PhysicalAssetSelectionPreparationKind.Mismatched)
                 {
                     InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
                     ShowAssetPreview(asset);
-                    MediaPreparationPanelControl.SetWorkspaceStatus("Source media is missing");
-                    StatusText.Text = $"{asset.FileName} is missing from its recorded project location.";
+                    var (workspaceStatus, status) = resolution.Kind switch
+                    {
+                        PhysicalAssetSelectionPreparationKind.Missing =>
+                            ("Source media is missing", $"{asset.FileName} is missing from its recorded project location."),
+                        PhysicalAssetSelectionPreparationKind.Inaccessible =>
+                            ("Source media is inaccessible", $"{asset.FileName} cannot be accessed at its recorded project location."),
+                        PhysicalAssetSelectionPreparationKind.Mismatched =>
+                            ("Source media does not match", $"{asset.FileName} no longer matches its recorded SHA-256 identity."),
+                        _ => throw new InvalidOperationException("Unknown physical asset selection result.")
+                    };
+                    MediaPreparationPanelControl.SetWorkspaceStatus(workspaceStatus);
+                    StatusText.Text = status;
                     return;
                 }
 
@@ -498,12 +511,12 @@ public partial class MainWindow : Window, IDisposable
         {
             StorageKind: AssetStorageKind.Physical,
             MediaType: MediaType.Video,
-            Physical.Availability: not PhysicalAssetAvailability.Missing
+            Physical.Availability: PhysicalAssetAvailability.Available
         };
         MediaPreparationPanelControl.ConfigureSelection(asset.EffectiveDisplayName, canPrepare);
         StartEditButton.IsEnabled = _workspace.Project?.WorkingCompositionAssetId is null &&
                                     asset.MediaType == MediaType.Video &&
-                                    (asset.StorageKind == AssetStorageKind.Physical ||
+                                    (asset is { StorageKind: AssetStorageKind.Physical, Physical.Availability: PhysicalAssetAvailability.Available } ||
                                      asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
         UpdateCompositionActionState();
     }
@@ -1211,6 +1224,20 @@ public partial class MainWindow : Window, IDisposable
         {
             var dialog = new AssetNameDialog(fileName) { Owner = window };
             return dialog.ShowDialog() == true ? dialog.FileName : null;
+        }
+
+        public string? PromptRelinkCandidate(ProjectAsset asset)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = $"Relink source for {asset.FileName}",
+                Filter = "Media files|*.mp4;*.mov;*.mkv;*.avi;*.webm;*.m4a;*.mp3;*.wav;*.aac;*.flac|All files|*.*",
+                CheckFileExists = true,
+                CheckPathExists = true,
+                Multiselect = false,
+                FileName = asset.FileName
+            };
+            return dialog.ShowDialog(window) == true ? dialog.FileName : null;
         }
 
         public string? PromptSavedClipDisplayName(string displayName)

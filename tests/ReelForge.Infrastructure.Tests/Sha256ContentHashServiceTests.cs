@@ -33,6 +33,17 @@ public sealed class Sha256ContentHashServiceTests : IDisposable
         Assert.Equal(ContentHashStatus.Verified, firstIdentity.Status);
     }
 
+    [Fact]
+    public async Task MissingPathThrowsFileNotFoundException()
+    {
+        var service = new Sha256ContentHashService();
+        var missingPath = Path.Combine(_temporaryRoot, "missing", "source.mp4");
+
+        var exception = await Assert.ThrowsAsync<FileNotFoundException>(() => service.ComputeAsync(missingPath));
+
+        Assert.Equal(Path.GetFullPath(missingPath), exception.FileName);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_temporaryRoot)) Directory.Delete(_temporaryRoot, recursive: true);

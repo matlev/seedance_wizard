@@ -3,6 +3,18 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace ReelForge.Application;
 
+public sealed record ProjectPhysicalAssetRelinkSaveResult(bool Committed, Exception? Failure = null)
+{
+    public static ProjectPhysicalAssetRelinkSaveResult NotCommitted { get; } = new(false);
+    public static ProjectPhysicalAssetRelinkSaveResult CommittedResult { get; } = new(true);
+}
+
+internal sealed record ProjectWorkspaceOperationalState(
+    ProjectWorkspaceState State,
+    bool IsDegraded,
+    string? FailureDetail,
+    ProjectRecoveryCandidate? RecoveryCandidate);
+
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification =
     "The asynchronous gates and active-session token are held for the workspace lifetime and own no external resources.")]
 public sealed class ProjectWorkspace
@@ -103,8 +115,8 @@ public sealed class ProjectWorkspace
         await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         VideoProject project;
         ProjectLocation location;
-        CancellationToken sessionCancellation;
-        long sessionGeneration;
+        CancellationToken sessionCancellation = default;
+        long sessionGeneration = default;
         try
         {
             EnsureProjectIsOpen();
@@ -179,6 +191,103 @@ public sealed class ProjectWorkspace
 
         await SaveAsync(cancellationToken).ConfigureAwait(false);
         return imported;
+    }
+
+    /// <summary>
+    /// Persists a verified physical-media relink and runs its compensating file and metadata
+    /// work inside the same serialized save transaction only when the project commit did not
+    /// occur. A committed project remains authoritative even if its active session changes
+    /// immediately afterwards.
+    /// </summary>
+    public async Task<ProjectPhysicalAssetRelinkSaveResult> SavePhysicalAssetRelinkIfCurrentAsync(
+        VideoProject expectedProject,
+        ProjectLocation expectedLocation,
+        Action applyRelinkMetadata,
+        Func<Task> rollBackUncommittedAsync,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(expectedProject);
+        ArgumentNullException.ThrowIfNull(expectedLocation);
+        ArgumentNullException.ThrowIfNull(applyRelinkMetadata);
+        ArgumentNullException.ThrowIfNull(rollBackUncommittedAsync);
+
+        CancellationToken sessionCancellation = default;
+        long sessionGeneration = default;
+        ProjectWorkspaceOperationalState? priorOperationalState = null;
+        var sessionWasStale = false;
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!IsCurrent(expectedProject, expectedLocation))
+            {
+                sessionWasStale = true;
+            }
+            else
+            {
+                sessionCancellation = _sessionCancellation.Token;
+                sessionGeneration = _sessionGeneration;
+                priorOperationalState = new ProjectWorkspaceOperationalState(
+                    State, IsDegraded, FailureDetail, RecoveryCandidate);
+            }
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+
+        if (sessionWasStale)
+        {
+            await rollBackUncommittedAsync().ConfigureAwait(false);
+            return ProjectPhysicalAssetRelinkSaveResult.NotCommitted;
+        }
+
+        Task RestorePriorOperationalStateAsync() => RestoreOperationalStateIfCurrentAsync(
+            expectedProject, expectedLocation, sessionGeneration, priorOperationalState!);
+
+        try
+        {
+            var committed = await SaveCapturedAsync(
+                    expectedProject,
+                    expectedLocation,
+                    sessionGeneration,
+                    sessionCancellation,
+                    cancellationToken,
+                    applyRelinkMetadata,
+                    rollBackUncommittedAsync,
+                    requireRelinkEligibility: true,
+                    restoreUncommittedCallerCancellationAsync: RestorePriorOperationalStateAsync)
+                .ConfigureAwait(false);
+            return committed
+                ? ProjectPhysicalAssetRelinkSaveResult.CommittedResult
+                : ProjectPhysicalAssetRelinkSaveResult.NotCommitted;
+        }
+        catch (Exception exception)
+        {
+            return new ProjectPhysicalAssetRelinkSaveResult(false, exception);
+        }
+    }
+
+    /// <summary>
+    /// Prevents a relink from writing or retiring recovery data until an existing recovery
+    /// decision or failed save has been explicitly resolved.
+    /// </summary>
+    public async Task EnsurePhysicalAssetRelinkCanStartAsync(CancellationToken cancellationToken = default)
+    {
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            EnsureProjectIsOpen();
+            if (State is ProjectWorkspaceState.RecoveryAvailable or ProjectWorkspaceState.Recovered or
+                ProjectWorkspaceState.Dirty or ProjectWorkspaceState.Saving or ProjectWorkspaceState.Failed)
+            {
+                throw new InvalidOperationException(
+                    "Save or discard the pending recovery or failed project state before relinking media.");
+            }
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
     }
 
     /// <summary>
@@ -322,13 +431,33 @@ public sealed class ProjectWorkspace
         ProjectLocation location,
         long sessionGeneration,
         CancellationToken sessionCancellation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action? applyBeforeCommit = null,
+        Func<Task>? rollBackUncommittedAsync = null,
+        bool requireRelinkEligibility = false,
+        Func<Task>? restoreUncommittedCallerCancellationAsync = null)
     {
         using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, sessionCancellation);
         var operationCancellation = linkedCancellation.Token;
         var recoveryWritten = false;
+        var committed = false;
+        var rollbackCompleted = false;
         IDisposable? saveLease = null;
+        async Task<bool> RollBackUncommittedAsync()
+        {
+            if (rollBackUncommittedAsync is not null && !rollbackCompleted)
+            {
+                await rollBackUncommittedAsync().ConfigureAwait(false);
+                rollbackCompleted = true;
+            }
+
+            if (rollBackUncommittedAsync is not null && recoveryWritten && !committed)
+                await DiscardStaleRecoveryAsync(location).ConfigureAwait(false);
+
+            return false;
+        }
+
         try
         {
             saveLease = await _saveCoordinator.EnterAsync(operationCancellation).ConfigureAwait(false);
@@ -336,9 +465,16 @@ public sealed class ProjectWorkspace
             try
             {
                 if (!IsCurrentSession(project, location, sessionGeneration))
-                    return false;
+                    return await RollBackUncommittedAsync().ConfigureAwait(false);
+                if (requireRelinkEligibility && !IsPhysicalAssetRelinkStateEligible())
+                    return await RollBackUncommittedAsync().ConfigureAwait(false);
                 State = ProjectWorkspaceState.Dirty;
                 FailureDetail = null;
+                if (applyBeforeCommit is not null)
+                {
+                    project.Touch();
+                    applyBeforeCommit();
+                }
             }
             finally
             {
@@ -351,19 +487,19 @@ public sealed class ProjectWorkspace
                 if (!await guardedRecoveryStore
                         .WriteIfAsync(project, location, tryCommit, operationCancellation)
                         .ConfigureAwait(false))
-                    return false;
+                    return await RollBackUncommittedAsync().ConfigureAwait(false);
                 recoveryWritten = true;
             }
             else if (_recoveryStore is not null)
             {
                 if (!IsSessionGenerationCurrent(sessionGeneration))
-                    return false;
+                    return await RollBackUncommittedAsync().ConfigureAwait(false);
                 await _recoveryStore.WriteAsync(project, location, operationCancellation).ConfigureAwait(false);
                 recoveryWritten = true;
                 if (!IsSessionGenerationCurrent(sessionGeneration))
                 {
                     await DiscardStaleRecoveryAsync(location).ConfigureAwait(false);
-                    return false;
+                    return await RollBackUncommittedAsync().ConfigureAwait(false);
                 }
             }
 
@@ -375,7 +511,7 @@ public sealed class ProjectWorkspace
                 {
                     if (recoveryWritten)
                         await DiscardStaleRecoveryAsync(location).ConfigureAwait(false);
-                    return false;
+                    return await RollBackUncommittedAsync().ConfigureAwait(false);
                 }
                 State = ProjectWorkspaceState.Saving;
                 FailureDetail = null;
@@ -386,18 +522,20 @@ public sealed class ProjectWorkspace
             }
 
             operationCancellation.ThrowIfCancellationRequested();
-            var committed = _projectStore is IProjectCommitGuardedStore guardedProjectStore
+            var projectCommitted = _projectStore is IProjectCommitGuardedStore guardedProjectStore
                 ? await guardedProjectStore
                     .SaveIfAsync(project, location, tryCommit, operationCancellation)
                     .ConfigureAwait(false)
                 : await SaveWithoutCommitGuardAsync(
                     project, location, sessionGeneration, operationCancellation).ConfigureAwait(false);
-            if (!committed)
+            if (!projectCommitted)
             {
                 if (recoveryWritten && !IsSessionGenerationCurrent(sessionGeneration))
                     await DiscardStaleRecoveryAsync(location).ConfigureAwait(false);
-                return false;
+                return await RollBackUncommittedAsync().ConfigureAwait(false);
             }
+
+            committed = true;
 
             await _sessionGate.WaitAsync().ConfigureAwait(false);
             try
@@ -431,12 +569,19 @@ public sealed class ProjectWorkspace
         }
         catch (OperationCanceledException) when (sessionCancellation.IsCancellationRequested)
         {
-            if (recoveryWritten)
-                await DiscardStaleRecoveryAsync(location).ConfigureAwait(false);
+            return await RollBackUncommittedAsync().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested && !committed)
+        {
+            await RollBackUncommittedAsync().ConfigureAwait(false);
+            if (restoreUncommittedCallerCancellationAsync is not null)
+                await restoreUncommittedCallerCancellationAsync().ConfigureAwait(false);
             return false;
         }
         catch (Exception exception)
         {
+            await RollBackUncommittedAsync().ConfigureAwait(false);
+
             await SetOperationalStateIfCurrentAsync(project, location, ProjectWorkspaceState.Failed, exception.Message)
                 .ConfigureAwait(false);
             throw;
@@ -460,6 +605,32 @@ public sealed class ProjectWorkspace
                 State = ProjectWorkspaceState.Saved;
                 FailureDetail = $"Project was saved, but recovery cleanup failed: {exception.Message}";
             }
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    private bool IsPhysicalAssetRelinkStateEligible() =>
+        State is ProjectWorkspaceState.Clean or ProjectWorkspaceState.Saved or ProjectWorkspaceState.Degraded;
+
+    private async Task RestoreOperationalStateIfCurrentAsync(
+        VideoProject project,
+        ProjectLocation location,
+        long sessionGeneration,
+        ProjectWorkspaceOperationalState state)
+    {
+        await _sessionGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!IsCurrentSession(project, location, sessionGeneration))
+                return;
+
+            State = state.State;
+            IsDegraded = state.IsDegraded;
+            FailureDetail = state.FailureDetail;
+            RecoveryCandidate = state.RecoveryCandidate;
         }
         finally
         {

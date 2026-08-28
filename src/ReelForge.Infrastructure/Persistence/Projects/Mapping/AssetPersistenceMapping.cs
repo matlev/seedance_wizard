@@ -56,6 +56,7 @@ internal static partial class ProjectPersistenceMapper
     {
         RelativePath = source.RelativePath,
         Durability = source.Durability,
+        Availability = source.Availability,
         ContentIdentity = new ContentIdentityDto
         {
             Algorithm = source.ContentIdentity.Algorithm,
@@ -70,6 +71,7 @@ internal static partial class ProjectPersistenceMapper
     {
         RelativePath = source.RelativePath,
         Durability = source.Durability,
+        Availability = source.Availability,
         ContentIdentity = new ContentIdentity
         {
             Algorithm = source.ContentIdentity.Algorithm,

@@ -25,6 +25,7 @@ internal sealed class PhysicalAssetStorageDto
 {
     public string RelativePath { get; set; } = string.Empty;
     public PhysicalAssetDurability Durability { get; set; }
+    public PhysicalAssetAvailability Availability { get; set; } = PhysicalAssetAvailability.Unknown;
     public ContentIdentityDto ContentIdentity { get; set; } = new();
 }
 
