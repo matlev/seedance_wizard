@@ -5,6 +5,9 @@ namespace ReelForge.Infrastructure.Tests;
 
 public sealed class MediaRuntimeProfileValidatorTests
 {
+    private static readonly string RuntimeRootPath = Path.GetFullPath(
+        Path.Combine(Path.GetTempPath(), "ReelForge", "media-runtime-profile-validator"));
+
     [Fact]
     public void ValidateAcceptsExactPairedRuntimeAndObservedComponents()
     {
@@ -12,7 +15,9 @@ public sealed class MediaRuntimeProfileValidatorTests
 
         var assessment = validator.Validate(Profile(), Observed());
 
-        Assert.True(assessment.MatchesProfile);
+        Assert.True(
+            assessment.MatchesProfile,
+            string.Join(Environment.NewLine, assessment.Issues.Select(issue => $"{issue.Code}: {issue.Message}")));
         Assert.Empty(assessment.Issues);
     }
 
@@ -91,14 +96,14 @@ public sealed class MediaRuntimeProfileValidatorTests
         string configuration = "--enable-version3 --enable-libvpx",
         IReadOnlyDictionary<MediaRuntimeComponentKind, IReadOnlyList<string>>? components = null,
         IReadOnlyList<MediaRuntimeFileObservation>? runtimeFiles = null) => new(
-        "C:\\runtime",
-        ToolObservation("C:\\runtime\\bin\\ffmpeg.exe", Hash('F'), "ffmpeg version n8.1.2", configuration, components ?? new Dictionary<MediaRuntimeComponentKind, IReadOnlyList<string>>
+        RuntimeRootPath,
+        ToolObservation(Path.Combine(RuntimeRootPath, "bin", "ffmpeg.exe"), Hash('F'), "ffmpeg version n8.1.2", configuration, components ?? new Dictionary<MediaRuntimeComponentKind, IReadOnlyList<string>>
         {
             [MediaRuntimeComponentKind.Encoder] = ["libvpx-vp9"],
             [MediaRuntimeComponentKind.Muxer] = ["webm"]
         }),
         ToolObservation(
-            "C:\\runtime\\bin\\ffprobe.exe",
+            Path.Combine(RuntimeRootPath, "bin", "ffprobe.exe"),
             Hash('B'),
             "ffprobe version n8.1.2",
             configuration,
