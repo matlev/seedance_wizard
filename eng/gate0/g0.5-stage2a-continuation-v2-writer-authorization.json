@@ -3,21 +3,10 @@
   "authorizationId": "Gate0.Stage2Evidence.V2.ContinuationAuthorization.V1",
   "authorizationScope": "owner-authorized-v2-continuation",
   "continuationProofRunIds": [
-    "g05-stage2a-continuation-20260827-stress-720p-webm-eight",
-    "g05-stage2a-continuation-20260827-stress-720p-mp4-one",
-    "g05-stage2a-continuation-20260827-stress-720p-webm-one",
-    "g05-stage2a-continuation-20260827-baseline-1080p-mp4-one",
-    "g05-stage2a-continuation-20260827-baseline-1080p-webm-one",
-    "g05-stage2a-continuation-20260827-baseline-1080p-webm-eight",
-    "g05-stage2a-continuation-20260827-typical-1080p-webm-one",
-    "g05-stage2a-continuation-20260827-typical-1080p-webm-eight",
-    "g05-stage2a-continuation-20260827-typical-1080p-mp4-one",
-    "g05-stage2a-continuation-20260827-stress-1080p-webm-eight",
-    "g05-stage2a-continuation-20260827-stress-1080p-mp4-one",
-    "g05-stage2a-continuation-20260827-stress-1080p-webm-one"
+    "g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight"
   ],
   "limitations": [
-    "This narrow authorization permits only the twelve owner-approved Stage 2A continuation proof identities after the separate full continuation authorization validates as effective.",
+    "This narrow authorization permits only the single owner-approved Stage 2A replacement proof identity after the separate full continuation authorization validates as effective.",
     "It authorizes no infrastructure shard, Stage 2B work, concurrency comparison, long-form work, product integration, shipping-runtime selection, distribution, or legal conclusion."
   ]
 }

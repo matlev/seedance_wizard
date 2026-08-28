@@ -13,6 +13,7 @@ public sealed class Gate0G05Stage2AContinuationContractTests
     private static readonly Dictionary<string, string> RequiredRoles = new()
     {
         ["owner-approval"] = "docs/gate-0-g0.5-stage2a-continuation-approval.md",
+        ["v2-shard-recovery-approval"] = "docs/gate-0-g0.5-stage2a-v2-shard-approval.md",
         ["schedule"] = "eng/gate0/g0.5-stage2a-continuation-schedule.json",
         ["helper"] = "eng/gate0/G05Stage2AContinuationHelpers.psm1",
         ["runner"] = "eng/gate0/Invoke-G05Stage2AContinuation.ps1",
@@ -59,7 +60,7 @@ public sealed class Gate0G05Stage2AContinuationContractTests
 
         using var document = JsonDocument.Parse(File.ReadAllText(continuation));
         var root = document.RootElement;
-        Assert.Equal("Gate0.G05.Stage2A.ContinuationSchedule.V1", root.GetProperty("scheduleId").GetString());
+        Assert.Equal("Gate0.G05.Stage2A.ContinuationSchedule.V2", root.GetProperty("scheduleId").GetString());
         Assert.Equal("g05-stage2a-continuation-20260827", root.GetProperty("evidenceGroupId").GetString());
         Assert.Equal(ExcludedGroups, root.GetProperty("excludedGroups").EnumerateArray().Select(x => x.GetString()));
         var attempts = root.GetProperty("attempts").EnumerateArray().ToArray();
@@ -68,7 +69,8 @@ public sealed class Gate0G05Stage2AContinuationContractTests
         Assert.Equal(Enumerable.Range(1, 72), attempts.Select(x => x.GetProperty("continuationOrdinal").GetInt32()));
         Assert.Equal(Enumerable.Range(37, 72), attempts.Select(x => x.GetProperty("originalScheduleOrdinal").GetInt32()));
         Assert.Equal(12, attempts.Select(x => x.GetProperty("cellId").GetString()).Distinct().Count());
-        Assert.All(attempts, attempt => Assert.Equal("g05-stage2a-continuation-20260827-" + attempt.GetProperty("cellId").GetString(), attempt.GetProperty("proofRunId").GetString()));
+        Assert.All(attempts.Take(6), attempt => Assert.Equal("g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight", attempt.GetProperty("proofRunId").GetString()));
+        Assert.All(attempts.Skip(6), attempt => Assert.Equal("g05-stage2a-continuation-20260827-" + attempt.GetProperty("cellId").GetString(), attempt.GetProperty("proofRunId").GetString()));
     }
 
     [Fact]
@@ -92,7 +94,7 @@ public sealed class Gate0G05Stage2AContinuationContractTests
     [Fact]
     public void FutureAuthorizationRequiresExactScheduleProofIdsAndBoundBytes()
     {
-        Assert.Equal(31, RequiredRoles.Count);
+        Assert.Equal(32, RequiredRoles.Count);
         using var repository = new TempDirectory();
         foreach (var (role, relativePath) in RequiredRoles)
         {
@@ -109,7 +111,7 @@ public sealed class Gate0G05Stage2AContinuationContractTests
         var scheduleHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(schedule)));
         var proofIds = ReadProofIds(schedule);
         var bindings = RequiredRoles.Select(pair => new { role = pair.Key, path = pair.Value, sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(repository.Path, pair.Value.Replace('/', Path.DirectorySeparatorChar))))) }).ToArray();
-        var authorization = JsonSerializer.Serialize(new { schemaVersion = 1, authorizationId = "Gate0.G05.Stage2A.ContinuationAuthorization.V1", authorizationScope = "owner-authorized-stage2a-continuation", status = "owner-authorized-continuation-effective", exactCellCount = 12, exactAttemptCount = 72, scheduleBinding = new { path = "eng/gate0/g0.5-stage2a-continuation-schedule.json", sha256 = scheduleHash }, bindings, continuationProofRunIds = proofIds, limitations = TestOnlyLimitations });
+        var authorization = JsonSerializer.Serialize(new { schemaVersion = 2, authorizationId = "Gate0.G05.Stage2A.ContinuationAuthorization.V2", authorizationScope = "owner-authorized-stage2a-single-replacement", status = "owner-authorized-single-replacement-effective", exactCellCount = 12, exactAttemptCount = 72, maximumNewCellCount = 1, scheduleBinding = new { path = "eng/gate0/g0.5-stage2a-continuation-schedule.json", sha256 = scheduleHash }, bindings, continuationProofRunIds = proofIds, limitations = TestOnlyLimitations });
         using var fixture = new TempFile(authorization);
         var valid = RunPwsh($"Import-Module '{ModulePath()}'; Read-G05Stage2AContinuationAuthorization '{Escape(fixture.Path)}' '{Escape(repository.Path)}' '{Escape(schedule)}'");
         Assert.True(valid.ExitCode == 0, valid.Output);

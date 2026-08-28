@@ -339,6 +339,32 @@ function Get-Gate0EvidenceV2Sha256([string] $Path) { Get-Gate0EvidenceSha256 $Pa
 function Get-Gate0EvidenceV2TextSha256([string] $Text) { Get-Gate0EvidenceTextSha256 $Text }
 function Get-Gate0EvidenceV2Shape([string] $Path) { Get-Gate0EvidenceFileShape $Path }
 function Write-Gate0EvidenceV2Utf8Atomic([string] $Path, [string] $Text) { Write-Gate0EvidenceUtf8Atomic $Path $Text }
+function Assert-Gate0EvidenceV2CanonicalSerializerRuntime {
+    if ($PSVersionTable.PSEdition -ne 'Core' -or [string]$PSVersionTable.PSVersion -ne '7.6.4' -or [string]$PSVersionTable.GitCommitId -ne '7.6.4') {
+        throw 'V2 canonical shard serialization requires PowerShell Core 7.6.4 / GitCommitId 7.6.4.'
+    }
+}
+function ConvertTo-Gate0EvidenceV2OrderedWriterValue($Value) {
+    if ($null -eq $Value -or $Value -is [string] -or $Value -is [ValueType]) { return $Value }
+    if ($Value -is [Collections.IDictionary]) {
+        $ordered = [ordered]@{}
+        foreach ($key in $Value.Keys) { $ordered[[string]$key] = ConvertTo-Gate0EvidenceV2OrderedWriterValue $Value[$key] }
+        return $ordered
+    }
+    if ($Value -is [Collections.IEnumerable]) {
+        $items = [object[]]@($Value | ForEach-Object { ConvertTo-Gate0EvidenceV2OrderedWriterValue $_ })
+        return ,$items
+    }
+    $ordered = [ordered]@{}
+    foreach ($property in $Value.PSObject.Properties) { $ordered[$property.Name] = ConvertTo-Gate0EvidenceV2OrderedWriterValue $property.Value }
+    return $ordered
+}
+function ConvertTo-Gate0EvidenceV2CanonicalShardUtf8($Shard) {
+    Assert-Gate0EvidenceV2CanonicalSerializerRuntime
+    $writerValue = ConvertTo-Gate0EvidenceV2OrderedWriterValue $Shard
+    $text = ($writerValue | ConvertTo-Json -Depth 64 -Compress) + "`n"
+    return [Text.UTF8Encoding]::new($false).GetBytes($text)
+}
 function Assert-Gate0EvidenceV2ExactProperties($Value, [string[]] $Expected, [string] $Label) { Assert-Gate0EvidenceExactProperties $Value $Expected $Label }
 function Assert-Gate0EvidenceV2Identifier([string] $Value, [string] $Label) { Assert-Gate0EvidenceIdentifier $Value $Label }
 function Assert-Gate0EvidenceV2RelativePath([string] $Value, [string] $Label) { Assert-Gate0EvidenceRelativePath $Value $Label }

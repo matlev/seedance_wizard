@@ -1,13 +1,14 @@
 {
-  "schemaVersion": 1,
-  "authorizationId": "Gate0.G05.Stage2A.ContinuationAuthorization.V1",
-  "authorizationScope": "owner-authorized-stage2a-continuation",
-  "status": "owner-authorized-continuation-effective",
+  "schemaVersion": 2,
+  "authorizationId": "Gate0.G05.Stage2A.ContinuationAuthorization.V2",
+  "authorizationScope": "owner-authorized-stage2a-single-replacement",
+  "status": "owner-authorized-single-replacement-effective",
   "exactCellCount": 12,
   "exactAttemptCount": 72,
+  "maximumNewCellCount": 1,
   "scheduleBinding": {
     "path": "eng/gate0/g0.5-stage2a-continuation-schedule.json",
-    "sha256": "1FF3136CD723941A5653BA4F0FE82A76F57C136792BD9CC7AA2C70CEA69EF446"
+    "sha256": "5EF57E6A310F8DAEF6F01833F01994993444B02AB0FEAB5EBC8FA85DD040E2F8"
   },
   "bindings": [
     {
@@ -16,19 +17,24 @@
       "sha256": "1F2010061B28A2DD80E8F8ACFCDADA4A295ED390E35126D5968B77077780B517"
     },
     {
+      "role": "v2-shard-recovery-approval",
+      "path": "docs/gate-0-g0.5-stage2a-v2-shard-approval.md",
+      "sha256": "6EBED03365468658B09A0A5C511AD201FE342FAA758B2C60B9A5010C6E23A1F6"
+    },
+    {
       "role": "schedule",
       "path": "eng/gate0/g0.5-stage2a-continuation-schedule.json",
-      "sha256": "1FF3136CD723941A5653BA4F0FE82A76F57C136792BD9CC7AA2C70CEA69EF446"
+      "sha256": "5EF57E6A310F8DAEF6F01833F01994993444B02AB0FEAB5EBC8FA85DD040E2F8"
     },
     {
       "role": "helper",
       "path": "eng/gate0/G05Stage2AContinuationHelpers.psm1",
-      "sha256": "239E3F7C2A82EDF833465B291E79E652209F767B973BD07C0519B770DB3A890C"
+      "sha256": "BF4B69C47325BD26F82177FDBBE20A60E26DFD74BF0188D5920B258DBED4B37B"
     },
     {
       "role": "runner",
       "path": "eng/gate0/Invoke-G05Stage2AContinuation.ps1",
-      "sha256": "088C190CDD624515C04904FF4325720E4BC8E3F9B19561A08052CA78D9B1403F"
+      "sha256": "43E464B6D562477929179157D54F797A2D935BF2FEDD7D192F8362F18393F906"
     },
     {
       "role": "preflight",
@@ -38,17 +44,17 @@
     {
       "role": "v2-writer-authorization",
       "path": "eng/gate0/g0.5-stage2a-continuation-v2-writer-authorization.json",
-      "sha256": "1A9F2C517C063C73BA3A34BC25C9F36D8BCF09CBF5D709686D47FE6224C5FDFE"
+      "sha256": "286041E746BC597963643F6D9F150C9132777EB591C40F90C349C403248ABD9B"
     },
     {
       "role": "v2-writer",
       "path": "eng/gate0/Add-Gate0EvidenceV2Shard.ps1",
-      "sha256": "D4B2C29EF54B7383480BB1B902EF6D87BAEACF44D6F8E454A12D6443BFFDE880"
+      "sha256": "E67D147C5D97922D7BA3E487870155765DF15A5A235B30C9CD4D732F205244F9"
     },
     {
       "role": "v2-containment",
       "path": "eng/gate0/evidence/Gate0EvidenceContainmentV2.psm1",
-      "sha256": "423B9B94B69B5958E6B6F2F5F49CDB2A8F365B05964BDF351A4F37FCF68330D6"
+      "sha256": "5F416B429BE7113F01DB90E3ACF793713F3046ED2012003072E52F90E0B31BF8"
     },
     {
       "role": "v2-validator",
@@ -167,7 +173,7 @@
     }
   ],
   "continuationProofRunIds": [
-    "g05-stage2a-continuation-20260827-stress-720p-webm-eight",
+    "g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight",
     "g05-stage2a-continuation-20260827-stress-720p-mp4-one",
     "g05-stage2a-continuation-20260827-stress-720p-webm-one",
     "g05-stage2a-continuation-20260827-baseline-1080p-mp4-one",
@@ -181,7 +187,7 @@
     "g05-stage2a-continuation-20260827-stress-1080p-webm-one"
   ],
   "limitations": [
-    "This authorization activates only the exact twelve-cell, seventy-two-attempt owner-approved Stage 2A continuation schedule.",
+    "This authorization permits exactly one new six-attempt replacement cell in the twelve-cell Stage 2A continuation schedule; the remaining cells require another owner decision.",
     "It authorizes no Stage 2B work, concurrency comparison, long-form work, product integration, shipping-runtime selection, distribution, or legal conclusion.",
     "Every cell remains subject to fresh no-media preflight, exact semantic proof, fail-closed route suspension, incremental V2 retention, and independent local and remote byte verification."
   ]

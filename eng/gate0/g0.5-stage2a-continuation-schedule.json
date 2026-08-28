@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
-  "scheduleId": "Gate0.G05.Stage2A.ContinuationSchedule.V1",
-  "status": "owner-approved-fixed-before-continuation-media",
+  "schemaVersion": 2,
+  "scheduleId": "Gate0.G05.Stage2A.ContinuationSchedule.V2",
+  "status": "owner-approved-single-replacement-before-media",
   "sourceSchedule": {
     "path": "eng/gate0/g0.5-stage2a-schedule.json",
     "sha256": "C16D4A65EDDEA2A6213C0A60D371BE605FD3295EE2695EF2716762EA2F85B90E",
@@ -30,7 +30,7 @@
       "phaseOrdinal": 1,
       "continuationOrdinal": 1,
       "originalScheduleOrdinal": 37,
-      "proofRunId": "g05-stage2a-continuation-20260827-stress-720p-webm-eight"
+      "proofRunId": "g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight"
     },
     {
       "globalOrdinal": 110,
@@ -47,7 +47,7 @@
       "phaseOrdinal": 1,
       "continuationOrdinal": 2,
       "originalScheduleOrdinal": 38,
-      "proofRunId": "g05-stage2a-continuation-20260827-stress-720p-webm-eight"
+      "proofRunId": "g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight"
     },
     {
       "globalOrdinal": 111,
@@ -64,7 +64,7 @@
       "phaseOrdinal": 2,
       "continuationOrdinal": 3,
       "originalScheduleOrdinal": 39,
-      "proofRunId": "g05-stage2a-continuation-20260827-stress-720p-webm-eight"
+      "proofRunId": "g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight"
     },
     {
       "globalOrdinal": 112,
@@ -81,7 +81,7 @@
       "phaseOrdinal": 3,
       "continuationOrdinal": 4,
       "originalScheduleOrdinal": 40,
-      "proofRunId": "g05-stage2a-continuation-20260827-stress-720p-webm-eight"
+      "proofRunId": "g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight"
     },
     {
       "globalOrdinal": 113,
@@ -98,7 +98,7 @@
       "phaseOrdinal": 4,
       "continuationOrdinal": 5,
       "originalScheduleOrdinal": 41,
-      "proofRunId": "g05-stage2a-continuation-20260827-stress-720p-webm-eight"
+      "proofRunId": "g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight"
     },
     {
       "globalOrdinal": 114,
@@ -115,7 +115,7 @@
       "phaseOrdinal": 5,
       "continuationOrdinal": 6,
       "originalScheduleOrdinal": 42,
-      "proofRunId": "g05-stage2a-continuation-20260827-stress-720p-webm-eight"
+      "proofRunId": "g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight"
     },
     {
       "globalOrdinal": 115,
@@ -1241,7 +1241,8 @@
     }
   ],
   "limitations": [
-    "This schedule fixes only the approved Gate 0 P2 runtime-route continuation execution order.",
+    "This V2 schedule preserves the approved Gate 0 P2 runtime-route continuation order and assigns a fresh proof-run identity only to the owner-authorized first-cell replacement.",
+    "Only the first replacement cell is currently authorized to execute; the remaining schedule rows require another owner decision.",
     "It is not a product, shipping-runtime, distribution, or legal contract.",
     "No continuation media execution is authorized without a separately fixed exact continuation authorization and all bound prerequisites."
   ]

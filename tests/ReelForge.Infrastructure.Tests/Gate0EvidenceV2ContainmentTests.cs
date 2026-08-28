@@ -8,6 +8,8 @@ namespace ReelForge.Infrastructure.Tests;
 
 public sealed class Gate0EvidenceV2ContainmentTests
 {
+    private const string ReplacementProofId = "g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight";
+    private const string UnauthorizedSecondProofId = "g05-stage2a-continuation-20260827-stress-720p-mp4-one";
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
     private static readonly string[] TestOnlyLimitations = ["test-only authorization"];
 
@@ -381,12 +383,95 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var corpus = CreateCorpus();
         try
         {
-            for (var index = 0; index < 40; index++) File.WriteAllText(Path.Combine(corpus.Source, $"artifact-{index:D2}.txt"), index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            for (var index = 0; index < 120; index++) File.WriteAllText(Path.Combine(corpus.Source, $"artifact-{new string('a', 96)}-{index:D3}.txt"), index.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var result = RunAppend(corpus, "oversize-candidate", "containment-no-media", "");
             Assert.NotEqual(0, result.ExitCode);
             Assert.Contains("before journal or remote work", result.Output, StringComparison.OrdinalIgnoreCase);
             Assert.False(File.Exists(corpus.Artifact + ".stage2-v2-append-journal.json"));
             Assert.False(Directory.Exists(Path.Combine(corpus.Artifact, "future")));
+        }
+        finally { Directory.Delete(corpus.Root, true); }
+    }
+
+    [Fact]
+    public void V2CanonicalShardSerializerIsStableAndProducesACompactParseableSixAttemptShape()
+    {
+        var corpus = CreateCorpus();
+        try
+        {
+            const string id = "compact-shape";
+            for (var index = 0; index < 22; index++)
+            {
+                File.WriteAllText(Path.Combine(corpus.Source, $"artifact-{index:D2}.txt"), $"artifact-{index:D2}");
+            }
+
+            var authorization = Path.Combine(corpus.Root, "compact.authorization.json");
+            File.WriteAllText(authorization, $$"""{"schemaVersion":1,"authorizationId":"Gate0.Stage2Evidence.V2.ContinuationAuthorization.V1","authorizationScope":"owner-authorized-v2-continuation","continuationProofRunIds":["{{id}}"],"limitations":["isolated test only"]}""");
+            var completeAttemptId = "new-compact-shape-2";
+            var attempts = new JsonArray();
+            for (var index = 0; index < 6; index++)
+            {
+                var recordPath = $"future/stage2/v2/{id}/artifact-{index:D2}.txt";
+                attempts.Add(new JsonObject
+                {
+                    ["attemptId"] = $"new-compact-shape-{index + 1}",
+                    ["originalAttemptId"] = $"old-compact-shape-{index + 1}",
+                    ["phase"] = index == 0 ? "warmup" : "measured",
+                    ["ordinal"] = index + 1,
+                    ["retentionClass"] = index == 1 ? "complete" : "compact",
+                    ["recordPath"] = recordPath,
+                    ["recordSha256"] = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(corpus.Source, $"artifact-{index:D2}.txt")))),
+                    ["disposition"] = "passed",
+                    ["completeClosureReference"] = index == 1 ? null : completeAttemptId
+                });
+            }
+            var attemptsPath = Path.Combine(corpus.Root, "compact.attempts.json");
+            File.WriteAllText(attemptsPath, attempts.ToJsonString(IndentedJson) + "\n");
+
+            var result = RunPs($"& '{Quote(corpus.Writer)}' -ArtifactRoot '{Quote(corpus.Artifact)}' -SourceRoot '{Quote(corpus.Source)}' -ProofRunId {id} -EvidenceGroupId compact-group -CellId compact-cell -EvidenceBoundary p2-runtime-route -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -ContinuationAuthorizationPath '{Quote(authorization)}' -AttemptsPath '{Quote(attemptsPath)}' -SkipRemoteForIsolatedTest");
+            Assert.Equal(0, result.ExitCode);
+
+            var shard = Path.Combine(Path.GetDirectoryName(corpus.Writer)!, "evidence", "v2", "stage2", id + ".manifest.json");
+            var bytes = File.ReadAllBytes(shard);
+            Assert.True(bytes.Length <= 65_536);
+            Assert.NotEqual((byte)0xEF, bytes[0]);
+            Assert.Equal((byte)'\n', bytes[^1]);
+            Assert.Equal(1, bytes.Count(static value => value == (byte)'\n'));
+            Assert.Equal(0, RunPs($"Import-Module '{Quote(Path.Combine(Path.GetDirectoryName(corpus.Writer)!, "evidence", "Gate0EvidenceContainmentV2.psm1"))}' -Force; Read-Gate0EvidenceV2Shard '{Quote(shard)}' | Out-Null").ExitCode);
+            var manifest = JsonNode.Parse(File.ReadAllText(shard))!.AsObject();
+            Assert.Equal(23, manifest["artifacts"]!.AsArray().Count);
+            Assert.Equal(6, manifest["attempts"]!.AsArray().Count);
+
+            var module = Path.Combine(Path.GetDirectoryName(corpus.Writer)!, "evidence", "Gate0EvidenceContainmentV2.psm1");
+            var stability = RunPs($"Import-Module '{Quote(module)}' -Force; $v=[ordered]@{{alpha=1;nested=[ordered]@{{empty=@();beta='x'}}}}; $a=ConvertTo-Gate0EvidenceV2CanonicalShardUtf8 $v; $b=ConvertTo-Gate0EvidenceV2CanonicalShardUtf8 $v; if(-not [Linq.Enumerable]::SequenceEqual([byte[]]$a,[byte[]]$b)){{throw 'serializer bytes diverged'}}");
+            Assert.Equal(0, stability.ExitCode);
+        }
+        finally { Directory.Delete(corpus.Root, true); }
+    }
+
+    [Fact]
+    public void V2WriterUsesTheSharedCanonicalSerializerForProjectionAndFinalShard()
+    {
+        var writer = File.ReadAllText(Path.Combine(RepoRoot(), "eng", "gate0", "Add-Gate0EvidenceV2Shard.ps1"));
+        Assert.Equal(2, writer.Split("ConvertTo-Gate0EvidenceV2CanonicalShardUtf8", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("$preflightText=(ConvertTo-Json $preflightShard", writer, StringComparison.Ordinal);
+        Assert.DoesNotContain("WriteAllText($tmpShard,(ConvertTo-Json $shard", writer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void V2ShardInspectionValidatesThenOnlyWritesPrettyJsonToStdout()
+    {
+        var corpus = CreateCorpus();
+        try
+        {
+            Assert.Equal(0, RunAppend(corpus, "inspect", "containment-no-media", "").ExitCode);
+            var shard = Path.Combine(Path.GetDirectoryName(corpus.Writer)!, "evidence", "v2", "stage2", "inspect.manifest.json");
+            var before = File.ReadAllBytes(shard);
+            var show = Path.Combine(Path.GetDirectoryName(corpus.Writer)!, "Show-Gate0EvidenceV2Shard.ps1");
+            var result = RunPs($"& '{Quote(show)}' -Path '{Quote(shard)}'");
+            Assert.Equal(0, result.ExitCode);
+            Assert.Contains("\"proofRunId\": \"inspect\"", result.Output, StringComparison.Ordinal);
+            Assert.Equal(before, File.ReadAllBytes(shard));
         }
         finally { Directory.Delete(corpus.Root, true); }
     }
@@ -455,7 +540,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var corpus = CreateLiveAuthorizationCorpus();
         try
         {
-            var proof = corpus.ProofIds[0];
+            var proof = ReplacementProofId;
             var cellId = corpus.CellsByProof[proof];
             switch (mutation)
             {
@@ -466,19 +551,19 @@ public sealed class Gate0EvidenceV2ContainmentTests
                     File.AppendAllText(corpus.WriterAuthorization, " ");
                     break;
                 case "wrong-writer-proof":
-                    WriteWriterAuthorization(corpus.WriterAuthorization, corpus.ProofIds.Skip(1).Append("not-the-requested-proof"));
+                    WriteWriterAuthorization(corpus.WriterAuthorization, ["not-the-requested-proof"]);
                     WriteFullAuthorization(corpus);
                     break;
                 case "missing-writer-proof":
-                    WriteWriterAuthorization(corpus.WriterAuthorization, corpus.ProofIds.Take(11));
+                    WriteWriterAuthorization(corpus.WriterAuthorization, []);
                     WriteFullAuthorization(corpus);
                     break;
                 case "extra-writer-proof":
-                    WriteWriterAuthorization(corpus.WriterAuthorization, corpus.ProofIds.Append("not-an-approved-proof"));
+                    WriteWriterAuthorization(corpus.WriterAuthorization, [ReplacementProofId, "not-an-approved-proof"]);
                     WriteFullAuthorization(corpus);
                     break;
                 case "duplicate-writer-proof":
-                    WriteWriterAuthorization(corpus.WriterAuthorization, corpus.ProofIds.Take(11).Append(corpus.ProofIds[0]));
+                    WriteWriterAuthorization(corpus.WriterAuthorization, [ReplacementProofId, ReplacementProofId]);
                     WriteFullAuthorization(corpus);
                     break;
                 case "wrong-full-status":
@@ -513,7 +598,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var corpus = CreateLiveAuthorizationCorpus();
         try
         {
-            var proof = corpus.ProofIds[0];
+            var proof = ReplacementProofId;
             var attempts = Path.Combine(corpus.Root, "attempts.json");
             WriteLiveAttempts(corpus, proof, attempts, mutation);
             var result = RunPs($"& '{Quote(corpus.Writer)}' -ArtifactRoot '{Quote(corpus.Artifact)}' -SourceRoot '{Quote(corpus.Source)}' -ProofRunId '{proof}' -EvidenceGroupId g05-stage2a-continuation-20260827 -CellId '{corpus.CellsByProof[proof]}' -EvidenceBoundary p2-runtime-route -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -AttemptsPath '{Quote(attempts)}'");
@@ -533,13 +618,31 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var corpus = CreateLiveAuthorizationCorpus();
         try
         {
-            var proof = corpus.ProofIds[0];
+            var proof = ReplacementProofId;
             var attempts = Path.Combine(corpus.Root, "attempts.json");
             WriteLiveAttempts(corpus, proof, attempts, "none");
             var result = RunPs($"& '{Quote(corpus.Writer)}' -ArtifactRoot '{Quote(corpus.Artifact)}' -SourceRoot '{Quote(corpus.Source)}' -ProofRunId '{proof}' -EvidenceGroupId g05-stage2a-continuation-20260827 -CellId '{corpus.CellsByProof[proof]}' -EvidenceBoundary p2-runtime-route -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -AttemptsPath '{Quote(attempts)}' -FaultInjection BeforeRemoteVerification");
             Assert.NotEqual(0, result.ExitCode);
             Assert.Contains("Injected V2 fault", result.Output, StringComparison.Ordinal);
             Assert.True(File.Exists(corpus.Artifact + ".stage2-v2-append-journal.json"));
+            Assert.False(Directory.Exists(Path.Combine(corpus.Artifact, "future")));
+            Assert.DoesNotContain("ReelForge.Engineering.R2", result.Output, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { Directory.Delete(corpus.Root, true); }
+    }
+
+    [Fact]
+    public void V2LiveContinuationRejectsASecondScheduledCellBeforeJournalOrRemoteWork()
+    {
+        var corpus = CreateLiveAuthorizationCorpus();
+        try
+        {
+            var attempts = Path.Combine(corpus.Root, "attempts.json");
+            WriteLiveAttempts(corpus, UnauthorizedSecondProofId, attempts, "none");
+            var result = RunPs($"& '{Quote(corpus.Writer)}' -ArtifactRoot '{Quote(corpus.Artifact)}' -SourceRoot '{Quote(corpus.Source)}' -ProofRunId '{UnauthorizedSecondProofId}' -EvidenceGroupId g05-stage2a-continuation-20260827 -CellId '{corpus.CellsByProof[UnauthorizedSecondProofId]}' -EvidenceBoundary p2-runtime-route -ContractIdentity repository:contract -Provenance test -ProducerRuntimeIdentity repository:producer -AttemptsPath '{Quote(attempts)}'");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("exact approved single replacement proof", result.Output, StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(corpus.Artifact + ".stage2-v2-append-journal.json"));
             Assert.False(Directory.Exists(Path.Combine(corpus.Artifact, "future")));
             Assert.DoesNotContain("ReelForge.Engineering.R2", result.Output, StringComparison.OrdinalIgnoreCase);
         }
@@ -570,7 +673,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var gate = Path.Combine(repo, "eng", "gate0");
         Directory.CreateDirectory(Path.Combine(gate, "evidence", "v2"));
         File.WriteAllText(Path.Combine(repo, ".gate0-containment-test-sentinel"), "isolated");
-        foreach (var file in new[] { "Add-Gate0EvidenceV2Shard.ps1", "Resolve-Gate0EvidenceV2AppendJournal.ps1", "Test-Gate0EvidenceV2Containment.ps1", "Gate0ArtifactTools.psm1", "Gate0ArtifactR2Client.cs" }) File.Copy(Path.Combine(RepoRoot(), "eng", "gate0", file), Path.Combine(gate, file));
+        foreach (var file in new[] { "Add-Gate0EvidenceV2Shard.ps1", "Show-Gate0EvidenceV2Shard.ps1", "Resolve-Gate0EvidenceV2AppendJournal.ps1", "Test-Gate0EvidenceV2Containment.ps1", "Gate0ArtifactTools.psm1", "Gate0ArtifactR2Client.cs" }) File.Copy(Path.Combine(RepoRoot(), "eng", "gate0", file), Path.Combine(gate, file));
         File.Copy(Path.Combine(RepoRoot(), "eng", "gate0", "evidence", "Gate0EvidenceContainmentV2.psm1"), Path.Combine(gate, "evidence", "Gate0EvidenceContainmentV2.psm1"));
         var v1 = Path.Combine(gate, "evidence", "root-index.json");
         File.Copy(Path.Combine(RepoRoot(), "eng", "gate0", "evidence", "root-index.json"), v1);
@@ -600,6 +703,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
         foreach (var path in new[]
         {
             "docs/gate-0-g0.5-stage2a-continuation-approval.md",
+            "docs/gate-0-g0.5-stage2a-v2-shard-approval.md",
             "eng/gate0/g0.5-stage2a-continuation-schedule.json",
             "eng/gate0/G05Stage2AContinuationHelpers.psm1",
             "eng/gate0/Invoke-G05Stage2AContinuation.ps1",
@@ -651,7 +755,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var proofIds = cellsByProof.Keys.OrderBy(static value => value, StringComparer.Ordinal).ToArray();
         var writerAuthorization = Path.Combine(gate0, "g0.5-stage2a-continuation-v2-writer-authorization.json");
         var fullAuthorization = Path.Combine(gate0, "g0.5-stage2a-continuation-authorization.json");
-        WriteWriterAuthorization(writerAuthorization, proofIds);
+        WriteWriterAuthorization(writerAuthorization, [ReplacementProofId]);
         var corpus = (root, Path.Combine(root, "ReelForge.Gate0Artifacts"), Path.Combine(root, "source"), Path.Combine(gate0, "Add-Gate0EvidenceV2Shard.ps1"), writerAuthorization, fullAuthorization, schedule, proofIds, cellsByProof);
         Directory.CreateDirectory(corpus.Item2);
         Directory.CreateDirectory(corpus.Item3);
@@ -675,6 +779,7 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var paths = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["owner-approval"] = "docs/gate-0-g0.5-stage2a-continuation-approval.md",
+            ["v2-shard-recovery-approval"] = "docs/gate-0-g0.5-stage2a-v2-shard-approval.md",
             ["schedule"] = "eng/gate0/g0.5-stage2a-continuation-schedule.json",
             ["helper"] = "eng/gate0/G05Stage2AContinuationHelpers.psm1",
             ["runner"] = "eng/gate0/Invoke-G05Stage2AContinuation.ps1",
@@ -710,12 +815,13 @@ public sealed class Gate0EvidenceV2ContainmentTests
         var bindings = paths.Select(pair => new { role = pair.Key, path = pair.Value, sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(repository, pair.Value.Replace('/', Path.DirectorySeparatorChar))))) }).ToArray();
         File.WriteAllText(corpus.FullAuthorization, JsonSerializer.Serialize(new
         {
-            schemaVersion = 1,
-            authorizationId = "Gate0.G05.Stage2A.ContinuationAuthorization.V1",
-            authorizationScope = "owner-authorized-stage2a-continuation",
-            status = "owner-authorized-continuation-effective",
+            schemaVersion = 2,
+            authorizationId = "Gate0.G05.Stage2A.ContinuationAuthorization.V2",
+            authorizationScope = "owner-authorized-stage2a-single-replacement",
+            status = "owner-authorized-single-replacement-effective",
             exactCellCount = 12,
             exactAttemptCount = 72,
+            maximumNewCellCount = 1,
             scheduleBinding = new { path = "eng/gate0/g0.5-stage2a-continuation-schedule.json", sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(corpus.Schedule))) },
             bindings,
             continuationProofRunIds = corpus.ProofIds,

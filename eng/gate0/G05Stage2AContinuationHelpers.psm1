@@ -6,6 +6,7 @@ $script:ContinuationScheduleRelativePath = 'eng/gate0/g0.5-stage2a-continuation-
 $script:ContinuationEvidenceGroupId = 'g05-stage2a-continuation-20260827'
 $script:ContinuationAuthorizationRoles = [ordered]@{
     'owner-approval' = 'docs/gate-0-g0.5-stage2a-continuation-approval.md'
+    'v2-shard-recovery-approval' = 'docs/gate-0-g0.5-stage2a-v2-shard-approval.md'
     schedule = 'eng/gate0/g0.5-stage2a-continuation-schedule.json'
     helper = 'eng/gate0/G05Stage2AContinuationHelpers.psm1'
     runner = 'eng/gate0/Invoke-G05Stage2AContinuation.ps1'
@@ -60,7 +61,7 @@ function Read-G05Stage2AContinuationSchedule([string] $Path, [string] $Repositor
     $raw = Get-Content -LiteralPath $Path -Raw
     $schedule = $raw | ConvertFrom-Json -Depth 32
     Assert-G05Stage2AContinuationExactProperties $schedule @('schemaVersion','scheduleId','status','sourceSchedule','evidenceGroupId','counterbalanceRule','excludedGroups','attempts','limitations') 'Stage 2A continuation schedule'
-    if ($schedule.schemaVersion -ne 1 -or $schedule.scheduleId -ne 'Gate0.G05.Stage2A.ContinuationSchedule.V1' -or $schedule.status -ne 'owner-approved-fixed-before-continuation-media' -or $schedule.evidenceGroupId -ne $script:ContinuationEvidenceGroupId) {
+    if ($schedule.schemaVersion -ne 2 -or $schedule.scheduleId -ne 'Gate0.G05.Stage2A.ContinuationSchedule.V2' -or $schedule.status -ne 'owner-approved-single-replacement-before-media' -or $schedule.evidenceGroupId -ne $script:ContinuationEvidenceGroupId) {
         throw 'Stage 2A continuation schedule identity is invalid.'
     }
     Assert-G05Stage2AContinuationExactProperties $schedule.sourceSchedule @('path','sha256','includedOriginalScheduleOrdinalStart','includedOriginalScheduleOrdinalEnd') 'Stage 2A continuation source schedule'
@@ -83,7 +84,7 @@ function Read-G05Stage2AContinuationSchedule([string] $Path, [string] $Repositor
         foreach ($property in @('groupOrdinal','groupId','cellId','workloadId','resolutionId','candidateId','routeId','threadPolicyId','phase','cellAttemptOrdinal','phaseOrdinal')) {
             if ([string]$actual.$property -ne [string]$source.$property) { throw "Stage 2A continuation attempt projection changed $property." }
         }
-        $proofId = "$($script:ContinuationEvidenceGroupId)-$($actual.cellId)"
+        $proofId = if ($i -lt 6) { 'g05-stage2a-continuation-r1-20260827-stress-720p-webm-eight' } else { "$($script:ContinuationEvidenceGroupId)-$($actual.cellId)" }
         if ([string]$actual.proofRunId -ne $proofId) { throw 'Stage 2A continuation proof run identifier is invalid.' }
         [void]$cellProofIds.Add($proofId)
     }
@@ -94,8 +95,8 @@ function Read-G05Stage2AContinuationSchedule([string] $Path, [string] $Repositor
 function Read-G05Stage2AContinuationAuthorization([string] $Path, [string] $RepositoryRoot, [string] $SchedulePath) {
     $schedule = Read-G05Stage2AContinuationSchedule $SchedulePath $RepositoryRoot
     $authorization = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -Depth 32
-    Assert-G05Stage2AContinuationExactProperties $authorization @('schemaVersion','authorizationId','authorizationScope','status','exactCellCount','exactAttemptCount','scheduleBinding','bindings','continuationProofRunIds','limitations') 'Stage 2A continuation authorization'
-    if ($authorization.schemaVersion -ne 1 -or $authorization.authorizationId -ne 'Gate0.G05.Stage2A.ContinuationAuthorization.V1' -or $authorization.authorizationScope -ne 'owner-authorized-stage2a-continuation' -or [string]$authorization.status -ne 'owner-authorized-continuation-effective' -or [int]$authorization.exactCellCount -ne 12 -or [int]$authorization.exactAttemptCount -ne 72) { throw 'Stage 2A continuation authorization identity or exact matrix counts are invalid.' }
+    Assert-G05Stage2AContinuationExactProperties $authorization @('schemaVersion','authorizationId','authorizationScope','status','exactCellCount','exactAttemptCount','maximumNewCellCount','scheduleBinding','bindings','continuationProofRunIds','limitations') 'Stage 2A continuation authorization'
+    if ($authorization.schemaVersion -ne 2 -or $authorization.authorizationId -ne 'Gate0.G05.Stage2A.ContinuationAuthorization.V2' -or $authorization.authorizationScope -ne 'owner-authorized-stage2a-single-replacement' -or [string]$authorization.status -ne 'owner-authorized-single-replacement-effective' -or [int]$authorization.exactCellCount -ne 12 -or [int]$authorization.exactAttemptCount -ne 72 -or [int]$authorization.maximumNewCellCount -ne 1) { throw 'Stage 2A continuation authorization identity or exact matrix counts are invalid.' }
     Assert-G05Stage2AContinuationExactProperties $authorization.scheduleBinding @('path','sha256') 'Stage 2A continuation authorization schedule binding'
     if ($authorization.scheduleBinding.path -ne $script:ContinuationScheduleRelativePath -or $authorization.scheduleBinding.sha256 -ne $schedule.Sha256) { throw 'Stage 2A continuation authorization schedule binding changed.' }
     $expectedProofIds = @($schedule.ProofRunIds | Sort-Object)

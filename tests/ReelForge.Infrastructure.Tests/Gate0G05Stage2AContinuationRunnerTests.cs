@@ -12,7 +12,7 @@ public sealed class Gate0G05Stage2AContinuationRunnerTests
     {
         using var schedule = ReadJson("eng", "gate0", "g0.5-stage2a-continuation-schedule.json");
         var rows = schedule.RootElement.GetProperty("attempts").EnumerateArray().ToArray();
-        Assert.Equal("Gate0.G05.Stage2A.ContinuationSchedule.V1", schedule.RootElement.GetProperty("scheduleId").GetString());
+        Assert.Equal("Gate0.G05.Stage2A.ContinuationSchedule.V2", schedule.RootElement.GetProperty("scheduleId").GetString());
         Assert.Equal(72, rows.Length);
         Assert.Equal(12, rows.Select(row => row.GetProperty("cellId").GetString()).Distinct().Count());
         Assert.Equal(12, rows.Count(row => row.GetProperty("phase").GetString() == "warmup"));
@@ -40,6 +40,7 @@ public sealed class Gate0G05Stage2AContinuationRunnerTests
         Assert.Equal(72, root.GetProperty("schedule").GetProperty("attemptCount").GetInt32());
         Assert.Equal(12, root.GetProperty("schedule").GetProperty("cellCount").GetInt32());
         Assert.Equal("Add-Gate0EvidenceV2Shard.ps1", root.GetProperty("retention").GetProperty("writer").GetString());
+        Assert.Equal(1, root.GetProperty("execution").GetProperty("maximumNewCellCount").GetInt32());
     }
 
     [Fact]
@@ -118,6 +119,7 @@ $after = @(Get-Process -Name ffmpeg,ffprobe -ErrorAction SilentlyContinue | Sele
         Assert.Contains("Join-Path $PSScriptRoot 'evidence/v2'", source, StringComparison.Ordinal);
         Assert.Contains("Retained continuation shard is no longer hash-bound", source, StringComparison.Ordinal);
         Assert.Contains("$archiveHash-ne[string]$Reevaluation.retention.archiveSha256", source, StringComparison.Ordinal);
+        Assert.Contains("Select-Object -Skip $completed -First ([int]$authorization.Authorization.maximumNewCellCount)", source, StringComparison.Ordinal);
         Assert.Contains("V5 closure extraction root escapes the validated staging root", source, StringComparison.Ordinal);
         Assert.Contains("Assert-G05Stage2AContinuationNoActiveMedia 'final continuation accounting'", source, StringComparison.Ordinal);
     }
