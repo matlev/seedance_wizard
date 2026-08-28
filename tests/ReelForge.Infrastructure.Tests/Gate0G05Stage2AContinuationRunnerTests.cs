@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -119,6 +120,31 @@ $after = @(Get-Process -Name ffmpeg,ffprobe -ErrorAction SilentlyContinue | Sele
         Assert.Contains("$archiveHash-ne[string]$Reevaluation.retention.archiveSha256", source, StringComparison.Ordinal);
         Assert.Contains("V5 closure extraction root escapes the validated staging root", source, StringComparison.Ordinal);
         Assert.Contains("Assert-G05Stage2AContinuationNoActiveMedia 'final continuation accounting'", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RunnerUsesThePowerShellCompatibleStaticZipExtractionApi()
+    {
+        var source = File.ReadAllText(PathInRepo("eng", "gate0", "Invoke-G05Stage2AContinuation.ps1"));
+        Assert.Contains("[IO.Compression.ZipFileExtensions]::ExtractToFile($entry,$destination,$false)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("$entry.ExtractToFile", source, StringComparison.Ordinal);
+
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "ReelForge-G05-Zip-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var input = Directory.CreateDirectory(Path.Combine(root, "input")).FullName;
+            File.WriteAllText(Path.Combine(input, "proof.txt"), "proof");
+            var archive = Path.Combine(root, "proof.zip");
+            var output = Path.Combine(root, "proof.txt");
+            ZipFile.CreateFromDirectory(input, archive);
+            var result = RunPwsh($"$z=[IO.Compression.ZipFile]::OpenRead('{Escape(archive)}');try{{[IO.Compression.ZipFileExtensions]::ExtractToFile($z.Entries[0],'{Escape(output)}',$false)}}finally{{$z.Dispose()}};Get-Content -LiteralPath '{Escape(output)}'");
+            Assert.True(result.ExitCode == 0, result.Output);
+            Assert.Equal("proof", result.Output.Trim());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
