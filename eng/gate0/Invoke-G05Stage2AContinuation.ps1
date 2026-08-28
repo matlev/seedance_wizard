@@ -120,7 +120,7 @@ function Restore-G05Stage2AContinuationSuspendedRoutes {
             if([string]$attempt.disposition -in @('byte-divergent','semantically-divergent','structurally-divergent')){[void]$suspended.Add([string]$row[0].routeId)}
         }
     }
-    $suspended
+    return ,$suspended
 }
 function Get-G05Stage2AContinuationRetainedSummaries {
     param([string]$ArtifactRoot)

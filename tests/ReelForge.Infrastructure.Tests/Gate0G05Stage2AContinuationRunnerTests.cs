@@ -195,6 +195,7 @@ $after = @(Get-Process -Name ffmpeg,ffprobe -ErrorAction SilentlyContinue | Sele
             "process-samples.ndjson",
             "Test-G05Stage2ADeterministicIntegrityFailure",
             "Restore-G05Stage2AContinuationSuspendedRoutes",
+            "return ,$suspended",
             "Assert-G05Stage2AContinuationV4Closure",
             "Assert-G05Stage2AContinuationV5Closure",
             "orphan-producing",
@@ -212,6 +213,17 @@ $after = @(Get-Process -Name ffmpeg,ffprobe -ErrorAction SilentlyContinue | Sele
         {
             Assert.Contains(required, source, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void EmptySuspendedRouteStateRemainsAHashSetObjectInsteadOfPipelineNull()
+    {
+        var result = RunPwsh("function Get-State{$s=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);return ,$s};$v=Get-State;[pscustomobject]@{isNull=($null-eq$v);type=$v.GetType().FullName;contains=$v.Contains('route')}|ConvertTo-Json -Compress");
+        Assert.True(result.ExitCode == 0, result.Output);
+        using var json = JsonDocument.Parse(result.Output);
+        Assert.False(json.RootElement.GetProperty("isNull").GetBoolean());
+        Assert.StartsWith("System.Collections.Generic.HashSet", json.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
+        Assert.False(json.RootElement.GetProperty("contains").GetBoolean());
     }
 
     [Fact]

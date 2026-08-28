@@ -28,7 +28,7 @@
     {
       "role": "runner",
       "path": "eng/gate0/Invoke-G05Stage2AContinuation.ps1",
-      "sha256": "E76447ACB47EE671D29FC60591678088F4D72C77FED1312EC5C53254FF06F6A7"
+      "sha256": "05FEBE871C2B442C5EC305D594B32B450FC64F41E87694AE61AD599DBBEB1D2E"
     },
     {
       "role": "preflight",
