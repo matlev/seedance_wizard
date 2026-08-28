@@ -227,6 +227,7 @@ public partial class MainWindow : Window, IDisposable
         {
             await JobsPanelControl.HideJobsAsync();
             JobsChromeControl.SetJobsOpen(false);
+            JobsMenuItem.IsChecked = false;
         }
         _activeWorkspace = EditWorkspaceButton.IsChecked == true
             ? ProjectWorkspaceKind.Edit
@@ -240,6 +241,8 @@ public partial class MainWindow : Window, IDisposable
     {
         if (GenerateLowerWorkspace is null) return;
         var isGenerate = _activeWorkspace == ProjectWorkspaceKind.Generate;
+        GenerateWorkspaceMenuItem.IsChecked = isGenerate;
+        EditWorkspaceMenuItem.IsChecked = !isGenerate;
         GenerateLowerWorkspace.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
         EditLowerWorkspace.Visibility = isGenerate ? Visibility.Collapsed : Visibility.Visible;
         GenerationHistoryPanelControl.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
@@ -261,22 +264,6 @@ public partial class MainWindow : Window, IDisposable
                 ProjectMediaPanelControl.SelectedItem = item;
         }
     }
-
-    private async void JobsChromeControl_OpenRequested(object? sender, EventArgs e)
-    {
-        if (JobsPanelControl.IsOpen)
-        {
-            await JobsPanelControl.HideJobsAsync();
-            JobsChromeControl.SetJobsOpen(false);
-            return;
-        }
-
-        JobsPanelControl.ShowJobs();
-        JobsChromeControl.SetJobsOpen(true);
-    }
-
-    private void JobsPanelControl_Closed(object? sender, EventArgs e) =>
-        JobsChromeControl.SetJobsOpen(false);
 
     private void JobsPanelControl_ErrorOccurred(object? sender, GenerationJobsPanelErrorEventArgs e) =>
         StatusText.Text = e.Message;
@@ -761,10 +748,10 @@ public partial class MainWindow : Window, IDisposable
 
     private void SetProjectActionsEnabled(bool isEnabled)
     {
-        NewProjectButton.IsEnabled = isEnabled;
-        OpenProjectButton.IsEnabled = isEnabled;
-        ImportAssetsButton.IsEnabled = isEnabled;
-        SettingsButton.IsEnabled = isEnabled;
+        NewProjectMenuItem.IsEnabled = isEnabled;
+        OpenProjectMenuItem.IsEnabled = isEnabled;
+        ImportAssetsMenuItem.IsEnabled = isEnabled;
+        SettingsMenuItem.IsEnabled = isEnabled;
         GenerationPanelControl.IsProviderEnabled = isEnabled;
     }
 
