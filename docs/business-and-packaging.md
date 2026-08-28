@@ -35,7 +35,7 @@ Unless explicitly revisited:
 9. **Provider neutrality is a business-continuity feature.** BYOK and managed catalogs may differ. A provider price, reliability, territory, or contract change must not become project-media identity or force a domain redesign.
 10. **Commercialization must not weaken user ownership.** Existing projects, authoritative recipes, provenance, and durable media must not become unreadable because an entitlement lapses or a credit balance reaches zero. Future gating should govern creation/use of a capability, not custody of the user's work.
 
-The exact Free/Pro boundary, pricing, payment model, Ingot rules, and release packaging remain provisional.
+The [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) now owns the accepted Free desktop contract and staged Pro product metadata. Pricing, entitlement implementation, the exact first marketed Pro subset, payment model, Ingot rules, and release packaging remain provisional.
 
 ## Current behavior versus future optionality
 
@@ -123,7 +123,7 @@ Project and recipe formats must remain tier-neutral. They describe creative inte
 
 ## Provisional packaging hypotheses
 
-These groupings guide future research; they are not approved gates.
+The accepted 1.0 product definition supersedes these early hypotheses where it is more specific. They remain commercial reasoning, not entitlement gates.
 
 ### Strong Free candidates
 
@@ -132,14 +132,14 @@ These groupings guide future research; they are not approved gates.
 - Saved Frames and Saved Clips;
 - generation history and provenance;
 - BYOK generation and provider configuration;
-- a useful basic timeline, trim/split/assembly, and source-audio workflow;
+- a scalable traditional multitrack workflow, ordinary visual/audio/text finishing, dockable editing surfaces, and the AI-native edit-to-generation loop;
 - common local export and ordinary FFmpeg-based operations.
 
 Free should expose the complete generate-to-finish loop at a useful depth. Technical implementation cost alone is not a reason to gate a signature foundational feature.
 
 ### Possible Pro value
 
-- advanced multitrack and composition/version workflows;
+- advanced composition/version and timing workflows beyond the Free multitrack foundation;
 - generic keyframe automation and advanced transforms/compositing;
 - advanced transitions, color/LUT, audio, captions, delivery, and performance controls;
 - sophisticated repair, stabilization, continuity matching, and variant comparison;
@@ -159,7 +159,7 @@ Credits should represent managed compute/services broadly rather than be hard-co
 
 ## Relationship to the editor roadmap
 
-The accepted [Editor capability direction](editor-capability-direction.md) defines product semantics and architectural seams before commercial tiers. This strategy resolves its broad commercial lanes but does not decide exact gates:
+The accepted [Editor capability direction](editor-capability-direction.md) defines product semantics and architectural seams before commercial tiers. The [1.0 product definition](reelforge-1.0-product-definition.md) now applies these lanes to an accepted Free contract and staged Pro roadmap without authorizing entitlement code:
 
 - foundational local creative-loop capabilities lean Free;
 - professional depth, productivity, and advanced finishing are Pro candidates;
@@ -207,7 +207,7 @@ Promotional Ingots may lower onboarding friction, but account farming, abuse, id
 The following remain explicit decisions for later discovery:
 
 - subscription, perpetual, paid-upgrade, or hybrid Pro licensing;
-- exact Free and Pro capability lists;
+- the exact marketed first Pro subset, licensing model, price, and entitlement mapping beyond the accepted planning metadata;
 - whether a Pro grant includes managed credits or discounted purchases;
 - Ingot branding, exchange rate, bundles, expiration, refunds, and margin target;
 - promotional-credit eligibility;

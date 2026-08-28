@@ -2,7 +2,7 @@
 
 ReelForge is a Windows desktop workspace for AI video generation, logical project media, exact-frame preparation, and non-destructive FFmpeg-based composition workflows. It is an AI-native finishing workbench rather than a general-purpose professional NLE.
 
-Milestones 1 and 2 provide a working generation-to-editing loop:
+Milestones 1–3 establish and structurally harden a working generation-to-editing loop:
 
 - Generate/Edit WPF workspaces with shared Project Media, preview, inspector, global job monitoring, and application settings
 - portable, JSON-formatted `.rfp` projects with `assets/`, `generated/`, `exports/`, and `cache/`
@@ -72,6 +72,10 @@ All project-media paths stored in the `.rfp` file are relative to the project ro
 - [Architecture governance](docs/architecture-governance.md)
 - [Architecture debt register](docs/architecture-debt.md)
 - [Architecture decision records](docs/adr/README.md)
+- [ReelForge 1.0 product definition](docs/reelforge-1.0-product-definition.md)
+- [Media runtime contract](docs/media-runtime-contract.md)
+- [Media dependencies and licensing](docs/media-dependencies-and-licensing.md)
+- [Gate 0 final summary](docs/gate-0-final-summary.md)
 - [Milestone plan](docs/milestones.md)
 - [Manual regression acceptance matrix](docs/manual-acceptance.md)
 - [Contributor guidance](docs/contributor-guidance.md)

@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{667F9217-6D5A-483C-A831-8BFF3898D60C}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "eng", "eng", "{B21A5AF1-540B-4C43-9D91-43AAC7EE6CEB}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.Core", "src\ReelForge.Core\ReelForge.Core.csproj", "{6E4741D6-61C6-4157-A512-096E57B74133}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReelForge.Application", "src\ReelForge.Application\ReelForge.Application.csproj", "{1EDD3A18-BD11-4122-B7AF-DE27A5D5EA70}"

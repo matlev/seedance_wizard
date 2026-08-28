@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "profileId": "ReelForge.MediaRuntime.DevelopmentBaselineCandidate.P2.20260820",
+  "status": "development-baseline-candidate-not-shipping",
+  "sourceProfile": {
+    "profileId": "P2.BtbnLgplShared.WindowsX64.20260820",
+    "licensePath": "LGPLv3-path",
+    "archiveName": "ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1.zip",
+    "archiveSha256": "D311C8C7B86E06B54588E442652F963BAE165BD4D8393E73CC9EBB445B025547",
+    "archiveRoot": "ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1",
+    "release": "autobuild-2026-08-20-13-45",
+    "upstreamUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-20-13-45/ffmpeg-n8.1.2-44-g7c533d0f86-win64-lgpl-shared-8.1.zip",
+    "upstreamRetention": "daily-retention-limited",
+    "ffmpegSourceCommit": "7c533d0f86f13a06ec93968f6194349665b3536a",
+    "btbnBuildCommit": "48576f197ad1c2afb2e0b8efe204919a1afbff54",
+    "version": "n8.1.2-44-g7c533d0f86-20260820",
+    "target": "windows-x86_64-mingw-shared",
+    "configuration": "--prefix=/ffbuild/prefix --pkg-config-flags=--static --pkg-config=pkg-config --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --target-os=mingw32 --enable-version3 --disable-debug --enable-shared --disable-static --disable-w32threads --enable-pthreads --enable-iconv --enable-zlib --enable-libxml2 --enable-libvmaf --enable-fontconfig --enable-libharfbuzz --enable-libfreetype --enable-libfribidi --enable-vulkan --enable-libshaderc --enable-libvorbis --disable-libxcb --disable-xlib --disable-libpulse --enable-gmp --enable-lzma --enable-liblcevc-dec --enable-opencl --enable-amf --enable-libaom --enable-libaribb24 --disable-avisynth --enable-chromaprint --enable-libdav1d --disable-libdavs2 --disable-libdvdread --disable-libdvdnav --disable-libfdk-aac --enable-ffnvcodec --enable-cuda-llvm --disable-frei0r --enable-libgme --enable-libkvazaar --enable-libaribcaption --enable-libass --enable-libbluray --enable-libjxl --enable-libmp3lame --enable-libopus --enable-libplacebo --enable-librist --enable-libssh --enable-libtheora --enable-libvpx --enable-libwebp --enable-libzmq --enable-lv2 --enable-libvpl --enable-openal --enable-liboapv --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libopenmpt --enable-librav1e --disable-librubberband --enable-schannel --enable-sdl2 --enable-libsnappy --enable-libsoxr --enable-libsrt --enable-libsvtav1 --enable-libtwolame --enable-libuavs3d --disable-libdrm --enable-vaapi --disable-libvidstab --enable-libvvenc --disable-whisper --disable-libx264 --disable-libx265 --disable-libxavs2 --disable-libxvid --enable-libzimg --enable-libzvbi --extra-cflags=-DLIBTWOLAME_STATIC --extra-cxxflags= --extra-libs=-lgomp --extra-ldflags=-pthread --extra-ldexeflags= --cc=x86_64-w64-mingw32-gcc --cxx=x86_64-w64-mingw32-g++ --ar=x86_64-w64-mingw32-gcc-ar --ranlib=x86_64-w64-mingw32-gcc-ranlib --nm=x86_64-w64-mingw32-gcc-nm --extra-version=20260820",
+    "ffmpeg": { "relativePath": "bin/ffmpeg.exe", "sha256": "E41DBF0563AF8B07D8CF1818187500ACDF36AAAFB00186BA12A18C6C661F7EB0" },
+    "ffprobe": { "relativePath": "bin/ffprobe.exe", "sha256": "08AE7637A339009A23BA469AAFC282A16A98E02B2999E14EC1A6C1198FD77221" }
+  },
+  "configurationPolicy": {
+    "required": ["--enable-version3", "--enable-shared", "--disable-static", "--enable-libvpx", "--enable-libopus", "--enable-libass", "--enable-fontconfig", "--enable-libfreetype", "--enable-libfribidi", "--enable-libharfbuzz"],
+    "forbidden": ["--enable-gpl", "--enable-nonfree", "--enable-libx264", "--enable-libx265", "--enable-libvidstab", "--enable-librubberband"],
+    "forbiddenComponents": ["libx264", "libx265", "libvidstab", "librubberband", "eq", "hqdn3d"]
+  },
+  "requiredComponents": {
+    "encoder": ["ffv1", "flac", "libopus", "libvpx-vp9", "pcm_s16le", "png", "mjpeg"],
+    "decoder": ["aac", "ffv1", "flac", "h264", "mp3", "mjpeg", "opus", "pcm_s16le", "png", "vorbis", "vp8", "vp9"],
+    "muxer": ["flac", "image2", "matroska", "ogg", "wav", "webm"],
+    "demuxer": ["concat", "flac", "image2", "matroska,webm", "mov,mp4,m4a,3gp,3g2,mj2", "mp3", "ogg", "wav"],
+    "filter": ["acrossfade", "adelay", "afade", "aformat", "alphamerge", "alphaextract", "amix", "aresample", "asetpts", "atadenoise", "atrim", "colorlevels", "colorspace", "concat", "crop", "deflicker", "deshake", "drawtext", "fade", "format", "fps", "hue", "loudnorm", "lut3d", "nlmeans", "overlay", "pad", "pan", "rotate", "scale", "select", "setpts", "showwaves", "split", "subtitles", "transpose", "trim", "unsharp", "volume", "xfade"],
+    "protocol": ["file"]
+  },
+  "prohibitedComponents": {
+    "encoder": ["libx264", "libx265"],
+    "filter": ["eq", "hqdn3d", "vidstabdetect", "vidstabtransform", "rubberband"]
+  },
+  "capabilityMappings": {
+    "frameExtraction": ["select", "image2", "png"],
+    "trimConcat": ["trim", "atrim", "concat", "setpts", "asetpts"],
+    "layerComposition": ["scale", "crop", "pad", "rotate", "overlay", "format", "alphamerge", "alphaextract"],
+    "audioMixAndFinishing": ["aformat", "aresample", "amix", "volume", "pan", "afade", "acrossfade", "loudnorm"],
+    "basicVisualFinishing": ["colorlevels", "hue", "colorspace", "lut3d", "fade", "xfade"],
+    "unicodeText": ["drawtext", "subtitles", "libfreetype", "libfontconfig", "libfribidi", "libharfbuzz"],
+    "waveform": ["showwaves"],
+    "proxy": ["scale", "fps", "libvpx-vp9", "libopus"],
+    "openDelivery": ["libvpx-vp9", "libopus", "webm"],
+    "conditionalMp4": ["libopenh264", "aac", "mp4"],
+    "proFeasibility": ["deshake", "deflicker", "nlmeans", "atadenoise", "unsharp", "loudnorm", "scale", "crop", "pad", "fps", "colorspace", "aformat", "aresample"]
+  },
+  "fonts": [
+    { "relativePath": "fonts/NotoSans-Regular.ttf", "sha256": "478C558EA716033CD60C03438F628DFA75694DCF6B5F6D505A2F05FD2B4F3823", "license": "OFL-1.1" },
+    { "relativePath": "fonts/NotoSansArabic-Regular.ttf", "sha256": "BDFF3E5659D67E67DEF05B33F749683B9376AE819D65D3DD62AC4640B3AAEF48", "license": "OFL-1.1" },
+    { "relativePath": "fonts/NotoSansCJKsc-Regular.otf", "sha256": "2C76254F6FC379FDDFCE0A7E84FB5385BB135D3E399294F6EEB6680D0365B74B", "license": "OFL-1.1" }
+  ],
+  "classifications": { "baseline": "LGPL-first development evidence only", "mp4": "conditional technical route only", "shipping": "not selected", "legal": "no distribution or patent conclusion" }
+}

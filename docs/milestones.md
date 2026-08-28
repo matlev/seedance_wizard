@@ -376,7 +376,7 @@ Post-Milestone 3 editor work awaiting prioritization:
 
 Timeline editing must compose the same recipe graph and must not introduce authoritative intermediate paths into the `.rfp` project file.
 
-Future workspace UX should support detaching the composition timeline and Edit Tools into separate floating windows, then docking either surface back into the Edit workspace. The windows must share the same selection, composition, history, playback, and project state; floating a surface must never create a second editing session or media owner. Remember layout as machine-local, preferably per-project UI state, and restore off-screen windows safely when monitor topology changes. This capability is intentionally unscheduled beyond Milestone 2 and does not add layout data to `.rfp` files.
+The accepted Free desktop 1.0 plan promotes this workspace capability: detach the composition timeline and Edit Tools into separate floating windows, then dock either surface back into the Edit workspace. The windows share the same selection, composition, history, playback, and project state; floating a surface never creates a second editing session or media owner. Layout remains machine-local, preferably per-project UI state, restores off-screen windows safely when monitor topology changes, and does not add layout data to `.rfp` files.
 
 ## Milestone 3 — completed whole-codebase structural refactor
 
@@ -389,6 +389,33 @@ The supported portability direction keeps reusable behavior free of WPF/native W
 The six-suite topology is established in CI: Core (7), Application (77), Infrastructure (21), broad acceptance (203), Platform.Windows (4), and WPF App (46), for 358 passing network-isolated tests. Windows CI builds Debug and Release and runs all six suites; non-Windows CI runs the portable suites. Paid provider submission remains physically excluded from automated testing.
 
 The [manual regression acceptance matrix](manual-acceptance.md) is the active human smoke guide. Its accepted post-refactor corrections include restoring an unchanged baked preview after restart, PTS-aware frame stepping across audition cuts, and synchronizing viewer frame transport with Select Frame and Make Clip precision tools.
+
+## Post-Milestone 3 desktop 1.0 product definition
+
+The accepted [ReelForge 1.0 product definition](reelforge-1.0-product-definition.md) audits the current product, defines the minimum complete Free workflow, stages the intended Pro continuity/repair value, and sequences missing desktop capabilities by dependency.
+
+Gate 0 is closed. Its maintainable outputs are the [media runtime contract](media-runtime-contract.md), [dependency/licensing inventory](media-dependencies-and-licensing.md), [final summary](gate-0-final-summary.md), and the small `eng/media-runtime` profile/validator/smoke suite. Feature work now follows the LGPL-first route order and adds focused product-path tests as each renderer, effect, text, proxy, or delivery mapping is implemented. The exact public runtime, release-candidate performance/playback qualification, legal review, signing, packaging, and distribution remain release-engineering work.
+
+Recommended desktop implementation order remains dependency-driven rather than compressed into one oversized milestone:
+
+1. project recovery/relink plus the Milestone 4 candidate pre-beta track/time/persistence correction;
+2. structural multitrack editing, snapping/markers, and session undo/redo;
+3. deterministic track-aware rendering, preview profiles, proxy behavior, and ordinary Free conversion/export against the media contract;
+4. constant visual properties, practical audio finishing, waveform/range editing, and a restrained transition set;
+5. titles, manual captions, SRT workflows, project-owned custom font import, and the pinned Unicode/font path;
+6. dockable/floating workspace surfaces and the Source/Edit/Rendered viewer contexts;
+7. exact edit-to-generation/range-reference/replace workflows;
+8. diagnostics, accessibility, acceptance, and measured production-path performance hardening.
+
+The approved near-term milestone structure is recorded in [Milestone 4 plan — Project Trust and Multitrack Foundation](milestone-4-plan.md):
+
+- **Milestone 4** contains only Phase 4A recovery/verified relinking and Phase 4B track/time/history plus the candidate development-format correction.
+- **Tentative Milestone 5** contains the Slice C structural editing grammar and session composition undo/redo.
+- **Tentative Milestone 6** contains the Slice D track-aware render plan, preview/proxy execution, and ordinary Free conversion/export program, with an architecture checkpoint after its initial render-plan integration.
+
+Milestone 4 establishes a candidate development project format but does not implicitly declare an externally supported format. Clean development-format breaks remain permitted until the owner records the first supported external-beta format through an explicit declaration and marker. Compatibility obligations begin at that declaration, not automatically at a milestone or version named `1.0.0`.
+
+The first Pro continuity/repair bundle, Ingots/backend, beta packaging, production release engineering, distribution, and macOS remain separate workstreams even where a named release depends on several of them.
 
 ## Unscheduled Project Media bulk operations
 
