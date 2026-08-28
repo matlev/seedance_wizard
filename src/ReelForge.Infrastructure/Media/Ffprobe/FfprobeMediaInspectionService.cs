@@ -53,8 +53,12 @@ public sealed class FfprobeMediaInspectionService : IMediaInspectionService
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         var metadata = new MediaEncodingMetadata();
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return metadata;
+        }
 
-        if (root.TryGetProperty("format", out var format))
+        if (root.TryGetProperty("format", out var format) && format.ValueKind == JsonValueKind.Object)
         {
             metadata.ContainerFormat = GetString(format, "format_name");
             metadata.DurationSeconds = GetDouble(format, "duration");
@@ -62,35 +66,75 @@ public sealed class FfprobeMediaInspectionService : IMediaInspectionService
             metadata.BitRate = GetInt64(format, "bit_rate");
         }
 
-        if (root.TryGetProperty("streams", out var streams))
+        if (root.TryGetProperty("streams", out var streams) && streams.ValueKind == JsonValueKind.Array)
         {
+            var videoCandidates = new List<StreamCandidate>();
+            var audioCandidates = new List<StreamCandidate>();
+
             foreach (var stream in streams.EnumerateArray())
             {
+                if (stream.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
                 var codecType = GetString(stream, "codec_type");
-                if (codecType == "video" && metadata.Video is null)
+                var streamIndex = GetInt32(stream, "index");
+                if (streamIndex is not >= 0)
                 {
-                    metadata.Video = new VideoStreamMetadata
-                    {
-                        Codec = GetString(stream, "codec_name"),
-                        CodecProfile = GetString(stream, "profile"),
-                        Width = GetInt32(stream, "width"),
-                        Height = GetInt32(stream, "height"),
-                        PixelFormat = GetString(stream, "pix_fmt"),
-                        FrameRate = GetString(stream, "avg_frame_rate") ?? GetString(stream, "r_frame_rate"),
-                        TimeBase = GetString(stream, "time_base"),
-                        CodecLevel = GetInt32(stream, "level")
-                    };
+                    continue;
                 }
-                else if (codecType == "audio" && metadata.Audio is null)
+
+                var candidate = new StreamCandidate(stream, streamIndex.Value, IsDefault(stream));
+                if (codecType == "video" && !IsAttachedPicture(stream))
                 {
-                    metadata.Audio = new AudioStreamMetadata
-                    {
-                        Codec = GetString(stream, "codec_name"),
-                        SampleRate = GetInt32(stream, "sample_rate"),
-                        Channels = GetInt32(stream, "channels"),
-                        ChannelLayout = GetString(stream, "channel_layout")
-                    };
+                    videoCandidates.Add(candidate);
                 }
+                else if (codecType == "audio")
+                {
+                    audioCandidates.Add(candidate);
+                }
+            }
+
+            var video = ResolveSelectedStream(videoCandidates);
+            if (video is not null)
+            {
+                var timeBase = GetString(video.Stream, "time_base");
+                var (numerator, denominator) = ParsePositiveTimeBase(timeBase);
+                metadata.Video = new VideoStreamMetadata
+                {
+                    StreamIndex = video.Index,
+                    Codec = GetString(video.Stream, "codec_name"),
+                    CodecProfile = GetString(video.Stream, "profile"),
+                    Width = GetInt32(video.Stream, "width"),
+                    Height = GetInt32(video.Stream, "height"),
+                    PixelFormat = GetString(video.Stream, "pix_fmt"),
+                    FrameRate = GetString(video.Stream, "avg_frame_rate") ?? GetString(video.Stream, "r_frame_rate"),
+                    TimeBase = timeBase,
+                    TimeBaseNumerator = numerator,
+                    TimeBaseDenominator = denominator,
+                    StartPresentationTimestamp = GetInt64(video.Stream, "start_pts"),
+                    DurationPresentationTimestamp = GetNonNegativeInt64(video.Stream, "duration_ts"),
+                    CodecLevel = GetInt32(video.Stream, "level")
+                };
+            }
+
+            var audio = ResolveSelectedStream(audioCandidates);
+            if (audio is not null)
+            {
+                var (numerator, denominator) = ParsePositiveTimeBase(GetString(audio.Stream, "time_base"));
+                metadata.Audio = new AudioStreamMetadata
+                {
+                    StreamIndex = audio.Index,
+                    Codec = GetString(audio.Stream, "codec_name"),
+                    SampleRate = GetInt32(audio.Stream, "sample_rate"),
+                    Channels = GetInt32(audio.Stream, "channels"),
+                    ChannelLayout = GetString(audio.Stream, "channel_layout"),
+                    TimeBaseNumerator = numerator,
+                    TimeBaseDenominator = denominator,
+                    StartPresentationTimestamp = GetInt64(audio.Stream, "start_pts"),
+                    DurationPresentationTimestamp = GetNonNegativeInt64(audio.Stream, "duration_ts")
+                };
             }
         }
 
@@ -98,7 +142,9 @@ public sealed class FfprobeMediaInspectionService : IMediaInspectionService
     }
 
     private static string? GetString(JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out var property) && property.ValueKind != JsonValueKind.Null
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(propertyName, out var property) &&
+        property.ValueKind != JsonValueKind.Null
             ? property.ToString()
             : null;
 
@@ -112,8 +158,48 @@ public sealed class FfprobeMediaInspectionService : IMediaInspectionService
             ? value
             : null;
 
+    private static long? GetNonNegativeInt64(JsonElement element, string propertyName) =>
+        GetInt64(element, propertyName) is { } value && value >= 0 ? value : null;
+
+    private static bool IsDefault(JsonElement stream) =>
+        stream.TryGetProperty("disposition", out var disposition) &&
+        disposition.ValueKind == JsonValueKind.Object &&
+        GetInt32(disposition, "default") is > 0;
+
+    private static bool IsAttachedPicture(JsonElement stream) =>
+        stream.TryGetProperty("disposition", out var disposition) &&
+        disposition.ValueKind == JsonValueKind.Object &&
+        GetInt32(disposition, "attached_pic") is > 0;
+
+    private static StreamCandidate? ResolveSelectedStream(IEnumerable<StreamCandidate> candidates) =>
+        candidates
+            .OrderByDescending(candidate => candidate.IsDefault)
+            .ThenBy(candidate => candidate.Index)
+            .FirstOrDefault();
+
+    private static (int? Numerator, int? Denominator) ParsePositiveTimeBase(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return (null, null);
+        }
+
+        var parts = value.Split('/');
+        if (parts.Length != 2 ||
+            !int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var numerator) ||
+            !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var denominator) ||
+            numerator <= 0 || denominator <= 0)
+        {
+            return (null, null);
+        }
+
+        return (numerator, denominator);
+    }
+
     private static double? GetDouble(JsonElement element, string propertyName) =>
         double.TryParse(GetString(element, propertyName), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
             ? value
             : null;
+
+    private sealed record StreamCandidate(JsonElement Stream, int Index, bool IsDefault);
 }
