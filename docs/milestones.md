@@ -398,7 +398,7 @@ Gate 0 is closed. Its maintainable outputs are the [media runtime contract](medi
 
 Recommended desktop implementation order remains dependency-driven rather than compressed into one oversized milestone:
 
-1. project recovery/relink plus the final pre-beta track/time/persistence correction;
+1. project recovery/relink plus the Milestone 4 candidate pre-beta track/time/persistence correction;
 2. structural multitrack editing, snapping/markers, and session undo/redo;
 3. deterministic track-aware rendering, preview profiles, proxy behavior, and ordinary Free conversion/export against the media contract;
 4. constant visual properties, practical audio finishing, waveform/range editing, and a restrained transition set;
@@ -406,6 +406,14 @@ Recommended desktop implementation order remains dependency-driven rather than c
 6. dockable/floating workspace surfaces and the Source/Edit/Rendered viewer contexts;
 7. exact edit-to-generation/range-reference/replace workflows;
 8. diagnostics, accessibility, acceptance, and measured production-path performance hardening.
+
+The approved near-term milestone structure is recorded in [Milestone 4 plan — Project Trust and Multitrack Foundation](milestone-4-plan.md):
+
+- **Milestone 4** contains only Phase 4A recovery/verified relinking and Phase 4B track/time/history plus the candidate development-format correction.
+- **Tentative Milestone 5** contains the Slice C structural editing grammar and session composition undo/redo.
+- **Tentative Milestone 6** contains the Slice D track-aware render plan, preview/proxy execution, and ordinary Free conversion/export program, with an architecture checkpoint after its initial render-plan integration.
+
+Milestone 4 establishes a candidate development project format but does not implicitly declare an externally supported format. Clean development-format breaks remain permitted until the owner records the first supported external-beta format through an explicit declaration and marker. Compatibility obligations begin at that declaration, not automatically at a milestone or version named `1.0.0`.
 
 The first Pro continuity/repair bundle, Ingots/backend, beta packaging, production release engineering, distribution, and macOS remain separate workstreams even where a named release depends on several of them.
 

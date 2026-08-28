@@ -104,7 +104,7 @@ Why Free: loss of work, inability to correct a mistake, or inability to reopen m
 - One generic selected-occurrence replace command with two explicit modes: replace in place preserves the timeline span and compatible item properties and rejects a source range that is too short; replace-and-ripple keeps the selected start, adopts the chosen replacement range, and shifts by the duration delta every item on every unlocked track whose start is at or after the old selected end. Items spanning that boundary remain fixed. Attached title/caption items preserve their parent-relative timing. An affected locked track, ambiguous attachment, or invalid overlap rejects the operation before mutation. Replacement never silently retimes media, changes other usages, or overwrites the source asset.
 - Timeline and clip markers with label/color and exact time.
 - Keyboard commands for the ordinary operations above.
-- Milestone 1-3 sequential development files may be rejected at the final pre-beta format break; no converter or reopen guarantee is required. Compatibility obligations begin only with the deliberately declared external-beta format baseline.
+- Milestone 1-3 sequential development files may be rejected during the Milestone 4 pre-beta format correction; no converter or reopen guarantee is required. Further clean development-format breaks remain permitted until compatibility obligations begin with the deliberately declared external-beta format baseline.
 
 Why Free: split/reorder alone feels like an assembly demo. Tracks, trim, ripple, replace, undo, and snapping form the minimum credible editing grammar. Roll, slip, slide, multicam, nesting, and advanced track targeting are not required.
 
@@ -298,12 +298,15 @@ Feature work may rely on the documented semantic capability families and LGPL-fi
 
 ### Slice A — project recovery and relink
 
-Scope: recovery backups/journal, degraded-source state, verified relink, and clear dirty/saved/recovered state. This slice can proceed independently of the track migration.
+Scope: one explicit project-local recovery candidate, degraded-source state, verified relink, and clear clean/dirty/saving/saved/recovery-available/recovered/degraded/failed state. Recovery remains separate from cache and composition history. This slice can proceed independently of the track migration, but its acceptance must be rerun against the Slice B candidate format.
 
 Acceptance:
 
 - a killed process leaves either the last committed project or one clearly offered recovery candidate;
+- the last committed project remains authoritative; recovery is never silently applied or used to overwrite it without an explicit save;
+- abnormal termination offers the valid candidate for open or discard, while clean shutdown invalidates obsolete recovery state;
 - relink accepts the expected content identity, rejects mismatches unless the user deliberately imports a replacement as new media, and repairs all logical references without changing AssetId;
+- accepted relinked bytes return to project-relative storage and no absolute external path becomes project truth;
 - recovery and relink preserve immutable recipes, anchors, generation snapshots, provenance, and cache independence;
 - startup, recovery, autosave, and tests cannot authorize provider spending.
 
@@ -311,19 +314,22 @@ Risk: Medium to high.
 
 ### Slice B — track/time model and format correction
 
-Scope: persisted tracks/items, video and audio time domains, the target immutable revision/history-cursor contract, the final pre-beta development-format correction, invariants, DTOs, and a straightforward traditional multitrack projection. Define history against the new stable identities before implementing undo UI.
+Scope: persisted tracks/items/link groups, video and audio time domains, the target immutable Working Composition revision/history-cursor contract, a candidate pre-beta development-format correction, invariants, DTOs, and a straightforward traditional multitrack projection. Define history against the new stable identities before implementing undo UI. The detailed approved boundary is in [Milestone 4 plan](milestone-4-plan.md).
 
 Acceptance:
 
-- multiple ordered video/audio tracks persist stable identities and reopen exactly;
-- lock, visibility, and mute policy is deterministic and enforced by commands and rendering;
-- the implementation may make one explicit clean break from Milestone 1-3 development files and rejects obsolete internal formats clearly without a migration ladder or silent reinterpretation;
-- DTO/version boundaries remain migration-capable, and the deliberately declared external-beta format marker becomes the first compatibility baseline for future changes;
+- multiple ordered video/audio tracks, including explicitly retained empty tracks, persist stable identities and reopen exactly;
+- lock, visibility, and mute policy is deterministic; Slice B proves command rejection and the structural contribution-plan contract, while Slice D proves executable preview/export output;
+- importing video into Project Media does not alter the Working Composition; placing video with usable selected audio creates independently identified source-backed video/audio items joined by an explicit link group without extracting another durable media asset;
+- Unlink audio, exact-occurrence Detach audio, and whole-source Project Media Extract audio remain distinct operations;
+- the implementation may make a clean break from Milestone 1-3 development files and rejects obsolete internal formats clearly without a migration ladder or silent reinterpretation;
+- further clean development-format breaks remain permitted until the owner explicitly declares the first supported external-beta format marker; DTO/version boundaries remain migration-capable before and after that declaration;
 - video remains PTS/rational-time exact and audio does not misuse frame anchors;
-- the revision/cursor contract distinguishes immutable historical revisions from the active session undo/redo path and defines divergent-edit behavior;
-- cache keys and dependency analysis include exact track/item/revision identity.
+- the revision/cursor contract governs committed Working Composition/edit state, distinguishes immutable historical revisions from the active session undo/redo path, and defines divergent-edit behavior;
+- Project Media operations, Saved Frame/Clip creation, generation work, settings, exports, and recovery state remain outside composition history;
+- cache keys and dependency analysis include exact track/item/link/revision identity.
 
-Risk: Very high. This is the last inexpensive opportunity to correct the pre-1.0 project format.
+Risk: Very high. This is the current least-expensive opportunity to establish the intended pre-beta format, but only an explicit owner declaration begins external compatibility obligations.
 
 ### Slice C — structural editing grammar
 
@@ -334,6 +340,7 @@ Acceptance:
 - commands are deterministic under locked tracks, overlaps, empty space, exact boundaries, and no-op gestures;
 - adjoining edits neither duplicate nor lose a boundary frame;
 - ripple operations preserve intended synchronization or clearly reject unsupported cases;
+- linked video/audio occurrences follow the command's declared synchronization behavior; user-facing Unlink removes only the link relationship and creates no media file;
 - replace-in-place and replace-and-ripple follow one Application-owned command contract, preserve compatible item properties, apply the Free contract's all-unlocked-tracks ripple domain, and reject ambiguous/too-short input, affected locked tracks, invalid overlap, or unpreservable attachments before mutation; neither mode silently retimes or overwrites source media;
 - every completed gesture commits once and participates in undo/redo;
 - a new edit after undo discards only the redo branch; save/reopen restores the committed result without promising that the session undo stack survives restart;
@@ -344,6 +351,8 @@ Risk: High.
 ### Slice D — render/playback/conversion/export graph
 
 Scope: track-aware render planning, effect-aware preview, Free conversion/export profiles, progress, cancellation, stale-result rejection, automatic reduced-quality preview/proxy behavior, resource constraints, and the final media-runtime capability policy.
+
+After initial render-plan integration, perform a scope and architecture checkpoint if evidence shows that preview/proxy work and final conversion/export cannot safely remain one delivery milestone. Any split must preserve one semantic render graph and preview/export creative agreement.
 
 Acceptance:
 
@@ -451,7 +460,7 @@ Risk: High because it exposes integration and performance debt, even though it s
 ## Architecture, persistence, performance, and engine implications
 
 - **Architecture:** Core owns track/effect/time/history invariants; Application owns commands, references, recovery, and capability contracts; Infrastructure owns FFmpeg, analysis artifacts, cache, and persistence; App owns WPF interaction and draft state. No slice may create a parallel renderer, persistence path, or provider workflow.
-- **Persistence:** tracks, effects, text, captions, markers, history cursor, and exact composition references require explicit typed DTO/mapping changes. ReelForge may make one final clean format break before declaring the external-beta baseline; internal development formats are rejected rather than migrated. DTO/mapping/version boundaries remain migration-capable, but backward-compatibility obligations start only at that deliberate supported marker.
+- **Persistence:** tracks, effects, text, captions, markers, history cursor, and exact composition references require explicit typed DTO/mapping changes. ReelForge may make clean development-format breaks until the owner explicitly declares the external-beta baseline; internal development formats are rejected rather than migrated. DTO/mapping/version boundaries remain migration-capable, but backward-compatibility obligations start only at that deliberate supported marker.
 - **Rendering:** multiple video tracks, overlays, transitions, text, effects, and retiming require a richer deterministic render graph rather than isolated flags appended to `FfmpegCommandBuilder`. Preview/final profiles may differ in quality, never in creative meaning.
 - **Playback:** the existing fast source-by-source audition cannot display every future overlay/effect. Slice D must define when live composition is possible, when partial preview rendering is required, and how stale results are rejected.
 - **Audio:** audio boundaries require an audio-appropriate exact time representation. Waveforms and loudness scans are reconstructable analysis artifacts, not project truth.
