@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "Gate0.G05.Stage2A.Continuation.ActivationFailure.Quarantine.20260828T010446100Z",
+  "approval": {
+    "authority": "owner",
+    "recordedIn": "active Codex task",
+    "approvedAction": "Preserve and atomically quarantine the exact partial staging directory before a fresh activation."
+  },
+  "operation": {
+    "type": "same-volume-directory-move",
+    "operationUtc": "2026-08-28T01:04:46.1003932Z",
+    "status": "completed-and-verified",
+    "stagingRoot": "ReelForge.Gate0Staging",
+    "originalRelativePath": "g05-stage2a-continuation-20260827-stress-720p-webm-eight",
+    "quarantineRelativePath": "g05-stage2a-continuation-20260827-stress-720p-webm-eight-quarantine-20260828T010446100Z",
+    "sourceWasDirectChild": true,
+    "destinationIsDirectChild": true,
+    "reparsePointCountBefore": 0,
+    "reparsePointCountAfter": 0,
+    "postMoveInventoryMatchedPreMoveInventory": true
+  },
+  "disposition": {
+    "classification": "opaque-potential-evidence",
+    "reuseProhibited": true,
+    "automaticDeletionProhibited": true,
+    "retainedContinuationShardAppended": false
+  },
+  "inventory": {
+    "fileCount": 2,
+    "byteCount": 5763062,
+    "files": [
+      {
+        "relativePath": "audio-truth/reference.s16le",
+        "byteCount": 5760000,
+        "sha256": "299846E21A0AF6F1416CCA7BF1BF8ACAC4A5EDDA78EFF9BEB392CC7B992B8CF5",
+        "lastWriteUtc": "2026-08-28T00:35:48.9820128Z"
+      },
+      {
+        "relativePath": "cell-preflight.json",
+        "byteCount": 3062,
+        "sha256": "7120B0B4D0F3852524868DF4F0A70391F5E8CC45648852E939700C3163AAAF92",
+        "lastWriteUtc": "2026-08-28T00:35:48.3049010Z"
+      }
+    ]
+  }
+}
