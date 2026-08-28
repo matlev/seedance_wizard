@@ -30,7 +30,7 @@ ReelForge uses three related but distinct portable time forms:
 - `VideoPresentationTime` preserves a source-native signed presentation timestamp and positive rational time base. It does not normalize away the source tuple. The timeline item separately persists the selected video stream identity.
 - `AudioSampleTime` preserves a signed sample-frame offset and positive sample rate. The timeline item separately persists the selected audio stream identity. Audio source ranges use these sample positions rather than video anchors or floating-point seconds.
 
-Timeline and source ranges are half-open: `[start, end)`. Domain invariants require nonnegative composition placements, durations, and ordinary source-range offsets even though the primitive time values remain signed so negative source presentation timestamps can be represented faithfully. Range types and track/item validation enforce those contextual constraints.
+Timeline and source ranges are half-open: `[start, end)`. Domain invariants require nonnegative composition placements, durations, and audio sample offsets. Video ranges retain source-native presentation timestamps and may therefore begin before timestamp zero. Range types and track/item validation enforce those contextual constraints.
 
 `ExactTime` is canonical: zero is `0/1`, common factors are removed, and the denominator is positive. Cross-products, rescaling, and intermediate arithmetic use arbitrary-width integer calculations, then fail with a checked overflow if the persisted 64-bit result cannot represent the answer. There is no silent saturation or floating-point fallback.
 
