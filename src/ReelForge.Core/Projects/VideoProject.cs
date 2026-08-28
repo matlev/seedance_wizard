@@ -43,7 +43,11 @@ public sealed class VideoProject
         var revision = new RecipeRevision
         {
             VirtualAssetId = virtualAssetId,
-            RevisionNumber = (previous?.RevisionNumber ?? 0) + 1,
+            RevisionNumber = checked(RecipeRevisions
+                .Where(candidate => candidate.VirtualAssetId == virtualAssetId)
+                .Select(candidate => candidate.RevisionNumber)
+                .DefaultIfEmpty(0)
+                .Max() + 1),
             PreviousRevisionId = previous?.Id,
             Recipe = recipe,
             CreatedAt = DateTimeOffset.UtcNow
