@@ -90,6 +90,7 @@ public partial class MainWindow : Window, IDisposable
             _runtime.AudioExtractionService,
             _runtime.ProjectAssetDependencyAnalyzer,
             _runtime.PhysicalAssetRelinkService,
+            _runtime.DeletedPhysicalAssetRestorationService,
             _runtime.PhysicalAssetRemovalService,
             _runtime.ProjectAssetTransferWorkflow,
             _runtime.MaterializedProjectMediaTransferService);
@@ -1251,6 +1252,16 @@ public partial class MainWindow : Window, IDisposable
             return dialog.ShowDialog(window) == true ? dialog.FileName : null;
         }
 
+        public DeletedSourceRestoreChoice PromptDeletedSourceRestore(
+            string candidateName,
+            IReadOnlyList<DeletedPhysicalAssetRestoreMatch> matches,
+            bool allowImportAsNew)
+        {
+            var dialog = new DeletedSourceRestoreDialog(candidateName, matches, allowImportAsNew) { Owner = window };
+            _ = dialog.ShowDialog();
+            return dialog.Choice;
+        }
+
         public string? PromptSavedClipDisplayName(string displayName)
         {
             var dialog = new DisplayNameDialog(displayName) { Owner = window };
@@ -1330,6 +1341,15 @@ public partial class MainWindow : Window, IDisposable
         public void SetProjectActionsEnabled(bool enabled) => window.SetProjectActionsEnabled(enabled);
         public void RefreshProjectMedia() => window.RefreshProjectCollections();
         public void SetStatus(string status) => window.StatusText.Text = status;
+        public DeletedSourceRestoreChoice PromptDeletedSourceRestore(
+            string candidateName,
+            IReadOnlyList<DeletedPhysicalAssetRestoreMatch> matches,
+            bool allowImportAsNew)
+        {
+            var dialog = new DeletedSourceRestoreDialog(candidateName, matches, allowImportAsNew) { Owner = window };
+            _ = dialog.ShowDialog();
+            return dialog.Choice;
+        }
     }
 
     private sealed class GenerationSubmissionPresentation(MainWindow window) : IGenerationSubmissionPresentation

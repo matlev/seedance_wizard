@@ -33,7 +33,7 @@ public static class ProjectMediaProjectionBuilder
                 PreserveDeletedDraftReferences(asset, project.CurrentGenerationDraft, choices, projectedChoices);
                 continue;
             }
-            var mediaItem = new ProjectMediaListItem(asset);
+            var mediaItem = new ProjectMediaListItem(asset, CanRestoreDeletedSource(project, asset));
             if (asset is { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Image })
             {
                 var path = resolvePhysicalAssetPath(asset);
@@ -108,6 +108,20 @@ public static class ProjectMediaProjectionBuilder
                 .ToArray(),
             projectedChoices,
             project.Generations.OrderByDescending(item => item.RequestedAt).ToArray());
+    }
+
+    private static bool CanRestoreDeletedSource(VideoProject project, ProjectAsset asset)
+    {
+        if (asset.IsDeleted || asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null ||
+            asset.Physical.ContentIdentity is not { Status: ContentHashStatus.Verified, Sha256: { Length: 64 } hash } ||
+            !hash.All(Uri.IsHexDigit))
+            return false;
+
+        return project.Assets.Any(candidate =>
+            candidate.IsDeleted && candidate.StorageKind == AssetStorageKind.Physical &&
+            candidate.Physical is not null && candidate.MediaType == asset.MediaType &&
+            candidate.Physical.ContentIdentity.Status == ContentHashStatus.Verified &&
+            string.Equals(candidate.Physical.ContentIdentity.Sha256, hash, StringComparison.OrdinalIgnoreCase));
     }
 
     private static void PreserveDeletedDraftReferences(

@@ -13,6 +13,7 @@ public enum ProjectMediaAction
 {
     Rename,
     Relink,
+    RestoreDeletedSource,
     Export,
     ExtractAudio,
     Copy,
@@ -101,6 +102,7 @@ public partial class ProjectMediaPanel : UserControl
         {
             RenameItem.Visibility = Visibility.Collapsed;
             RelinkSourceItem.Visibility = Visibility.Visible;
+            RestoreDeletedSourceItem.Visibility = Visibility.Collapsed;
             ExportItem.Visibility = Visibility.Collapsed;
             ExtractAudioItem.Visibility = Visibility.Collapsed;
             FirstMenuSeparator.Visibility = Visibility.Collapsed;
@@ -125,6 +127,9 @@ public partial class ProjectMediaPanel : UserControl
         };
         var physicalAsset = asset is { StorageKind: AssetStorageKind.Physical, Physical: not null };
         RelinkSourceItem.Visibility = ProjectMediaContextMenuPolicy.CanRelink(asset)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        RestoreDeletedSourceItem.Visibility = SelectedItem?.CanRestoreDeletedSource == true
             ? Visibility.Visible
             : Visibility.Collapsed;
         CopyToProjectItem.Visibility = savedFrame || copyableVirtualVideo || physicalAsset

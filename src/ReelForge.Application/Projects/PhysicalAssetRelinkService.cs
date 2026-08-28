@@ -46,6 +46,16 @@ public sealed record PhysicalAssetRelinkResult(
     string? Detail = null);
 
 /// <summary>
+/// Separates ordinary repair of a live missing asset from the explicit resurrection of a
+/// deliberately deleted logical asset. Callers must never infer restore mode from a hash.
+/// </summary>
+public enum PhysicalAssetRelinkMode
+{
+    RelinkMissing,
+    RestoreDeleted
+}
+
+/// <summary>
 /// Relinks an existing physical asset only when the chosen bytes match its recorded verified
 /// SHA-256 identity. It never adopts candidate bytes as a replacement identity.
 /// </summary>
@@ -72,6 +82,18 @@ public sealed class PhysicalAssetRelinkService
         Guid assetId,
         string candidatePath,
         CancellationToken cancellationToken = default)
+        => await RelinkAsync(assetId, candidatePath, PhysicalAssetRelinkMode.RelinkMissing, cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <summary>
+    /// Verifies and stages a candidate into project storage. RestoreDeleted is intentionally
+    /// explicit: it is the only mode allowed to clear a deletion tombstone.
+    /// </summary>
+    public async Task<PhysicalAssetRelinkResult> RelinkAsync(
+        Guid assetId,
+        string candidatePath,
+        PhysicalAssetRelinkMode mode,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(candidatePath);
         var project = _workspace.Project ?? throw new InvalidOperationException("Create or open a project first.");
@@ -80,6 +102,10 @@ public sealed class PhysicalAssetRelinkService
             ?? throw new InvalidOperationException($"Asset '{assetId}' does not exist in this project.");
         if (asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
             throw new InvalidOperationException("Only physical assets can be relinked.");
+        if (mode == PhysicalAssetRelinkMode.RelinkMissing && asset.IsDeleted)
+            throw new InvalidOperationException("Deleted media must be explicitly restored, not relinked.");
+        if (mode == PhysicalAssetRelinkMode.RestoreDeleted && !asset.IsDeleted)
+            throw new InvalidOperationException("Only deleted media can be restored.");
 
         var identity = asset.Physical.ContentIdentity;
         if (identity.Status != ContentHashStatus.Verified || !IsSha256(identity.Sha256))
@@ -144,6 +170,8 @@ public sealed class PhysicalAssetRelinkService
                 asset.Physical.ContentIdentity.LengthBytes = stagedVerification.Observed.LengthBytes;
                 asset.Physical.ContentIdentity.ObservedLastWriteTimeUtc = stagedVerification.Observed.ObservedLastWriteTimeUtc;
                 asset.FileName = Path.GetFileName(staged.DestinationPath);
+                if (mode == PhysicalAssetRelinkMode.RestoreDeleted)
+                    asset.IsDeleted = false;
             }
 
             async Task RollBackUncommittedAsync()
@@ -241,6 +269,7 @@ public sealed class PhysicalAssetRelinkService
     private static bool IsSha256(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
 
     private sealed record PhysicalSnapshot(
+        bool IsDeleted,
         string RelativePath,
         PhysicalAssetAvailability Availability,
         string FileName,
@@ -249,6 +278,7 @@ public sealed class PhysicalAssetRelinkService
         DateTimeOffset ModifiedAt)
     {
         public static PhysicalSnapshot Capture(ProjectAsset asset, VideoProject project) => new(
+            asset.IsDeleted,
             asset.Physical!.RelativePath,
             asset.Physical.Availability,
             asset.FileName,
@@ -258,6 +288,7 @@ public sealed class PhysicalAssetRelinkService
 
         public void Restore(ProjectAsset asset, VideoProject project)
         {
+            asset.IsDeleted = IsDeleted;
             asset.Physical!.RelativePath = RelativePath;
             asset.Physical.Availability = Availability;
             asset.FileName = FileName;

@@ -1,5 +1,6 @@
 using System.IO;
 using ReelForge.Application;
+using ReelForge.App.Views.Dialogs;
 using ReelForge.Core;
 
 namespace ReelForge.App.Views.ProjectMedia;
@@ -26,6 +27,7 @@ public sealed class ProjectMediaCommandCoordinator
         {
             ProjectMediaAction.Rename => RenameAsync(selectedItem),
             ProjectMediaAction.Relink => RelinkAsync(selectedItem),
+            ProjectMediaAction.RestoreDeletedSource => RestoreDeletedSourceAsync(selectedItem),
             ProjectMediaAction.Export => ExportAsync(selectedItem),
             ProjectMediaAction.ExtractAudio => ExtractAudioAsync(selectedItem),
             ProjectMediaAction.Copy => CopyAsync(selectedItem),
@@ -116,6 +118,38 @@ public sealed class ProjectMediaCommandCoordinator
                 default:
                     throw new InvalidOperationException($"Unknown relink status '{result.Status}'.");
             }
+        });
+    }
+
+    private async Task RestoreDeletedSourceAsync(ProjectMediaListItem? selectedItem)
+    {
+        if (!_host.HasOpenProject || selectedItem?.Asset is not { } donor || !selectedItem.CanRestoreDeletedSource)
+            return;
+
+        var matches = _operations.FindDeletedRestoreMatches(donor);
+        if (matches.Count == 0) return;
+        var choice = _host.PromptDeletedSourceRestore(donor.FileName, matches, allowImportAsNew: false);
+        if (choice.Kind != DeletedSourceRestoreChoiceKind.Restore || choice.DeletedAssetId is not { } deletedAssetId)
+            return;
+        if (!matches.Any(match => match.AssetId == deletedAssetId))
+            throw new InvalidOperationException("The selected deleted source is no longer available for restoration.");
+
+        await _host.RunUiActionAsync($"Restoring deleted source links for {donor.FileName}…", async () =>
+        {
+            var result = await _operations.RestoreDeletedFromDonorAsync(deletedAssetId, donor.Id);
+            if (result.Relink.Status == PhysicalAssetRelinkStatus.Verified)
+            {
+                _host.RefreshProjectMedia(result.RestoredAssetId);
+                _host.SetStatus(result.DonorWasFolded
+                    ? $"Restored deleted source links for {donor.FileName}; the unused duplicate was folded into the original source."
+                    : $"Restored deleted source links for {donor.FileName}; the current asset was retained.");
+                return;
+            }
+
+            ShowRelinkInformation(
+                "ReelForge could not safely restore the deleted source links. The project was unchanged.",
+                "Restore deleted source",
+                result.Relink);
         });
     }
 
@@ -312,6 +346,10 @@ public interface IProjectMediaCommandHost
     Task RunUiActionAsync(string status, Func<Task> action);
     string? PromptPhysicalFileName(string fileName);
     string? PromptRelinkCandidate(ProjectAsset asset);
+    DeletedSourceRestoreChoice PromptDeletedSourceRestore(
+        string candidateName,
+        IReadOnlyList<DeletedPhysicalAssetRestoreMatch> matches,
+        bool allowImportAsNew);
     string? PromptSavedClipDisplayName(string displayName);
     string? PromptExportPath(ProjectMediaExportRequest request);
     string? PromptAudioExtractionFileName(string suggestedFileName);

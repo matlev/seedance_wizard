@@ -5,7 +5,11 @@ namespace ReelForge.App.Views.ProjectMedia;
 
 public sealed class ProjectMediaListItem
 {
-    public ProjectMediaListItem(ProjectAsset asset) => Asset = asset;
+    public ProjectMediaListItem(ProjectAsset asset, bool canRestoreDeletedSource = false)
+    {
+        Asset = asset;
+        CanRestoreDeletedSource = canRestoreDeletedSource;
+    }
 
     public ProjectMediaListItem(FrameAnchor anchor, FrameAnchorRevision revision)
     {
@@ -22,6 +26,8 @@ public sealed class ProjectMediaListItem
         StorageKind: AssetStorageKind.Physical,
         Physical.Availability: PhysicalAssetAvailability.Missing
     };
+    /// <summary>True only for an active verified physical asset that matches a deleted source identity.</summary>
+    public bool CanRestoreDeletedSource { get; }
     public string? GlyphToolTip => IsMissingPhysicalAsset
         ? "Source media is missing. Right-click and choose Relink source…"
         : null;

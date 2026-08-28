@@ -1,3 +1,7 @@
+using System.IO;
+using ReelForge.Application;
+using ReelForge.App.Views.Dialogs;
+using ReelForge.Core;
 using ReelForge.Infrastructure;
 
 namespace ReelForge.App.Views.ProjectMedia;
@@ -8,11 +12,11 @@ namespace ReelForge.App.Views.ProjectMedia;
 /// </summary>
 public sealed class MediaImportCoordinator
 {
-    private readonly ProjectMediaOperationsCoordinator _operations;
+    private readonly IMediaImportOperations _operations;
     private readonly IMediaImportCoordinatorHost _host;
 
     public MediaImportCoordinator(
-        ProjectMediaOperationsCoordinator operations,
+        IMediaImportOperations operations,
         IMediaImportCoordinatorHost host)
     {
         _operations = operations;
@@ -38,11 +42,64 @@ public sealed class MediaImportCoordinator
                 $"Importing {input.FilePaths.Count} asset(s)…",
                 async () =>
                 {
-                    var imported = await _operations.ImportAsync(input.FilePaths);
+                    var plan = new List<ImportPlanItem>();
+                    var reservedDeletedAssetIds = new HashSet<Guid>();
+                    var uniquePaths = input.FilePaths
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+                    foreach (var path in uniquePaths)
+                    {
+                        var mediaType = AssetImportService.DetermineMediaType(path);
+                        var probe = await _operations.ProbeDeletedRestoreAsync(path, mediaType);
+                        var availableMatches = probe.Matches
+                            .Where(match => !reservedDeletedAssetIds.Contains(match.AssetId))
+                            .ToArray();
+                        if (probe.Status != DeletedPhysicalAssetProbeStatus.Verified || availableMatches.Length == 0)
+                        {
+                            // Different paths with equal bytes may still be deliberate separate imports once a tombstone is reserved.
+                            plan.Add(new ImportPlanItem(path, null));
+                            continue;
+                        }
+
+                        var choice = _host.PromptDeletedSourceRestore(Path.GetFileName(path), availableMatches, allowImportAsNew: true);
+                        if (choice.Kind == DeletedSourceRestoreChoiceKind.Cancel)
+                        {
+                            _host.SetStatus("Import cancelled; the project was unchanged.");
+                            return;
+                        }
+                        var selectedDeletedAssetId = choice.Kind == DeletedSourceRestoreChoiceKind.Restore
+                            ? choice.DeletedAssetId
+                            : null;
+                        if (choice.Kind == DeletedSourceRestoreChoiceKind.Restore && selectedDeletedAssetId is null)
+                            throw new InvalidOperationException("A deleted source must be selected before restoration.");
+                        if (selectedDeletedAssetId is { } selectedId &&
+                            !availableMatches.Any(match => match.AssetId == selectedId))
+                            throw new InvalidOperationException("The selected deleted source is no longer available for restoration.");
+                        if (selectedDeletedAssetId is { } id) reservedDeletedAssetIds.Add(id);
+                        plan.Add(new ImportPlanItem(path, selectedDeletedAssetId));
+                    }
+
+                    var restored = 0;
+                    foreach (var item in plan.Where(item => item.DeletedAssetId is not null))
+                    {
+                        var result = await _operations.RestoreDeletedExternalAsync(item.DeletedAssetId!.Value, item.Path);
+                        if (result.Relink.Status != PhysicalAssetRelinkStatus.Verified)
+                            throw new InvalidOperationException(
+                                $"The selected source could not be restored: {result.Relink.Status}. {result.Relink.Detail}");
+                        restored++;
+                    }
+
+                    var ordinaryPaths = plan.Where(item => item.DeletedAssetId is null).Select(item => item.Path).ToArray();
+                    var imported = ordinaryPaths.Length == 0
+                        ? []
+                        : await _operations.ImportAsync(ordinaryPaths);
                     _host.RefreshProjectMedia();
-                    _host.SetStatus(input.SkippedCount == 0
-                        ? $"Imported {imported.Count} asset(s)."
-                        : $"Imported {imported.Count} asset(s); skipped {input.SkippedCount} unsupported item(s).");
+                    var status = restored > 0 && imported.Count > 0
+                        ? $"Restored {restored} deleted source(s) and imported {imported.Count} asset(s)."
+                        : restored > 0
+                            ? $"Restored {restored} deleted source(s)."
+                            : $"Imported {imported.Count} asset(s).";
+                    _host.SetStatus(input.SkippedCount == 0 ? status : $"{status} Skipped {input.SkippedCount} unsupported item(s).");
                 });
         }
         finally
@@ -51,6 +108,19 @@ public sealed class MediaImportCoordinator
             _host.SetProjectActionsEnabled(true);
         }
     }
+}
+
+internal sealed record ImportPlanItem(string Path, Guid? DeletedAssetId);
+
+/// <summary>Narrow import orchestration seam; physical mutations remain owned by the operations coordinator.</summary>
+public interface IMediaImportOperations
+{
+    Task<DeletedPhysicalAssetRestoreProbe> ProbeDeletedRestoreAsync(
+        string candidatePath, MediaType mediaType, CancellationToken cancellationToken = default);
+    Task<DeletedPhysicalAssetRestoreResult> RestoreDeletedExternalAsync(
+        Guid deletedAssetId, string candidatePath, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ProjectAsset>> ImportAsync(
+        IReadOnlyCollection<string> sourcePaths, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -92,4 +162,8 @@ public interface IMediaImportCoordinatorHost
     void SetProjectActionsEnabled(bool enabled);
     void RefreshProjectMedia();
     void SetStatus(string status);
+    DeletedSourceRestoreChoice PromptDeletedSourceRestore(
+        string candidateName,
+        IReadOnlyList<DeletedPhysicalAssetRestoreMatch> matches,
+        bool allowImportAsNew);
 }

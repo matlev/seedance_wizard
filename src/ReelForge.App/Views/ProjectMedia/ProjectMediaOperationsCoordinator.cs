@@ -9,7 +9,7 @@ namespace ReelForge.App.Views.ProjectMedia;
 /// Coordinates narrowly-scoped Project Media mutations whose persistence is owned
 /// by application or infrastructure services. UI policy remains with the shell.
 /// </summary>
-public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperations
+public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperations, IMediaImportOperations
 {
     private readonly ProjectWorkspace _workspace;
     private readonly SavedClipService _savedClipService;
@@ -17,6 +17,7 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
     private readonly AudioExtractionService _audioExtractionService;
     private readonly ProjectAssetDependencyAnalyzer _dependencyAnalyzer;
     private readonly PhysicalAssetRelinkService _physicalAssetRelinkService;
+    private readonly DeletedPhysicalAssetRestorationService _deletedPhysicalAssetRestorationService;
     private readonly PhysicalAssetRemovalService _physicalAssetRemovalService;
     private readonly ProjectAssetTransferWorkflow _projectAssetTransferWorkflow;
     private readonly MaterializedProjectMediaTransferService _materializedProjectMediaTransferService;
@@ -27,6 +28,7 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
         AudioExtractionService audioExtractionService,
         ProjectAssetDependencyAnalyzer dependencyAnalyzer,
         PhysicalAssetRelinkService physicalAssetRelinkService,
+        DeletedPhysicalAssetRestorationService deletedPhysicalAssetRestorationService,
         PhysicalAssetRemovalService physicalAssetRemovalService,
         ProjectAssetTransferWorkflow projectAssetTransferWorkflow,
         MaterializedProjectMediaTransferService materializedProjectMediaTransferService)
@@ -37,6 +39,7 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
         _audioExtractionService = audioExtractionService;
         _dependencyAnalyzer = dependencyAnalyzer;
         _physicalAssetRelinkService = physicalAssetRelinkService;
+        _deletedPhysicalAssetRestorationService = deletedPhysicalAssetRestorationService;
         _physicalAssetRemovalService = physicalAssetRemovalService;
         _projectAssetTransferWorkflow = projectAssetTransferWorkflow;
         _materializedProjectMediaTransferService = materializedProjectMediaTransferService;
@@ -132,6 +135,32 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
         ArgumentNullException.ThrowIfNull(asset);
         return _physicalAssetRelinkService.RelinkAsync(asset.Id, candidatePath, cancellationToken);
     }
+
+    public Task<DeletedPhysicalAssetRestoreProbe> ProbeDeletedRestoreAsync(
+        string candidatePath,
+        MediaType mediaType,
+        CancellationToken cancellationToken = default) =>
+        _deletedPhysicalAssetRestorationService.ProbeAsync(candidatePath, mediaType, cancellationToken);
+
+    public IReadOnlyList<DeletedPhysicalAssetRestoreMatch> FindDeletedRestoreMatches(ProjectAsset activeAsset)
+    {
+        ArgumentNullException.ThrowIfNull(activeAsset);
+        if (activeAsset.Physical is null) return [];
+        return _deletedPhysicalAssetRestorationService.FindDeletedMatches(
+            activeAsset.Physical.ContentIdentity, activeAsset.MediaType);
+    }
+
+    public Task<DeletedPhysicalAssetRestoreResult> RestoreDeletedExternalAsync(
+        Guid deletedAssetId,
+        string candidatePath,
+        CancellationToken cancellationToken = default) =>
+        _deletedPhysicalAssetRestorationService.RestoreExternalAsync(deletedAssetId, candidatePath, cancellationToken);
+
+    public Task<DeletedPhysicalAssetRestoreResult> RestoreDeletedFromDonorAsync(
+        Guid deletedAssetId,
+        Guid donorAssetId,
+        CancellationToken cancellationToken = default) =>
+        _deletedPhysicalAssetRestorationService.RestoreFromActiveDonorAsync(deletedAssetId, donorAssetId, cancellationToken);
 
     public Task DeletePhysicalAssetAsync(
         Guid assetId,

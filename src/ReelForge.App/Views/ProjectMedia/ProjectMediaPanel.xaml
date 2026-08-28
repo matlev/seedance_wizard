@@ -94,6 +94,7 @@
                 <ContextMenu Opened="ContextMenu_Opened">
                     <MenuItem x:Name="RenameItem" Header="Change filename…" Tag="Rename" Click="Action_Click" />
                     <MenuItem x:Name="RelinkSourceItem" Header="Relink source…" Tag="Relink" Click="Action_Click" />
+                    <MenuItem x:Name="RestoreDeletedSourceItem" Header="Restore deleted source links…" Tag="RestoreDeletedSource" Click="Action_Click" />
                     <MenuItem x:Name="ExportItem" Header="Export…" Tag="Export" Click="Action_Click" />
                     <MenuItem x:Name="ExtractAudioItem" Header="Extract audio…" Tag="ExtractAudio"
                               Click="Action_Click" />

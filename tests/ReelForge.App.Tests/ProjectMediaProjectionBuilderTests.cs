@@ -87,6 +87,28 @@ public sealed class ProjectMediaProjectionBuilderTests
     }
 
     [Fact]
+    public void BuildMarksOnlyMatchingActivePhysicalAssetsAsRestoreCandidates()
+    {
+        const string sharedHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        var active = PhysicalAsset("reimported.mp4", MediaType.Video, sharedHash);
+        var deletedMatch = PhysicalAsset("deleted.mp4", MediaType.Video, sharedHash);
+        deletedMatch.IsDeleted = true;
+        var differentType = PhysicalAsset("deleted.m4a", MediaType.Audio, sharedHash);
+        differentType.IsDeleted = true;
+        var differentHash = PhysicalAsset("different.mp4", MediaType.Video,
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+
+        var projection = ProjectMediaProjectionBuilder.Build(
+            new VideoProject { Assets = [active, deletedMatch, differentType, differentHash] },
+            _ => "C:\\media\\not-used.mp4",
+            _ => throw new InvalidOperationException("Video thumbnails are not decoded."),
+            []);
+
+        Assert.True(projection.MediaItems.Single(item => item.Asset?.Id == active.Id).CanRestoreDeletedSource);
+        Assert.False(projection.MediaItems.Single(item => item.Asset?.Id == differentHash.Id).CanRestoreDeletedSource);
+    }
+
+    [Fact]
     public void BuildRetainsExactlyTheDeletedAssetOccurrencesInTheCurrentDraftForReopen()
     {
         var deleted = PhysicalAsset("deleted.mp4", MediaType.Video);
@@ -209,13 +231,21 @@ public sealed class ProjectMediaProjectionBuilderTests
         Assert.Equal(2, reopenedChoices.Count);
     }
 
-    private static ProjectAsset PhysicalAsset(string fileName, MediaType mediaType) => new()
+    private static ProjectAsset PhysicalAsset(string fileName, MediaType mediaType, string? sha256 = null) => new()
     {
         FileName = fileName,
         DisplayName = fileName,
         MediaType = mediaType,
         StorageKind = AssetStorageKind.Physical,
-        Physical = new PhysicalAssetStorage { RelativePath = fileName }
+        Physical = new PhysicalAssetStorage
+        {
+            RelativePath = fileName,
+            ContentIdentity = new ContentIdentity
+            {
+                Status = sha256 is null ? ContentHashStatus.Pending : ContentHashStatus.Verified,
+                Sha256 = sha256
+            }
+        }
     };
 
     private static ProjectAsset VirtualAsset(string name, VirtualAssetKind kind) => new()
