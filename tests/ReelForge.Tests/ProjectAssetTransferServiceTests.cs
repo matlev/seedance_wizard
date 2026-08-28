@@ -99,6 +99,39 @@ public sealed class ProjectAssetTransferServiceTests : IDisposable
         Assert.Equal(2, reopened.Assets.Count);
     }
 
+    [Fact]
+    public async Task CopyReservesAnActiveTargetPathWhoseFileIsMissing()
+    {
+        var sourceMedia = Path.Combine(_temporaryRoot, "missing-target-source", "clip.mp4");
+        var targetMedia = Path.Combine(_temporaryRoot, "missing-target-existing", "clip.mp4");
+        Directory.CreateDirectory(Path.GetDirectoryName(sourceMedia)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(targetMedia)!);
+        await File.WriteAllTextAsync(sourceMedia, "source bytes");
+        await File.WriteAllTextAsync(targetMedia, "target bytes");
+        var store = new PortableProjectStore();
+        var importer = new AssetImportService(new StubInspector());
+        var source = new ProjectWorkspace(store, importer);
+        await source.CreateAsync(Path.Combine(_temporaryRoot, "missing-target-source-project"), "Source");
+        var sourceAsset = Assert.Single(await source.ImportAssetsAsync([sourceMedia]));
+        var target = new ProjectWorkspace(store, importer);
+        await target.CreateAsync(Path.Combine(_temporaryRoot, "missing-target-project"), "Target");
+        var targetAsset = Assert.Single(await target.ImportAssetsAsync([targetMedia]));
+        File.Delete(target.GetAbsoluteAssetPath(targetAsset));
+
+        var copied = await new ProjectAssetTransferService(store, importer).CopyToProjectAsync(
+            source, sourceAsset, target.Location!.ProjectFilePath);
+
+        Assert.Equal("clip (2).mp4", copied.CopiedAsset.FileName);
+        var (reopened, _) = await store.OpenAsync(target.Location.ProjectFilePath);
+        Assert.Equal(
+            2,
+            reopened.Assets
+                .Where(asset => !asset.IsDeleted && asset.Physical is not null)
+                .Select(asset => asset.Physical!.RelativePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count());
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_temporaryRoot)) Directory.Delete(_temporaryRoot, recursive: true);

@@ -45,6 +45,32 @@ public sealed record PhysicalAssetRelinkResult(
     ProjectAssetDependencyReport DependencyReport,
     string? Detail = null);
 
+public enum MissingPhysicalAssetProbeStatus
+{
+    NotApplicable,
+    Verified,
+    Missing,
+    Inaccessible,
+    Cancelled
+}
+
+/// <summary>
+/// A read-only, verified candidate identity with live missing physical assets that can be
+/// repaired from it. This is intentionally distinct from deleted-source restoration: missing
+/// assets retain their existing logical identity and are repaired through RelinkMissing.
+/// </summary>
+public sealed record MissingPhysicalAssetRelinkProbe(
+    MissingPhysicalAssetProbeStatus Status,
+    ContentIdentity? CandidateIdentity,
+    IReadOnlyList<MissingPhysicalAssetRelinkMatch> Matches,
+    string? Detail = null);
+
+public sealed record MissingPhysicalAssetRelinkMatch(
+    Guid AssetId,
+    string DisplayName,
+    MediaType MediaType,
+    ProjectAssetDependencyReport DependencyReport);
+
 /// <summary>
 /// Separates ordinary repair of a live missing asset from the explicit resurrection of a
 /// deliberately deleted logical asset. Callers must never infer restore mode from a hash.
@@ -76,6 +102,60 @@ public sealed class PhysicalAssetRelinkService
         _contentHashService = contentHashService;
         _stager = stager;
         _dependencyAnalyzer = dependencyAnalyzer;
+    }
+
+    /// <summary>
+    /// Hashes a dropped/imported candidate only when this project has an eligible live missing
+    /// source of the same media type. It never mutates project state or chooses a match.
+    /// </summary>
+    public async Task<MissingPhysicalAssetRelinkProbe> ProbeMissingAsync(
+        string candidatePath,
+        MediaType mediaType,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(candidatePath);
+        var project = _workspace.Project ?? throw new InvalidOperationException("Create or open a project first.");
+        if (!project.Assets.Any(asset => IsEligibleMissingIdentity(asset, mediaType)))
+            return new MissingPhysicalAssetRelinkProbe(MissingPhysicalAssetProbeStatus.NotApplicable, null, []);
+
+        ContentIdentity identity;
+        try
+        {
+            identity = await _contentHashService.ComputeAsync(candidatePath, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return new MissingPhysicalAssetRelinkProbe(MissingPhysicalAssetProbeStatus.Missing, null, [], exception.Message);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return new MissingPhysicalAssetRelinkProbe(MissingPhysicalAssetProbeStatus.Cancelled, null, []);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return new MissingPhysicalAssetRelinkProbe(MissingPhysicalAssetProbeStatus.Inaccessible, null, [], exception.Message);
+        }
+
+        return new MissingPhysicalAssetRelinkProbe(
+            MissingPhysicalAssetProbeStatus.Verified,
+            identity,
+            FindMissingMatches(identity, mediaType));
+    }
+
+    public IReadOnlyList<MissingPhysicalAssetRelinkMatch> FindMissingMatches(
+        ContentIdentity identity,
+        MediaType mediaType)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        var project = _workspace.Project ?? throw new InvalidOperationException("Create or open a project first.");
+        if (identity.Status != ContentHashStatus.Verified || !IsSha256(identity.Sha256)) return [];
+
+        return project.Assets
+            .Where(asset => IsEligibleMissingIdentity(asset, mediaType) &&
+                            HashesEqual(asset.Physical!.ContentIdentity.Sha256, identity.Sha256))
+            .Select(asset => new MissingPhysicalAssetRelinkMatch(
+                asset.Id, asset.EffectiveDisplayName, asset.MediaType, _dependencyAnalyzer.Analyze(project, asset.Id)))
+            .ToArray();
     }
 
     public async Task<PhysicalAssetRelinkResult> RelinkAsync(
@@ -267,6 +347,14 @@ public sealed class PhysicalAssetRelinkService
     }
 
     private static bool IsSha256(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
+
+    private static bool IsEligibleMissingIdentity(ProjectAsset asset, MediaType mediaType) =>
+        !asset.IsDeleted && asset.StorageKind == AssetStorageKind.Physical && asset.Physical is not null &&
+        asset.MediaType == mediaType && asset.Physical.Availability == PhysicalAssetAvailability.Missing &&
+        asset.Physical.ContentIdentity.Status == ContentHashStatus.Verified && IsSha256(asset.Physical.ContentIdentity.Sha256);
+
+    private static bool HashesEqual(string? first, string? second) =>
+        first is not null && second is not null && string.Equals(first, second, StringComparison.OrdinalIgnoreCase);
 
     private sealed record PhysicalSnapshot(
         bool IsDeleted,

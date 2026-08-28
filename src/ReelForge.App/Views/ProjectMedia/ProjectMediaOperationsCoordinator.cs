@@ -142,6 +142,23 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
         CancellationToken cancellationToken = default) =>
         _deletedPhysicalAssetRestorationService.ProbeAsync(candidatePath, mediaType, cancellationToken);
 
+    public Task<MissingPhysicalAssetRelinkProbe> ProbeMissingRelinkAsync(
+        string candidatePath,
+        MediaType mediaType,
+        CancellationToken cancellationToken = default) =>
+        _physicalAssetRelinkService.ProbeMissingAsync(candidatePath, mediaType, cancellationToken);
+
+    public IReadOnlyList<DeletedPhysicalAssetRestoreMatch> FindDeletedRestoreMatches(
+        ContentIdentity identity,
+        MediaType mediaType) =>
+        _deletedPhysicalAssetRestorationService.FindDeletedMatches(identity, mediaType);
+
+    public Task<PhysicalAssetRelinkResult> RelinkMissingExternalAsync(
+        Guid missingAssetId,
+        string candidatePath,
+        CancellationToken cancellationToken = default) =>
+        _physicalAssetRelinkService.RelinkAsync(missingAssetId, candidatePath, cancellationToken);
+
     public IReadOnlyList<DeletedPhysicalAssetRestoreMatch> FindDeletedRestoreMatches(ProjectAsset activeAsset)
     {
         ArgumentNullException.ThrowIfNull(activeAsset);

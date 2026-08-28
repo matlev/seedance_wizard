@@ -106,11 +106,19 @@ public sealed class ProjectAssetTransferService
             throw new FileNotFoundException("The materialized media file is missing and cannot be copied.", sourceMediaPath);
 
         var targetProjectPath = Path.GetFullPath(targetProjectFilePath);
-        var (_, targetLocation) = await _projectStore
+        var (targetProject, targetLocation) = await _projectStore
             .OpenAsync(targetProjectPath, cancellationToken)
             .ConfigureAwait(false);
+        var reservedRelativePaths = targetProject.Assets
+            .Where(asset =>
+                !asset.IsDeleted &&
+                asset.StorageKind == AssetStorageKind.Physical &&
+                asset.Physical is not null &&
+                !string.IsNullOrWhiteSpace(asset.Physical.RelativePath))
+            .Select(asset => asset.Physical!.RelativePath)
+            .ToArray();
         var copiedAssets = await _assetImporter
-            .ImportAsync(targetLocation, [sourceMediaPath], cancellationToken)
+            .ImportAsync(targetLocation, [sourceMediaPath], reservedRelativePaths, cancellationToken)
             .ConfigureAwait(false);
         var copiedAsset = copiedAssets.Count == 1
             ? copiedAssets[0]

@@ -98,4 +98,19 @@ public interface IAssetImportService
         ProjectLocation location,
         IEnumerable<string> sourcePaths,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Imports assets without allocating any of the already-owned project-relative paths.
+    /// The default keeps existing import-service implementations source-compatible while
+    /// allowing production importers to honor the current project inventory.
+    /// </summary>
+    Task<IReadOnlyList<ProjectAsset>> ImportAsync(
+        ProjectLocation location,
+        IEnumerable<string> sourcePaths,
+        IReadOnlyCollection<string> reservedRelativePaths,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reservedRelativePaths);
+        return ImportAsync(location, sourcePaths, cancellationToken);
+    }
 }

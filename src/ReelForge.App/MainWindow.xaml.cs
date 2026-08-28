@@ -1350,6 +1350,15 @@ public partial class MainWindow : Window, IDisposable
             _ = dialog.ShowDialog();
             return dialog.Choice;
         }
+
+        public MissingSourceRelinkChoice PromptMissingSourceRelink(
+            string candidateName,
+            IReadOnlyList<MissingPhysicalAssetRelinkMatch> matches)
+        {
+            var dialog = new MissingSourceRelinkDialog(candidateName, matches) { Owner = window };
+            _ = dialog.ShowDialog();
+            return dialog.Choice;
+        }
     }
 
     private sealed class GenerationSubmissionPresentation(MainWindow window) : IGenerationSubmissionPresentation

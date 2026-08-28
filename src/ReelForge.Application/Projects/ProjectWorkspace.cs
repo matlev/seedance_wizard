@@ -182,8 +182,16 @@ public sealed class ProjectWorkspace
         CancellationToken cancellationToken = default)
     {
         EnsureProjectIsOpen();
+        var reservedRelativePaths = Project!.Assets
+            .Where(asset =>
+                !asset.IsDeleted &&
+                asset.StorageKind == AssetStorageKind.Physical &&
+                asset.Physical is not null &&
+                !string.IsNullOrWhiteSpace(asset.Physical.RelativePath))
+            .Select(asset => asset.Physical!.RelativePath)
+            .ToArray();
         var imported = await _assetImporter
-            .ImportAsync(Location!, sourcePaths, cancellationToken)
+            .ImportAsync(Location!, sourcePaths, reservedRelativePaths, cancellationToken)
             .ConfigureAwait(false);
 
         foreach (var asset in imported)

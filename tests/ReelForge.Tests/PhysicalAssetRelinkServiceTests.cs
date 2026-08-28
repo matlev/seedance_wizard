@@ -125,6 +125,37 @@ public sealed class PhysicalAssetRelinkServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task MissingProbeFindsOnlyMatchingLiveMissingIdentity()
+    {
+        var candidate = await WriteCandidateAsync("expected bytes");
+        var (workspace, asset, expected) = await CreateMissingAssetAsync(candidate);
+        var service = new PhysicalAssetRelinkService(
+            workspace, new Sha256ContentHashService(), new ThrowingStager(), new ProjectAssetDependencyAnalyzer());
+
+        var probe = await service.ProbeMissingAsync(candidate, MediaType.Video);
+
+        Assert.Equal(MissingPhysicalAssetProbeStatus.Verified, probe.Status);
+        Assert.Equal(expected.Sha256, probe.CandidateIdentity!.Sha256);
+        Assert.Equal(asset.Id, Assert.Single(probe.Matches).AssetId);
+    }
+
+    [Fact]
+    public async Task MissingProbeDoesNotHashWithoutEligibleMissingSource()
+    {
+        var candidate = await WriteCandidateAsync("expected bytes");
+        var (workspace, asset, _) = await CreateMissingAssetAsync(candidate);
+        asset.Physical!.Availability = PhysicalAssetAvailability.Available;
+        var service = new PhysicalAssetRelinkService(
+            workspace, new ThrowingHashService(new InvalidOperationException("Hashing was not expected.")),
+            new ThrowingStager(), new ProjectAssetDependencyAnalyzer());
+
+        var probe = await service.ProbeMissingAsync(candidate, MediaType.Video);
+
+        Assert.Equal(MissingPhysicalAssetProbeStatus.NotApplicable, probe.Status);
+        Assert.Empty(probe.Matches);
+    }
+
+    [Fact]
     public async Task CandidateNotFoundReturnsMissingAndCandidateAccessFailureReturnsInaccessible()
     {
         var candidate = await WriteCandidateAsync("expected bytes");
