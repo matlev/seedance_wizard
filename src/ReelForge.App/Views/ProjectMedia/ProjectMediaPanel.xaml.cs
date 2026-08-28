@@ -124,7 +124,9 @@ public partial class ProjectMediaPanel : UserControl
             Virtual.CurrentRecipeRevisionId: not null
         };
         var physicalAsset = asset is { StorageKind: AssetStorageKind.Physical, Physical: not null };
-        RelinkSourceItem.Visibility = physicalAsset ? Visibility.Visible : Visibility.Collapsed;
+        RelinkSourceItem.Visibility = ProjectMediaContextMenuPolicy.CanRelink(asset)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         CopyToProjectItem.Visibility = savedFrame || copyableVirtualVideo || physicalAsset
             ? Visibility.Visible
             : Visibility.Collapsed;

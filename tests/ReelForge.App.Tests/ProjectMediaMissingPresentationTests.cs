@@ -14,6 +14,7 @@ public sealed class ProjectMediaMissingPresentationTests
         Assert.True(item.IsMissingPhysicalAsset);
         Assert.Equal("⚠", item.Glyph);
         Assert.Contains("Right-click", item.GlyphToolTip);
+        Assert.True(ProjectMediaContextMenuPolicy.CanRelink(asset));
         Assert.True(ProjectMediaContextMenuPolicy.UsesMissingAssetMenu(asset));
     }
 
@@ -30,6 +31,7 @@ public sealed class ProjectMediaMissingPresentationTests
         Assert.False(item.IsMissingPhysicalAsset);
         Assert.Equal("▶", item.Glyph);
         Assert.Null(item.GlyphToolTip);
+        Assert.False(ProjectMediaContextMenuPolicy.CanRelink(asset));
         Assert.False(ProjectMediaContextMenuPolicy.UsesMissingAssetMenu(asset));
     }
 

@@ -63,7 +63,8 @@ public sealed class ProjectMediaCommandCoordinator
     private async Task RelinkAsync(ProjectMediaListItem? selectedItem)
     {
         if (!_host.HasOpenProject ||
-            selectedItem?.Asset is not { StorageKind: AssetStorageKind.Physical, Physical: not null } asset) return;
+            selectedItem?.Asset is not { } asset ||
+            !ProjectMediaContextMenuPolicy.CanRelink(asset)) return;
 
         var candidatePath = _host.PromptRelinkCandidate(asset);
         if (candidatePath is null) return;
