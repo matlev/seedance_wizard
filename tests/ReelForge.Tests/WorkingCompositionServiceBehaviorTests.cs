@@ -86,6 +86,44 @@ public sealed class WorkingCompositionServiceBehaviorTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => task!);
     }
 
+    [Fact]
+    public async Task RemovedPhysicalAssetsCannotBeAddedToWorkingComposition()
+    {
+        var project = new VideoProject { Name = "Removed source" };
+        var location = new ProjectLocation(Path.GetTempPath(), Path.Combine(Path.GetTempPath(), "removed-source.rfp"));
+        var workspace = new ProjectWorkspace(new ToggleFailingProjectStore(project, location), new UnusedImporter());
+        await workspace.OpenAsync(location.ProjectFilePath);
+
+        var initialVideo = CreateVideo("initial.mp4");
+        var removedVideo = CreateVideo("removed.mp4");
+        removedVideo.IsDeleted = true;
+        removedVideo.Physical!.Availability = PhysicalAssetAvailability.Missing;
+        var removedAudio = new ProjectAsset
+        {
+            DisplayName = "removed.wav",
+            FileName = "removed.wav",
+            MediaType = MediaType.Audio,
+            StorageKind = AssetStorageKind.Physical,
+            IsDeleted = true,
+            Physical = new PhysicalAssetStorage
+            {
+                RelativePath = "removed.wav",
+                Availability = PhysicalAssetAvailability.Missing
+            }
+        };
+        project.AddAsset(initialVideo);
+        project.AddAsset(removedVideo);
+        project.AddAsset(removedAudio);
+        var service = new WorkingCompositionService(workspace);
+        await service.CreateInitialAsync(initialVideo.Id);
+
+        var videoException = await Assert.ThrowsAsync<InvalidOperationException>(() => service.AddSegmentAsync(removedVideo.Id));
+        var audioException = await Assert.ThrowsAsync<InvalidOperationException>(() => service.AddAudioClipAsync(removedAudio.Id, TimeSpan.Zero));
+
+        Assert.Contains("removed project media", videoException.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("removed project media", audioException.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class UnusedImporter : IAssetImportService
     {
         public Task<IReadOnlyList<ProjectAsset>> ImportAsync(

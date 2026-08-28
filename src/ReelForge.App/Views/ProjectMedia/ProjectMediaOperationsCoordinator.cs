@@ -133,8 +133,11 @@ public sealed class ProjectMediaOperationsCoordinator : ICompositionRenderOperat
         return _physicalAssetRelinkService.RelinkAsync(asset.Id, candidatePath, cancellationToken);
     }
 
-    public Task DeletePhysicalAssetAsync(Guid assetId, CancellationToken cancellationToken = default) =>
-        _physicalAssetRemovalService.RemoveAsync(_workspace, assetId, cancellationToken);
+    public Task DeletePhysicalAssetAsync(
+        Guid assetId,
+        bool preserveLogicalRecord,
+        CancellationToken cancellationToken = default) =>
+        _physicalAssetRemovalService.RemoveAsync(_workspace, assetId, preserveLogicalRecord, cancellationToken);
 
     public Task DeleteSavedClipAsync(Guid assetId, CancellationToken cancellationToken = default) =>
         _savedClipService.DeleteAsync(assetId, cancellationToken);

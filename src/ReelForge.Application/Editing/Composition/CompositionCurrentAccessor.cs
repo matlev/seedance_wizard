@@ -39,6 +39,8 @@ internal sealed class CompositionCurrentAccessor
 
         if (source.Id == project.WorkingCompositionAssetId)
             throw new InvalidOperationException("A Working Composition cannot contain itself.");
+        if (source.IsDeleted)
+            throw new InvalidOperationException("A removed project media file cannot be added to the Working Composition.");
         if (source.MediaType != MediaType.Video ||
             (source.StorageKind == AssetStorageKind.Virtual && source.Virtual?.Kind != VirtualAssetKind.SavedClip))
             throw new InvalidOperationException("Add a physical video or Saved Clip to the Working Composition.");
@@ -51,6 +53,8 @@ internal sealed class CompositionCurrentAccessor
         var source = Project.Assets.SingleOrDefault(asset => asset.Id == sourceAssetId)
             ?? throw new InvalidOperationException("The selected audio source no longer exists.");
 
+        if (source.IsDeleted)
+            throw new InvalidOperationException("A removed project media file cannot be added to the Working Composition.");
         if (source.StorageKind != AssetStorageKind.Physical || source.MediaType != MediaType.Audio)
             throw new InvalidOperationException("Add a physical audio file to the Working Composition.");
 

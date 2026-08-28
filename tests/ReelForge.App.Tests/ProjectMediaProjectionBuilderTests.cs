@@ -65,6 +65,150 @@ public sealed class ProjectMediaProjectionBuilderTests
         Assert.Equal([newest.Id, oldest.Id], projection.GenerationHistory.Select(generation => generation.Id));
     }
 
+    [Fact]
+    public void BuildExcludesDeletedAssetsFromMediaAndNewGenerationReferenceChoices()
+    {
+        var visible = PhysicalAsset("visible.mp4", MediaType.Video);
+        var deleted = PhysicalAsset("deleted.mp4", MediaType.Video);
+        deleted.IsDeleted = true;
+        var project = new VideoProject { Assets = [visible, deleted] };
+
+        var projection = ProjectMediaProjectionBuilder.Build(
+            project,
+            _ => "C:\\media\\not-used.mp4",
+            _ => throw new InvalidOperationException("Video thumbnails are not decoded."),
+            []);
+
+        var media = Assert.Single(projection.MediaItems);
+        Assert.Equal(visible.Id, media.Asset?.Id);
+        var choice = Assert.Single(projection.ReferenceChoices);
+        Assert.Equal(visible.Id, choice.LogicalObjectId);
+        Assert.DoesNotContain(projection.ReferenceChoices, candidate => candidate.LogicalObjectId == deleted.Id);
+    }
+
+    [Fact]
+    public void BuildRetainsExactlyTheDeletedAssetOccurrencesInTheCurrentDraftForReopen()
+    {
+        var deleted = PhysicalAsset("deleted.mp4", MediaType.Video);
+        deleted.IsDeleted = true;
+        var firstReference = new GenerationReferenceDraft
+        {
+            ReferenceId = Guid.NewGuid(),
+            LogicalObjectId = deleted.Id,
+            Order = 0,
+            Role = GenerationReferenceRole.Character,
+            Label = "Opening shot"
+        };
+        var secondReference = new GenerationReferenceDraft
+        {
+            ReferenceId = Guid.NewGuid(),
+            LogicalObjectId = deleted.Id,
+            Order = 1,
+            Role = GenerationReferenceRole.Style,
+            Notes = "Keep the motion"
+        };
+        var project = new VideoProject
+        {
+            Assets = [deleted],
+            CurrentGenerationDraft = new GenerationDraft
+            {
+                References = [firstReference, secondReference]
+            }
+        };
+
+        var projection = ProjectMediaProjectionBuilder.Build(
+            project,
+            _ => "C:\\media\\not-used.mp4",
+            _ => throw new InvalidOperationException("Video thumbnails are not decoded."),
+            []);
+
+        Assert.Empty(projection.MediaItems);
+        Assert.Equal([firstReference.ReferenceId, secondReference.ReferenceId],
+            projection.ReferenceChoices.Select(choice => choice.ReferenceId));
+        Assert.All(projection.ReferenceChoices, choice =>
+        {
+            Assert.True(choice.IsDeleted);
+            Assert.False(choice.CanCreateAdditionalOccurrence);
+            Assert.Equal(deleted.Id, choice.LogicalObjectId);
+        });
+
+        var reopenedChoices = new System.Collections.ObjectModel.ObservableCollection<GenerationReferenceChoice>(
+            projection.ReferenceChoices);
+        GenerationReferenceEditor.ApplyDraft(project.CurrentGenerationDraft.References, reopenedChoices);
+
+        Assert.Equal(2, reopenedChoices.Count);
+        Assert.All(reopenedChoices, choice => Assert.True(choice.IsSelected));
+        Assert.Equal(GenerationReferenceRole.Character, reopenedChoices[0].Role);
+        Assert.Equal(GenerationReferenceRole.Style, reopenedChoices[1].Role);
+        Assert.Equal("Opening shot", reopenedChoices[0].Label);
+        Assert.Equal("Keep the motion", reopenedChoices[1].Notes);
+
+        var autosavedReferences = GenerationReferenceEditor.Capture(
+            GenerationMode.ReferenceToVideo,
+            reopenedChoices);
+        Assert.Equal(
+            [firstReference.ReferenceId, secondReference.ReferenceId],
+            autosavedReferences.Select(reference => reference.ReferenceId));
+    }
+
+    [Fact]
+    public void BuildKeepsSavedFramesFromDeletedSourcesVisibleButOnlyRetainsTheirExistingDraftOccurrences()
+    {
+        var source = PhysicalAsset("deleted-source.mp4", MediaType.Video);
+        source.IsDeleted = true;
+        var anchor = new FrameAnchor { DisplayLabel = "Opening frame" };
+        var revision = AnchorRevision(anchor.Id, source.Id);
+        anchor.CurrentRevisionId = revision.Id;
+        var firstReference = new GenerationReferenceDraft
+        {
+            ReferenceId = Guid.NewGuid(),
+            ObjectKind = GenerationReferenceObjectKind.FrameAnchor,
+            LogicalObjectId = anchor.Id,
+            AnchorRevisionId = revision.Id,
+            Order = 0
+        };
+        var secondReference = new GenerationReferenceDraft
+        {
+            ReferenceId = Guid.NewGuid(),
+            ObjectKind = GenerationReferenceObjectKind.FrameAnchor,
+            LogicalObjectId = anchor.Id,
+            AnchorRevisionId = revision.Id,
+            Order = 1
+        };
+        var project = new VideoProject
+        {
+            Assets = [source],
+            Anchors = [anchor],
+            AnchorRevisions = [revision],
+            CurrentGenerationDraft = new GenerationDraft { References = [firstReference, secondReference] }
+        };
+
+        var projection = ProjectMediaProjectionBuilder.Build(
+            project,
+            _ => "C:\\media\\not-used.mp4",
+            _ => throw new InvalidOperationException("Video thumbnails are not decoded."),
+            []);
+
+        Assert.Contains(projection.MediaItems, item => item.Anchor?.Id == anchor.Id);
+        Assert.Equal([firstReference.ReferenceId, secondReference.ReferenceId],
+            projection.ReferenceChoices.Select(choice => choice.ReferenceId));
+        Assert.All(projection.ReferenceChoices, choice =>
+        {
+            Assert.True(choice.IsDeleted);
+            Assert.False(choice.CanCreateAdditionalOccurrence);
+            Assert.Equal(anchor.Id, choice.LogicalObjectId);
+        });
+
+        var reopenedChoices = new System.Collections.ObjectModel.ObservableCollection<GenerationReferenceChoice>(
+            projection.ReferenceChoices);
+        GenerationReferenceEditor.ApplyDraft(project.CurrentGenerationDraft.References, reopenedChoices);
+        var autosavedReferences = GenerationReferenceEditor.Capture(GenerationMode.ReferenceToVideo, reopenedChoices);
+
+        Assert.Equal([firstReference.ReferenceId, secondReference.ReferenceId],
+            autosavedReferences.Select(reference => reference.ReferenceId));
+        Assert.Equal(2, reopenedChoices.Count);
+    }
+
     private static ProjectAsset PhysicalAsset(string fileName, MediaType mediaType) => new()
     {
         FileName = fileName,

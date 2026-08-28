@@ -5,6 +5,29 @@ namespace ReelForge.Core.Tests;
 public sealed class PhaseTwoDomainTests
 {
     [Fact]
+    public void DeletedAssetsMustBeMissingPhysicalRecords()
+    {
+        var unavailablePhysical = CreatePhysicalAsset();
+        unavailablePhysical.IsDeleted = true;
+        unavailablePhysical.Physical!.Availability = PhysicalAssetAvailability.Available;
+        var virtualAsset = new ProjectAsset
+        {
+            IsDeleted = true,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.SavedClip }
+        };
+
+        var errors = ProjectInvariantValidator.Validate(new VideoProject
+        {
+            Assets = [unavailablePhysical, virtualAsset]
+        });
+
+        Assert.Contains(errors, error => error.Contains("Deleted physical asset", StringComparison.Ordinal));
+        Assert.Contains(errors, error => error.Contains("Deleted asset", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void GenerationLineageAllowsOneParentAndRejectsCycles()
     {
         var firstId = Guid.NewGuid();

@@ -477,6 +477,8 @@ public partial class MainWindow : Window, IDisposable
                     !selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem))
                     return;
 
+                ProjectMediaPanelControl.RefreshItems();
+
                 if (resolution.Kind is PhysicalAssetSelectionPreparationKind.Missing or
                     PhysicalAssetSelectionPreparationKind.Inaccessible or
                     PhysicalAssetSelectionPreparationKind.Mismatched)
@@ -676,6 +678,16 @@ public partial class MainWindow : Window, IDisposable
         await _projectMediaCommandCoordinator.HandleAsync(e.Action, ProjectMediaPanelControl.SelectedItem);
     }
 
+    private async void MediaPreviewPanel_MissingMediaRelinkRequested(object? sender, EventArgs e)
+    {
+        await _projectMediaCommandCoordinator.HandleAsync(ProjectMediaAction.Relink, ProjectMediaPanelControl.SelectedItem);
+    }
+
+    private async void MediaPreviewPanel_MissingMediaDeleteRequested(object? sender, EventArgs e)
+    {
+        await _projectMediaCommandCoordinator.HandleAsync(ProjectMediaAction.Delete, ProjectMediaPanelControl.SelectedItem);
+    }
+
     private void ProjectMediaPanel_DragCompleted(object? sender, EventArgs e) =>
         CompositionTimelineControl.CancelExternalDrag();
 
@@ -810,8 +822,7 @@ public partial class MainWindow : Window, IDisposable
         var absolutePath = _workspace.GetAbsoluteAssetPath(asset);
         if (!File.Exists(absolutePath))
         {
-            MediaPreviewPanelControl.ShowPlaceholder(
-                $"Missing media file\n{asset.FileName}\n\nMoving a file in Explorer does not add it to another project's .rfp file.");
+            MediaPreviewPanelControl.ShowMissingMedia(asset.FileName);
             return;
         }
         if (asset.MediaType == MediaType.Image)

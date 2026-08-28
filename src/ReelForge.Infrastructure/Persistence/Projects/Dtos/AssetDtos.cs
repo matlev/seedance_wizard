@@ -5,6 +5,7 @@ namespace ReelForge.Infrastructure;
 internal sealed class ProjectAssetDto
 {
     public Guid Id { get; set; }
+    public bool IsDeleted { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public MediaType MediaType { get; set; }

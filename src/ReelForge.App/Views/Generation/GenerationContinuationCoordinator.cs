@@ -41,7 +41,7 @@ internal sealed class GenerationContinuationCoordinator
         var origin = new ContinuationOrigin(project, location, project.Id);
         var outputs = project.Assets
             .Where(asset => sourceGeneration.OutputAssetIds.Contains(asset.Id))
-            .Where(asset => asset.MediaType == MediaType.Video && asset.StorageKind == AssetStorageKind.Physical)
+            .Where(CanContinueFrom)
             .ToArray();
         if (outputs.Length == 0)
         {
@@ -225,6 +225,11 @@ internal sealed class GenerationContinuationCoordinator
         throw new InvalidOperationException(
             $"{provider.Capabilities.DisplayName} does not support a continuation-compatible image reference mode.");
     }
+
+    internal static bool CanContinueFrom(ProjectAsset asset) =>
+        !asset.IsDeleted &&
+        asset.MediaType == MediaType.Video &&
+        asset.StorageKind == AssetStorageKind.Physical;
 
     private readonly record struct ContinuationOrigin(VideoProject Project, ProjectLocation Location, Guid ProjectId);
     private readonly record struct IndexedSource(IReadOnlyList<VideoPresentationFrame> Frames, string ContentHash);

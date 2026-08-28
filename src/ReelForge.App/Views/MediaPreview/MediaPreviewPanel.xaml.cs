@@ -67,6 +67,8 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
     public event EventHandler<MediaPreviewScrubCompletedEventArgs>? ScrubCompleted;
     public event EventHandler? ScrubCancelled;
     public event EventHandler? PositionTick;
+    public event EventHandler? MissingMediaRelinkRequested;
+    public event EventHandler? MissingMediaDeleteRequested;
 
     public void OpenVideo(
         string absolutePath,
@@ -266,7 +268,7 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
 
     public void ShowImage(BitmapSource image)
     {
-        PreviewPlaceholder.Visibility = Visibility.Collapsed;
+        HidePlaceholder();
         ImagePreview.Source = image;
         ImagePreview.Visibility = Visibility.Visible;
     }
@@ -275,10 +277,17 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
     {
         PreviewPlaceholder.Text = text;
         PreviewPlaceholder.TextAlignment = alignment;
-        PreviewPlaceholder.Visibility = Visibility.Visible;
+        MissingMediaActions.Visibility = Visibility.Collapsed;
+        PlaceholderPanel.Visibility = Visibility.Visible;
     }
 
-    public void HidePlaceholder() => PreviewPlaceholder.Visibility = Visibility.Collapsed;
+    public void ShowMissingMedia(string fileName)
+    {
+        ShowPlaceholder($"Missing media file\n{fileName}");
+        MissingMediaActions.Visibility = Visibility.Visible;
+    }
+
+    public void HidePlaceholder() => PlaceholderPanel.Visibility = Visibility.Collapsed;
 
     public void Reset()
     {
@@ -397,6 +406,12 @@ public partial class MediaPreviewPanel : UserControl, IDisposable
 
     private void PlaybackButton_Click(object sender, RoutedEventArgs e) =>
         PlaybackRequested?.Invoke(this, EventArgs.Empty);
+
+    private void RelinkMissingMediaButton_Click(object sender, RoutedEventArgs e) =>
+        MissingMediaRelinkRequested?.Invoke(this, EventArgs.Empty);
+
+    private void DeleteMissingMediaButton_Click(object sender, RoutedEventArgs e) =>
+        MissingMediaDeleteRequested?.Invoke(this, EventArgs.Empty);
 
     private void PreviousFrameButton_Click(object sender, RoutedEventArgs e) =>
         PreviousFrameRequested?.Invoke(this, EventArgs.Empty);

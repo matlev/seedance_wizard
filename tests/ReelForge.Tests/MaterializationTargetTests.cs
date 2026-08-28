@@ -29,6 +29,43 @@ public sealed class MaterializationTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task DeletedPhysicalSourceIsRejectedBeforeHashingAndDoesNotBecomeAvailableWhenBytesReappear()
+    {
+        var (project, location, asset) = await CreateProjectSourceAsync();
+        asset.Physical!.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(
+            Path.Combine(_root, asset.Physical.RelativePath));
+        asset.IsDeleted = true;
+        asset.Physical.Availability = PhysicalAssetAvailability.Missing;
+        var hashService = new CountingHashService();
+        var materializer = new PhysicalAssetMaterializer(hashService);
+
+        var assetException = await Assert.ThrowsAsync<InvalidOperationException>(() => materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(new AssetMaterializationTarget(asset.Id), MaterializationPurpose.Preview)));
+
+        Assert.Equal("'source.mp4' was deleted from the project and cannot be materialized.", assetException.Message);
+        Assert.Equal(0, hashService.CallCount);
+        Assert.Equal(PhysicalAssetAvailability.Missing, asset.Physical.Availability);
+
+        var anchor = new FrameAnchor();
+        project.Anchors.Add(anchor);
+        var revision = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            asset.Id, asset.Physical.ContentIdentity.Sha256!, 0, 1, 1, 24, 1));
+
+        var anchorException = await Assert.ThrowsAsync<InvalidOperationException>(() => materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AnchorMaterializationTarget(anchor.Id, revision.Id),
+                MaterializationPurpose.FrameExtraction)));
+
+        Assert.Equal(assetException.Message, anchorException.Message);
+        Assert.Equal(0, hashService.CallCount);
+        Assert.Equal(PhysicalAssetAvailability.Missing, asset.Physical.Availability);
+    }
+
+    [Fact]
     public async Task AnchorTargetPinsRevisionAndVerifiesSourceBeforeExtraction()
     {
         var (project, location, asset) = await CreateProjectSourceAsync();
@@ -901,6 +938,26 @@ public sealed class MaterializationTargetTests : IDisposable
                     },
                     null,
                     isDurableSource: false));
+    }
+
+    private sealed class CountingHashService : IContentHashService
+    {
+        public int CallCount { get; private set; }
+
+        public Task<ContentIdentity> ComputeAsync(string path, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            throw new InvalidOperationException("A deleted source must not be hashed.");
+        }
+
+        public Task<ContentVerificationResult> VerifyAsync(
+            string path,
+            ContentIdentity expected,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            throw new InvalidOperationException("A deleted source must not be verified.");
+        }
     }
 
     private sealed class StubMediaInspector(MediaEncodingMetadata encoding) : IMediaInspectionService

@@ -17,6 +17,14 @@ public sealed class ProjectMediaListItem
     public FrameAnchor? Anchor { get; }
     public FrameAnchorRevision? AnchorRevision { get; }
     public BitmapSource? Thumbnail { get; set; }
+    public bool IsMissingPhysicalAsset => Asset is
+    {
+        StorageKind: AssetStorageKind.Physical,
+        Physical.Availability: PhysicalAssetAvailability.Missing
+    };
+    public string? GlyphToolTip => IsMissingPhysicalAsset
+        ? "Source media is missing. Right-click and choose Relink source…"
+        : null;
     public string DisplayName => Anchor?.DisplayLabel ??
                                  (Asset!.StorageKind == AssetStorageKind.Physical
                                      ? Asset.FileName
@@ -43,7 +51,7 @@ public sealed class ProjectMediaListItem
         "COMPOSITIONS" => 5,
         _ => 6
     };
-    public string Glyph => Anchor is not null ? "▣" : Asset!.StorageKind == AssetStorageKind.Virtual
+    public string Glyph => IsMissingPhysicalAsset ? "⚠" : Anchor is not null ? "▣" : Asset!.StorageKind == AssetStorageKind.Virtual
         ? IsComposition ? "▤" : "✂"
         : Asset.MediaType switch
         {

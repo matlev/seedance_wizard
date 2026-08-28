@@ -262,6 +262,11 @@ public sealed class PortableProjectStore :
         foreach (var asset in project.Assets.Where(asset => asset.StorageKind == AssetStorageKind.Physical && asset.Physical is not null))
         {
             var physical = asset.Physical!;
+            if (asset.IsDeleted)
+            {
+                physical.Availability = PhysicalAssetAvailability.Missing;
+                continue;
+            }
             if (!ProjectPathPolicy.TryResolveContainedPath(location, physical.RelativePath, out var candidate))
             {
                 physical.Availability = PhysicalAssetAvailability.Missing;

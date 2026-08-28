@@ -216,22 +216,18 @@ public sealed class ProjectMediaCommandCoordinator
         }
 
         var usage = _operations.AnalyzeDependencies(asset);
-        if (usage.IsInUse)
-        {
-            _host.ShowInformation(
-                $"'{asset.EffectiveDisplayName}' cannot be deleted because it is still used by:\n\n• {string.Join("\n• ", usage.DisplayDescriptions)}",
-                "Asset is in use");
-            return;
-        }
-        if (!_host.Confirm(
-                $"Delete '{asset.EffectiveDisplayName}' from this project and remove its stored media file?\n\nThis cannot be undone.",
-                "Delete asset")) return;
+        var confirmation = usage.IsInUse
+            ? "Removing this file from the project may corrupt derived Saved Frames, Clips, Audio, and Compositions that rely on it.\n\nReally delete?"
+            : $"Delete '{asset.EffectiveDisplayName}' from this project and remove its stored media file?\n\nThis cannot be undone.";
+        if (!_host.Confirm(confirmation, "Delete asset")) return;
         await _host.RunUiActionAsync($"Deleting {asset.EffectiveDisplayName}…", async () =>
         {
-            await _operations.DeletePhysicalAssetAsync(asset.Id);
+            await _operations.DeletePhysicalAssetAsync(asset.Id, usage.IsInUse);
             _host.ClearSelectionAndPreview();
             _host.RefreshProjectMedia();
-            _host.SetStatus($"Deleted {asset.EffectiveDisplayName}.");
+            _host.SetStatus(usage.IsInUse
+                ? $"Deleted {asset.EffectiveDisplayName}; its historical project references were retained."
+                : $"Deleted {asset.EffectiveDisplayName}.");
         });
     }
 

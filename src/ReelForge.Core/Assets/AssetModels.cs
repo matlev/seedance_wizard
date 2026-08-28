@@ -11,6 +11,12 @@ public enum PhysicalAssetAvailability { Unknown, Available, Missing, Inaccessibl
 public sealed class ProjectAsset
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    /// <summary>
+    /// Retains the logical asset record after its physical project media was deliberately removed
+    /// so that durable recipes, provenance, and generation history remain resolvable.
+    /// Deleted records are not offered as ordinary Project Media or generation references.
+    /// </summary>
+    public bool IsDeleted { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public MediaType MediaType { get; set; }

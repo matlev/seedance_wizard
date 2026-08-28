@@ -97,6 +97,24 @@ public partial class ProjectMediaPanel : UserControl
     private void ContextMenu_Opened(object sender, RoutedEventArgs e)
     {
         var asset = SelectedItem?.Asset;
+        if (ProjectMediaContextMenuPolicy.UsesMissingAssetMenu(asset))
+        {
+            RenameItem.Visibility = Visibility.Collapsed;
+            RelinkSourceItem.Visibility = Visibility.Visible;
+            ExportItem.Visibility = Visibility.Collapsed;
+            ExtractAudioItem.Visibility = Visibility.Collapsed;
+            FirstMenuSeparator.Visibility = Visibility.Collapsed;
+            CopyToProjectItem.Visibility = Visibility.Collapsed;
+            MoveToProjectItem.Visibility = Visibility.Collapsed;
+            SecondMenuSeparator.Visibility = Visibility.Collapsed;
+            DeleteItem.Visibility = Visibility.Visible;
+            return;
+        }
+
+        DeleteItem.Visibility = Visibility.Visible;
+        ExportItem.Visibility = Visibility.Visible;
+        FirstMenuSeparator.Visibility = Visibility.Visible;
+        SecondMenuSeparator.Visibility = Visibility.Visible;
         var savedFrame = SelectedItem is { Anchor: not null, AnchorRevision: not null };
         var copyableVirtualVideo = asset is
         {

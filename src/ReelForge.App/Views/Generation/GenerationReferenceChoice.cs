@@ -41,6 +41,13 @@ public sealed class GenerationReferenceChoice
     public int Order { get; set; }
     public string? Label { get; set; }
     public string? Notes { get; set; }
+    /// <summary>
+    /// True when the referenced project object, or the durable source of a Saved Frame,
+    /// was deliberately removed from the project. Existing draft occurrences remain
+    /// visible, but cannot be duplicated or submitted.
+    /// </summary>
+    public bool IsDeleted { get; private set; }
+    public bool CanCreateAdditionalOccurrence => !IsDeleted;
 
     public void UpdateAsset(ProjectAsset asset, BitmapSource? thumbnail = null)
     {
@@ -61,10 +68,15 @@ public sealed class GenerationReferenceChoice
                 MediaType.Audio => "♪",
                 _ => "•"
             };
+        IsDeleted = asset.IsDeleted;
         if (thumbnail is not null) Thumbnail = thumbnail;
     }
 
-    public void UpdateAnchor(FrameAnchor anchor, FrameAnchorRevision revision, string? sourceDisplayName)
+    public void UpdateAnchor(
+        FrameAnchor anchor,
+        FrameAnchorRevision revision,
+        string? sourceDisplayName,
+        bool sourceIsDeleted = false)
     {
         ObjectKind = GenerationReferenceObjectKind.FrameAnchor;
         LogicalObjectId = anchor.Id;
@@ -74,6 +86,7 @@ public sealed class GenerationReferenceChoice
         MediaType = MediaType.Image;
         MediaTypeText = "Saved Frame • Image";
         Glyph = "▣";
+        IsDeleted = sourceIsDeleted;
     }
 
     public void UpdateThumbnail(BitmapSource? thumbnail) => Thumbnail = thumbnail;

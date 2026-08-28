@@ -95,6 +95,10 @@ public sealed class PhysicalAssetMaterializer : IMediaMaterializer
         string? expectedHash,
         CancellationToken cancellationToken)
     {
+        if (asset.IsDeleted)
+            throw new InvalidOperationException(
+                $"'{asset.EffectiveDisplayName}' was deleted from the project and cannot be materialized.");
+
         if (asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
             throw new InvalidOperationException("Materialization requires a durable physical source asset.");
 

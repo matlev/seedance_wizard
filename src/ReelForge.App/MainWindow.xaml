@@ -176,7 +176,9 @@
                     <RowDefinition Height="330" MinHeight="220" />
                 </Grid.RowDefinitions>
 
-                <mediaPreview:MediaPreviewPanel x:Name="MediaPreviewPanelControl" Grid.Row="0" />
+                <mediaPreview:MediaPreviewPanel x:Name="MediaPreviewPanelControl" Grid.Row="0"
+                                                 MissingMediaRelinkRequested="MediaPreviewPanel_MissingMediaRelinkRequested"
+                                                 MissingMediaDeleteRequested="MediaPreviewPanel_MissingMediaDeleteRequested" />
 
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" />
 

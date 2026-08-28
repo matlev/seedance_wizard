@@ -7,6 +7,7 @@ internal static partial class ProjectPersistenceMapper
     private static ProjectAssetDto ToDto(ProjectAsset source) => new()
     {
         Id = source.Id,
+        IsDeleted = source.IsDeleted,
         DisplayName = source.DisplayName,
         FileName = source.FileName,
         MediaType = source.MediaType,
@@ -31,6 +32,7 @@ internal static partial class ProjectPersistenceMapper
     private static ProjectAsset FromDto(ProjectAssetDto source) => new()
     {
         Id = source.Id,
+        IsDeleted = source.IsDeleted,
         DisplayName = source.DisplayName,
         FileName = source.FileName,
         MediaType = source.MediaType,

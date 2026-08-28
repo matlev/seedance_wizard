@@ -10,6 +10,7 @@
         <SolidColorBrush x:Key="TextBrush" Color="#F2F4F8" />
         <SolidColorBrush x:Key="MutedTextBrush" Color="#AAB1C0" />
         <SolidColorBrush x:Key="AccentBrush" Color="#8C7CFF" />
+        <SolidColorBrush x:Key="WarningBrush" Color="#F2C94C" />
 
         <Style TargetType="Window">
             <Setter Property="Background" Value="{StaticResource WindowBrush}" />

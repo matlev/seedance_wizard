@@ -259,6 +259,11 @@ public partial class GenerationPanel : UserControl
             Status = "Select a reference row to add another occurrence.";
             return;
         }
+        if (!selected.CanCreateAdditionalOccurrence)
+        {
+            Status = "A deleted project asset can remain in this draft, but cannot be added again.";
+            return;
+        }
         var duplicate = selected.Duplicate(_references.Count);
         _references.Add(duplicate);
         ReferenceAssetsGrid.SelectedItem = duplicate;

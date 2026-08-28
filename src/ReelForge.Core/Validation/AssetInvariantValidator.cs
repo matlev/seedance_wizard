@@ -15,6 +15,9 @@ internal static class AssetInvariantValidator
 
         foreach (var asset in project.Assets)
         {
+            if (asset.IsDeleted && asset.StorageKind != AssetStorageKind.Physical)
+                errors.Add($"Deleted asset '{asset.Id}' must retain physical storage metadata.");
+
             if (asset.StorageKind == AssetStorageKind.Physical)
             {
                 if (asset.Physical is null || asset.Virtual is not null)
@@ -30,6 +33,8 @@ internal static class AssetInvariantValidator
                     if (asset.Physical.ContentIdentity.Status == ContentHashStatus.Verified &&
                         !ValidationHelpers.IsSha256(asset.Physical.ContentIdentity.Sha256))
                         errors.Add($"Physical asset '{asset.Id}' has an invalid verified SHA-256 value.");
+                    if (asset.IsDeleted && asset.Physical.Availability != PhysicalAssetAvailability.Missing)
+                        errors.Add($"Deleted physical asset '{asset.Id}' must be marked missing.");
                 }
             }
             else if (asset.Virtual is null || asset.Physical is not null)

@@ -222,7 +222,7 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
     private async void Timeline_MediaDropRequested(object? sender, CompositionTimelineDropEventArgs e)
     {
         var asset = _workspace.Project?.Assets.SingleOrDefault(item => item.Id == e.AssetId);
-        if (asset is null) return;
+        if (asset is null || asset.IsDeleted || !ProjectMediaDragData.CanAddToComposition(asset)) return;
         var action = e.Kind == CompositionTimelineDropKind.Video
             ? $"Inserting {asset.EffectiveDisplayName} into the composition…"
             : $"Adding {asset.EffectiveDisplayName} to the audio track…";
