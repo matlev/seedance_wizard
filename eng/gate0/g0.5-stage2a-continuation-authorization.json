@@ -33,7 +33,7 @@
     {
       "role": "preflight",
       "path": "eng/gate0/Test-G05Stage2AContinuationPreflight.ps1",
-      "sha256": "9D1A9EC42600BD8FDDB4CB495EA29FDC914C5B2BE84C895C62BFBF278EEB23E5"
+      "sha256": "D7C1896D7FA629D0805B0D7A3078F6440BE04D7D2E982B0FEAF21C2CCC1346F4"
     },
     {
       "role": "v2-writer-authorization",

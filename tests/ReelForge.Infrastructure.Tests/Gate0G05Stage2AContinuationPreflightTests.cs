@@ -78,6 +78,8 @@ public sealed class Gate0G05Stage2AContinuationPreflightTests
         Assert.Contains("Exact remote V2 byte verification did not complete", script, StringComparison.Ordinal);
         Assert.Contains("remoteVerificationRequired", script, StringComparison.Ordinal);
         Assert.Contains("Exact remote V1 evidence byte verification did not complete", script, StringComparison.Ordinal);
+        Assert.Contains("$durableRemote.selectedLogicalArtifactBytes -ne [int64]$durableManifest.selectedLogicalArtifactBytes", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("1024859725", script, StringComparison.Ordinal);
         Assert.Contains("Exact remote durable source-inventory verification did not complete", script, StringComparison.Ordinal);
     }
 
