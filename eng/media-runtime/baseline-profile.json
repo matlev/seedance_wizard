@@ -28,7 +28,7 @@
     "encoder": ["ffv1", "flac", "libopus", "libvpx-vp9", "pcm_s16le", "png", "mjpeg"],
     "decoder": ["aac", "ffv1", "flac", "h264", "mp3", "mjpeg", "opus", "pcm_s16le", "png", "vorbis", "vp8", "vp9"],
     "muxer": ["flac", "image2", "matroska", "ogg", "wav", "webm"],
-    "demuxer": ["concat", "flac", "image2", "matroska,webm", "mp3", "ogg", "wav"],
+    "demuxer": ["concat", "flac", "image2", "matroska,webm", "mov,mp4,m4a,3gp,3g2,mj2", "mp3", "ogg", "wav"],
     "filter": ["acrossfade", "adelay", "afade", "aformat", "alphamerge", "alphaextract", "amix", "aresample", "asetpts", "atadenoise", "atrim", "colorlevels", "colorspace", "concat", "crop", "deflicker", "deshake", "drawtext", "fade", "format", "fps", "hue", "loudnorm", "lut3d", "nlmeans", "overlay", "pad", "pan", "rotate", "scale", "select", "setpts", "showwaves", "split", "subtitles", "transpose", "trim", "unsharp", "volume", "xfade"],
     "protocol": ["file"]
   },

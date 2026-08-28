@@ -6,8 +6,12 @@ $profilePath = Join-Path $PSScriptRoot 'baseline-profile.json'
 $profile = Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json -Depth 32
 if ($profile.schemaVersion -ne 1 -or $profile.status -ne 'development-baseline-candidate-not-shipping' -or $profile.sourceProfile.licensePath -ne 'LGPLv3-path' -or [string]::IsNullOrWhiteSpace($profile.sourceProfile.configuration)) { throw 'Media runtime baseline profile identity is invalid.' }
 foreach ($token in @('--enable-gpl','--enable-nonfree','libx264','libx265','libvidstab','librubberband','eq','hqdn3d')) { if ($token -notin @($profile.configurationPolicy.forbidden) + @($profile.configurationPolicy.forbiddenComponents)) { throw "Baseline policy does not forbid $token." } }
+$declaredConfiguration = @(([string]$profile.sourceProfile.configuration) -split '\s+' | Where-Object { $_ })
+foreach ($token in @($profile.configurationPolicy.forbidden)) { if ($token -in $declaredConfiguration) { throw "Baseline profile declares forbidden configuration token $token." } }
+$mappedComponents = @($profile.capabilityMappings.PSObject.Properties | ForEach-Object { @($_.Value) })
+foreach ($token in @($profile.configurationPolicy.forbiddenComponents)) { if ($token -in $mappedComponents) { throw "Baseline capability mapping declares forbidden component $token." } }
 foreach ($font in @($profile.fonts)) {
-  $fontPath = Join-Path $PSScriptRoot ([string]$font.relativePath).Replace('/','\')
+  $fontPath = Join-Path $PSScriptRoot ([string]$font.relativePath).Replace('/',[IO.Path]::DirectorySeparatorChar)
   if (-not (Test-Path -LiteralPath $fontPath -PathType Leaf) -or (Get-FileHash -LiteralPath $fontPath -Algorithm SHA256).Hash -ne [string]$font.sha256) { throw "Pinned baseline font is absent or hash-drifted: $([IO.Path]::GetFileName($fontPath))." }
 }
 $result = [ordered]@{ profileId=$profile.profileId; status='static-policy-valid'; live=$false; networkAccess=$false; credentialsAccess=$false; shippingConclusion=$false }

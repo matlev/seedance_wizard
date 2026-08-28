@@ -1,6 +1,6 @@
 # Gate 0 final summary
 
-Status: closed
+Status: closed with explicit release/legal/playback conditions
 
 Gate 0 asked which codecs, containers, filters, libraries, platform facilities, and runtime capabilities ReelForge can safely build its planned media features against. It is closed with a practical LGPL-first development contract, a small runtime profile/validator, and representative smoke coverage. It does not select or authorize a public redistributable binary.
 
@@ -16,8 +16,12 @@ Useful direct results were distilled without preserving the former proof-retenti
 - VP9/Opus and OpenH264/native-AAC routes passed retained lossy-audio evaluation, every-frame marker survival, and the later representative replacement smoke;
 - baseline and typical 720p runtime-route compositions passed for MP4 one-thread and WebM one/eight-thread candidates;
 - the latest six `stress-720p-webm-eight` attempts passed descriptor, encode, probe, video timing/identity, audio timing/quality, cleanup, and orphan checks. Their later V2 retention rejection was a producer-label metadata defect and does not invalidate the media result;
-- representative WebM paired and video-only outputs opened, played, paused, sought, resumed, ended, and replayed in Chromium; and
+- representative WebM paired and video-only outputs opened, played, paused, sought, resumed, ended, and replayed in Chromium;
+- fresh representative MP4 and WebM outputs opened, decoded, played, paused, resumed, and reached end-of-media in the available Chromium engine; MP4 seeking succeeded, while the fresh WebM smoke output's HTTP seek remained inconclusive even though the earlier retained WebM playback corpus passed seeking; and
+- the installed Windows Media Player automation interface did not load the fresh MP4 within the bounded check, so Gate 0 records that player route as unsupported on this host rather than claiming broad Windows-player compatibility; and
 - the product-neutral WPF no-media control passed, while media-load responsiveness was intentionally not extrapolated to product behavior.
+
+These automated controls plus the retained stream/timing/audio evidence are technical playback checks. They do not substitute for a human audible-sync observation. Perceptual A/V sync and a second ordinary Windows-player compatibility pass remain release-candidate/manual acceptance work; they keep MP4 Conditional rather than holding the development baseline open.
 
 ## Final decisions
 
@@ -26,7 +30,7 @@ Useful direct results were distilled without preserving the former proof-retenti
 - [`baseline-profile.json`](../eng/media-runtime/baseline-profile.json) is the machine-readable development profile. It is not the selected shipping runtime.
 - The LGPL-first dependency policy is an accepted supply-chain decision in [ADR-0001](adr/0001-lgpl-first-media-runtime.md).
 - Open VP9/Opus WebM is the guaranteed open video-delivery alternative.
-- H.264/AAC MP4 remains the required ordinary compatibility target, but its final encoder, playback, patent, redistribution, and binary-closure decisions are Conditional and belong to release engineering/legal review.
+- H.264/AAC MP4 remains the required ordinary compatibility target, but its final encoder, broader player compatibility, perceptual A/V sync, patent, redistribution, and binary-closure decisions are Conditional and belong to release engineering/legal/manual acceptance.
 - Ordinary audio/image output remains Free. WAV, FLAC, Ogg Opus, PNG, and JPEG are baseline; M4A/AAC and MP3 are Conditional.
 - Capability-qualified local formats remain useful and Free where available, but never become portable project requirements.
 - Project persistence stores semantic editing intent and stable media identity, not runtime paths, encoder/filter names, cache paths, or platform capabilities.

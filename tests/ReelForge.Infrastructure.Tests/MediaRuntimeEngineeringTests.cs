@@ -18,6 +18,7 @@ public sealed class MediaRuntimeEngineeringTests
         var source = root.GetProperty("sourceProfile");
         foreach (var property in new[] { "release", "upstreamUrl", "upstreamRetention", "ffmpegSourceCommit", "btbnBuildCommit", "version", "target", "configuration" }) Assert.True(source.TryGetProperty(property, out _));
         foreach (var kind in new[] { "encoder", "decoder", "muxer", "demuxer", "filter", "protocol" }) Assert.True(root.GetProperty("requiredComponents").TryGetProperty(kind, out _));
+        Assert.Contains("mov,mp4,m4a,3gp,3g2,mj2", root.GetProperty("requiredComponents").GetProperty("demuxer").EnumerateArray().Select(x => x.GetString()));
         Assert.Equal(3, root.GetProperty("fonts").GetArrayLength());
     }
 
@@ -42,6 +43,34 @@ public sealed class MediaRuntimeEngineeringTests
     }
 
     [Fact]
+    public void ValidatorRejectsForbiddenDeclarationsInConfigurationOrMappings()
+    {
+        var source = PathInRepo("eng", "media-runtime");
+        var temporary = Path.Combine(Path.GetTempPath(), $"reelforge-media-profile-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(temporary);
+        try
+        {
+            File.Copy(Path.Combine(source, "Validate-MediaRuntime.ps1"), Path.Combine(temporary, "Validate-MediaRuntime.ps1"));
+            var profile = File.ReadAllText(Path.Combine(source, "baseline-profile.json"));
+            File.WriteAllText(Path.Combine(temporary, "baseline-profile.json"), profile.Replace("--enable-version3", "--enable-gpl --enable-version3", StringComparison.Ordinal));
+            Directory.CreateDirectory(Path.Combine(temporary, "fonts"));
+            foreach (var font in Directory.GetFiles(Path.Combine(source, "fonts"), "*.*")) File.Copy(font, Path.Combine(temporary, "fonts", Path.GetFileName(font)));
+            var result = RunPwsh($"& '{Escape(Path.Combine(temporary, "Validate-MediaRuntime.ps1"))}'");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("declares forbidden configuration token --enable-gpl", result.Output, StringComparison.Ordinal);
+
+            File.WriteAllText(Path.Combine(temporary, "baseline-profile.json"), profile.Replace("\"openDelivery\": [", "\"openDelivery\": [\"eq\", ", StringComparison.Ordinal));
+            result = RunPwsh($"& '{Escape(Path.Combine(temporary, "Validate-MediaRuntime.ps1"))}'");
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("declares forbidden component eq", result.Output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(temporary, recursive: true);
+        }
+    }
+
+    [Fact]
     public void SmokeToolDeclaresTheBoundedFamiliesWithoutRunningMedia()
     {
         var text = File.ReadAllText(PathInRepo("eng", "media-runtime", "Invoke-MediaSmokeTests.ps1"));
@@ -50,6 +79,8 @@ public sealed class MediaRuntimeEngineeringTests
         Assert.Contains("[int] $Threads = 1", text, StringComparison.Ordinal);
         Assert.Contains("concat=n=2", text, StringComparison.Ordinal);
         Assert.Contains("asplit", text, StringComparison.Ordinal);
+        Assert.Contains("Set-SemanticCheck", text, StringComparison.Ordinal);
+        Assert.Contains("cues_to_front", text, StringComparison.Ordinal);
     }
 
     private static string PathInRepo(params string[] parts)
