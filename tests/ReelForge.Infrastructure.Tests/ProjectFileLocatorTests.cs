@@ -43,6 +43,21 @@ public sealed class ProjectFileLocatorTests : IDisposable
         Assert.False(ProjectFileLocator.IsSupportedProjectFile(jsonFile));
     }
 
+    [Fact]
+    public void IgnoresUnpublishedCloneStagingProjects()
+    {
+        Directory.CreateDirectory(_temporaryRoot);
+        var staging = Directory.CreateDirectory(Path.Combine(
+            _temporaryRoot,
+            ".Interrupted copy.clone-0123456789abcdef0123456789abcdef")).FullName;
+        File.WriteAllText(Path.Combine(staging, "Interrupted copy.rfp"), "{}");
+
+        var result = ProjectFileLocator.FindInFolderAndChildren(_temporaryRoot);
+
+        Assert.Empty(result);
+        Assert.False(ProjectFileLocator.IsSupportedProjectFile(Path.Combine(staging, "Interrupted copy.rfp")));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_temporaryRoot)) Directory.Delete(_temporaryRoot, recursive: true);

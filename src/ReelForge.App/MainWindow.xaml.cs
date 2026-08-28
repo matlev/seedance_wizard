@@ -45,6 +45,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly IApplicationSettingsStore _applicationSettingsStore;
     private readonly ProjectLifecycleDialogs _projectDialogs;
     private readonly ProjectLifecycleCoordinator _projectLifecycleCoordinator;
+    private readonly ProjectCloneCoordinator _projectCloneCoordinator;
     private readonly ITemporaryAssetHost _temporaryAssetHost;
     private ApplicationSettings _applicationSettings;
     private MediaToolAvailability _mediaTools;
@@ -84,6 +85,14 @@ public partial class MainWindow : Window, IDisposable
             _applicationSettingsStore,
             () => _applicationSettings,
             new ProjectLifecyclePresentation(this));
+        _projectCloneCoordinator = new ProjectCloneCoordinator(
+            this,
+            _workspace,
+            _runtime.ProjectCloneService,
+            _runtime.RecentProjectTracker,
+            () => _applicationSettings,
+            _runtime.Paths,
+            status => StatusText.Text = status);
         _projectMediaOperationsCoordinator = new ProjectMediaOperationsCoordinator(
             _workspace,
             _runtime.RenderedAssetPromotionService,
@@ -179,6 +188,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _projectCloneCoordinator.CancelActiveClone();
         CancelProjectMediaSelectionWork();
         _generationSubmission.Dispose();
         _generationWorkspace.ReferenceSelectionRequested -= GenerationWorkspace_ReferenceSelectionRequested;
@@ -314,6 +324,11 @@ public partial class MainWindow : Window, IDisposable
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
     {
         await _projectLifecycleCoordinator.OpenProjectFromDialogAsync();
+    }
+
+    private async void CloneProject_Click(object sender, RoutedEventArgs e)
+    {
+        await _projectCloneCoordinator.CloneFromDialogAsync();
     }
 
     private async void ImportAssets_Click(object sender, RoutedEventArgs e)
@@ -750,6 +765,7 @@ public partial class MainWindow : Window, IDisposable
     {
         NewProjectMenuItem.IsEnabled = isEnabled;
         OpenProjectMenuItem.IsEnabled = isEnabled;
+        CloneProjectMenuItem.IsEnabled = isEnabled;
         ImportAssetsMenuItem.IsEnabled = isEnabled;
         SettingsMenuItem.IsEnabled = isEnabled;
         GenerationPanelControl.IsProviderEnabled = isEnabled;

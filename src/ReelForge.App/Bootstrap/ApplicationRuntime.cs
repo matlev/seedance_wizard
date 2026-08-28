@@ -52,6 +52,10 @@ internal sealed class ApplicationRuntime : IDisposable
 
         ProjectStore = new PortableProjectStore();
         ProjectSaveCoordinator = new ProjectSaveCoordinator();
+        ProjectCloneService = new ProjectCloneService(
+            ProjectStore,
+            new PortableProjectCloneFileSystem(),
+            ProjectSaveCoordinator);
         AssetImporter = new AssetImportService(MediaInspector);
         Workspace = new ProjectWorkspace(ProjectStore, AssetImporter, ProjectStore, ProjectSaveCoordinator);
         AssetTransferService = new ProjectAssetTransferService(ProjectStore, AssetImporter, Workspace);
@@ -117,6 +121,7 @@ internal sealed class ApplicationRuntime : IDisposable
     public MediaToolAvailability MediaTools { get; private set; }
     public PortableProjectStore ProjectStore { get; }
     public ProjectSaveCoordinator ProjectSaveCoordinator { get; }
+    public ProjectCloneService ProjectCloneService { get; }
     public AssetImportService AssetImporter { get; }
     public ProjectWorkspace Workspace { get; }
     public ProjectAssetTransferService AssetTransferService { get; }

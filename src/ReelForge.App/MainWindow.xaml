@@ -245,6 +245,7 @@
                         <MenuItem Header="_File">
                             <MenuItem x:Name="NewProjectMenuItem" Style="{StaticResource TitleMenuItemStyle}" Header="_New project" Click="NewProject_Click" />
                             <MenuItem x:Name="OpenProjectMenuItem" Style="{StaticResource TitleMenuItemStyle}" Header="_Open project…" Click="OpenProject_Click" />
+                            <MenuItem x:Name="CloneProjectMenuItem" Style="{StaticResource TitleMenuItemStyle}" Header="C_lone project…" Click="CloneProject_Click" />
                             <MenuItem x:Name="ImportAssetsMenuItem" Style="{StaticResource TitleMenuItemStyle}" Header="_Import assets…" Click="ImportAssets_Click" />
                             <Separator />
                             <MenuItem x:Name="SettingsMenuItem" Style="{StaticResource TitleMenuItemStyle}" Header="_Settings…" Click="Settings_Click" />
