@@ -1,6 +1,6 @@
 # Gate 0 current status
 
-Status: Stage 2A continuation approved conditionally; V2 and V5 activation gates in progress
+Status: Stage 2A continuation blocked at first-cell retention; V2 shard serialization and replacement-execution decisions required
 
 Updated: 2026-08-27
 
@@ -10,13 +10,13 @@ This is the small canonical current-status entry point for Gate 0. Historical de
 
 Gate 0 remains inside its approved research-and-proof boundary. It has not added editing UI, project persistence, product render-command changes, runtime enforcement, or Windows-specific project meaning. The narrow product-source runtime observation/validation seam remains unintegrated with production behavior.
 
-The two earlier Stage 2A starts remain non-authoritative harness-defect history. The first stopped after one local media execution because of an ordered-dictionary validator defect. The replacement completed six local media executions in the first cell, then stopped before retention because runner bindings used source-relative paths while immutable shard artifacts use the retained destination namespace. Both blocks occurred before R2, shard, or root-index mutation, and both local closures remain excluded from matrix dispositions and statistics. See the [replacement-execution block](gate-0-g0.5-stage2a-replacement-execution-block.md).
+The accepted Stage 2A run remains unchanged at 108 authoritative schedule records: 38 physical media executions—36 passed and two semantically divergent—and 70 blocked records with no media execution. Seven earlier non-authoritative harness-defect executions and 12 newer non-authoritative continuation executions bring the cumulative physical-media-execution count to 57. None of the 12 newer executions advances the 72-attempt authoritative continuation schedule.
 
-The accepted Stage 2A run retained 108 authoritative schedule records: 38 actual media executions—36 passed and two semantically divergent—and 70 blocked records with no media execution. Seven earlier non-authoritative harness-defect executions make 45 cumulative actual media executions to date. The previously reported 115 figure combined unlike categories and is not a physical-execution count. The no-media diagnostic reproduced all 25 stress-audio findings against the reference itself and classified the cause as oracle/descriptor self-inconsistency rather than a proven route defect.
+The approved V2/V5 continuation prerequisites and a fresh full local/R2, resource, corpus, and headroom preflight passed. Execution nevertheless remains blocked at retention of the first continuation cell, `stress-720p-webm-eight` (global ordinals 109 through 114). The latest warm-up and five measured attempts passed their semantic checks, but their staged evidence is non-authoritative because review found malformed compact closure references and the valid V2 shard shape exceeds the exact 300-line pretty-printed limit. The append stopped before journal, destination, shard, root-index, transaction-staging, or R2 mutation.
 
-The owner conditionally authorized 72 new media executions, including fresh performance warm-ups, only after V2 containment, diagnostic retention, V5 controls/freeze, retained-output reevaluation, schedule freeze, and resource/corpus/headroom preflights all pass. No continuation media execution is authorized before those gates complete.
+The closure-reference defect is fixed and independently enforced by the V2 writer; the focused continuation and containment set passes 71 of 71 tests. The remaining policy decision is whether V2 shard manifests may use deterministic compact JSON while retaining the exact schema, evidence, hashes, validation, and 65,536-byte ceiling. The current 23-file staged cell must not be repaired or appended. It awaits owner approval for atomic quarantine and one replacement execution. See the [V2 shard block and owner decisions](gate-0-g0.5-stage2a-v2-shard-block.md).
 
-The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. Independent playback, measured Stage 2 performance, WPF media-load evidence, cancellation/preview/resource evidence, long-form integrity, final Pro dispositions, and the G0.7 decision packet remain open.
+The platform-neutral semantic proof remains strong, but Gate 0 is not ready to exit. The Stage 2A continuation, independent playback, measured Stage 2 performance, WPF media-load evidence, cancellation/preview/resource evidence, long-form integrity, final Pro dispositions, and the G0.7 decision packet remain open.
 
 ## Authoritative current evidence
 
@@ -31,31 +31,27 @@ The platform-neutral semantic proof is strong, but Gate 0 is not ready to exit. 
 | G0.5 retained audio | Both routes passed all 48 retained Stage 1 rows under frozen V3 | [Retained-audio results](gate-0-g0.5-retained-audio-results.md) |
 | Marker survivability | 1,500 of 1,500 frames passed | [Marker results](gate-0-g0.5-marker-survivability-results.md) |
 | WPF no-media control | Passed; media-load behavior remains unexecuted | [WPF no-media results](gate-0-g0.5-wpf-no-media-results.md) |
-| Reference-host resource preflight | Passed for the bounded smoke | [Smoke preflight](gate-0-g0.5-smoke-preflight.md) |
-| First pre-matrix smoke | Non-authoritative harness-discovery evidence; no route admitted or rejected | [Pre-matrix smoke result](gate-0-g0.5-stage2-pre-matrix-smoke-results.md) |
-| V4 structured-audio amendment | Five structured controls passed; all 12 V3 control hashes/dispositions preserved; frozen before route evaluation | [Smoke amendment decisions](gate-0-g0.5-stage2-smoke-amendment-decisions.md) |
 | Replacement pre-matrix smoke | MP4 one-thread, WebM one-thread, and WebM half-logical each passed once under the complete frozen contract | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
-| Durable artifact retention | Current 4,101-artifact corpus independently byte-verified in private R2 | [Replacement-smoke result](gate-0-g0.5-stage2-replacement-smoke-results.md) |
-| Future evidence containment | Legacy corpus sealed; immutable shard/index path passed local and exact R2-byte no-media proof | [Containment result](gate-0-g0.5-stage2-containment-results.md) |
-| Stage 2A execution prerequisite | Exact 18-cell/108-attempt schedule, semantic executor, hash closure, runtime/resource preflight, bounded retention, and no-media activation review passed | [Execution prerequisite](gate-0-g0.5-stage2a-execution-prerequisite.md) |
+| Durable artifact retention | Accepted corpus independently byte-verified in private R2; continuation failures made no R2 evidence mutation | [Containment result](gate-0-g0.5-stage2-containment-results.md) |
 | Stage 2A measured matrix | Completed all 18 cells and 108 authoritative records: 36 passed, two semantically divergent, 70 blocked; all 289 indexed artifacts independently verified locally and in R2 | [Stage 2A owner packet](gate-0-g0.5-stage2a-results.md) |
-| Stage 2A stress-audio diagnostic | Reference fails its own frozen active model with the same 25 findings; no route defect inferred; stress-only V5 proposal not applied | [Audio diagnostic owner packet](gate-0-g0.5-stage2a-audio-diagnostic-results.md) |
-| Current owner authorization | V2 and V5 no-media prerequisites are approved; 72-execution continuation is conditional on every activation gate | [Continuation approval](gate-0-g0.5-stage2a-continuation-approval.md) |
+| Stage 2A stress-audio diagnostic | Reference fails its own frozen active model with the same 25 findings; no route defect inferred | [Audio diagnostic owner packet](gate-0-g0.5-stage2a-audio-diagnostic-results.md) |
+| Stage 2A continuation contract | V2, stress-only V5, a fixed 72-attempt schedule, and exact activation gates approved | [Continuation approval](gate-0-g0.5-stage2a-continuation-approval.md) |
+| Continuation activation | Approved no-media prerequisites and fresh full preflight passed; no authoritative continuation cell retained | [V2 shard block](gate-0-g0.5-stage2a-v2-shard-block.md) |
+| First activation quarantine | Two-file, 5,763,062-byte pre-media partial root atomically preserved; reuse and automatic deletion prohibited | [First quarantine receipt](../eng/gate0/g0.5-stage2a-continuation-quarantine-receipt.json) |
+| Second activation quarantine | 81-file, 59,800,276-byte media-bearing partial root atomically preserved and reverified; reuse and automatic deletion prohibited | [Second quarantine receipt](../eng/gate0/g0.5-stage2a-continuation-quarantine-receipt-2.json) |
+| Current owner decision | Compact V2 shard serialization, third-root quarantine, one replacement cell, and final non-authoritative accounting await approval | [V2 shard block](gate-0-g0.5-stage2a-v2-shard-block.md) |
 
 ## Active bounded unit
 
-The replacement-smoke unit completed:
+Continuation activation reached the first approved cell through three fail-closed attempts:
 
-1. added the versioned, descriptor-scoped V4 reference-relative active-window amendment without changing V3;
-2. executed and froze the approved amended controls before reading replacement route outputs;
-3. retained and independently verified that contract/control evidence locally and in R2;
-4. executed exactly one replacement smoke attempt for each of the three approved candidates, all of which passed;
-5. retained and independently verified the replacement evidence; and
-6. produced one compact owner packet with results, growth projections, containment recommendation, and the proposed full-matrix route/thread subset.
+1. The first stopped before media with a two-file partial root. The owner approved atomic quarantine, and the exact bytes were moved and verified under a committed receipt.
+2. The second executed six physical media attempts, then stopped on a duplicate immutable evidence write. Its 81-file partial root was atomically quarantined and verified. The writer defect was removed and regression-covered.
+3. The third executed the same six physical attempts after a fresh full preflight. All six passed semantic checks. V2 retention then stopped before journal or remote work because the projected pretty-printed shard was 353 lines against the 300-line cap, despite measuring only 19,828 bytes against the 65,536-byte cap. Review also found the doubled continuation prefix in compact closure references, making this 23-file root non-authoritative regardless of serialization.
 
-The exact Stage 2A run completed all 18 cells and retained all 108 authoritative records: 36 passed, two semantically divergent, and 70 blocked after fail-fast suspension of both routes. The no-media diagnostic proved that the independently authored stress reference reproduces all 25 findings under the frozen V3 absolute-activity checks. Both retained routes reproduce the same ordered finding set; neither is shown defective. The narrow `throw` tokenization fix passed its no-media regression without changing any disposition. A stress-only reference-relative V5 overlay is proposed but not applied.
+The closure-reference correction preserves the binding helper's canonical attempt identity and requires every compact reference to resolve to exactly one complete, passed attempt in the same six-attempt document. The current staged root remains untouched pending an owner-approved quarantine. No failed activation produced a continuation shard, root-index entry, accepted continuation disposition, or R2 evidence mutation.
 
-The diagnostic is hash-verified in project-controlled sibling staging. Its completed local/R2 append attempt stopped at the former conservative root-shape estimate before any journal, root, shard, retained-artifact, or R2 mutation. Independently, V1 already uses its approved two infrastructure and 18 cell shards, so it must not be retried. The owner approved a future-only V2 segment rather than mutating V1 limits, plus the exact stress-only V5 overlay and its no-media controls. The conditional 72-execution continuation remains blocked until every activation gate passes. Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized.
+The recommended next bounded unit is to authorize deterministic compact JSON for V2 shard manifests only, preserving all schema and byte controls; quarantine the current malformed-reference root with a complete hash receipt; implement and review the serialization change without media; refresh the exact authorization hashes; pass a fresh full preflight; and execute one replacement six-attempt cell. The alternative is a broader V2 line-contract amendment and associated root/V5 revalidation.
 
 ## Containment and remaining sequence
 
@@ -63,6 +59,6 @@ No new codec/container/filter matrix, dependency, installation, fixture family, 
 
 F7/Matroska expansion has stopped. The final packet will classify the 83 non-passing rows rather than attempt further repairs unless a required Free 1.0 workflow is shown to depend on an exact row.
 
-The exact 18-cell/108-record matrix and [V1 evidence-containment contract](gate-0-evidence-containment.md) are complete for the accepted run. V2 and V5 implementation may now proceed under the [continuation approval](gate-0-g0.5-stage2a-continuation-approval.md). V1, the original warm-up dispositions, and previously passed cells remain immutable.
+V1, the accepted 18-cell/108-record matrix, the original warm-up dispositions, and previously passed cells remain immutable. The V2/V5 activation evidence remains valid; the current block concerns the first continuation cell's retained shard representation and staged binding correctness, not the approved media semantics or product architecture.
 
-After any separately authorized measured work, Gate 0 still requires long-form sizing and authorization, suitable independent playback, documentation-only Pro repair dispositions, and the G0.7 exit packet.
+The immediate sequence requires the four decisions in the [V2 shard block](gate-0-g0.5-stage2a-v2-shard-block.md). Stage 2B, concurrency comparison, long-form work, new playback installations, product integration, shipping-runtime selection, and distribution/legal conclusions remain unauthorized. After separately authorized measured work, Gate 0 still requires long-form sizing and authorization, suitable independent playback, documentation-only Pro repair dispositions, and the G0.7 exit packet.
