@@ -113,7 +113,19 @@ public sealed class CompositionVideoItem : ICompositionItem
 
 public sealed class CompositionAudioItem : ICompositionItem
 {
-    public CompositionAudioItem(Guid id, AssetRevisionReference source, int selectedStreamIndex, AudioSourceRange? sourceRange, StreamTimingAssessmentPin timingAssessment, ExactTime compositionStart, Guid? linkGroupId = null)
+    public CompositionAudioItem(
+        Guid id,
+        AssetRevisionReference source,
+        int selectedStreamIndex,
+        AudioSourceRange? sourceRange,
+        StreamTimingAssessmentPin timingAssessment,
+        ExactTime compositionStart,
+        Guid? linkGroupId = null,
+        bool isMuted = false,
+        double gainDecibels = 0,
+        double pan = 0,
+        ExactTime? fadeIn = null,
+        ExactTime? fadeOut = null)
     {
         WorkingCompositionGuards.RequireId(id, nameof(id));
         Source = source ?? throw new ArgumentNullException(nameof(source));
@@ -131,9 +143,16 @@ public sealed class CompositionAudioItem : ICompositionItem
         SourceRange = sourceRange;
         CompositionStart = WorkingCompositionGuards.RequireNonnegative(compositionStart, nameof(compositionStart));
         WorkingCompositionGuards.RequireOptionalId(linkGroupId, nameof(linkGroupId));
+        WorkingCompositionGuards.RequireFiniteRange(gainDecibels, -60, 12, nameof(gainDecibels));
+        WorkingCompositionGuards.RequireFiniteRange(pan, -1, 1, nameof(pan));
+        FadeIn = WorkingCompositionGuards.RequireFadeDuration(fadeIn ?? new ExactTime(0, 1), TimingAssessment.TimelineDuration, nameof(fadeIn));
+        FadeOut = WorkingCompositionGuards.RequireFadeDuration(fadeOut ?? new ExactTime(0, 1), TimingAssessment.TimelineDuration, nameof(fadeOut));
         Id = id;
         SelectedStreamIndex = selectedStreamIndex;
         LinkGroupId = linkGroupId;
+        IsMuted = isMuted;
+        GainDecibels = gainDecibels;
+        Pan = pan;
     }
     public Guid Id { get; }
     public AssetRevisionReference Source { get; }
@@ -142,6 +161,11 @@ public sealed class CompositionAudioItem : ICompositionItem
     public StreamTimingAssessmentPin TimingAssessment { get; }
     public ExactTime CompositionStart { get; }
     public Guid? LinkGroupId { get; }
+    public bool IsMuted { get; }
+    public double GainDecibels { get; }
+    public double Pan { get; }
+    public ExactTime FadeIn { get; }
+    public ExactTime FadeOut { get; }
 }
 
 public sealed class VideoSourceRange
@@ -227,6 +251,18 @@ internal static class WorkingCompositionGuards
     {
         ArgumentNullException.ThrowIfNull(value, parameterName);
         if (value < Zero) throw new ArgumentOutOfRangeException(parameterName, "Composition time must be nonnegative.");
+        return value;
+    }
+    public static void RequireFiniteRange(double value, double minimum, double maximum, string parameterName)
+    {
+        if (!double.IsFinite(value) || value < minimum || value > maximum)
+            throw new ArgumentOutOfRangeException(parameterName);
+    }
+    public static ExactTime RequireFadeDuration(ExactTime value, ExactTime maximum, string parameterName)
+    {
+        RequireNonnegative(value, parameterName);
+        if (value > maximum)
+            throw new ArgumentOutOfRangeException(parameterName, "Audio fades cannot exceed the pinned timeline duration.");
         return value;
     }
 }

@@ -54,6 +54,61 @@ public sealed class WorkingCompositionModelsTests
     }
 
     [Fact]
+    public void AudioItemDefaultsAndExactMixValuesAreImmutableAndSeparateFromTrackMute()
+    {
+        var defaultItem = AudioItem(end: 48_000);
+        var configuredItem = AudioItem(
+            end: 48_000,
+            isMuted: true,
+            gainDecibels: -3.25,
+            pan: new ExactTime(1, 3).ToDoubleSeconds(),
+            fadeIn: new ExactTime(1001, 48_000),
+            fadeOut: new ExactTime(3003, 48_000));
+        var unmutedTrack = AudioTrack(isMuted: false, items: [configuredItem]);
+        var mutedTrack = AudioTrack(isMuted: true, items: [defaultItem]);
+        var state = new WorkingCompositionState([], [unmutedTrack, mutedTrack]);
+
+        Assert.False(defaultItem.IsMuted);
+        Assert.Equal(0, defaultItem.GainDecibels);
+        Assert.Equal(0, defaultItem.Pan);
+        Assert.Equal(new ExactTime(0, 1), defaultItem.FadeIn);
+        Assert.Equal(new ExactTime(0, 1), defaultItem.FadeOut);
+        Assert.True(configuredItem.IsMuted);
+        Assert.Equal(-3.25, configuredItem.GainDecibels);
+        Assert.Equal(1d / 3d, configuredItem.Pan);
+        Assert.Equal(new ExactTime(1001, 48_000), configuredItem.FadeIn);
+        Assert.Equal(new ExactTime(3003, 48_000), configuredItem.FadeOut);
+        Assert.Equal([unmutedTrack.Id], state.ContributingAudioTracks.Select(track => track.Id));
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(-60.1)]
+    [InlineData(12.1)]
+    public void AudioItemRejectsInvalidGain(double gainDecibels) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => AudioItem(end: 48_000, gainDecibels: gainDecibels));
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(-1.1)]
+    [InlineData(1.1)]
+    public void AudioItemRejectsInvalidPan(double pan) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => AudioItem(end: 48_000, pan: pan));
+
+    [Fact]
+    public void AudioItemRejectsNegativeAndOverDurationFadesButDoesNotRequireTheirSumToFit()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => AudioItem(end: 48_000, fadeIn: new ExactTime(-1, 48_000)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => AudioItem(end: 48_000, fadeOut: new ExactTime(48_001, 48_000)));
+
+        var item = AudioItem(end: 48_000, fadeIn: new ExactTime(48_000, 48_000), fadeOut: new ExactTime(48_000, 48_000));
+        Assert.Equal(new ExactTime(1, 1), item.FadeIn);
+        Assert.Equal(new ExactTime(1, 1), item.FadeOut);
+    }
+
+    [Fact]
     public void ItemsPreserveExactTimeStreamRangeAndValidLinkedSourcePairWithoutCreatingAsset()
     {
         var source = new AssetRevisionReference { AssetId = Guid.NewGuid(), RecipeRevisionId = Guid.NewGuid() };
@@ -158,9 +213,11 @@ public sealed class WorkingCompositionModelsTests
 
     private static CompositionAudioItem AudioItem(
         Guid? id = null, AssetRevisionReference? source = null, int stream = 0, long start = 0, long end = 1,
-        ExactTime? compositionStart = null, Guid? linkGroupId = null)
+        ExactTime? compositionStart = null, Guid? linkGroupId = null, bool isMuted = false,
+        double gainDecibels = 0, double pan = 0, ExactTime? fadeIn = null, ExactTime? fadeOut = null)
         => new(id ?? Guid.NewGuid(), source ?? new AssetRevisionReference { AssetId = Guid.NewGuid() }, stream,
-            new AudioSourceRange(Ast(start), Ast(end)), AudioPin(stream, start, end), compositionStart ?? new ExactTime(0, 1), linkGroupId);
+            new AudioSourceRange(Ast(start), Ast(end)), AudioPin(stream, start, end), compositionStart ?? new ExactTime(0, 1), linkGroupId,
+            isMuted, gainDecibels, pan, fadeIn, fadeOut);
 
     private static VideoPresentationTime Vpt(long pts) => new(pts, 1001, 60_000);
     private static AudioSampleTime Ast(long sample) => new(sample, 48_000);
