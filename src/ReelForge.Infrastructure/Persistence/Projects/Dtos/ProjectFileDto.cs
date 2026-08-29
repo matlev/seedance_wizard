@@ -2,7 +2,7 @@ namespace ReelForge.Infrastructure;
 
 internal sealed class ProjectFileDto
 {
-    public const int CurrentFormatVersion = 3;
+    public const int CurrentFormatVersion = 4;
 
     public int FormatVersion { get; set; } = CurrentFormatVersion;
     public Guid Id { get; set; }

@@ -182,6 +182,47 @@ public sealed class MediaEncodingPersistenceTests : IDisposable
         await Assert.ThrowsAsync<ProjectValidationException>(() => store.OpenAsync(location.ProjectFilePath));
     }
 
+    [Fact]
+    public async Task CompositionOccurrenceWhosePinDoesNotMatchItsPhysicalSourceIsRejectedOnOpen()
+    {
+        var store = new PortableProjectStore();
+        var (project, location) = await store.CreateAsync(_temporaryRoot, "Invalid occurrence identity");
+        var source = PhysicalVideoWithTiming();
+        project.AddAsset(source);
+        var composition = new ProjectAsset
+        {
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(composition);
+        project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Composition = new WorkingCompositionState(
+                [new CompositionVideoTrack(Guid.NewGuid(), false, true,
+                [
+                    new CompositionVideoItem(
+                        Guid.NewGuid(),
+                        new AssetRevisionReference { AssetId = source.Id },
+                        4,
+                        new VideoSourceRange(new VideoPresentationTime(0, 1, 30), new VideoPresentationTime(30, 1, 30)),
+                        source.TimingAssessments.Single().CreatePlacementPin(),
+                        new ExactTime(0, 1))
+                ])],
+                [])
+        });
+        project.WorkingCompositionAssetId = composition.Id;
+        await store.SaveAsync(project, location);
+
+        var document = JsonNode.Parse(await File.ReadAllTextAsync(location.ProjectFilePath))!.AsObject();
+        document["recipeRevisions"]!.AsArray()[0]!["recipe"]!["compositionState"]!["videoTracks"]!
+            .AsArray()[0]!["items"]!.AsArray()[0]!["timingAssessment"]!["sourceContentHash"] = new string('b', 64);
+        await File.WriteAllTextAsync(location.ProjectFilePath, document.ToJsonString());
+
+        await Assert.ThrowsAsync<ProjectValidationException>(() => store.OpenAsync(location.ProjectFilePath));
+    }
+
     private static ProjectAsset PhysicalVideoWithTiming()
     {
         var asset = new ProjectAsset

@@ -569,10 +569,13 @@ public partial class MainWindow : Window, IDisposable
             candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
         _mediaPreviewCoordinator.ClearStaleCompositionPreviewIfNeeded(composition, revision);
         var recipe = (CompositionRecipe)revision.Recipe;
+        var videoItemCount = recipe.Composition.VideoTracks.Sum(track => track.Items.Count);
+        var audioItemCount = recipe.Composition.AudioTracks.Sum(track => track.Items.Count);
         WorkingCompositionSummaryText.Text =
-            $"{recipe.Segments.Count} video segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • " +
-            $"{recipe.AudioClips.Count} audio clip{(recipe.AudioClips.Count == 1 ? string.Empty : "s")} • " +
-            $"exact, revision-pinned sources • recipe revision {revision.RevisionNumber}";
+            $"{recipe.Composition.VideoTracks.Count} video track{(recipe.Composition.VideoTracks.Count == 1 ? string.Empty : "s")} • " +
+            $"{videoItemCount} video item{(videoItemCount == 1 ? string.Empty : "s")} • " +
+            $"{audioItemCount} audio item{(audioItemCount == 1 ? string.Empty : "s")} • " +
+            $"revision-pinned sources • recipe revision {revision.RevisionNumber}";
         _compositionWorkspace.Refresh();
         UpdateCompositionActionState();
         if (_mediaPreviewCoordinator.AuditionRecipeRevisionId is { } draftRevisionId && draftRevisionId != revision.Id &&

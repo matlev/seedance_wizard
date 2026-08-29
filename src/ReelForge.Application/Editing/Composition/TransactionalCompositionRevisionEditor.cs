@@ -16,15 +16,16 @@ internal sealed class TransactionalCompositionRevisionEditor
     }
 
     public async Task<RecipeRevision> UpdateAsync(
-        Action<CompositionRecipe> update,
+        Func<WorkingCompositionState, WorkingCompositionState> transform,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(update);
+        ArgumentNullException.ThrowIfNull(transform);
 
         var project = _current.Project;
         var (asset, _, currentRecipe) = _current.GetCurrent();
-        var recipe = CloneRecipe(currentRecipe);
-        update(recipe);
+        var state = transform(currentRecipe.Composition)
+            ?? throw new InvalidOperationException("A Working Composition transform must return a composition state.");
+        var recipe = new CompositionRecipe { Composition = state };
 
         var revisionCount = project.RecipeRevisions.Count;
         var oldProjectModifiedAt = project.ModifiedAt;
@@ -39,9 +40,9 @@ internal sealed class TransactionalCompositionRevisionEditor
         {
             var revision = project.CommitRecipe(asset.Id, recipe);
             asset.Provenance ??= new AssetProvenance { Operation = "working-composition" };
-            asset.Provenance.SourceAssetIds = recipe.Segments
-                .Select(segment => segment.Source.AssetId)
-                .Concat(recipe.AudioClips.Select(clip => clip.Source.AssetId))
+            asset.Provenance.SourceAssetIds = recipe.Composition.VideoTracks
+                .SelectMany(track => track.Items.Select(item => item.Source.AssetId))
+                .Concat(recipe.Composition.AudioTracks.SelectMany(track => track.Items.Select(item => item.Source.AssetId)))
                 .Distinct()
                 .ToList();
 
@@ -82,26 +83,9 @@ internal sealed class TransactionalCompositionRevisionEditor
         }
     }
 
-    public static CompositionRecipe CloneRecipe(CompositionRecipe recipe) => new()
+    public static CompositionRecipe CloneRecipe(CompositionRecipe recipe)
     {
-        Segments = recipe.Segments.Select(segment => new CompositionSegment
-        {
-            Id = segment.Id,
-            Source = segment.Source with { },
-            Start = segment.Start with { },
-            End = segment.End with { },
-            AudioEnabled = segment.AudioEnabled
-        }).ToList(),
-        AudioClips = recipe.AudioClips.Select(clip => new CompositionAudioClip
-        {
-            Id = clip.Id,
-            Source = clip.Source with { },
-            TimelineStartTicks = clip.TimelineStartTicks,
-            IsMuted = clip.IsMuted,
-            GainDecibels = clip.GainDecibels,
-            Pan = clip.Pan,
-            FadeInMilliseconds = clip.FadeInMilliseconds,
-            FadeOutMilliseconds = clip.FadeOutMilliseconds
-        }).ToList()
-    };
+        ArgumentNullException.ThrowIfNull(recipe);
+        return new CompositionRecipe { Composition = recipe.Composition };
+    }
 }

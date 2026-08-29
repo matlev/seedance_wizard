@@ -3,42 +3,45 @@ using ReelForge.Core;
 
 namespace ReelForge.App.Views.Editing;
 
+/// <summary>
+/// Presentation-only projection of a stable video timeline occurrence. The
+/// legacy "segment" name is retained because it is part of the current WPF
+/// control contract; it does not represent persisted composition meaning.
+/// </summary>
 public sealed class CompositionSegmentListItem
 {
-    public CompositionSegmentListItem(
-        int index,
-        CompositionSegment segment,
-        ProjectAsset? source,
-        double? durationSeconds)
+    public CompositionSegmentListItem(int index, Guid trackId, CompositionVideoItem item, ProjectAsset? source, bool audioEnabled)
     {
         Index = index;
-        SegmentId = segment.Id;
+        TrackId = trackId;
+        SegmentId = item.Id;
         DisplayName = source?.EffectiveDisplayName ?? "Missing source";
-        var isExactRange = segment.Start.Kind != RecipeBoundaryKind.SourceStart ||
-                           segment.End.Kind != RecipeBoundaryKind.SourceEnd;
         DetailText = source is null
-            ? $"Source {segment.Source.AssetId:N} is unavailable"
+            ? $"Source {item.Source.AssetId:N} is unavailable"
             : source.StorageKind == AssetStorageKind.Virtual
-                ? $"Saved Clip • {(isExactRange ? "exact range • " : string.Empty)}pinned recipe " +
-                  (segment.Source.RecipeRevisionId?.ToString("N") ?? "missing")
-                : $"Physical video • {(isExactRange ? "exact range" : "full source")}";
-        AudioText = segment.AudioEnabled ? "Audio on" : "Audio muted";
-        AudioEnabled = segment.AudioEnabled;
-        DurationSeconds = durationSeconds;
-        DurationText = DurationSeconds is > 0 ? FormatDuration(DurationSeconds.Value) : "Duration unknown";
+                ? $"Saved Clip • {(item.SourceRange is not null ? "exact range • " : string.Empty)}pinned recipe " +
+                  (item.Source.RecipeRevisionId?.ToString("N") ?? "missing")
+                : $"Physical video • {(item.SourceRange is not null ? "exact range" : "estimated range")} • {item.TimingAssessment.Readiness}";
+        AudioText = audioEnabled ? "Linked audio on" : "Linked audio unavailable or muted";
+        AudioEnabled = audioEnabled;
+        TimelineStart = item.CompositionStart.ToDoubleSeconds();
+        DurationSeconds = item.TimingAssessment.TimelineDuration.ToDoubleSeconds();
+        DurationText = DurationSeconds > 0 ? FormatDuration(DurationSeconds) : "Duration unavailable";
     }
 
     public int Index { get; }
+    public Guid TrackId { get; }
     public Guid SegmentId { get; }
     public string PositionText => $"{Index + 1}.";
     public string DisplayName { get; }
     public string DetailText { get; }
     public string AudioText { get; }
     public bool AudioEnabled { get; }
-    public double? DurationSeconds { get; }
+    public double TimelineStart { get; }
+    public double DurationSeconds { get; }
     public string DurationText { get; }
 
-    private static string FormatDuration(double seconds)
+    internal static string FormatDuration(double seconds)
     {
         var time = TimeSpan.FromSeconds(seconds);
         if (seconds < 10 || Math.Abs(seconds - Math.Round(seconds)) > 0.000_5)
@@ -51,16 +54,17 @@ public sealed class CompositionSegmentListItem
 
 public sealed class CompositionAudioClipListItem
 {
-    public CompositionAudioClipListItem(CompositionAudioClip clip, ProjectAsset? source)
+    public CompositionAudioClipListItem(Guid trackId, CompositionAudioItem item, ProjectAsset? source)
     {
-        AudioClipId = clip.Id;
+        TrackId = trackId;
+        AudioClipId = item.Id;
         DisplayName = source?.EffectiveDisplayName ?? "Missing audio source";
-        TimelineStart = clip.TimelineStart;
-        IsMuted = clip.IsMuted;
-        GainDecibels = clip.GainDecibels;
-        Pan = clip.Pan;
-        FadeIn = clip.FadeIn;
-        FadeOut = clip.FadeOut;
+        TimelineStart = TimeSpan.FromSeconds(item.CompositionStart.ToDoubleSeconds());
+        IsMuted = item.IsMuted;
+        GainDecibels = item.GainDecibels;
+        Pan = item.Pan;
+        FadeIn = TimeSpan.FromSeconds(item.FadeIn.ToDoubleSeconds());
+        FadeOut = TimeSpan.FromSeconds(item.FadeOut.ToDoubleSeconds());
         MixText = (IsMuted
             ? "Muted"
             : $"Gain {(GainDecibels > 0 ? "+" : string.Empty)}{GainDecibels:0} dB") +
@@ -70,13 +74,11 @@ public sealed class CompositionAudioClipListItem
             (FadeIn > TimeSpan.Zero || FadeOut > TimeSpan.Zero
                 ? $" • Fade {FadeIn.TotalSeconds:0.###}s in / {FadeOut.TotalSeconds:0.###}s out"
                 : string.Empty);
-        DurationSeconds = source?.DurationSeconds ?? source?.Encoding?.DurationSeconds ??
-                          source?.Virtual?.ExpectedMediaProperties?.DurationSeconds;
-        DurationText = DurationSeconds is > 0
-            ? TimeSpan.FromSeconds(DurationSeconds.Value).ToString(@"m\:ss", CultureInfo.InvariantCulture)
-            : "Duration unknown";
+        DurationSeconds = item.TimingAssessment.TimelineDuration.ToDoubleSeconds();
+        DurationText = DurationSeconds > 0 ? CompositionSegmentListItem.FormatDuration(DurationSeconds) : "Duration unavailable";
     }
 
+    public Guid TrackId { get; }
     public Guid AudioClipId { get; }
     public string DisplayName { get; }
     public TimeSpan TimelineStart { get; }
@@ -86,6 +88,6 @@ public sealed class CompositionAudioClipListItem
     public TimeSpan FadeIn { get; }
     public TimeSpan FadeOut { get; }
     public string MixText { get; }
-    public double? DurationSeconds { get; }
+    public double DurationSeconds { get; }
     public string DurationText { get; }
 }

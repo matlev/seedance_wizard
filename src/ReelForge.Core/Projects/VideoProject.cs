@@ -160,8 +160,7 @@ public sealed class VideoProject
     {
         TrimRecipe trim => trim.Start.Anchor?.AnchorId == anchorId || trim.End.Anchor?.AnchorId == anchorId,
         ExtractFrameRecipe frame => frame.Anchor.AnchorId == anchorId,
-        CompositionRecipe composition => composition.Segments.Any(segment =>
-            segment.Start.Anchor?.AnchorId == anchorId || segment.End.Anchor?.AnchorId == anchorId),
+        CompositionRecipe => false,
         _ => false
     };
 

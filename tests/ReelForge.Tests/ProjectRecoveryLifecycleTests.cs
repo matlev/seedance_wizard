@@ -156,6 +156,46 @@ public sealed class ProjectRecoveryLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task MalformedCurrentFormatCompositionRecoveryIsIgnoredRatherThanThrown()
+    {
+        var store = new PortableProjectStore();
+        var (project, location) = await store.CreateAsync(_root, "Malformed composition recovery");
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Origin = AssetOrigin.EditorDerived,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(composition);
+        project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Composition = new WorkingCompositionState(
+                [new CompositionVideoTrack(Guid.NewGuid(), false, true, [])],
+                [new CompositionAudioTrack(Guid.NewGuid(), false, false, [])])
+        });
+        project.WorkingCompositionAssetId = composition.Id;
+        await store.WriteAsync(project, location);
+
+        var recoveryPath = PortableProjectStore.GetRecoveryFilePath(location);
+        var envelope = JsonNode.Parse(await File.ReadAllTextAsync(recoveryPath))!.AsObject();
+        envelope["project"]!["recipeRevisions"]!.AsArray()[0]!["recipe"]!["compositionState"]!["videoTracks"]!
+            .AsArray()[0]!["id"] = Guid.Empty;
+        var candidate = System.Text.Json.JsonSerializer.Deserialize<ProjectFileDto>(
+            envelope["project"]!.ToJsonString(), RecoverySerializerOptions)!;
+        envelope["projectPayloadSha256"] = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(candidate, RecoverySerializerOptions))).ToLowerInvariant();
+        await File.WriteAllTextAsync(recoveryPath, envelope.ToJsonString());
+
+        var probe = await store.ProbeAsync(location);
+
+        Assert.Null(probe.Candidate);
+        Assert.Contains("invalid", probe.FailureDetail!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task CandidateBasedOnAnOlderCommittedRepresentationFailsClosed()
     {
         var store = new PortableProjectStore();

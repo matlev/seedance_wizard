@@ -5,6 +5,25 @@ namespace ReelForge.Tests;
 public sealed class CompositionTimelineLayoutTests
 {
     [Fact]
+    public void ExplicitOccurrenceTimesPreservePersistedTimelineGeometry()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var result = CompositionTimelineLayout.Calculate(
+            [
+                new CompositionTimelineSegmentInput(first, 2, 3),
+                new CompositionTimelineSegmentInput(second, 4, 8)
+            ],
+            viewportWidth: 600,
+            pixelsPerSecond: 20);
+
+        Assert.Equal(12, result.ProjectedDurationSeconds);
+        Assert.Equal(3, result.Segments.Single(segment => segment.SegmentId == first).StartSeconds);
+        Assert.Equal(8, result.Segments.Single(segment => segment.SegmentId == second).StartSeconds);
+        Assert.Equal(result.Segments.Single(segment => segment.SegmentId == second).Left, result.GetPlayheadX(8), precision: 6);
+    }
+
+    [Fact]
     public void LayoutKeepsShortSegmentsReadableAndExpandsLongerSegments()
     {
         var result = CompositionTimelineLayout.Calculate(

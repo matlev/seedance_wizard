@@ -8,7 +8,8 @@ public sealed record VideoSegmentEditState(
     string DisplayName,
     string SourceDescription,
     string TimingDescription,
-    bool AudioEnabled);
+    bool AudioEnabled,
+    bool CanChangeSourceAudio);
 
 public sealed record AudioClipEditState(
     string DisplayName,
@@ -18,7 +19,8 @@ public sealed record AudioClipEditState(
     double Pan,
     TimeSpan FadeIn,
     TimeSpan FadeOut,
-    double MaximumFadeSeconds);
+    double MaximumFadeSeconds,
+    bool CanEdit);
 
 public sealed class BooleanValueEventArgs(bool value) : EventArgs
 {
@@ -72,6 +74,8 @@ public partial class EditToolsPanel : UserControl
 
             SegmentAudioOnButton.IsChecked = video?.AudioEnabled == true;
             SegmentAudioMutedButton.IsChecked = video is { AudioEnabled: false };
+            SegmentAudioOnButton.IsEnabled = video?.CanChangeSourceAudio == true;
+            SegmentAudioMutedButton.IsEnabled = video?.CanChangeSourceAudio == true;
 
             if (audio is not null)
             {
@@ -81,11 +85,13 @@ public partial class EditToolsPanel : UserControl
 
             AudioClipEnabledButton.IsChecked = audio is { IsMuted: false };
             AudioClipMutedButton.IsChecked = audio?.IsMuted == true;
+            AudioClipEnabledButton.IsEnabled = audio?.CanEdit == true;
+            AudioClipMutedButton.IsEnabled = audio?.CanEdit == true;
             AudioClipGainSlider.Value = audio?.GainDecibels ?? 0;
-            AudioClipGainSlider.IsEnabled = audio is not null;
+            AudioClipGainSlider.IsEnabled = audio?.CanEdit == true;
             AudioClipGainText.Text = FormatGainDecibels(audio?.GainDecibels ?? 0);
             AudioClipPanSlider.Value = audio?.Pan ?? 0;
-            AudioClipPanSlider.IsEnabled = audio is not null;
+            AudioClipPanSlider.IsEnabled = audio?.CanEdit == true;
             AudioClipPanText.Text = FormatAudioPan(audio?.Pan ?? 0);
 
             var maximumFadeSeconds = audio?.MaximumFadeSeconds ?? 0;
@@ -93,8 +99,8 @@ public partial class EditToolsPanel : UserControl
             AudioClipFadeOutSlider.Maximum = Math.Max(maximumFadeSeconds, audio?.FadeOut.TotalSeconds ?? 0);
             AudioClipFadeInSlider.Value = audio?.FadeIn.TotalSeconds ?? 0;
             AudioClipFadeOutSlider.Value = audio?.FadeOut.TotalSeconds ?? 0;
-            AudioClipFadeInSlider.IsEnabled = audio is not null && maximumFadeSeconds > 0;
-            AudioClipFadeOutSlider.IsEnabled = audio is not null && maximumFadeSeconds > 0;
+            AudioClipFadeInSlider.IsEnabled = audio?.CanEdit == true && maximumFadeSeconds > 0;
+            AudioClipFadeOutSlider.IsEnabled = audio?.CanEdit == true && maximumFadeSeconds > 0;
             AudioClipFadeInText.Text = FormatFadeDuration(audio?.FadeIn.TotalSeconds ?? 0);
             AudioClipFadeOutText.Text = FormatFadeDuration(audio?.FadeOut.TotalSeconds ?? 0);
         }

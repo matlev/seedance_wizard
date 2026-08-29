@@ -1,6 +1,6 @@
 namespace ReelForge.Application;
 
-public sealed record CompositionTimelineSegmentInput(Guid SegmentId, double? DurationSeconds);
+public sealed record CompositionTimelineSegmentInput(Guid SegmentId, double? DurationSeconds, double? StartSeconds = null);
 
 public sealed record CompositionTimelineSegmentSpan(
     Guid SegmentId,
@@ -214,6 +214,34 @@ public static class CompositionTimelineLayout
         if (segments.Count == 0)
             return new CompositionTimelineLayoutResult(
                 Math.Max(1, viewportWidth * zoomFactor), 0, 0, false, []);
+
+        var usesExplicitTiming = segments.All(segment =>
+            segment.StartSeconds is { } start && double.IsFinite(start) && start >= 0 &&
+            ValidDuration(segment.DurationSeconds) is not null);
+        if (usesExplicitTiming)
+        {
+            var timedSegments = segments.Select(segment => new
+            {
+                segment.SegmentId,
+                StartSeconds = segment.StartSeconds!.Value,
+                DurationSeconds = segment.DurationSeconds!.Value
+            }).ToArray();
+            var explicitProjectedDuration = timedSegments.Max(segment => segment.StartSeconds + segment.DurationSeconds);
+            var explicitBaseContentWidth = Math.Max(Math.Max(1, viewportWidth), explicitProjectedDuration * pixelsPerSecond);
+            var explicitContentWidth = explicitBaseContentWidth * zoomFactor;
+            var explicitSpans = timedSegments.Select(segment => new CompositionTimelineSegmentSpan(
+                segment.SegmentId,
+                segment.StartSeconds / explicitProjectedDuration * explicitContentWidth,
+                segment.DurationSeconds / explicitProjectedDuration * explicitContentWidth,
+                segment.StartSeconds,
+                segment.DurationSeconds)).ToArray();
+            return new CompositionTimelineLayoutResult(
+                explicitContentWidth,
+                explicitProjectedDuration,
+                timedSegments.Sum(segment => segment.DurationSeconds),
+                false,
+                explicitSpans);
+        }
 
         var knownDurations = segments
             .Select(segment => ValidDuration(segment.DurationSeconds))

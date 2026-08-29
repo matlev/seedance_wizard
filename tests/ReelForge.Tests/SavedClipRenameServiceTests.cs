@@ -136,6 +136,48 @@ public sealed class SavedClipRenameServiceTests : IDisposable
         Assert.True(File.Exists(PortableProjectStore.GetRecoveryFilePath(workspace.Location)));
     }
 
+    [Fact]
+    public async Task DeleteRefusesSavedClipReferencedByAnAudioOccurrenceOnAnyCompositionTrack()
+    {
+        var workspace = await CreateWorkspaceWithSavedClipAsync();
+        var project = workspace.Project!;
+        var clip = project.Assets.Single(asset => asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(composition);
+        project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Composition = new WorkingCompositionState(
+                [],
+                [new CompositionAudioTrack(Guid.NewGuid(), false, false,
+                [
+                    new CompositionAudioItem(
+                        Guid.NewGuid(),
+                        new AssetRevisionReference
+                        {
+                            AssetId = clip.Id,
+                            RecipeRevisionId = clip.Virtual!.CurrentRecipeRevisionId
+                        },
+                        0,
+                        null,
+                        EstimatedAudioPin(),
+                        new ExactTime(0, 1))
+                ])])
+        });
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new SavedClipService(workspace).DeleteAsync(clip.Id));
+
+        Assert.Contains("another media recipe", exception.Message, StringComparison.Ordinal);
+        Assert.False(clip.IsDeleted);
+    }
+
     private async Task<ProjectWorkspace> CreateWorkspaceWithSavedClipAsync(
         PortableProjectStore? store = null,
         IProjectRecoveryStore? recovery = null)
@@ -183,6 +225,18 @@ public sealed class SavedClipRenameServiceTests : IDisposable
         },
         Provenance = new AssetProvenance { Operation = "saved-clip", SourceAssetIds = [sourceAssetId] }
     };
+
+    private static StreamTimingAssessmentPin EstimatedAudioPin() => new(
+        new StreamTimingAssessment(
+            Guid.NewGuid(),
+            new string('a', 64),
+            MediaType.Audio,
+            0,
+            TimingReadiness.Estimated,
+            true,
+            new ExactTime(1, 1),
+            [TimingIssueClassification.NativeDurationUnavailable],
+            null));
 
     public void Dispose()
     {

@@ -5,6 +5,7 @@ namespace ReelForge.App.Views.Editing;
 /// presentation projection; the shell remains the owner of project mutations.
 /// </summary>
 public sealed record CompositionTimelineState(
+    IReadOnlyList<CompositionTimelineTrackRow> Tracks,
     IReadOnlyList<CompositionSegmentListItem> Segments,
     IReadOnlyList<CompositionAudioClipListItem> AudioClips,
     Guid? SelectedSegmentId,
@@ -22,6 +23,7 @@ public sealed record CompositionTimelineState(
     public static CompositionTimelineState Empty { get; } = new(
         [],
         [],
+        [],
         null,
         null,
         0,
@@ -33,6 +35,27 @@ public sealed record CompositionTimelineState(
         false,
         new Dictionary<Guid, CompositionTimelineItemCapabilities>(),
         []);
+}
+
+public enum CompositionTimelineTrackKind
+{
+    Video,
+    Audio
+}
+
+/// <summary>Presentation state for one persisted, ordered track, including empty tracks.</summary>
+public sealed record CompositionTimelineTrackRow(
+    Guid TrackId,
+    CompositionTimelineTrackKind Kind,
+    int Index,
+    bool IsLocked,
+    bool IsVisibleOrMuted,
+    int ItemCount)
+{
+    public string DisplayName => $"{(Kind == CompositionTimelineTrackKind.Video ? "Video" : "Audio")} {Index + 1}";
+    public string StatusText => Kind == CompositionTimelineTrackKind.Video
+        ? (IsVisibleOrMuted ? "Visible" : "Hidden")
+        : (IsVisibleOrMuted ? "Muted" : "Audible");
 }
 
 public sealed record CompositionTimelineItemCapabilities(
@@ -125,4 +148,26 @@ public sealed class CompositionTimelineDropEventArgs(
 public sealed class CompositionTimelineItemEventArgs(Guid itemId) : EventArgs
 {
     public Guid ItemId { get; } = itemId;
+}
+
+public sealed class CompositionTimelineTrackEventArgs(Guid trackId) : EventArgs
+{
+    public Guid TrackId { get; } = trackId;
+}
+
+public sealed class CompositionTimelineTrackReorderEventArgs(Guid trackId, int targetIndex) : EventArgs
+{
+    public Guid TrackId { get; } = trackId;
+    public int TargetIndex { get; } = targetIndex;
+}
+
+public sealed class CompositionTimelineTrackBooleanEventArgs(Guid trackId, bool value) : EventArgs
+{
+    public Guid TrackId { get; } = trackId;
+    public bool Value { get; } = value;
+}
+
+public sealed class CompositionTimelineTrackKindEventArgs(CompositionTimelineTrackKind kind) : EventArgs
+{
+    public CompositionTimelineTrackKind Kind { get; } = kind;
 }

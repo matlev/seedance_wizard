@@ -49,11 +49,7 @@ public sealed class ProjectAssetDependencyAnalyzerTests
         project.RecipeRevisions.Add(new RecipeRevision
         {
             VirtualAssetId = recipeAsset.Id,
-            Recipe = new CompositionRecipe
-            {
-                Segments = [new CompositionSegment { Source = new AssetRevisionReference { AssetId = asset.Id } }],
-                AudioClips = [new CompositionAudioClip { Source = new AssetRevisionReference { AssetId = asset.Id } }]
-            }
+            Recipe = CompositionReferencing(asset.Id)
         });
         project.RecipeDrafts.Add(new RecipeDraft
         {
@@ -138,4 +134,41 @@ public sealed class ProjectAssetDependencyAnalyzerTests
         StorageKind = AssetStorageKind.Physical,
         Physical = new PhysicalAssetStorage { RelativePath = "assets/videos/source.mp4" }
     };
+
+    private static CompositionRecipe CompositionReferencing(Guid assetId) => new()
+    {
+        Composition = new WorkingCompositionState(
+            [new CompositionVideoTrack(Guid.NewGuid(), false, true,
+            [
+                new CompositionVideoItem(
+                    Guid.NewGuid(),
+                    new AssetRevisionReference { AssetId = assetId },
+                    0,
+                    null,
+                    EstimatedPin(MediaType.Video),
+                    new ExactTime(0, 1))
+            ])],
+            [new CompositionAudioTrack(Guid.NewGuid(), false, false,
+            [
+                new CompositionAudioItem(
+                    Guid.NewGuid(),
+                    new AssetRevisionReference { AssetId = assetId },
+                    0,
+                    null,
+                    EstimatedPin(MediaType.Audio),
+                    new ExactTime(0, 1))
+            ])])
+    };
+
+    private static StreamTimingAssessmentPin EstimatedPin(MediaType mediaType) => new(
+        new StreamTimingAssessment(
+            Guid.NewGuid(),
+            new string('a', 64),
+            mediaType,
+            0,
+            TimingReadiness.Estimated,
+            true,
+            new ExactTime(1, 1),
+            [TimingIssueClassification.NativeDurationUnavailable],
+            null));
 }

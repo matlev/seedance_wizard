@@ -6,196 +6,141 @@ namespace ReelForge.Application.Tests;
 public sealed class CompositionAuditionPlanTests
 {
     [Fact]
-    public void CreateProjectsPinnedSegmentsOntoOneContiguousTimeline()
+    public void CreateProjectsTheSingleVisibleTrackFromPinnedTimingEvidence()
     {
-        var first = Video("first.mp4", 10);
-        var second = Video("second.mp4", 8);
-        var project = Project(first, second);
-        var recipe = new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = first.Id },
-                    Start = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 2 },
-                    End = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 7 },
-                    AudioEnabled = false
-                },
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = second.Id },
-                    Start = RecipeBoundary.SourceStart,
-                    End = RecipeBoundary.SourceEnd
-                }
-            ]
-        };
+        var first = Video("first.mp4", durationSeconds: null);
+        var second = Video("second.mp4", durationSeconds: 99);
+        var recipe = Recipe(
+            VideoItem(first, compositionStart: 0, sourceStart: 10, duration: 4),
+            VideoItem(second, compositionStart: 4, sourceStart: 20, duration: 6));
 
-        var plan = CompositionAuditionPlan.Create(project, recipe);
+        var plan = CompositionAuditionPlan.Create(Project(first, second), recipe);
 
-        Assert.Equal(13, plan.DurationSeconds);
+        Assert.Equal(10, plan.DurationSeconds);
         Assert.Collection(
             plan.Segments,
             segment =>
             {
                 Assert.Equal(0, segment.TimelineStartSeconds);
-                Assert.Equal(2, segment.SourceStartSeconds);
-                Assert.Equal(5, segment.DurationSeconds);
+                Assert.Equal(10, segment.SourceStartSeconds);
+                Assert.Equal(4, segment.DurationSeconds);
                 Assert.False(segment.AudioEnabled);
             },
             segment =>
             {
-                Assert.Equal(5, segment.TimelineStartSeconds);
-                Assert.Equal(0, segment.SourceStartSeconds);
-                Assert.Equal(8, segment.DurationSeconds);
-                Assert.True(segment.AudioEnabled);
+                Assert.Equal(4, segment.TimelineStartSeconds);
+                Assert.Equal(20, segment.SourceStartSeconds);
+                Assert.Equal(6, segment.DurationSeconds);
+                Assert.False(segment.AudioEnabled);
             });
     }
 
     [Fact]
-    public void PositionMappingSelectsTheTrailingSegmentAtAnExactCut()
+    public void CreateOrdersItemsByExactCompositionStart()
     {
-        var first = Video("first.mp4", 4);
-        var second = Video("second.mp4", 6);
-        var plan = CompositionAuditionPlan.Create(Project(first, second), new CompositionRecipe
+        var first = Video("first.mp4");
+        var second = Video("second.mp4");
+        var firstItem = VideoItem(first, compositionStart: 0, sourceStart: 2, duration: 3);
+        var secondItem = VideoItem(second, compositionStart: 3, sourceStart: 8, duration: 2);
+
+        var plan = CompositionAuditionPlan.Create(Project(first, second), Recipe(secondItem, firstItem));
+
+        Assert.Collection(
+            plan.Segments,
+            segment => Assert.Equal(firstItem.Id, segment.SegmentId),
+            segment => Assert.Equal(secondItem.Id, segment.SegmentId));
+    }
+
+    [Fact]
+    public void EstimatedItemUsesItsFrozenPinInsteadOfAssetDuration()
+    {
+        var source = Video("source.mp4", durationSeconds: 999);
+        var item = VideoItem(source, compositionStart: 0, sourceStart: 7, duration: 3,
+            readiness: TimingReadiness.Estimated);
+
+        var plan = CompositionAuditionPlan.Create(Project(source), Recipe(item));
+
+        var segment = Assert.Single(plan.Segments);
+        Assert.Equal(7, segment.SourceStartSeconds);
+        Assert.Equal(3, segment.DurationSeconds);
+        Assert.Equal(3, plan.DurationSeconds);
+    }
+
+    [Fact]
+    public void CreateRejectsShapesTheSequentialAuditionSessionCannotRepresent()
+    {
+        var first = Video("first.mp4");
+        var second = Video("second.mp4");
+
+        var multipleVisible = new CompositionRecipe
         {
-            Segments =
-            [
-                Segment(first),
-                Segment(second, startSeconds: 1, endSeconds: 5)
-            ]
-        });
+            Composition = new WorkingCompositionState(
+                [new CompositionVideoTrack(Guid.NewGuid(), false, true, [VideoItem(first, 0, 0, 1)]),
+                 new CompositionVideoTrack(Guid.NewGuid(), false, true, [VideoItem(second, 0, 0, 1)])],
+                [])
+        };
+        var gap = Recipe(VideoItem(first, 0, 0, 1), VideoItem(second, 2, 0, 1));
+        var overlap = Recipe(VideoItem(first, 0, 0, 2), VideoItem(second, 1, 0, 1));
+        var empty = new CompositionRecipe { Composition = new WorkingCompositionState([], []) };
+
+        Assert.Contains("exactly one visible video track", Assert.Throws<InvalidDataException>(() =>
+            CompositionAuditionPlan.Create(Project(first, second), multipleVisible)).Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("gap", Assert.Throws<InvalidDataException>(() =>
+            CompositionAuditionPlan.Create(Project(first, second), gap)).Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("overlapping", Assert.Throws<InvalidDataException>(() =>
+            CompositionAuditionPlan.Create(Project(first, second), overlap)).Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("exactly one visible video track", Assert.Throws<InvalidDataException>(() =>
+            CompositionAuditionPlan.Create(Project(first, second), empty)).Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void PositionMappingSelectsTheTrailingItemAtAnExactCut()
+    {
+        var first = Video("first.mp4");
+        var second = Video("second.mp4");
+        var plan = CompositionAuditionPlan.Create(Project(first, second), Recipe(
+            VideoItem(first, 0, 10, 4),
+            VideoItem(second, 4, 20, 6)));
 
         Assert.Equal(0, plan.FindSegmentIndex(3.999));
         Assert.Equal(1, plan.FindSegmentIndex(4));
         Assert.Equal(1, plan.FindSegmentIndex(50));
-        Assert.Equal(2.5, plan.GetSourcePosition(1, 5.5));
-        Assert.Equal(5.5, plan.GetGlobalPosition(1, 2.5));
+        Assert.Equal(21.5, plan.GetSourcePosition(1, 5.5));
+        Assert.Equal(5.5, plan.GetGlobalPosition(1, 21.5));
     }
 
     [Fact]
-    public void AnchorBoundaryIsResolvedFromThePinnedRevision()
+    public void NavigationAndSessionProgressionClampToPinnedItemBounds()
     {
-        var source = Video("source.mp4", 10);
-        var project = Project(source);
-        var anchor = new FrameAnchor();
-        project.Anchors.Add(anchor);
-        var revision = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
-            source.Id,
-            new string('a', 64),
-            0,
-            72,
-            1,
-            24,
-            72));
-        var segment = new CompositionSegment
-        {
-            Source = new AssetRevisionReference { AssetId = source.Id },
-            Start = new RecipeBoundary
-            {
-                Kind = RecipeBoundaryKind.Anchor,
-                Anchor = new AnchorRevisionReference
-                {
-                    AnchorId = anchor.Id,
-                    AnchorRevisionId = revision.Id
-                }
-            },
-            End = RecipeBoundary.SourceEnd
-        };
-
-        var plan = CompositionAuditionPlan.Create(project, new CompositionRecipe { Segments = [segment] });
-
-        Assert.Equal(3, plan.Segments[0].SourceStartSeconds);
-        Assert.Equal(7, plan.Segments[0].DurationSeconds);
-    }
-
-    [Fact]
-    public void CreateRejectsEmptyMissingAndUnknownDurationCompositions()
-    {
-        var source = Video("source.mp4", null);
-        var project = Project(source);
-
-        Assert.Throws<InvalidDataException>(() =>
-            CompositionAuditionPlan.Create(project, new CompositionRecipe()));
-        Assert.Throws<InvalidDataException>(() =>
-            CompositionAuditionPlan.Create(project, new CompositionRecipe
-            {
-                Segments = [Segment(new ProjectAsset { Id = Guid.NewGuid() })]
-            }));
-        Assert.Throws<InvalidDataException>(() =>
-            CompositionAuditionPlan.Create(project, new CompositionRecipe { Segments = [Segment(source)] }));
-    }
-
-    [Fact]
-    public void NavigationAndMappingClampToPlanAndSegmentBounds()
-    {
-        var source = Video("source.mp4", 5);
-        var plan = CompositionAuditionPlan.Create(Project(source), new CompositionRecipe
-        {
-            Segments = [Segment(source, startSeconds: 1, endSeconds: 4)]
-        });
+        var first = Video("first.mp4");
+        var second = Video("second.mp4");
+        var plan = CompositionAuditionPlan.Create(Project(first, second), Recipe(
+            VideoItem(first, 0, 1, 2),
+            VideoItem(second, 2, 7, 3)));
+        var session = new CompositionAuditionSession(Guid.NewGuid(), plan, 1.5);
 
         Assert.Equal(0, plan.ClampGlobalPosition(double.NaN));
-        Assert.Equal(3, plan.ClampGlobalPosition(20));
+        Assert.Equal(5, plan.ClampGlobalPosition(20));
         Assert.Equal(1, plan.GetSourcePosition(0, -2));
-        Assert.Equal(4, plan.GetSourcePosition(0, 50));
+        Assert.Equal(3, plan.GetSourcePosition(0, 50));
         Assert.Equal(0, plan.GetGlobalPosition(0, -1));
-        Assert.Equal(3, plan.GetGlobalPosition(0, 10));
-        Assert.False(plan.TryGetNextSegmentIndex(0, out var nextIndex));
-        Assert.Equal(1, nextIndex);
+        Assert.Equal(2, plan.GetGlobalPosition(0, 10));
+        Assert.True(session.TryAdvance(out var advanced));
+        Assert.Equal(1, advanced.SegmentIndex);
+        Assert.Equal(2, advanced.GlobalSeconds);
+        Assert.Equal(7, advanced.SourceSeconds);
+        Assert.Equal(5, session.Complete().GlobalSeconds);
     }
 
-    [Fact]
-    public void SessionOwnsCutSelectionSeekingAndForwardProgression()
+    private static CompositionRecipe Recipe(params CompositionVideoItem[] items) => new()
     {
-        var first = Video("first.mp4", 4);
-        var second = Video("second.mp4", 6);
-        var plan = CompositionAuditionPlan.Create(Project(first, second), new CompositionRecipe
-        {
-            Segments = [Segment(first), Segment(second, startSeconds: 1, endSeconds: 5)]
-        });
-        var revisionId = Guid.NewGuid();
+        Composition = new WorkingCompositionState(
+            [new CompositionVideoTrack(Guid.NewGuid(), false, true, items)], [])
+    };
 
-        var session = new CompositionAuditionSession(revisionId, plan, 3.5);
+    private static VideoProject Project(params ProjectAsset[] assets) => new() { Assets = [.. assets] };
 
-        Assert.Equal(revisionId, session.RecipeRevisionId);
-        Assert.Equal(0, session.ActiveSegmentIndex);
-        Assert.Equal(3.5, session.PositionSeconds);
-        var cut = session.Seek(4);
-        Assert.Equal(1, cut.SegmentIndex);
-        Assert.Equal(1, cut.SourceSeconds);
-        var progressed = session.UpdateFromSourcePosition(2.25);
-        Assert.Equal(5.25, progressed.GlobalSeconds);
-        Assert.False(session.TryAdvance(out var finalPosition));
-        Assert.Equal(progressed, finalPosition);
-        Assert.Equal(8, session.Complete().GlobalSeconds);
-    }
-
-    [Fact]
-    public void SessionAdvanceActivatesTheNextSegmentAtItsFirstSourcePosition()
-    {
-        var first = Video("first.mp4", 2);
-        var second = Video("second.mp4", 5);
-        var plan = CompositionAuditionPlan.Create(Project(first, second), new CompositionRecipe
-        {
-            Segments = [Segment(first), Segment(second, startSeconds: 2, endSeconds: 4)]
-        });
-        var session = new CompositionAuditionSession(Guid.NewGuid(), plan);
-
-        Assert.True(session.TryAdvance(out var position));
-        Assert.Equal(1, position.SegmentIndex);
-        Assert.Equal(2, position.GlobalSeconds);
-        Assert.Equal(2, position.SourceSeconds);
-    }
-
-    private static VideoProject Project(params ProjectAsset[] assets)
-    {
-        var project = new VideoProject();
-        project.Assets.AddRange(assets);
-        return project;
-    }
-
-    private static ProjectAsset Video(string name, double? durationSeconds) => new()
+    private static ProjectAsset Video(string name, double? durationSeconds = null) => new()
     {
         FileName = name,
         DisplayName = name,
@@ -211,17 +156,31 @@ public sealed class CompositionAuditionPlanTests
         }
     };
 
-    private static CompositionSegment Segment(
+    private static CompositionVideoItem VideoItem(
         ProjectAsset source,
-        double? startSeconds = null,
-        double? endSeconds = null) => new()
+        long compositionStart,
+        long sourceStart,
+        long duration,
+        TimingReadiness readiness = TimingReadiness.Exact)
     {
-        Source = new AssetRevisionReference { AssetId = source.Id },
-        Start = startSeconds is { } start
-            ? new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = start }
-            : RecipeBoundary.SourceStart,
-        End = endSeconds is { } end
-            ? new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = end }
-            : RecipeBoundary.SourceEnd
-    };
+        var start = new VideoPresentationTime(sourceStart, 1, 1);
+        var end = new VideoPresentationTime(sourceStart + duration, 1, 1);
+        var assessment = new StreamTimingAssessment(
+            Guid.NewGuid(),
+            new string('a', 64),
+            MediaType.Video,
+            0,
+            readiness,
+            hasUsableSequentialDecodePath: true,
+            new ExactTime(duration, 1),
+            readiness == TimingReadiness.Exact ? [] : [TimingIssueClassification.NativeDurationUnavailable],
+            new ExactTime(sourceStart, 1));
+        return new CompositionVideoItem(
+            Guid.NewGuid(),
+            new AssetRevisionReference { AssetId = source.Id },
+            0,
+            readiness == TimingReadiness.Exact ? new VideoSourceRange(start, end) : null,
+            assessment.CreatePlacementPin(),
+            new ExactTime(compositionStart, 1));
+    }
 }

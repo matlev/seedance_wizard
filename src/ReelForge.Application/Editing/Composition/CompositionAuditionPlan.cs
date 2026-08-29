@@ -1,3 +1,4 @@
+using System.Numerics;
 using ReelForge.Core;
 
 namespace ReelForge.Application;
@@ -31,30 +32,57 @@ public sealed class CompositionAuditionPlan
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(recipe);
 
-        var segments = new List<CompositionAuditionSegment>(recipe.Segments.Count);
-        var timelineStart = 0d;
-        foreach (var segment in recipe.Segments)
+        // The existing audition session is a sequential source-player session, not a
+        // compositing engine. Keep its projection deliberately narrow until the M6
+        // renderer can honor general multitrack composition meaning.
+        var contributingTracks = recipe.Composition.ContributingVideoTracks;
+        if (contributingTracks.Count != 1)
+            throw new InvalidDataException(
+                "Composition audition currently supports exactly one visible video track. " +
+                "Show one video track or use a future track-aware preview.");
+
+        var items = contributingTracks[0].Items
+            .OrderBy(item => item.CompositionStart)
+            .ToArray();
+        if (items.Length == 0)
+            throw new InvalidDataException("The visible video track has no items to audition.");
+
+        var segments = new List<CompositionAuditionSegment>(items.Length);
+        var expectedStart = new ExactTime(0, 1);
+        foreach (var item in items)
         {
-            var source = project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId)
-                ?? throw new InvalidDataException(
-                    $"Composition segment {segment.Id} references missing asset {segment.Source.AssetId}.");
-            var duration = CompositionSegmentTiming.ResolveDuration(project, segment, source);
-            if (duration is not > 0 || !double.IsFinite(duration.Value))
+            if (item.CompositionStart != expectedStart)
+            {
+                var issue = item.CompositionStart < expectedStart ? "overlapping" : "a gap before";
                 throw new InvalidDataException(
-                    $"The duration of '{source.EffectiveDisplayName}' is unknown or invalid.");
+                    $"Composition audition currently requires one contiguous video track; item '{item.Id}' is {issue} its sequential position.");
+            }
+
+            var source = project.Assets.SingleOrDefault(asset => asset.Id == item.Source.AssetId)
+                ?? throw new InvalidDataException(
+                    $"Composition video item '{item.Id}' references missing asset {item.Source.AssetId}.");
+            if (source.MediaType != MediaType.Video)
+                throw new InvalidDataException(
+                    $"Composition video item '{item.Id}' references non-video asset '{source.EffectiveDisplayName}'.");
+
+            var timing = item.TimingAssessment;
+            if (timing.Readiness is not TimingReadiness.Exact and not TimingReadiness.Estimated ||
+                !timing.HasUsableSequentialDecodePath)
+                throw new InvalidDataException(
+                    $"Composition video item '{item.Id}' does not retain usable pinned timing evidence for audition.");
+            if (timing.SourcePresentationStart is null)
+                throw new InvalidDataException(
+                    $"Composition video item '{item.Id}' has no pinned source start for audition.");
 
             segments.Add(new CompositionAuditionSegment(
-                segment.Id,
-                segment.Source,
-                timelineStart,
-                ResolveBoundarySeconds(project, segment.Start, source, isEnd: false),
-                duration.Value,
-                segment.AudioEnabled));
-            timelineStart += duration.Value;
+                item.Id,
+                item.Source,
+                item.CompositionStart.ToDoubleSeconds(),
+                timing.SourcePresentationStart.ToDoubleSeconds(),
+                timing.TimelineDuration.ToDoubleSeconds(),
+                AudioEnabled: false));
+            expectedStart = Add(item.CompositionStart, timing.TimelineDuration);
         }
-
-        if (segments.Count == 0)
-            throw new InvalidDataException("The Working Composition has no video segments.");
 
         return new CompositionAuditionPlan(segments);
     }
@@ -106,25 +134,17 @@ public sealed class CompositionAuditionPlan
         return Segments[segmentIndex];
     }
 
-    private static double ResolveBoundarySeconds(
-        VideoProject project,
-        RecipeBoundary boundary,
-        ProjectAsset source,
-        bool isEnd)
+    private static ExactTime Add(ExactTime left, ExactTime right)
     {
-        var duration = source.DurationSeconds ?? source.Encoding?.DurationSeconds ??
-                       source.Virtual?.ExpectedMediaProperties?.DurationSeconds ?? 0;
-        return boundary.Kind switch
-        {
-            RecipeBoundaryKind.SourceStart => 0,
-            RecipeBoundaryKind.SourceEnd => duration,
-            RecipeBoundaryKind.Timestamp => boundary.TimestampSeconds ?? (isEnd ? duration : 0),
-            RecipeBoundaryKind.Anchor when boundary.Anchor is { } reference =>
-                project.AnchorRevisions.Single(revision =>
-                    revision.Id == reference.AnchorRevisionId && revision.AnchorId == reference.AnchorId)
-                    .TimestampSeconds,
-            _ => isEnd ? duration : 0
-        };
+        var numerator = (BigInteger)left.Numerator * right.Denominator +
+                        (BigInteger)right.Numerator * left.Denominator;
+        var denominator = (BigInteger)left.Denominator * right.Denominator;
+        var divisor = BigInteger.GreatestCommonDivisor(BigInteger.Abs(numerator), denominator);
+        numerator /= divisor;
+        denominator /= divisor;
+        if (numerator < long.MinValue || numerator > long.MaxValue || denominator > long.MaxValue)
+            throw new InvalidDataException("The sequential audition timeline exceeds the supported exact time domain.");
+        return new ExactTime((long)numerator, (long)denominator);
     }
 }
 

@@ -41,33 +41,11 @@ public sealed record ExtractFrameRecipe : AssetRecipe
 
 public sealed record CompositionRecipe : AssetRecipe
 {
-    public List<CompositionSegment> Segments { get; init; } = [];
-    public List<CompositionAudioClip> AudioClips { get; init; } = [];
-}
-
-public sealed record CompositionSegment
-{
-    public Guid Id { get; init; } = Guid.NewGuid();
-    public AssetRevisionReference Source { get; init; } = new();
-    public RecipeBoundary Start { get; init; } = RecipeBoundary.SourceStart;
-    public RecipeBoundary End { get; init; } = RecipeBoundary.SourceEnd;
-    public bool AudioEnabled { get; init; } = true;
-}
-
-public sealed record CompositionAudioClip
-{
-    public Guid Id { get; init; } = Guid.NewGuid();
-    public AssetRevisionReference Source { get; init; } = new();
-    public long TimelineStartTicks { get; init; }
-    public bool IsMuted { get; init; }
-    public double GainDecibels { get; init; }
-    public double Pan { get; init; }
-    public long FadeInMilliseconds { get; init; }
-    public long FadeOutMilliseconds { get; init; }
-
-    public TimeSpan TimelineStart => TimeSpan.FromTicks(TimelineStartTicks);
-    public TimeSpan FadeIn => TimeSpan.FromMilliseconds(FadeInMilliseconds);
-    public TimeSpan FadeOut => TimeSpan.FromMilliseconds(FadeOutMilliseconds);
+    /// <summary>
+    /// The sole durable Working Composition payload. Its immutable tracks and items retain
+    /// ordering, identity, source pins, timing evidence, and occurrence controls.
+    /// </summary>
+    public WorkingCompositionState Composition { get; init; } = new([], []);
 }
 
 public sealed record AssetRevisionReference

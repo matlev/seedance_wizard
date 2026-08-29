@@ -60,12 +60,19 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
         _timeline.SelectionChanged += Timeline_SelectionChanged;
         _timeline.SegmentReorderRequested += Timeline_SegmentReorderRequested;
         _timeline.AudioMoveRequested += Timeline_AudioMoveRequested;
-        _timeline.MediaDropRequested += Timeline_MediaDropRequested;
         _timeline.SplitRequested += Timeline_SplitRequested;
         _timeline.ShiftLeftRequested += Timeline_ShiftLeftRequested;
         _timeline.ShiftRightRequested += Timeline_ShiftRightRequested;
         _timeline.DetachAudioRequested += Timeline_DetachAudioRequested;
         _timeline.RemoveRequested += Timeline_RemoveRequested;
+        _timeline.TrackCreateRequested += Timeline_TrackCreateRequested;
+        _timeline.TrackAppendRequested += Timeline_TrackAppendRequested;
+        _timeline.TrackDeleteRequested += Timeline_TrackDeleteRequested;
+        _timeline.TrackMoveUpRequested += Timeline_TrackMoveRequested;
+        _timeline.TrackMoveDownRequested += Timeline_TrackMoveRequested;
+        _timeline.TrackLockChanged += Timeline_TrackLockChanged;
+        _timeline.VideoTrackVisibilityChanged += Timeline_VideoTrackVisibilityChanged;
+        _timeline.AudioTrackMuteChanged += Timeline_AudioTrackMuteChanged;
         _editTools.SegmentAudioChanged += EditTools_SegmentAudioChanged;
         _editTools.AudioClipMutedChanged += EditTools_AudioClipMutedChanged;
         _editTools.AudioClipGainCommitted += EditTools_AudioClipGainCommitted;
@@ -75,6 +82,7 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
 
     public ObservableCollection<CompositionSegmentListItem> Segments { get; } = [];
     public ObservableCollection<CompositionAudioClipListItem> AudioClips { get; } = [];
+    public ObservableCollection<CompositionTimelineTrackRow> Tracks { get; } = [];
     public Guid? SelectedSegmentId { get; private set; }
     public Guid? SelectedAudioClipId { get; private set; }
     public bool HasSegments => Segments.Count > 0;
@@ -111,6 +119,7 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
     public void Clear()
     {
         Segments.Clear();
+        Tracks.Clear();
         AudioClips.Clear();
         SelectedSegmentId = null;
         SelectedAudioClipId = null;
@@ -132,22 +141,48 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
 
         var project = _workspace.Project!;
         var recipe = AssertRecipe(project.RecipeRevisions.Single(candidate => candidate.Id == revisionId));
+        var state = recipe.Composition;
         var priorSegment = SelectedSegmentId;
         var priorAudio = SelectedAudioClipId;
-        Segments.Clear();
-        for (var index = 0; index < recipe.Segments.Count; index++)
+        Tracks.Clear();
+        for (var index = 0; index < state.VideoTracks.Count; index++)
         {
-            var segment = recipe.Segments[index];
-            var source = project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId);
-            Segments.Add(new CompositionSegmentListItem(index, segment, source,
-                CompositionSegmentTiming.ResolveDuration(project, segment, source)));
+            var track = state.VideoTracks[index];
+            Tracks.Add(new CompositionTimelineTrackRow(track.Id, CompositionTimelineTrackKind.Video, index,
+                track.IsLocked, track.IsVisible, track.Items.Count));
+        }
+        for (var index = 0; index < state.AudioTracks.Count; index++)
+        {
+            var track = state.AudioTracks[index];
+            Tracks.Add(new CompositionTimelineTrackRow(track.Id, CompositionTimelineTrackKind.Audio, index,
+                track.IsLocked, track.IsMuted, track.Items.Count));
+        }
+        Segments.Clear();
+        var videos = state.VideoTracks
+            .SelectMany(track => track.Items.Select(item => (Track: track, Item: item)))
+            .OrderBy(entry => entry.Item.CompositionStart)
+            .ThenBy(entry => entry.Track.Id)
+            .ToArray();
+        for (var index = 0; index < videos.Length; index++)
+        {
+            var (track, item) = videos[index];
+            var source = project.Assets.SingleOrDefault(asset => asset.Id == item.Source.AssetId);
+            var linkedAudio = item.LinkGroupId is { } linkGroupId
+                ? state.AudioTracks.SelectMany(audioTrack => audioTrack.Items.Select(audio => (Track: audioTrack, Item: audio)))
+                    .SingleOrDefault(entry => entry.Item.LinkGroupId == linkGroupId)
+                : default;
+            Segments.Add(new CompositionSegmentListItem(index, track.Id, item, source,
+                linkedAudio.Item is { IsMuted: false } && !linkedAudio.Track.IsMuted));
         }
 
         AudioClips.Clear();
-        foreach (var clip in recipe.AudioClips)
+        foreach (var (track, item) in state.AudioTracks
+                     .SelectMany(track => track.Items.Select(item => (Track: track, Item: item)))
+                     .OrderBy(entry => entry.Item.CompositionStart)
+                     .ThenBy(entry => entry.Track.Id))
         {
-            var source = project.Assets.SingleOrDefault(asset => asset.Id == clip.Source.AssetId);
-            AudioClips.Add(new CompositionAudioClipListItem(clip, source));
+            var source = project.Assets.SingleOrDefault(asset => asset.Id == item.Source.AssetId);
+            AudioClips.Add(new CompositionAudioClipListItem(track.Id, item, source));
         }
 
         SelectedSegmentId = priorSegment is { } segmentId && Segments.Any(item => item.SegmentId == segmentId) ? segmentId : null;
@@ -161,23 +196,16 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
         var capabilities = Segments.Select((segment, index) => new
         {
             ItemId = segment.SegmentId,
-            Capability = new CompositionTimelineItemCapabilities(segment.DurationSeconds is > 0, CanDetachAudio(segment.SegmentId),
-                index > 0, index < Segments.Count - 1, Segments.Count > 1)
+            Capability = new CompositionTimelineItemCapabilities(CanRemove: !IsTrackLocked(segment.TrackId))
         }).Concat(AudioClips.Select(clip => new
         {
             ItemId = clip.AudioClipId,
-            Capability = new CompositionTimelineItemCapabilities(CanRemove: true)
+            Capability = new CompositionTimelineItemCapabilities(CanRemove: !IsTrackLocked(clip.TrackId))
         })).ToDictionary(item => item.ItemId, item => item.Capability);
-        var eligibleAssets = _workspace.Project?.Assets
-            .Where(asset => asset.Id != _workspace.Project.WorkingCompositionAssetId)
-            .Where(ProjectMediaDragData.CanAddToComposition)
-            .Select(asset => new CompositionTimelineDropDescriptor(asset.Id, asset.EffectiveDisplayName,
-                asset.MediaType == MediaType.Video ? CompositionTimelineDropKind.Video : CompositionTimelineDropKind.Audio))
-            .ToArray() ?? [];
-        _timeline.UpdateState(new CompositionTimelineState(Segments.ToArray(), AudioClips.ToArray(), SelectedSegmentId,
+        _timeline.UpdateState(new CompositionTimelineState(Tracks.ToArray(), Segments.ToArray(), AudioClips.ToArray(), SelectedSegmentId,
             SelectedAudioClipId, _playbackSeconds(), _isAuditionActive(), _isPlaying(), _isPlaybackEnabled(),
             _isCompositionSelected(), SplitActionLabel(), _host.SplitBehavior == MediaSplitBehavior.AfterSelectedFrame,
-            capabilities, eligibleAssets));
+            capabilities, []));
         UpdateEditTools();
     }
 
@@ -186,12 +214,15 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
         var segment = GetSelectedSegment();
         var audioClip = GetSelectedAudioClip();
         var videoState = segment is null ? null : new VideoSegmentEditState(segment.DisplayName, segment.DetailText,
-            $"{segment.DurationText} • position {segment.Index + 1} of {Segments.Count} on the sequential video track", segment.AudioEnabled);
-        var maximumFadeSeconds = audioClip is null ? 0 : Math.Max(0, Math.Min(audioClip.DurationSeconds ?? 30,
+            $"{segment.DurationText} • starts at {FormatTime(segment.TimelineStart)} • video track {segment.TrackId.ToString("N")[..8]}",
+            segment.AudioEnabled,
+            CanChangeSourceAudio: false);
+        var maximumFadeSeconds = audioClip is null ? 0 : Math.Max(0, Math.Min(audioClip.DurationSeconds,
             Math.Max(0, _timeline.ProjectedDurationSeconds - audioClip.TimelineStart.TotalSeconds)));
         var audioState = audioClip is null ? null : new AudioClipEditState(audioClip.DisplayName,
             $"Starts at {FormatTime(audioClip.TimelineStart.TotalSeconds)} • {audioClip.DurationText}", audioClip.IsMuted,
-            audioClip.GainDecibels, audioClip.Pan, audioClip.FadeIn, audioClip.FadeOut, maximumFadeSeconds);
+            audioClip.GainDecibels, audioClip.Pan, audioClip.FadeIn, audioClip.FadeOut, maximumFadeSeconds,
+            CanEdit: !IsTrackLocked(audioClip.TrackId));
         _editTools.ShowSelection(videoState, audioState);
     }
 
@@ -219,32 +250,6 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
             _host.SetStatus($"Moved the audio clip to {FormatTime(e.TimelineStart.TotalSeconds)}. Preview the composition to rebuild it.");
         }, completePending: true);
 
-    private async void Timeline_MediaDropRequested(object? sender, CompositionTimelineDropEventArgs e)
-    {
-        var asset = _workspace.Project?.Assets.SingleOrDefault(item => item.Id == e.AssetId);
-        if (asset is null || asset.IsDeleted || !ProjectMediaDragData.CanAddToComposition(asset)) return;
-        var action = e.Kind == CompositionTimelineDropKind.Video
-            ? $"Inserting {asset.EffectiveDisplayName} into the composition…"
-            : $"Adding {asset.EffectiveDisplayName} to the audio track…";
-        await MutateAsync(action, async () =>
-        {
-            var service = new WorkingCompositionService(_workspace);
-            if (e.Kind == CompositionTimelineDropKind.Video)
-            {
-                var recipe = AssertRecipe(await service.AddSegmentAsync(asset.Id, e.InsertionIndex));
-                SetSelection(recipe.Segments[Math.Clamp(e.InsertionIndex, 0, recipe.Segments.Count - 1)].Id, null);
-                _host.SetStatus($"Inserted {asset.EffectiveDisplayName} into the Working Composition.");
-            }
-            else
-            {
-                var recipe = AssertRecipe(await service.AddAudioClipAsync(asset.Id, TimeSpan.FromSeconds(e.TimelineSeconds)));
-                SetSelection(null, recipe.AudioClips[^1].Id);
-                _host.SetStatus($"Added {asset.EffectiveDisplayName} at {FormatTime(e.TimelineSeconds)}.");
-            }
-            Refresh();
-        });
-    }
-
     private async void Timeline_SplitRequested(object? sender, CompositionTimelineItemEventArgs e)
     {
         await SplitAsync(e.ItemId);
@@ -269,6 +274,73 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
     {
         await RemoveAsync(e.ItemId);
     }
+
+    private async void Timeline_TrackCreateRequested(object? sender, CompositionTimelineTrackEventArgs e)
+    {
+        var track = Tracks.SingleOrDefault(item => item.TrackId == e.TrackId);
+        if (track is null) return;
+        await MutateAsync($"Creating {track.Kind.ToString().ToLowerInvariant()} track…", async () =>
+        {
+            await new WorkingCompositionService(_workspace).CreateTrackAsync(ToCommandKind(track.Kind), track.Index + 1);
+            Refresh();
+            _host.SetStatus($"Created a {track.Kind.ToString().ToLowerInvariant()} track.");
+        });
+    }
+
+    private async void Timeline_TrackAppendRequested(object? sender, CompositionTimelineTrackKindEventArgs e) =>
+        await MutateAsync($"Creating {e.Kind.ToString().ToLowerInvariant()} track…", async () =>
+        {
+            await new WorkingCompositionService(_workspace).CreateTrackAsync(ToCommandKind(e.Kind));
+            Refresh();
+            _host.SetStatus($"Created a {e.Kind.ToString().ToLowerInvariant()} track.");
+        });
+
+    private async void Timeline_TrackDeleteRequested(object? sender, CompositionTimelineTrackEventArgs e)
+    {
+        var track = Tracks.SingleOrDefault(item => item.TrackId == e.TrackId);
+        if (track is null || track.ItemCount != 0) return;
+        await MutateAsync("Deleting empty track…", async () =>
+        {
+            await new WorkingCompositionService(_workspace).DeleteEmptyTrackAsync(ToCommandKind(track.Kind), track.TrackId);
+            Refresh();
+            _host.SetStatus($"Deleted empty {track.Kind.ToString().ToLowerInvariant()} track.");
+        });
+    }
+
+    private async void Timeline_TrackMoveRequested(object? sender, CompositionTimelineTrackReorderEventArgs e)
+    {
+        var track = Tracks.SingleOrDefault(item => item.TrackId == e.TrackId);
+        if (track is null || e.TargetIndex < 0) return;
+        var sameKindCount = Tracks.Count(item => item.Kind == track.Kind);
+        if (e.TargetIndex >= sameKindCount) return;
+        await MutateAsync("Reordering track…", async () =>
+        {
+            await new WorkingCompositionService(_workspace).ReorderTrackAsync(ToCommandKind(track.Kind), track.TrackId, e.TargetIndex);
+            Refresh();
+            _host.SetStatus($"Reordered {track.Kind.ToString().ToLowerInvariant()} track.");
+        });
+    }
+
+    private async void Timeline_TrackLockChanged(object? sender, CompositionTimelineTrackBooleanEventArgs e) =>
+        await MutateTrackFlagAsync("Updating track lock…", e.TrackId, async service =>
+            await service.SetTrackLockAsync(e.TrackId, e.Value), e.Value ? "Locked track." : "Unlocked track.");
+
+    private async void Timeline_VideoTrackVisibilityChanged(object? sender, CompositionTimelineTrackBooleanEventArgs e) =>
+        await MutateTrackFlagAsync("Updating video track visibility…", e.TrackId, async service =>
+            await service.SetVideoTrackVisibilityAsync(e.TrackId, e.Value), e.Value ? "Video track visible." : "Video track hidden.");
+
+    private async void Timeline_AudioTrackMuteChanged(object? sender, CompositionTimelineTrackBooleanEventArgs e) =>
+        await MutateTrackFlagAsync("Updating audio track mute…", e.TrackId, async service =>
+            await service.SetAudioTrackMutedAsync(e.TrackId, e.Value), e.Value ? "Audio track muted." : "Audio track audible.");
+
+    private async Task MutateTrackFlagAsync(string action, Guid trackId,
+        Func<WorkingCompositionService, Task<CompositionTrackCommandResult>> mutate, string status) =>
+        await MutateAsync(action, async () =>
+        {
+            await mutate(new WorkingCompositionService(_workspace));
+            Refresh();
+            _host.SetStatus(status);
+        });
 
     private async void EditTools_SegmentAudioChanged(object? sender, BooleanValueEventArgs e)
     {
@@ -453,22 +525,20 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
     private CompositionAudioClipListItem? GetSelectedAudioClip() => SelectedAudioClipId is { } id ? AudioClips.FirstOrDefault(item => item.AudioClipId == id) : null;
     private CompositionSegmentListItem? GetSegment(Guid id) => Segments.FirstOrDefault(item => item.SegmentId == id);
 
-    private bool CanDetachAudio(Guid segmentId)
+    private bool IsTrackLocked(Guid trackId)
     {
-        if (_workspace.Project?.WorkingCompositionAssetId is null) return false;
-        var recipe = AssertRecipe(new WorkingCompositionService(_workspace).GetCurrent().Revision);
-        var segment = recipe.Segments.SingleOrDefault(candidate => candidate.Id == segmentId);
-        if (segment is null) return false;
-        var source = _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == segment.Source.AssetId);
-        if (!MediaAudioCapabilityPolicy.CanAttemptAudioOperation(source)) return false;
-        return !recipe.AudioClips.Any(clip => _workspace.Project.Assets.SingleOrDefault(asset => asset.Id == clip.Source.AssetId)?.Provenance is
-            { Operation: "detach-segment-audio" } provenance && provenance.Parameters.GetValueOrDefault("compositionSegmentId") == segmentId.ToString("D"));
+        var state = AssertRecipe(new WorkingCompositionService(_workspace).GetCurrent().Revision).Composition;
+        return state.VideoTracks.Any(track => track.Id == trackId && track.IsLocked) ||
+               state.AudioTracks.Any(track => track.Id == trackId && track.IsLocked);
     }
 
     private string SplitActionLabel() => _host.SplitBehavior == MediaSplitBehavior.AfterSelectedFrame
         ? "Split after playhead frame" : "Split before playhead frame";
     private static CompositionRecipe AssertRecipe(RecipeRevision revision) => revision.Recipe as CompositionRecipe
         ?? throw new InvalidDataException("The Working Composition update did not produce a composition recipe.");
+    private static CompositionTrackKind ToCommandKind(CompositionTimelineTrackKind kind) => kind == CompositionTimelineTrackKind.Video
+        ? CompositionTrackKind.Video
+        : CompositionTrackKind.Audio;
     private static string FormatTime(double seconds)
     {
         var value = TimeSpan.FromMilliseconds(Math.Round(Math.Max(0, seconds) * 1000, MidpointRounding.AwayFromZero));
@@ -484,12 +554,19 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
         _timeline.SelectionChanged -= Timeline_SelectionChanged;
         _timeline.SegmentReorderRequested -= Timeline_SegmentReorderRequested;
         _timeline.AudioMoveRequested -= Timeline_AudioMoveRequested;
-        _timeline.MediaDropRequested -= Timeline_MediaDropRequested;
         _timeline.SplitRequested -= Timeline_SplitRequested;
         _timeline.ShiftLeftRequested -= Timeline_ShiftLeftRequested;
         _timeline.ShiftRightRequested -= Timeline_ShiftRightRequested;
         _timeline.DetachAudioRequested -= Timeline_DetachAudioRequested;
         _timeline.RemoveRequested -= Timeline_RemoveRequested;
+        _timeline.TrackCreateRequested -= Timeline_TrackCreateRequested;
+        _timeline.TrackAppendRequested -= Timeline_TrackAppendRequested;
+        _timeline.TrackDeleteRequested -= Timeline_TrackDeleteRequested;
+        _timeline.TrackMoveUpRequested -= Timeline_TrackMoveRequested;
+        _timeline.TrackMoveDownRequested -= Timeline_TrackMoveRequested;
+        _timeline.TrackLockChanged -= Timeline_TrackLockChanged;
+        _timeline.VideoTrackVisibilityChanged -= Timeline_VideoTrackVisibilityChanged;
+        _timeline.AudioTrackMuteChanged -= Timeline_AudioTrackMuteChanged;
         _editTools.SegmentAudioChanged -= EditTools_SegmentAudioChanged;
         _editTools.AudioClipMutedChanged -= EditTools_AudioClipMutedChanged;
         _editTools.AudioClipGainCommitted -= EditTools_AudioClipGainCommitted;

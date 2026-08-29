@@ -27,11 +27,6 @@ internal sealed class CompositionLifecycleCreator
             (source.StorageKind == AssetStorageKind.Virtual && source.Virtual?.Kind != VirtualAssetKind.SavedClip))
             throw new InvalidOperationException("Start the Working Composition from a physical video or Saved Clip.");
 
-        Guid? sourceRevisionId = source.StorageKind == AssetStorageKind.Virtual
-            ? source.Virtual?.CurrentRecipeRevisionId
-                ?? throw new InvalidOperationException("The selected Saved Clip has no committed recipe revision.")
-            : null;
-
         var assetsCount = project.Assets.Count;
         var revisionsCount = project.RecipeRevisions.Count;
         var draftsCount = project.RecipeDrafts.Count;
@@ -54,27 +49,19 @@ internal sealed class CompositionLifecycleCreator
                 },
                 Provenance = new AssetProvenance
                 {
-                    Operation = "working-composition",
-                    SourceAssetIds = [source.Id]
+                    Operation = "working-composition"
                 }
             };
             project.AddAsset(composition);
 
+            // The legacy entry point still accepts a source selected by the caller, but a
+            // composition is now born empty. Adding an occurrence requires the separately
+            // persisted stream-timing evidence; it must not be inferred from this source.
             var recipe = new CompositionRecipe
             {
-                Segments =
-                [
-                    new CompositionSegment
-                    {
-                        Source = new AssetRevisionReference
-                        {
-                            AssetId = source.Id,
-                            RecipeRevisionId = sourceRevisionId
-                        },
-                        Start = RecipeBoundary.SourceStart,
-                        End = RecipeBoundary.SourceEnd
-                    }
-                ]
+                Composition = new WorkingCompositionState(
+                    [new CompositionVideoTrack(Guid.NewGuid(), isLocked: false, isVisible: true, [])],
+                    [new CompositionAudioTrack(Guid.NewGuid(), isLocked: false, isMuted: false, [])])
             };
             var revision = project.CommitRecipe(composition.Id, recipe);
             project.RecipeDrafts.Add(new RecipeDraft

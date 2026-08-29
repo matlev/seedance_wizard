@@ -14,6 +14,7 @@ public sealed class WorkingCompositionService
     private readonly CompositionSegmentCommands _segments;
     private readonly CompositionAudioCommands _audio;
     private readonly CompositionSplitMutation _split;
+    private readonly CompositionTrackCommands _tracks;
 
     public WorkingCompositionService(ProjectWorkspace workspace)
     {
@@ -24,6 +25,7 @@ public sealed class WorkingCompositionService
         _segments = new CompositionSegmentCommands(_current, editor);
         _audio = new CompositionAudioCommands(_current, editor);
         _split = new CompositionSplitMutation(_current, editor);
+        _tracks = new CompositionTrackCommands(_current, editor);
     }
 
     public async Task<ProjectAsset> CreateInitialAsync(
@@ -121,6 +123,43 @@ public sealed class WorkingCompositionService
         Guid itemId,
         CancellationToken cancellationToken = default) =>
         await _segments.RemoveItemAsync(itemId, cancellationToken);
+
+    public Task<CompositionTrackCommandResult> CreateTrackAsync(
+        CompositionTrackKind kind,
+        int? insertionIndex = null,
+        CancellationToken cancellationToken = default) =>
+        _tracks.CreateAsync(kind, insertionIndex, cancellationToken);
+
+    public Task<CompositionTrackCommandResult> DeleteEmptyTrackAsync(
+        CompositionTrackKind kind,
+        Guid trackId,
+        CancellationToken cancellationToken = default) =>
+        _tracks.DeleteEmptyAsync(kind, trackId, cancellationToken);
+
+    public Task<CompositionTrackCommandResult> ReorderTrackAsync(
+        CompositionTrackKind kind,
+        Guid trackId,
+        int targetIndex,
+        CancellationToken cancellationToken = default) =>
+        _tracks.ReorderAsync(kind, trackId, targetIndex, cancellationToken);
+
+    public Task<CompositionTrackCommandResult> SetTrackLockAsync(
+        Guid trackId,
+        bool isLocked,
+        CancellationToken cancellationToken = default) =>
+        _tracks.SetLockAsync(trackId, isLocked, cancellationToken);
+
+    public Task<CompositionTrackCommandResult> SetVideoTrackVisibilityAsync(
+        Guid trackId,
+        bool isVisible,
+        CancellationToken cancellationToken = default) =>
+        _tracks.SetVideoVisibilityAsync(trackId, isVisible, cancellationToken);
+
+    public Task<CompositionTrackCommandResult> SetAudioTrackMutedAsync(
+        Guid trackId,
+        bool isMuted,
+        CancellationToken cancellationToken = default) =>
+        _tracks.SetAudioMuteAsync(trackId, isMuted, cancellationToken);
 
     public (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent() =>
         _current.GetCurrent();

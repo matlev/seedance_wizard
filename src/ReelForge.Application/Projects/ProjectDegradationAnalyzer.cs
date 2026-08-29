@@ -132,11 +132,12 @@ public sealed class ProjectDegradationAnalyzer
                                        IsBoundaryDegraded(trim.End, trim.Source),
                     ExtractFrameRecipe frame => IsAssetReferenceDegraded(frame.Source) ||
                                                 IsAnchorReferenceDegraded(frame.Anchor),
-                    CompositionRecipe composition => composition.Segments.Any(segment =>
-                                                            IsAssetReferenceDegraded(segment.Source) ||
-                                                            IsBoundaryDegraded(segment.Start, segment.Source) ||
-                                                            IsBoundaryDegraded(segment.End, segment.Source)) ||
-                                                        composition.AudioClips.Any(clip => IsAssetReferenceDegraded(clip.Source)),
+                    CompositionRecipe composition => composition.Composition.VideoTracks
+                                                            .SelectMany(track => track.Items)
+                                                            .Any(item => IsAssetReferenceDegraded(item.Source)) ||
+                                                        composition.Composition.AudioTracks
+                                                            .SelectMany(track => track.Items)
+                                                            .Any(item => IsAssetReferenceDegraded(item.Source)),
                     _ => true
                 };
                 return _recipeResults[recipeId] = degraded;

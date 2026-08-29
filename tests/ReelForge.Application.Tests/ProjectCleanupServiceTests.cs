@@ -18,18 +18,8 @@ public sealed class ProjectCleanupServiceTests
             Start = RecipeBoundary.SourceStart,
             End = RecipeBoundary.SourceEnd
         });
-        project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = source.Id },
-                    Start = RecipeBoundary.SourceStart,
-                    End = RecipeBoundary.SourceEnd
-                }
-            ]
-        });
+        project.CommitRecipe(composition.Id, CompositionWithVideoSource(
+            new AssetRevisionReference { AssetId = source.Id }));
 
         var report = new ProjectDegradationAnalyzer().Analyze(project);
 
@@ -47,18 +37,8 @@ public sealed class ProjectCleanupServiceTests
         var project = new VideoProject { Assets = [unavailable, unknown, clip, healthyClip, composition] };
         var brokenRevision = project.CommitRecipe(clip.Id, Trim(unavailable.Id));
         project.CommitRecipe(healthyClip.Id, Trim(unknown.Id));
-        project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = clip.Id, RecipeRevisionId = brokenRevision.Id },
-                    Start = RecipeBoundary.SourceStart,
-                    End = RecipeBoundary.SourceEnd
-                }
-            ]
-        });
+        project.CommitRecipe(composition.Id, CompositionWithVideoSource(
+            new AssetRevisionReference { AssetId = clip.Id, RecipeRevisionId = brokenRevision.Id }));
 
         var report = new ProjectDegradationAnalyzer().Analyze(project);
 
@@ -86,17 +66,8 @@ public sealed class ProjectCleanupServiceTests
         project.AnchorRevisions.Add(anchorRevision);
         project.CommitRecipe(clip.Id, Trim(source.Id));
         var clipRevision = clip.Virtual!.CurrentRecipeRevisionId!.Value;
-        project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = clip.Id, RecipeRevisionId = clipRevision },
-                    Start = RecipeBoundary.SourceStart, End = RecipeBoundary.SourceEnd
-                }
-            ]
-        });
+        project.CommitRecipe(composition.Id, CompositionWithVideoSource(
+            new AssetRevisionReference { AssetId = clip.Id, RecipeRevisionId = clipRevision }));
         var workspace = await OpenAsync(project);
 
         var result = await new ProjectCleanupService().CleanupAsync(workspace);
@@ -149,6 +120,34 @@ public sealed class ProjectCleanupServiceTests
         Start = RecipeBoundary.SourceStart,
         End = RecipeBoundary.SourceEnd
     };
+
+    private static CompositionRecipe CompositionWithVideoSource(AssetRevisionReference source) => new()
+    {
+        Composition = new WorkingCompositionState(
+            [new CompositionVideoTrack(Guid.NewGuid(), false, true,
+            [
+                new CompositionVideoItem(
+                    Guid.NewGuid(),
+                    source,
+                    0,
+                    null,
+                    EstimatedVideoPin(),
+                    new ExactTime(0, 1))
+            ])],
+            [])
+    };
+
+    private static StreamTimingAssessmentPin EstimatedVideoPin() => new(
+        new StreamTimingAssessment(
+            Guid.NewGuid(),
+            new string('a', 64),
+            MediaType.Video,
+            0,
+            TimingReadiness.Estimated,
+            true,
+            new ExactTime(1, 1),
+            [TimingIssueClassification.NativeDurationUnavailable],
+            null));
 
     private static ProjectAsset Physical(string name, PhysicalAssetAvailability availability) => new()
     {

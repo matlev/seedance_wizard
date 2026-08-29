@@ -62,25 +62,46 @@ internal static partial class ProjectPersistenceMapper
         CompositionRecipe composition => new AssetRecipeDto
         {
             Type = "composition",
-            Segments = composition.Segments.Select(segment => new CompositionSegmentDto
+            CompositionState = new WorkingCompositionStateDto
             {
-                Id = segment.Id,
-                Source = ToDto(segment.Source),
-                Start = ToDto(segment.Start),
-                End = ToDto(segment.End),
-                AudioEnabled = segment.AudioEnabled
-            }).ToList(),
-            AudioClips = composition.AudioClips.Select(clip => new CompositionAudioClipDto
-            {
-                Id = clip.Id,
-                Source = ToDto(clip.Source),
-                TimelineStartTicks = clip.TimelineStartTicks,
-                IsMuted = clip.IsMuted,
-                GainDecibels = clip.GainDecibels,
-                Pan = clip.Pan,
-                FadeInMilliseconds = clip.FadeInMilliseconds,
-                FadeOutMilliseconds = clip.FadeOutMilliseconds
-            }).ToList()
+                VideoTracks = composition.Composition.VideoTracks.Select(track => new CompositionVideoTrackDto
+                {
+                    Id = track.Id,
+                    IsLocked = track.IsLocked,
+                    IsVisible = track.IsVisible,
+                    Items = track.Items.Select(item => new CompositionVideoItemDto
+                    {
+                        Id = item.Id,
+                        Source = ToDto(item.Source),
+                        SelectedStreamIndex = item.SelectedStreamIndex,
+                        SourceRange = ToDto(item.SourceRange),
+                        TimingAssessment = ToDto(item.TimingAssessment),
+                        CompositionStart = ToDto(item.CompositionStart)!,
+                        LinkGroupId = item.LinkGroupId
+                    }).ToList()
+                }).ToList(),
+                AudioTracks = composition.Composition.AudioTracks.Select(track => new CompositionAudioTrackDto
+                {
+                    Id = track.Id,
+                    IsLocked = track.IsLocked,
+                    IsMuted = track.IsMuted,
+                    Items = track.Items.Select(item => new CompositionAudioItemDto
+                    {
+                        Id = item.Id,
+                        Source = ToDto(item.Source),
+                        SelectedStreamIndex = item.SelectedStreamIndex,
+                        SourceRange = ToDto(item.SourceRange),
+                        TimingAssessment = ToDto(item.TimingAssessment),
+                        CompositionStart = ToDto(item.CompositionStart)!,
+                        LinkGroupId = item.LinkGroupId,
+                        IsMuted = item.IsMuted,
+                        GainDecibels = item.GainDecibels,
+                        Pan = item.Pan,
+                        FadeIn = ToDto(item.FadeIn)!,
+                        FadeOut = ToDto(item.FadeOut)!
+                    }).ToList()
+                }).ToList()
+            }
         },
         _ => throw new NotSupportedException($"Recipe type '{source.GetType().Name}' is not supported.")
     };
@@ -102,25 +123,8 @@ internal static partial class ProjectPersistenceMapper
         },
         "composition" => new CompositionRecipe
         {
-            Segments = source.Segments.Select(segment => new CompositionSegment
-            {
-                Id = segment.Id,
-                Source = FromDto(segment.Source),
-                Start = FromDto(segment.Start) ?? RecipeBoundary.SourceStart,
-                End = FromDto(segment.End) ?? RecipeBoundary.SourceEnd,
-                AudioEnabled = segment.AudioEnabled
-            }).ToList(),
-            AudioClips = source.AudioClips.Select(clip => new CompositionAudioClip
-            {
-                Id = clip.Id,
-                Source = FromDto(clip.Source),
-                TimelineStartTicks = clip.TimelineStartTicks,
-                IsMuted = clip.IsMuted,
-                GainDecibels = clip.GainDecibels,
-                Pan = clip.Pan,
-                FadeInMilliseconds = clip.FadeInMilliseconds,
-                FadeOutMilliseconds = clip.FadeOutMilliseconds
-            }).ToList()
+            Composition = FromDto(source.CompositionState
+                ?? throw new InvalidDataException("A composition recipe requires its multitrack state."))
         },
         _ => throw new InvalidDataException($"Recipe type '{source.Type}' is not supported.")
     };
@@ -164,4 +168,119 @@ internal static partial class ProjectPersistenceMapper
         AnchorId = source.AnchorId,
         AnchorRevisionId = source.AnchorRevisionId
     };
+
+    private static VideoSourceRangeDto? ToDto(VideoSourceRange? source) => source is null ? null : new()
+    {
+        Start = ToDto(source.Start),
+        End = ToDto(source.End)
+    };
+
+    private static VideoSourceRange? FromDto(VideoSourceRangeDto? source) => source is null ? null : new(
+        FromDto(source.Start ?? throw new InvalidDataException("A video range start is required.")),
+        FromDto(source.End ?? throw new InvalidDataException("A video range end is required.")));
+
+    private static VideoPresentationTimeDto ToDto(VideoPresentationTime source) => new()
+    {
+        PresentationTimestamp = source.PresentationTimestamp,
+        TimeBaseNumerator = source.TimeBaseNumerator,
+        TimeBaseDenominator = source.TimeBaseDenominator
+    };
+
+    private static VideoPresentationTime FromDto(VideoPresentationTimeDto source) => new(
+        source.PresentationTimestamp,
+        source.TimeBaseNumerator,
+        source.TimeBaseDenominator);
+
+    private static AudioSourceRangeDto? ToDto(AudioSourceRange? source) => source is null ? null : new()
+    {
+        Start = ToDto(source.Start),
+        End = ToDto(source.End)
+    };
+
+    private static AudioSourceRange? FromDto(AudioSourceRangeDto? source) => source is null ? null : new(
+        FromDto(source.Start ?? throw new InvalidDataException("An audio range start is required.")),
+        FromDto(source.End ?? throw new InvalidDataException("An audio range end is required.")));
+
+    private static AudioSampleTimeDto ToDto(AudioSampleTime source) => new()
+    {
+        SampleFrameOffset = source.SampleFrameOffset,
+        SampleRate = source.SampleRate
+    };
+
+    private static AudioSampleTime FromDto(AudioSampleTimeDto source) => new(source.SampleFrameOffset, source.SampleRate);
+
+    private static WorkingCompositionState FromDto(WorkingCompositionStateDto source)
+    {
+        try
+        {
+            return new WorkingCompositionState(
+                (source.VideoTracks ?? throw new InvalidDataException("Composition video tracks are required.")).Select(track => new CompositionVideoTrack(
+                    track.Id,
+                    track.IsLocked,
+                    track.IsVisible,
+                    (track.Items ?? throw new InvalidDataException("Composition video items are required.")).Select(item => new CompositionVideoItem(
+                        item.Id,
+                        FromDto(item.Source ?? throw new InvalidDataException("A video item source is required.")),
+                        item.SelectedStreamIndex,
+                        FromDto(item.SourceRange),
+                        FromDto(item.TimingAssessment ?? throw new InvalidDataException("A video timing pin is required.")),
+                        FromDto(item.CompositionStart) ?? throw new InvalidDataException("A video composition start is required."),
+                        item.LinkGroupId)))),
+                (source.AudioTracks ?? throw new InvalidDataException("Composition audio tracks are required.")).Select(track => new CompositionAudioTrack(
+                    track.Id,
+                    track.IsLocked,
+                    track.IsMuted,
+                    (track.Items ?? throw new InvalidDataException("Composition audio items are required.")).Select(item => new CompositionAudioItem(
+                        item.Id,
+                        FromDto(item.Source ?? throw new InvalidDataException("An audio item source is required.")),
+                        item.SelectedStreamIndex,
+                        FromDto(item.SourceRange),
+                        FromDto(item.TimingAssessment ?? throw new InvalidDataException("An audio timing pin is required.")),
+                        FromDto(item.CompositionStart) ?? throw new InvalidDataException("An audio composition start is required."),
+                        item.LinkGroupId,
+                        item.IsMuted,
+                        item.GainDecibels,
+                        item.Pan,
+                        FromDto(item.FadeIn) ?? throw new InvalidDataException("An audio fade-in is required."),
+                        FromDto(item.FadeOut) ?? throw new InvalidDataException("An audio fade-out is required."))))));
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidDataException("The Working Composition payload is invalid.", exception);
+        }
+        catch (OverflowException exception)
+        {
+            throw new InvalidDataException("The Working Composition exact-time payload is invalid.", exception);
+        }
+    }
+
+    private static StreamTimingAssessmentPinDto ToDto(StreamTimingAssessmentPin source) => new()
+    {
+        SchemaIdentity = source.SchemaIdentity,
+        AssessmentId = source.AssessmentId,
+        SourceContentHash = source.SourceContentHash,
+        MediaType = source.MediaType,
+        SelectedStreamIndex = source.SelectedStreamIndex,
+        Readiness = source.Readiness,
+        HasUsableSequentialDecodePath = source.HasUsableSequentialDecodePath,
+        TimelineDuration = ToDto(source.TimelineDuration)!,
+        SourcePresentationStart = ToDto(source.SourcePresentationStart),
+        IssueClassifications = source.IssueClassifications.ToList()
+    };
+
+    private static StreamTimingAssessmentPin FromDto(StreamTimingAssessmentPinDto source) => new(new StreamTimingAssessment(
+        source.AssessmentId,
+        source.SchemaIdentity,
+        source.SourceContentHash,
+        source.MediaType,
+        source.SelectedStreamIndex,
+        source.Readiness,
+        source.HasUsableSequentialDecodePath,
+        FromDto(source.TimelineDuration) ?? throw new InvalidDataException("A timing-pin duration is required."),
+        source.IssueClassifications ?? throw new InvalidDataException("Timing-pin issues are required."),
+        FromDto(source.SourcePresentationStart)));
 }

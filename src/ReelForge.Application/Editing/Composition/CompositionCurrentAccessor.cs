@@ -61,17 +61,9 @@ internal sealed class CompositionCurrentAccessor
         return source;
     }
 
-    public static CompositionSegment CreateSegment(ProjectAsset source) => new()
-    {
-        Source = new AssetRevisionReference
-        {
-            AssetId = source.Id,
-            RecipeRevisionId = source.StorageKind == AssetStorageKind.Virtual
-                ? source.Virtual?.CurrentRecipeRevisionId
-                    ?? throw new InvalidOperationException("The selected Saved Clip has no committed recipe revision.")
-                : null
-        },
-        Start = RecipeBoundary.SourceStart,
-        End = RecipeBoundary.SourceEnd
-    };
+    public static InvalidOperationException TimingAwarePlacementRequired() => new(
+        "Timeline placement requires persisted timing-assessment evidence and an occurrence adapter.");
+
+    public static InvalidOperationException OccurrenceAdapterRequired(string operation) => new(
+        $"{operation} is unsupported until the timeline occurrence adapter is available.");
 }

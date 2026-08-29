@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using ReelForge.Core;
@@ -137,7 +136,7 @@ public static class RecipeRenderPlanner
             {
                 TrimRecipe trim => BuildTrimNode(project, asset, revision, trim, activeRevisions),
                 ExtractFrameRecipe frame => BuildExtractFrameNode(project, asset, revision, frame, activeRevisions),
-                CompositionRecipe composition => BuildCompositionNode(project, asset, revision, composition, activeRevisions),
+                CompositionRecipe => RejectCompositionMaterialization(asset, revision),
                 _ => throw new NotSupportedException($"Recipe '{revision.Recipe.GetType().Name}' cannot be planned.")
             };
         }
@@ -191,95 +190,13 @@ public static class RecipeRenderPlanner
             asset.Id, revision.Id, source, frame.Anchor, frame.ImageProfile, hash);
     }
 
-    private static CompositionRenderPlanNode BuildCompositionNode(
-        VideoProject project,
+    private static MediaRenderPlanNode RejectCompositionMaterialization(
         ProjectAsset asset,
-        RecipeRevision revision,
-        CompositionRecipe composition,
-        HashSet<Guid> activeRevisions)
-    {
-        if (asset.MediaType != MediaType.Video || composition.Segments.Count == 0)
-            throw new InvalidDataException("Composition recipes require video output and at least one segment.");
-        var segments = composition.Segments.Select(segment =>
-        {
-            var source = BuildNode(project, segment.Source, activeRevisions);
-            if (source.MediaType != MediaType.Video)
-                throw new InvalidDataException($"Composition segment '{segment.Id}' requires video input.");
-            var segmentHash = Hash(string.Join('|',
-                "segment",
-                segment.Id.ToString("N"),
-                source.NodeHash,
-                BoundaryKey(segment.Start),
-                BoundaryKey(segment.End),
-                segment.AudioEnabled));
-            return new CompositionSegmentRenderPlan(
-                segment.Id, source, segment.Start, segment.End, segment.AudioEnabled, segmentHash);
-        }).ToArray();
-        var audioClips = composition.AudioClips.Select(clip =>
-        {
-            var source = BuildNode(project, clip.Source, activeRevisions);
-            if (source.MediaType != MediaType.Audio)
-                throw new InvalidDataException($"Composition audio clip '{clip.Id}' requires audio input.");
-            if (clip.TimelineStartTicks < 0)
-                throw new InvalidDataException($"Composition audio clip '{clip.Id}' has a negative timeline start.");
-            if (!double.IsFinite(clip.GainDecibels) || clip.GainDecibels is < -60 or > 12)
-                throw new InvalidDataException($"Composition audio clip '{clip.Id}' has invalid gain.");
-            if (!double.IsFinite(clip.Pan) || clip.Pan is < -1 or > 1)
-                throw new InvalidDataException($"Composition audio clip '{clip.Id}' has invalid pan.");
-            if (clip.FadeInMilliseconds < 0 || clip.FadeOutMilliseconds < 0)
-                throw new InvalidDataException($"Composition audio clip '{clip.Id}' has invalid fades.");
-            var clipHash = Hash(string.Join('|',
-                "audio-clip",
-                clip.Id.ToString("N"),
-                source.NodeHash,
-                clip.TimelineStartTicks,
-                clip.IsMuted,
-                clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture),
-                clip.Pan.ToString("R", CultureInfo.InvariantCulture),
-                clip.FadeInMilliseconds,
-                clip.FadeOutMilliseconds));
-            return new CompositionAudioClipRenderPlan(
-                clip.Id,
-                source,
-                clip.TimelineStartTicks,
-                clip.IsMuted,
-                clip.GainDecibels,
-                clip.Pan,
-                clip.FadeInMilliseconds,
-                clip.FadeOutMilliseconds,
-                clipHash);
-        }).ToArray();
-        var segmentKey = string.Join(';', segments.Select(segment => string.Join(',',
-            segment.SegmentId.ToString("N"),
-            segment.Source.NodeHash,
-            BoundaryKey(segment.Start),
-            BoundaryKey(segment.End),
-            segment.AudioEnabled)));
-        var compatibility = MediaCompatibilityAnalyzer.Analyze(
-            composition.Segments.Select(segment =>
-            {
-                var sourceAsset = FindAsset(project, segment.Source.AssetId);
-                return sourceAsset.Encoding ?? sourceAsset.Virtual?.ExpectedMediaProperties;
-            }).ToArray());
-        var audioKey = string.Join(';', audioClips.Select(clip => string.Join(',',
-            clip.ClipId.ToString("N"),
-            clip.Source.NodeHash,
-            clip.TimelineStartTicks,
-            clip.IsMuted,
-            clip.GainDecibels.ToString("R", CultureInfo.InvariantCulture),
-            clip.Pan.ToString("R", CultureInfo.InvariantCulture),
-            clip.FadeInMilliseconds,
-            clip.FadeOutMilliseconds)));
-        return new CompositionRenderPlanNode(
-            asset.Id,
-            revision.Id,
-            segments,
-            compatibility,
-            Hash($"composition|{asset.Id:N}|{revision.Id:N}|{segmentKey}|{audioKey}"))
-        {
-            AudioClips = audioClips
-        };
-    }
+        RecipeRevision revision) =>
+        throw new InvalidDataException(
+            $"Composition '{asset.EffectiveDisplayName}' (revision '{revision.Id}') cannot be materialized yet. " +
+            "The candidate multitrack composition requires the track-aware renderer planned for Milestone 6; " +
+            "use composition audition for its supported single visible-track shape or wait for track-aware preview/export.");
 
     private static ProjectAsset FindAsset(VideoProject project, Guid assetId) =>
         project.Assets.SingleOrDefault(candidate => candidate.Id == assetId)
