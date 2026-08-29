@@ -35,6 +35,7 @@ internal sealed class ApplicationRuntime : IDisposable
             Settings.MediaTools.LogFfmpegCommands,
             Settings.MediaTools.LogFfprobeCommands);
         MediaInspector = new FfprobeMediaInspectionService(MediaTools.FfprobePath, ProcessRunner);
+        StreamTimingAssessmentService = new FfprobeStreamTimingAssessmentService(MediaTools.FfprobePath, ProcessRunner);
         ExactFrameService = new ExactVideoFrameService(
             MediaTools.FfmpegPath,
             MediaTools.FfprobePath,
@@ -146,6 +147,7 @@ internal sealed class ApplicationRuntime : IDisposable
     public ProjectAssetTransferWorkflow ProjectAssetTransferWorkflow { get; }
     public MaterializedProjectMediaTransferService MaterializedProjectMediaTransferService { get; }
     public FfprobeMediaInspectionService MediaInspector { get; }
+    public FfprobeStreamTimingAssessmentService StreamTimingAssessmentService { get; }
     public ExactVideoFrameService ExactFrameService { get; }
     public RecipeMediaMaterializer MediaMaterializer { get; }
     public FfmpegAudioExtractionEngine AudioExtractionEngine { get; }
@@ -163,6 +165,7 @@ internal sealed class ApplicationRuntime : IDisposable
         ApplicationSettingsPlatformDefaults.Apply(Settings, Paths);
         MediaTools = MediaToolDiscovery.Discover(Settings.MediaTools.FfmpegPath, Settings.MediaTools.FfprobePath);
         MediaInspector.UpdateExecutablePath(MediaTools.FfprobePath);
+        StreamTimingAssessmentService.UpdateExecutablePath(MediaTools.FfprobePath);
         ExactFrameService.UpdateExecutablePaths(MediaTools.FfmpegPath, MediaTools.FfprobePath);
         MediaMaterializer.UpdateExecutablePath(MediaTools.FfmpegPath);
         AudioExtractionEngine.UpdateExecutablePath(MediaTools.FfmpegPath);

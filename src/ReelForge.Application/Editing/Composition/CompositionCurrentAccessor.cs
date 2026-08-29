@@ -14,9 +14,13 @@ internal sealed class CompositionCurrentAccessor
     public VideoProject Project =>
         _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
 
-    public (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent()
+    public (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent() =>
+        GetCurrent(Project);
+
+    public static (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent(
+        VideoProject project)
     {
-        var project = Project;
+        ArgumentNullException.ThrowIfNull(project);
         var compositionId = project.WorkingCompositionAssetId
             ?? throw new InvalidOperationException("Start a Working Composition first.");
         var asset = project.Assets.SingleOrDefault(candidate => candidate.Id == compositionId)

@@ -126,6 +126,11 @@
                                                 <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
                                                 <Setter Property="FontSize" Value="15" />
                                                 <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsTimingDegraded}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                                        <Setter Property="FontFamily" Value="Segoe UI Symbol" />
+                                                        <Setter Property="FontSize" Value="22" />
+                                                    </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsMissingPhysicalAsset}" Value="True">
                                                         <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
                                                         <Setter Property="FontFamily" Value="Segoe UI Symbol" />
@@ -148,6 +153,9 @@
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsDegradedDerivedAsset}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsTimingDegraded}" Value="True">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                     </DataTrigger>
                                                 </Style.Triggers>

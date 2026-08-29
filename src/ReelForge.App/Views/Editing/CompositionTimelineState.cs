@@ -20,6 +20,14 @@ public sealed record CompositionTimelineState(
     IReadOnlyDictionary<Guid, CompositionTimelineItemCapabilities> Capabilities,
     IReadOnlyList<CompositionTimelineDropDescriptor> EligibleDropItems)
 {
+    /// <summary>Count of occurrence pins with estimated (not exact) timing, derived from immutable items.</summary>
+    public int DegradedOccurrenceCount => Segments.Count(item => item.IsTimingDegraded) +
+                                          AudioClips.Count(item => item.IsTimingDegraded);
+
+    public string? TimingWarningSummary => DegradedOccurrenceCount == 0
+        ? null
+        : $"{DegradedOccurrenceCount} occurrence{(DegradedOccurrenceCount == 1 ? string.Empty : "s")} use estimated timing. Precise editing may require repair or replacement.";
+
     public static CompositionTimelineState Empty { get; } = new(
         [],
         [],
@@ -136,11 +144,13 @@ public sealed class CompositionTimelineAudioMoveEventArgs(
 public sealed class CompositionTimelineDropEventArgs(
     Guid assetId,
     CompositionTimelineDropKind kind,
+    Guid targetTrackId,
     double timelineSeconds,
     int insertionIndex) : EventArgs
 {
     public Guid AssetId { get; } = assetId;
     public CompositionTimelineDropKind Kind { get; } = kind;
+    public Guid TargetTrackId { get; } = targetTrackId;
     public double TimelineSeconds { get; } = timelineSeconds;
     public int InsertionIndex { get; } = insertionIndex;
 }

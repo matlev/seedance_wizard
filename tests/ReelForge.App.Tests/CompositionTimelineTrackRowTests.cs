@@ -1,4 +1,5 @@
 using ReelForge.App.Views.Editing;
+using ReelForge.Core;
 
 namespace ReelForge.App.Tests;
 
@@ -48,5 +49,39 @@ public sealed class CompositionTimelineTrackRowTests
         };
 
         Assert.True(CompositionTimelineControl.CanRemove(state, itemId));
+    }
+
+    [Fact]
+    public void DropTargetRequiresAnUnlockedMatchingTrackRowAndSupportsEmptyTracks()
+    {
+        var videoId = Guid.NewGuid();
+        var audioId = Guid.NewGuid();
+        var state = CompositionTimelineState.Empty with
+        {
+            Tracks =
+            [
+                new(videoId, CompositionTimelineTrackKind.Video, 0, IsLocked: false, IsVisibleOrMuted: true, ItemCount: 0),
+                new(audioId, CompositionTimelineTrackKind.Audio, 0, IsLocked: true, IsVisibleOrMuted: false, ItemCount: 0)
+            ]
+        };
+
+        Assert.Equal(videoId, CompositionTimelineControl.ResolveDropTargetTrack(
+            state, CompositionTimelineDropKind.Video, timelineY: 30)?.TrackId);
+        Assert.Null(CompositionTimelineControl.ResolveDropTargetTrack(
+            state, CompositionTimelineDropKind.Audio, timelineY: 30));
+        Assert.Null(CompositionTimelineControl.ResolveDropTargetTrack(
+            state, CompositionTimelineDropKind.Audio, timelineY: 100));
+        Assert.Null(CompositionTimelineControl.ResolveDropTargetTrack(
+            state, CompositionTimelineDropKind.Video, timelineY: 10));
+    }
+
+    [Fact]
+    public void TimelineDropTimeUsesDeterministicMillisecondProjectTime()
+    {
+        Assert.Equal(new ExactTime(617, 500), CompositionWorkspaceCoordinator.ExactTimelineTime(1.234));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CompositionWorkspaceCoordinator.ExactTimelineTime(double.PositiveInfinity));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CompositionWorkspaceCoordinator.ExactTimelineTime(-0.001));
     }
 }

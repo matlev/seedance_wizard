@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using ReelForge.App.Views.ProjectMedia;
 using ReelForge.Application;
+using ReelForge.Application.Editing.Composition;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
 
@@ -12,7 +13,7 @@ namespace ReelForge.App.Views.Editing;
 /// Projects the current Working Composition into the editing controls and owns
 /// timeline item selection. Rendering and media playback remain shell concerns.
 /// </summary>
-internal sealed class CompositionWorkspaceCoordinator : IDisposable
+internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositionPlacementDecisionProvider
 {
     private readonly ProjectWorkspace _workspace;
     private readonly CompositionTimelineControl _timeline;
@@ -27,6 +28,8 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
     private readonly ExactVideoFrameService _exactFrames;
     private readonly FfmpegAudioExtractionEngine _audioExtraction;
     private readonly FfprobeMediaInspectionService _mediaInspector;
+    private readonly IStreamTimingAssessmentService _timingAssessment;
+    private readonly IContentHashService _contentHash;
     private bool _disposed;
 
     public CompositionWorkspaceCoordinator(
@@ -42,7 +45,9 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
         RecipeMediaMaterializer materializer,
         ExactVideoFrameService exactFrames,
         FfmpegAudioExtractionEngine audioExtraction,
-        FfprobeMediaInspectionService mediaInspector)
+        FfprobeMediaInspectionService mediaInspector,
+        IStreamTimingAssessmentService timingAssessment,
+        IContentHashService contentHash)
     {
         _workspace = workspace;
         _timeline = timeline;
@@ -57,9 +62,12 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
         _exactFrames = exactFrames;
         _audioExtraction = audioExtraction;
         _mediaInspector = mediaInspector;
+        _timingAssessment = timingAssessment;
+        _contentHash = contentHash;
         _timeline.SelectionChanged += Timeline_SelectionChanged;
         _timeline.SegmentReorderRequested += Timeline_SegmentReorderRequested;
         _timeline.AudioMoveRequested += Timeline_AudioMoveRequested;
+        _timeline.MediaDropRequested += Timeline_MediaDropRequested;
         _timeline.SplitRequested += Timeline_SplitRequested;
         _timeline.ShiftLeftRequested += Timeline_ShiftLeftRequested;
         _timeline.ShiftRightRequested += Timeline_ShiftRightRequested;
@@ -202,10 +210,20 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
             ItemId = clip.AudioClipId,
             Capability = new CompositionTimelineItemCapabilities(CanRemove: !IsTrackLocked(clip.TrackId))
         })).ToDictionary(item => item.ItemId, item => item.Capability);
+        var eligibleAssets = _workspace.Project?.Assets
+            .Where(asset => asset.StorageKind == AssetStorageKind.Physical)
+            .Where(ProjectMediaDragData.CanAddToComposition)
+            .Select(asset => new CompositionTimelineDropDescriptor(
+                asset.Id,
+                asset.EffectiveDisplayName,
+                asset.MediaType == MediaType.Video
+                    ? CompositionTimelineDropKind.Video
+                    : CompositionTimelineDropKind.Audio))
+            .ToArray() ?? [];
         _timeline.UpdateState(new CompositionTimelineState(Tracks.ToArray(), Segments.ToArray(), AudioClips.ToArray(), SelectedSegmentId,
             SelectedAudioClipId, _playbackSeconds(), _isAuditionActive(), _isPlaying(), _isPlaybackEnabled(),
             _isCompositionSelected(), SplitActionLabel(), _host.SplitBehavior == MediaSplitBehavior.AfterSelectedFrame,
-            capabilities, []));
+            capabilities, eligibleAssets));
         UpdateEditTools();
     }
 
@@ -216,13 +234,17 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
         var videoState = segment is null ? null : new VideoSegmentEditState(segment.DisplayName, segment.DetailText,
             $"{segment.DurationText} • starts at {FormatTime(segment.TimelineStart)} • video track {segment.TrackId.ToString("N")[..8]}",
             segment.AudioEnabled,
-            CanChangeSourceAudio: false);
+            CanChangeSourceAudio: false,
+            segment.IsTimingDegraded,
+            segment.TimingWarningDetail);
         var maximumFadeSeconds = audioClip is null ? 0 : Math.Max(0, Math.Min(audioClip.DurationSeconds,
             Math.Max(0, _timeline.ProjectedDurationSeconds - audioClip.TimelineStart.TotalSeconds)));
         var audioState = audioClip is null ? null : new AudioClipEditState(audioClip.DisplayName,
             $"Starts at {FormatTime(audioClip.TimelineStart.TotalSeconds)} • {audioClip.DurationText}", audioClip.IsMuted,
             audioClip.GainDecibels, audioClip.Pan, audioClip.FadeIn, audioClip.FadeOut, maximumFadeSeconds,
-            CanEdit: !IsTrackLocked(audioClip.TrackId));
+            CanEdit: !IsTrackLocked(audioClip.TrackId),
+            audioClip.IsTimingDegraded,
+            audioClip.TimingWarningDetail);
         _editTools.ShowSelection(videoState, audioState);
     }
 
@@ -249,6 +271,86 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
             Refresh();
             _host.SetStatus($"Moved the audio clip to {FormatTime(e.TimelineStart.TotalSeconds)}. Preview the composition to rebuild it.");
         }, completePending: true);
+
+    private async void Timeline_MediaDropRequested(object? sender, CompositionTimelineDropEventArgs e)
+    {
+        var source = _workspace.Project?.Assets.SingleOrDefault(asset => asset.Id == e.AssetId);
+        if (source is not { IsDeleted: false, StorageKind: AssetStorageKind.Physical } ||
+            !ProjectMediaDragData.CanAddToComposition(source))
+            return;
+
+        Guid? audioTargetTrackId = null;
+        if (source.MediaType == MediaType.Video && source.Encoding?.Audio is not null)
+        {
+            var availableAudioTracks = Tracks
+                .Where(track => track.Kind == CompositionTimelineTrackKind.Audio && !track.IsLocked)
+                .ToArray();
+            var selectedAudioTrack = _timeline.SelectedTrackId is { } selectedId
+                ? availableAudioTracks.SingleOrDefault(track => track.TrackId == selectedId)
+                : null;
+            audioTargetTrackId = selectedAudioTrack?.TrackId ??
+                                 (availableAudioTracks.Length == 1
+                                     ? availableAudioTracks[0].TrackId
+                                     : _host.SelectAudioPlacementTrack(availableAudioTracks));
+            if (audioTargetTrackId is null && availableAudioTracks.Length > 0)
+            {
+                _host.SetStatus("Placement cancelled because no audio track was selected.");
+                return;
+            }
+        }
+
+        CompositionPhysicalPlacementResult? result = null;
+        await _host.RunUiActionAsync("Assessing media timing for placement…", async () =>
+        {
+            var service = new CompositionPhysicalPlacementService(
+                _workspace,
+                _timingAssessment,
+                _contentHash,
+                this);
+            result = await service.PlaceAsync(new CompositionPhysicalPlacementRequest(
+                source.Id,
+                ExactTimelineTime(e.TimelineSeconds),
+                e.TargetTrackId,
+                audioTargetTrackId));
+        });
+        if (result is null) return;
+
+        _host.RefreshProjectMedia(_workspace.Project?.WorkingCompositionAssetId);
+        switch (result.Status)
+        {
+            case CompositionPhysicalPlacementStatus.Placed:
+                SetSelection(result.VideoItemId, result.VideoItemId is null ? result.AudioItemId : null);
+                Refresh();
+                RecipeMutationCommitted?.Invoke(this, EventArgs.Empty);
+                _host.SetStatus(result.VideoReadiness == TimingReadiness.Estimated ||
+                                result.AudioReadiness == TimingReadiness.Estimated
+                    ? $"Placed {source.EffectiveDisplayName} with estimated-timing warnings."
+                    : $"Placed {source.EffectiveDisplayName} in the Working Composition.");
+                break;
+            case CompositionPhysicalPlacementStatus.RepairRequested:
+                _host.ShowPlacementInformation(
+                    "Attempt Repair",
+                    "Repair is not implemented in this milestone. The original media and its timing assessment were kept unchanged.");
+                _host.SetStatus("No media was placed. The timing assessment remains available.");
+                break;
+            case CompositionPhysicalPlacementStatus.Cancelled:
+                _host.SetStatus("Placement cancelled. No timeline occurrence was created.");
+                break;
+            case CompositionPhysicalPlacementStatus.Stale:
+            case CompositionPhysicalPlacementStatus.Blocked:
+                _host.ShowPlacementInformation("Unable to place media", result.Detail);
+                _host.SetStatus(result.Detail);
+                break;
+            default:
+                throw new InvalidOperationException(
+                    $"Unknown physical placement status '{result.Status}'.");
+        }
+    }
+
+    public Task<CompositionPlacementDecision> DecideAsync(
+        CompositionPlacementDecisionRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(_host.DecidePlacement(request));
 
     private async void Timeline_SplitRequested(object? sender, CompositionTimelineItemEventArgs e)
     {
@@ -547,6 +649,15 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
             : value.ToString(@"m\:ss\.fff", CultureInfo.InvariantCulture);
     }
 
+    internal static ExactTime ExactTimelineTime(double seconds)
+    {
+        if (!double.IsFinite(seconds) || seconds < 0)
+            throw new ArgumentOutOfRangeException(nameof(seconds));
+        return new ExactTime(
+            checked((long)Math.Round(seconds * 1000, MidpointRounding.AwayFromZero)),
+            1000);
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -554,6 +665,7 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable
         _timeline.SelectionChanged -= Timeline_SelectionChanged;
         _timeline.SegmentReorderRequested -= Timeline_SegmentReorderRequested;
         _timeline.AudioMoveRequested -= Timeline_AudioMoveRequested;
+        _timeline.MediaDropRequested -= Timeline_MediaDropRequested;
         _timeline.SplitRequested -= Timeline_SplitRequested;
         _timeline.ShiftLeftRequested -= Timeline_ShiftLeftRequested;
         _timeline.ShiftRightRequested -= Timeline_ShiftRightRequested;
@@ -582,5 +694,8 @@ internal interface ICompositionWorkspaceHost
     void RefreshProjectMedia(Guid? selectedAssetId = null);
     void PausePreview();
     string? PromptDetachAudioFileName(string displayName);
+    Guid? SelectAudioPlacementTrack(IReadOnlyList<CompositionTimelineTrackRow> tracks);
+    CompositionPlacementDecision DecidePlacement(CompositionPlacementDecisionRequest request);
+    void ShowPlacementInformation(string title, string message);
     MediaSplitBehavior SplitBehavior { get; }
 }

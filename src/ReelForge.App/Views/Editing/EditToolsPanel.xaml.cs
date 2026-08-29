@@ -9,7 +9,9 @@ public sealed record VideoSegmentEditState(
     string SourceDescription,
     string TimingDescription,
     bool AudioEnabled,
-    bool CanChangeSourceAudio);
+    bool CanChangeSourceAudio,
+    bool IsTimingDegraded = false,
+    string? TimingWarningDetail = null);
 
 public sealed record AudioClipEditState(
     string DisplayName,
@@ -20,7 +22,9 @@ public sealed record AudioClipEditState(
     TimeSpan FadeIn,
     TimeSpan FadeOut,
     double MaximumFadeSeconds,
-    bool CanEdit);
+    bool CanEdit,
+    bool IsTimingDegraded = false,
+    string? TimingWarningDetail = null);
 
 public sealed class BooleanValueEventArgs(bool value) : EventArgs
 {
@@ -70,6 +74,8 @@ public partial class EditToolsPanel : UserControl
                 VideoSegmentNameText.Text = video.DisplayName;
                 VideoSegmentSourceText.Text = video.SourceDescription;
                 VideoSegmentTimingText.Text = video.TimingDescription;
+                VideoTimingWarningPanel.Visibility = video.IsTimingDegraded ? Visibility.Visible : Visibility.Collapsed;
+                VideoTimingWarningText.Text = video.TimingWarningDetail ?? string.Empty;
             }
 
             SegmentAudioOnButton.IsChecked = video?.AudioEnabled == true;
@@ -81,6 +87,19 @@ public partial class EditToolsPanel : UserControl
             {
                 AudioClipNameText.Text = audio.DisplayName;
                 AudioClipTimingText.Text = audio.TimingDescription;
+                AudioTimingWarningPanel.Visibility = audio.IsTimingDegraded ? Visibility.Visible : Visibility.Collapsed;
+                AudioTimingWarningText.Text = audio.TimingWarningDetail ?? string.Empty;
+            }
+            else
+            {
+                AudioTimingWarningPanel.Visibility = Visibility.Collapsed;
+                AudioTimingWarningText.Text = string.Empty;
+            }
+
+            if (video is null)
+            {
+                VideoTimingWarningPanel.Visibility = Visibility.Collapsed;
+                VideoTimingWarningText.Text = string.Empty;
             }
 
             AudioClipEnabledButton.IsChecked = audio is { IsMuted: false };

@@ -300,12 +300,42 @@ public sealed class ProjectWorkspace
     /// that save cannot commit, the caller's compensating action restores the in-memory project
     /// state before this method returns or throws.
     /// </summary>
-    public async Task<ProjectWorkspaceMutationSaveResult> SaveMutationIfCurrentAsync(
+    public Task<ProjectWorkspaceMutationSaveResult> SaveMutationIfCurrentAsync(
         VideoProject expectedProject,
         ProjectLocation expectedLocation,
         Action applyMutation,
         Func<Task> rollbackUncommittedAsync,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        SaveMutationIfCurrentCoreAsync(
+            expectedProject,
+            expectedLocation,
+            captureBeforeMutation: null,
+            applyMutation,
+            rollbackUncommittedAsync,
+            cancellationToken);
+
+    internal Task<ProjectWorkspaceMutationSaveResult> SaveMutationIfCurrentWithSnapshotAsync(
+        VideoProject expectedProject,
+        ProjectLocation expectedLocation,
+        Action captureBeforeMutation,
+        Action applyMutation,
+        Func<Task> rollbackUncommittedAsync,
+        CancellationToken cancellationToken = default) =>
+        SaveMutationIfCurrentCoreAsync(
+            expectedProject,
+            expectedLocation,
+            captureBeforeMutation,
+            applyMutation,
+            rollbackUncommittedAsync,
+            cancellationToken);
+
+    private async Task<ProjectWorkspaceMutationSaveResult> SaveMutationIfCurrentCoreAsync(
+        VideoProject expectedProject,
+        ProjectLocation expectedLocation,
+        Action? captureBeforeMutation,
+        Action applyMutation,
+        Func<Task> rollbackUncommittedAsync,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(expectedProject);
         ArgumentNullException.ThrowIfNull(expectedLocation);
@@ -344,6 +374,7 @@ public sealed class ProjectWorkspace
                     cancellationToken,
                     applyMutation,
                     rollbackUncommittedAsync,
+                    captureBeforeMutation: captureBeforeMutation,
                     restoreUncommittedCallerCancellationAsync: RestorePriorOperationalStateAsync)
                 .ConfigureAwait(false);
             return committed
@@ -582,7 +613,8 @@ public sealed class ProjectWorkspace
         Action? applyBeforeCommit = null,
         Func<Task>? rollBackUncommittedAsync = null,
         bool requireRelinkEligibility = false,
-        Func<Task>? restoreUncommittedCallerCancellationAsync = null)
+        Func<Task>? restoreUncommittedCallerCancellationAsync = null,
+        Action? captureBeforeMutation = null)
     {
         using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, sessionCancellation);
@@ -619,6 +651,7 @@ public sealed class ProjectWorkspace
                 FailureDetail = null;
                 if (applyBeforeCommit is not null)
                 {
+                    captureBeforeMutation?.Invoke();
                     project.Touch();
                     applyBeforeCommit();
                 }

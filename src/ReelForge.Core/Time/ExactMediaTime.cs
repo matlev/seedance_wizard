@@ -46,6 +46,26 @@ public sealed record ExactTime : IComparable<ExactTime>
 
     public static bool operator >=(ExactTime left, ExactTime right) => left.CompareTo(right) >= 0;
 
+    public static ExactTime operator +(ExactTime left, ExactTime right)
+    {
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
+        return FromBigInteger(
+            ((BigInteger)left.Numerator * right.Denominator) +
+            ((BigInteger)right.Numerator * left.Denominator),
+            (BigInteger)left.Denominator * right.Denominator);
+    }
+
+    public static ExactTime operator -(ExactTime left, ExactTime right)
+    {
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
+        return FromBigInteger(
+            ((BigInteger)left.Numerator * right.Denominator) -
+            ((BigInteger)right.Numerator * left.Denominator),
+            (BigInteger)left.Denominator * right.Denominator);
+    }
+
     /// <summary>
     /// Converts this value to an integer clock whose units-per-second are supplied by the caller.
     /// </summary>

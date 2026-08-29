@@ -7,7 +7,7 @@
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1"
             CornerRadius="4"
-            AllowDrop="False"
+            AllowDrop="True"
             PreviewDragEnter="Timeline_PreviewDragEnter"
             PreviewDragOver="Timeline_PreviewDragOver"
             PreviewDragLeave="Timeline_PreviewDragLeave"
@@ -27,6 +27,9 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="TIMELINE" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TimingWarningText" Visibility="Collapsed" Text="⚠ Timing estimated"
+                               Foreground="{StaticResource WarningBrush}" FontFamily="Segoe UI Symbol"
+                               FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0" />
                     <CheckBox x:Name="AutoScrollCheckBox" Content="Auto-scroll during playback" IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{StaticResource TextBrush}" ToolTip="Keep the composition playhead visible while playback advances. This choice is not saved." />
                     <Button Content="+ Video track" Padding="6,1" Margin="12,0,0,0" Click="AddVideoTrack_Click" ToolTip="Add an empty video track" />
                     <Button Content="+ Audio track" Padding="6,1" Margin="5,0,0,0" Click="AddAudioTrack_Click" ToolTip="Add an empty audio track" />

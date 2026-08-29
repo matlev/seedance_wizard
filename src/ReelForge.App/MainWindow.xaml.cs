@@ -19,6 +19,7 @@ using ReelForge.App.Views.ProjectMedia;
 using ReelForge.App.Views.Projects;
 using ReelForge.App.Views.Settings;
 using ReelForge.Application;
+using ReelForge.Application.Editing.Composition;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
 
@@ -138,7 +139,9 @@ public partial class MainWindow : Window, IDisposable
             _mediaMaterializer,
             _exactFrameService,
             _audioExtractionEngine,
-            _mediaInspector);
+            _mediaInspector,
+            _runtime.StreamTimingAssessmentService,
+            _runtime.ContentHashService);
         _compositionRenderCoordinator = new CompositionRenderCoordinator(
             _workspace,
             _mediaMaterializer,
@@ -1548,6 +1551,25 @@ public partial class MainWindow : Window, IDisposable
             window.RefreshProjectCollections(selectedAssetId ?? window._workspace.Project?.WorkingCompositionAssetId);
         public void PausePreview() => window._mediaPreviewCoordinator.Pause();
         public MediaSplitBehavior SplitBehavior => window._applicationSettings.MediaTools.SplitBehavior;
+        public Guid? SelectAudioPlacementTrack(IReadOnlyList<CompositionTimelineTrackRow> tracks)
+        {
+            if (tracks.Count == 0)
+                return null;
+
+            var dialog = new AudioPlacementTrackDialog(tracks) { Owner = window };
+            return dialog.ShowDialog() == true ? dialog.SelectedTrackId : null;
+        }
+
+        public CompositionPlacementDecision DecidePlacement(CompositionPlacementDecisionRequest request)
+        {
+            var dialog = new TimingPlacementDialog(request) { Owner = window };
+            _ = dialog.ShowDialog();
+            return dialog.Decision;
+        }
+
+        public void ShowPlacementInformation(string title, string message) =>
+            MessageBox.Show(window, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+
         public string? PromptDetachAudioFileName(string displayName)
         {
             var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(displayName));

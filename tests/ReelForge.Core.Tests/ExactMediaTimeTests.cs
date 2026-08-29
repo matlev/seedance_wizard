@@ -24,6 +24,33 @@ public sealed class ExactMediaTimeTests
         Assert.Equal(0, new ExactTime(1, 2).CompareTo(new ExactTime(500_000_000, 1_000_000_000)));
     }
 
+    [Fact]
+    public void ExactTimeAddsAndSubtractsCrossDenominatorsExactly()
+    {
+        var left = new ExactTime(1, 3);
+        var right = new ExactTime(1, 6);
+
+        Assert.Equal(new ExactTime(1, 2), left + right);
+        Assert.Equal(new ExactTime(1, 6), left - right);
+        Assert.Equal(new ExactTime(-1, 6), right - left);
+    }
+
+    [Fact]
+    public void ExactTimeArithmeticReducesBeforeCheckingInt64Range()
+    {
+        var value = new ExactTime(long.MaxValue, long.MaxValue - 1);
+
+        Assert.Equal(new ExactTime(long.MaxValue, long.MaxValue - 1), value + new ExactTime(0, 1));
+        Assert.Equal(new ExactTime(0, 1), value - value);
+    }
+
+    [Fact]
+    public void ExactTimeArithmeticThrowsWhenReducedResultCannotFitInt64()
+    {
+        Assert.Throws<OverflowException>(() => new ExactTime(long.MaxValue, 1) + new ExactTime(1, 1));
+        Assert.Throws<OverflowException>(() => new ExactTime(long.MinValue, 1) - new ExactTime(1, 1));
+    }
+
     [Theory]
     [InlineData(1, 3, 10, ExactTimeRounding.Floor, 3)]
     [InlineData(1, 3, 10, ExactTimeRounding.Ceiling, 4)]
