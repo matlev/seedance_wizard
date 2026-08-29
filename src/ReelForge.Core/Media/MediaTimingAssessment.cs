@@ -15,6 +15,8 @@ public enum TimingReadiness
 /// </summary>
 public enum TimingIssueClassification
 {
+    AnalysisCapabilityUnavailable,
+    NativePresentationTimestampUnavailable,
     NativeStartUnavailable,
     NativeDurationUnavailable,
     TerminalBoundaryUnavailable,
@@ -26,6 +28,7 @@ public enum TimingIssueClassification
     SequentialDecodeUnavailable,
     NoUsableStream,
     FiniteSpanUnavailable,
+    SourcePresentationStartUnrepresentable,
     ProtectedMedia,
     CorruptMedia,
     UnsupportedMedia
@@ -50,8 +53,10 @@ public sealed class StreamTimingAssessment
         new()
         {
             TimingIssueClassification.SequentialDecodeUnavailable,
+            TimingIssueClassification.AnalysisCapabilityUnavailable,
             TimingIssueClassification.NoUsableStream,
             TimingIssueClassification.FiniteSpanUnavailable,
+            TimingIssueClassification.SourcePresentationStartUnrepresentable,
             TimingIssueClassification.ProtectedMedia,
             TimingIssueClassification.CorruptMedia,
             TimingIssueClassification.UnsupportedMedia
@@ -65,7 +70,8 @@ public sealed class StreamTimingAssessment
         TimingReadiness readiness,
         bool hasUsableSequentialDecodePath,
         ExactTime? timelineDuration,
-        IEnumerable<TimingIssueClassification> issueClassifications)
+        IEnumerable<TimingIssueClassification> issueClassifications,
+        ExactTime? sourcePresentationStart = null)
         : this(
             assessmentId,
             CurrentSchemaIdentity,
@@ -75,7 +81,8 @@ public sealed class StreamTimingAssessment
             readiness,
             hasUsableSequentialDecodePath,
             timelineDuration,
-            issueClassifications)
+            issueClassifications,
+            sourcePresentationStart)
     {
     }
 
@@ -88,7 +95,8 @@ public sealed class StreamTimingAssessment
         TimingReadiness readiness,
         bool hasUsableSequentialDecodePath,
         ExactTime? timelineDuration,
-        IEnumerable<TimingIssueClassification> issueClassifications)
+        IEnumerable<TimingIssueClassification> issueClassifications,
+        ExactTime? sourcePresentationStart = null)
     {
         if (assessmentId == Guid.Empty)
             throw new ArgumentException("A stable assessment identifier is required.", nameof(assessmentId));
@@ -101,6 +109,7 @@ public sealed class StreamTimingAssessment
         Readiness = RequireReadiness(readiness, nameof(readiness));
         HasUsableSequentialDecodePath = hasUsableSequentialDecodePath;
         TimelineDuration = RequireOptionalPositiveDuration(timelineDuration, nameof(timelineDuration));
+        SourcePresentationStart = sourcePresentationStart;
         IssueClassifications = CopyIssues(issueClassifications, nameof(issueClassifications));
 
         ValidateReadiness();
@@ -114,6 +123,7 @@ public sealed class StreamTimingAssessment
     public TimingReadiness Readiness { get; }
     public bool HasUsableSequentialDecodePath { get; }
     public ExactTime? TimelineDuration { get; }
+    public ExactTime? SourcePresentationStart { get; }
     public IReadOnlyList<TimingIssueClassification> IssueClassifications { get; }
     public bool CanPlace => Readiness is TimingReadiness.Exact or TimingReadiness.Estimated;
     public bool IsDegraded => Readiness == TimingReadiness.Estimated;
@@ -135,6 +145,9 @@ public sealed class StreamTimingAssessment
 
         if (Readiness == TimingReadiness.Exact && IssueClassifications.Count != 0)
             throw new ArgumentException("Exact timing assessments cannot carry timing issues.", nameof(IssueClassifications));
+
+        if (Readiness == TimingReadiness.Exact && SourcePresentationStart is null)
+            throw new ArgumentException("Exact timing assessments require a source presentation start.", nameof(SourcePresentationStart));
 
         if (Readiness == TimingReadiness.Estimated && IssueClassifications.Count == 0)
             throw new ArgumentException("Estimated timing assessments require one or more non-fatal issue classifications.", nameof(IssueClassifications));
@@ -233,6 +246,7 @@ public sealed class StreamTimingAssessmentPin
         Readiness = assessment.Readiness;
         HasUsableSequentialDecodePath = assessment.HasUsableSequentialDecodePath;
         TimelineDuration = assessment.TimelineDuration!;
+        SourcePresentationStart = assessment.SourcePresentationStart;
         IssueClassifications = Array.AsReadOnly(assessment.IssueClassifications.ToArray());
     }
 
@@ -244,6 +258,7 @@ public sealed class StreamTimingAssessmentPin
     public TimingReadiness Readiness { get; }
     public bool HasUsableSequentialDecodePath { get; }
     public ExactTime TimelineDuration { get; }
+    public ExactTime? SourcePresentationStart { get; }
     public IReadOnlyList<TimingIssueClassification> IssueClassifications { get; }
     public bool IsDegraded => Readiness == TimingReadiness.Estimated;
 }

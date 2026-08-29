@@ -29,6 +29,16 @@ public sealed class MediaTimingAssessmentTests
     }
 
     [Fact]
+    public void MissingNativePresentationTimestampIsNonfatalWhenOtherPlacementEvidenceExists()
+    {
+        var assessment = Assessment(TimingReadiness.Estimated,
+            issues: [TimingIssueClassification.NativePresentationTimestampUnavailable]);
+
+        Assert.True(assessment.CanPlace);
+        Assert.True(assessment.IsDegraded);
+    }
+
+    [Fact]
     public void UnusableAssessmentMayLackPlacementEvidenceButRequiresIssue()
     {
         var assessment = new StreamTimingAssessment(
@@ -55,12 +65,17 @@ public sealed class MediaTimingAssessmentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => Assessment(TimingReadiness.Unusable, stream: -1, issues: [TimingIssueClassification.CorruptMedia]));
         Assert.Throws<ArgumentOutOfRangeException>(() => Assessment(TimingReadiness.Unusable, duration: new ExactTime(0, 1), issues: [TimingIssueClassification.CorruptMedia]));
         Assert.Throws<ArgumentException>(() => Assessment(TimingReadiness.Estimated, issues: [TimingIssueClassification.CorruptMedia, TimingIssueClassification.CorruptMedia]));
+        Assert.Throws<ArgumentException>(() => new StreamTimingAssessment(
+            Guid.NewGuid(), Hash(), MediaType.Video, 0, TimingReadiness.Exact, true,
+            new ExactTime(1, 1), []));
     }
 
     [Theory]
+    [InlineData(TimingIssueClassification.AnalysisCapabilityUnavailable)]
     [InlineData(TimingIssueClassification.SequentialDecodeUnavailable)]
     [InlineData(TimingIssueClassification.NoUsableStream)]
     [InlineData(TimingIssueClassification.FiniteSpanUnavailable)]
+    [InlineData(TimingIssueClassification.SourcePresentationStartUnrepresentable)]
     [InlineData(TimingIssueClassification.ProtectedMedia)]
     [InlineData(TimingIssueClassification.CorruptMedia)]
     [InlineData(TimingIssueClassification.UnsupportedMedia)]
@@ -116,6 +131,7 @@ public sealed class MediaTimingAssessmentTests
         Assert.NotSame(assessment.IssueClassifications, pin.IssueClassifications);
         Assert.Equal(assessment.AssessmentId, pin.AssessmentId);
         Assert.Equal(assessment.TimelineDuration, pin.TimelineDuration);
+        Assert.Equal(assessment.SourcePresentationStart, pin.SourcePresentationStart);
         Assert.True(pin.IsDegraded);
         Assert.Throws<NotSupportedException>(() => ((IList<TimingIssueClassification>)pin.IssueClassifications).Clear());
         Assert.Throws<ArgumentException>(() => Assessment(TimingReadiness.Unusable, issues: [TimingIssueClassification.CorruptMedia]).CreatePlacementPin());
@@ -161,7 +177,7 @@ public sealed class MediaTimingAssessmentTests
         var video = new CompositionVideoItem(Guid.NewGuid(), source, 0, videoRange,
             Pin(MediaType.Video, 0, videoRange.Duration, TimingReadiness.Exact), new ExactTime(0, 1), link);
         var audioPin = new StreamTimingAssessment(
-            Guid.NewGuid(), new string('b', 64), MediaType.Audio, 0, TimingReadiness.Exact, true, audioRange.Duration, []).CreatePlacementPin();
+            Guid.NewGuid(), new string('b', 64), MediaType.Audio, 0, TimingReadiness.Exact, true, audioRange.Duration, [], new ExactTime(0, 1)).CreatePlacementPin();
         var audio = new CompositionAudioItem(Guid.NewGuid(), source, 0, audioRange, audioPin, new ExactTime(0, 1), link);
 
         Assert.Throws<ArgumentException>(() => new WorkingCompositionState(
@@ -178,7 +194,8 @@ public sealed class MediaTimingAssessmentTests
         bool decode = true,
         ExactTime? duration = null) => new(
             Guid.NewGuid(), hash ?? Hash(), mediaType, stream, readiness, decode, duration ?? new ExactTime(1, 1),
-            issues ?? (readiness == TimingReadiness.Exact ? [] : [TimingIssueClassification.NativeDurationUnavailable]));
+            issues ?? (readiness == TimingReadiness.Exact ? [] : [TimingIssueClassification.NativeDurationUnavailable]),
+            readiness == TimingReadiness.Exact ? new ExactTime(0, 1) : null);
 
     private static StreamTimingAssessmentPin Pin(MediaType type, int stream, ExactTime duration, TimingReadiness readiness) => new(
         Assessment(readiness, mediaType: type, stream: stream, duration: duration));

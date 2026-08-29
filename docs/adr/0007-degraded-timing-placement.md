@@ -36,12 +36,15 @@ Estimated placement is eligible only when all of these are frozen in a versioned
 - deterministic selected stream index;
 - usable sequential decode evidence;
 - finite positive rational timeline duration;
+- the representable source presentation start when timing is Exact, or its explicit absence/qualification when Estimated;
 - one or more specific, engine-neutral timing issue classifications;
 - stable assessment ID and assessment-schema identity.
 
 A filename, extension, or container duration alone never establishes eligibility. Corrupt, protected, undecodable, durationless, no-usable-stream, and unreliable sequential-decode results remain Unusable.
 
 Placement-fatal issue classifications cannot appear on an Exact or Estimated assessment. An Unusable assessment must carry at least one such specific classification; contradictory evidence cannot make corrupt, protected, undecodable, streamless, durationless, or unsupported media placeable. Known persisted assessment-schema identities remain explicitly supported by Core so historical pins can be represented, while unknown schemas are rejected for deliberate DTO-version handling rather than interpreted as current meaning.
+
+Assessment is a cancellable, placement-time analysis rather than an import, startup, recovery, or autosave side effect. Infrastructure scans the already-resolved numeric stream identity through end of stream using the active capability-qualified media route. Successful inspection or component presence alone is not decode evidence. A heuristic timestamp is not promoted to exact source timing, and container duration alone never establishes a finite placement span. Engine-specific frame, packet, priming, and padding evidence remains in Infrastructure; only the portable readiness, source presentation start, rational span, issue classifications, source identity, and selected-stream identity cross into project meaning. Repeating the scan reuses an assessment ID only when that complete immutable evidence is unchanged; changed evidence receives a new ID and therefore a new acknowledgement decision.
 
 Video and audio are assessed independently. Placement behavior is:
 

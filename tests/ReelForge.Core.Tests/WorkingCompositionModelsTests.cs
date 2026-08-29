@@ -169,5 +169,5 @@ public sealed class WorkingCompositionModelsTests
     private static StreamTimingAssessmentPin AudioPin(int stream, long start, long end) => Pin(
         MediaType.Audio, stream, new AudioSourceRange(Ast(start), Ast(end)).Duration);
     private static StreamTimingAssessmentPin Pin(MediaType type, int stream, ExactTime duration) => new(
-        new StreamTimingAssessment(Guid.NewGuid(), new string('a', 64), type, stream, TimingReadiness.Exact, true, duration, []));
+        new StreamTimingAssessment(Guid.NewGuid(), new string('a', 64), type, stream, TimingReadiness.Exact, true, duration, [], new ExactTime(0, 1)));
 }
