@@ -19,7 +19,8 @@ internal static partial class ProjectPersistenceMapper
         AnchorRevisions = source.AnchorRevisions.Select(ToDto).ToList(),
         WorkingCompositionAssetId = source.WorkingCompositionAssetId,
         CurrentGenerationDraft = ToDto(source.CurrentGenerationDraft),
-        Generations = source.Generations.Select(ToDto).ToList()
+        Generations = source.Generations.Select(ToDto).ToList(),
+        TimingAssessmentAcknowledgements = source.TimingAssessmentAcknowledgements.Select(ToDto).ToList()
     };
 
     public static VideoProject FromDto(ProjectFileDto source) => new()
@@ -35,7 +36,8 @@ internal static partial class ProjectPersistenceMapper
         AnchorRevisions = source.AnchorRevisions.Select(FromDto).ToList(),
         WorkingCompositionAssetId = source.WorkingCompositionAssetId,
         CurrentGenerationDraft = FromDto(source.CurrentGenerationDraft),
-        Generations = source.Generations.Select(FromDto).ToList()
+        Generations = source.Generations.Select(FromDto).ToList(),
+        TimingAssessmentAcknowledgements = (source.TimingAssessmentAcknowledgements ?? throw new InvalidDataException("Timing assessment acknowledgements are required.")).Select(FromDto).ToList()
     };
 
     private static Dictionary<string, string> Copy(IEnumerable<KeyValuePair<string, string>> source) =>

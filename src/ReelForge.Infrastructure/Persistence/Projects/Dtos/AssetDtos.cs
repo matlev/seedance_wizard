@@ -16,6 +16,7 @@ internal sealed class ProjectAssetDto
     public int? Width { get; set; }
     public int? Height { get; set; }
     public MediaEncodingMetadata? Encoding { get; set; }
+    public List<StreamTimingAssessmentDto> TimingAssessments { get; set; } = [];
     public AssetProvenanceDto? Provenance { get; set; }
     public PhysicalAssetStorageDto? Physical { get; set; }
     public VirtualAssetStateDto? Virtual { get; set; }

@@ -14,6 +14,8 @@ public sealed class VideoProject
     public Guid? WorkingCompositionAssetId { get; set; }
     public GenerationDraft? CurrentGenerationDraft { get; set; }
     public List<GenerationRecord> Generations { get; set; } = [];
+    /// <summary>Project-local acknowledgements; intentionally outside Working Composition history.</summary>
+    public List<TimingAssessmentAcknowledgement> TimingAssessmentAcknowledgements { get; set; } = [];
 
     public void Touch() => ModifiedAt = DateTimeOffset.UtcNow;
 
@@ -24,6 +26,21 @@ public sealed class VideoProject
             throw new InvalidOperationException($"Asset '{asset.Id}' already belongs to the project.");
 
         Assets.Add(asset);
+        Touch();
+    }
+
+    public void AcknowledgeEstimatedTimingAssessment(Guid assessmentId, DateTimeOffset acknowledgedAt)
+    {
+        if (assessmentId == Guid.Empty)
+            throw new ArgumentException("An assessment identifier is required.", nameof(assessmentId));
+        var assessment = Assets.SelectMany(asset => asset.TimingAssessments)
+            .SingleOrDefault(candidate => candidate.AssessmentId == assessmentId);
+        if (assessment is null || assessment.Readiness != TimingReadiness.Estimated)
+            throw new InvalidOperationException("Only a current Estimated timing assessment can be acknowledged.");
+        if (TimingAssessmentAcknowledgements.Any(existing => existing.AssessmentId == assessmentId))
+            return;
+
+        TimingAssessmentAcknowledgements.Add(new TimingAssessmentAcknowledgement(assessmentId, acknowledgedAt));
         Touch();
     }
 

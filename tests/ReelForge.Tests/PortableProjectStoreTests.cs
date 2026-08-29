@@ -57,7 +57,7 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Equal(Path.GetFullPath(_temporaryRoot), reopenedLocation.RootDirectory);
         Assert.Equal("Portable demo.rfp", Path.GetFileName(reopenedLocation.ProjectFilePath));
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(location.ProjectFilePath));
-        Assert.Equal(2, json.RootElement.GetProperty("formatVersion").GetInt32());
+        Assert.Equal(3, json.RootElement.GetProperty("formatVersion").GetInt32());
         AssertProjectFoldersExist(location.ProjectFilePath);
     }
 
@@ -74,6 +74,33 @@ public sealed class PortableProjectStoreTests : IDisposable
 
         Assert.Contains("obsolete development format", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(obsolete, await File.ReadAllTextAsync(projectPath));
+    }
+
+    [Fact]
+    public async Task PreviousDevelopmentFormatIsRejectedClearly()
+    {
+        Directory.CreateDirectory(_temporaryRoot);
+        var projectPath = Path.Combine(_temporaryRoot, "Version two.rfp");
+        await File.WriteAllTextAsync(projectPath, """{"formatVersion":2,"name":"old"}""");
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new PortableProjectStore().OpenAsync(projectPath));
+
+        Assert.Contains("unsupported development format 2", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("requires format 3", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RecoveryPayloadUsesTheCurrentNestedProjectFormat()
+    {
+        var store = new PortableProjectStore();
+        var (project, location) = await store.CreateAsync(_temporaryRoot, "Recovery format");
+        project.Name = "Unsaved title";
+
+        await store.WriteAsync(project, location);
+
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(PortableProjectStore.GetRecoveryFilePath(location)));
+        Assert.Equal(3, json.RootElement.GetProperty("project").GetProperty("formatVersion").GetInt32());
     }
 
     [Fact]

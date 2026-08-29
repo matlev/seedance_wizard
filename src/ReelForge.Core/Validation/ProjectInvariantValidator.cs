@@ -62,6 +62,12 @@ internal static class ProjectIdentityInvariantValidator
         ValidationHelpers.AddDuplicateErrors(project.RecipeDrafts.Select(draft => draft.Id), "recipe draft", errors);
         ValidationHelpers.AddDuplicateErrors(
             project.Generations.Select(generation => generation.Id), "generation", errors);
+        ValidationHelpers.AddDuplicateErrors(
+            project.Assets.SelectMany(asset => asset.TimingAssessments).Select(assessment => assessment.AssessmentId),
+            "timing assessment", errors);
+        ValidationHelpers.AddDuplicateErrors(
+            project.TimingAssessmentAcknowledgements.Select(acknowledgement => acknowledgement.AssessmentId),
+            "timing assessment acknowledgement", errors);
     }
 }
 

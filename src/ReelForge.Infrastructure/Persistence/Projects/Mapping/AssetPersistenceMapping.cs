@@ -18,6 +18,7 @@ internal static partial class ProjectPersistenceMapper
         Width = source.Width,
         Height = source.Height,
         Encoding = source.Encoding,
+        TimingAssessments = source.TimingAssessments.Select(ToDto).ToList(),
         Provenance = ToDto(source.Provenance),
         Physical = ToDto(source.Physical),
         Virtual = source.Virtual is null ? null : new VirtualAssetStateDto
@@ -43,6 +44,7 @@ internal static partial class ProjectPersistenceMapper
         Width = source.Width,
         Height = source.Height,
         Encoding = source.Encoding,
+        TimingAssessments = (source.TimingAssessments ?? throw new InvalidDataException("Asset timing assessments are required.")).Select(FromDto).ToList(),
         Provenance = FromDto(source.Provenance),
         Physical = FromDto(source.Physical),
         Virtual = source.Virtual is null ? null : new VirtualAssetState

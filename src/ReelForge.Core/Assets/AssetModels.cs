@@ -28,12 +28,36 @@ public sealed class ProjectAsset
     public int? Width { get; set; }
     public int? Height { get; set; }
     public MediaEncodingMetadata? Encoding { get; set; }
+    /// <summary>Current physical-stream timing evidence, independently retained for video and audio.</summary>
+    public List<StreamTimingAssessment> TimingAssessments { get; set; } = [];
     public AssetProvenance? Provenance { get; set; }
     public PhysicalAssetStorage? Physical { get; set; } = new();
     public VirtualAssetState? Virtual { get; set; }
     public Dictionary<string, ProviderAssetReference> ProviderReferences { get; set; } = new(StringComparer.Ordinal);
 
     public string EffectiveDisplayName => string.IsNullOrWhiteSpace(DisplayName) ? FileName : DisplayName;
+
+    public void SetTimingAssessment(StreamTimingAssessment assessment)
+    {
+        ArgumentNullException.ThrowIfNull(assessment);
+        if (StorageKind != AssetStorageKind.Physical || Physical is null)
+            throw new InvalidOperationException("Only physical assets can retain current stream timing assessments.");
+        if (Physical.ContentIdentity is not { Status: ContentHashStatus.Verified, Sha256: { } hash } ||
+            !ValidationHelpers.IsSha256(hash) ||
+            !hash.Equals(assessment.SourceContentHash, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("A timing assessment must match this physical asset's verified SHA-256 content identity.");
+        if (MediaType == MediaType.Audio && assessment.MediaType != MediaType.Audio ||
+            MediaType != MediaType.Video && MediaType != MediaType.Audio)
+            throw new InvalidOperationException("This asset cannot retain timing evidence for the assessed media type.");
+
+        var expectedStreamIndex = assessment.MediaType == MediaType.Video ? Encoding?.Video?.StreamIndex : Encoding?.Audio?.StreamIndex;
+        var hasDescriptor = assessment.MediaType == MediaType.Video ? Encoding?.Video is not null : Encoding?.Audio is not null;
+        if (assessment.CanPlace && (!hasDescriptor || assessment.SelectedStreamIndex != expectedStreamIndex))
+            throw new InvalidOperationException("The timing assessment must match the asset's selected stream descriptor.");
+
+        TimingAssessments.RemoveAll(existing => existing.MediaType == assessment.MediaType);
+        TimingAssessments.Add(assessment);
+    }
 }
 
 public sealed class PhysicalAssetStorage

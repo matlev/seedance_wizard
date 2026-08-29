@@ -128,6 +128,34 @@ public sealed class ProjectRecoveryLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task MalformedCurrentFormatTimingRecoveryIsIgnoredRatherThanThrown()
+    {
+        var store = new PortableProjectStore();
+        var (project, location) = await store.CreateAsync(_root, "Malformed timing recovery");
+        var asset = new ProjectAsset
+        {
+            MediaType = MediaType.Video,
+            FileName = "source.mp4",
+            Physical = new PhysicalAssetStorage { RelativePath = "assets/videos/source.mp4", ContentIdentity = new ContentIdentity { Sha256 = new string('a', 64), Status = ContentHashStatus.Verified } },
+            Encoding = new MediaEncodingMetadata { Video = new VideoStreamMetadata { StreamIndex = 0 } }
+        };
+        asset.SetTimingAssessment(new StreamTimingAssessment(Guid.NewGuid(), new string('a', 64), MediaType.Video, 0, TimingReadiness.Exact, true, new ExactTime(1, 1), [], new ExactTime(0, 1)));
+        project.AddAsset(asset);
+        await store.WriteAsync(project, location);
+        var recoveryPath = PortableProjectStore.GetRecoveryFilePath(location);
+        var envelope = JsonNode.Parse(await File.ReadAllTextAsync(recoveryPath))!.AsObject();
+        envelope["project"]!["assets"]!.AsArray()[0]!["timingAssessments"]!.AsArray()[0]!["issueClassifications"] = null;
+        var candidate = System.Text.Json.JsonSerializer.Deserialize<ProjectFileDto>(envelope["project"]!.ToJsonString(), RecoverySerializerOptions)!;
+        envelope["projectPayloadSha256"] = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(candidate, RecoverySerializerOptions))).ToLowerInvariant();
+        await File.WriteAllTextAsync(recoveryPath, envelope.ToJsonString());
+
+        var probe = await store.ProbeAsync(location);
+
+        Assert.Null(probe.Candidate);
+        Assert.Contains("invalid", probe.FailureDetail!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task CandidateBasedOnAnOlderCommittedRepresentationFailsClosed()
     {
         var store = new PortableProjectStore();
