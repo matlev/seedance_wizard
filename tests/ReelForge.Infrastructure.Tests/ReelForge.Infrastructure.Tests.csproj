@@ -24,4 +24,10 @@
     <ProjectReference Include="..\..\src\ReelForge.Infrastructure\ReelForge.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\ReelForge.Tests\Fixtures\degraded_timing_gap.ffprobe.json"
+          Link="Fixtures\degraded_timing_gap.ffprobe.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

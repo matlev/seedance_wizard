@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Fixtures\degraded_timing_gap.webm" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\test_video.mp4" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

@@ -138,7 +138,7 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
         for (var i = 1; i < observedPts.Length; i++)
         {
             if (observedPts[i - 1] is not { } prior || observedPts[i] is not { } current || durations[i - 1] is not { } frameDuration ||
-                TryAdd(prior, frameDuration) is not { } expected || current != expected)
+                TryAdd(prior, frameDuration) is not { } expected || !IsWithinOneNativeTick(current, expected, descriptor))
                 issues.Add(TimingIssueClassification.DiscontinuousTimestamps);
         }
 
@@ -156,7 +156,7 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
 
         var exactEnd = terminal.GetValueOrDefault();
         var exact = issues.Count == 0 && nativePts.All(value => value.HasValue) && terminal is not null &&
-                    IsStrictlyIncreasing(nativePts.Select(value => value!.Value)) && IsCoherent(nativePts, durations);
+                    IsStrictlyIncreasing(nativePts.Select(value => value!.Value)) && IsCoherent(nativePts, durations, descriptor);
         if (exact)
         {
             var range = new VideoSourceRange(
@@ -254,12 +254,20 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
         return true;
     }
 
-    private static bool IsCoherent(long?[] pts, long?[] durations)
+    private static bool IsCoherent(long?[] pts, long?[] durations, StreamTimingDescriptor descriptor)
     {
         for (var i = 1; i < pts.Length; i++)
-            if (durations[i - 1] is not { } duration || TryAdd(pts[i - 1]!.Value, duration) is not { } expected || pts[i]!.Value != expected)
+            if (durations[i - 1] is not { } duration || TryAdd(pts[i - 1]!.Value, duration) is not { } expected || !IsWithinOneNativeTick(pts[i]!.Value, expected, descriptor))
                 return false;
         return true;
+    }
+
+    private static bool IsWithinOneNativeTick(long actual, long expected, StreamTimingDescriptor descriptor)
+    {
+        var deviation = BigInteger.Abs((BigInteger)actual - expected);
+        if (deviation.IsZero) return true;
+        return deviation == BigInteger.One && descriptor.TimeBaseNumerator is > 0 && descriptor.TimeBaseDenominator is > 0 &&
+               (BigInteger)descriptor.TimeBaseNumerator.Value * 1000 <= descriptor.TimeBaseDenominator.Value;
     }
 
     private static long? InferPositiveFrameDuration(long?[] pts)
@@ -361,19 +369,35 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
     private static List<JsonElement> ParseFrames(string json, int streamIndex, string mediaType)
     {
         using var document = JsonDocument.Parse(json);
-        if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("frames", out var frames) || frames.ValueKind != JsonValueKind.Array)
-            return [];
-        return frames.EnumerateArray()
-            .Where(frame => frame.ValueKind == JsonValueKind.Object && GetInt32(frame, "stream_index") == streamIndex && GetString(frame, "media_type") == mediaType)
+        if (document.RootElement.ValueKind != JsonValueKind.Object) return [];
+        var entries = document.RootElement.TryGetProperty("frames", out var frames) && frames.ValueKind == JsonValueKind.Array
+            ? frames
+            : document.RootElement.TryGetProperty("packets_and_frames", out var combined) && combined.ValueKind == JsonValueKind.Array
+                ? combined
+                : default;
+        if (entries.ValueKind != JsonValueKind.Array) return [];
+        var isCombined = document.RootElement.TryGetProperty("packets_and_frames", out _);
+        return entries.EnumerateArray()
+            .Where(frame => frame.ValueKind == JsonValueKind.Object)
+            .Where(frame => !isCombined || GetString(frame, "type") == "frame")
+            .Where(frame => GetInt32(frame, "stream_index") == streamIndex && GetString(frame, "media_type") == mediaType)
             .Select(frame => frame.Clone()).ToList();
     }
 
     private static List<JsonElement> ParsePackets(string json, int streamIndex)
     {
         using var document = JsonDocument.Parse(json);
-        if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("packets", out var packets) || packets.ValueKind != JsonValueKind.Array)
-            return [];
-        return packets.EnumerateArray().Where(packet => packet.ValueKind == JsonValueKind.Object && GetInt32(packet, "stream_index") == streamIndex).Select(packet => packet.Clone()).ToList();
+        if (document.RootElement.ValueKind != JsonValueKind.Object) return [];
+        var isCombined = document.RootElement.TryGetProperty("packets_and_frames", out var combined) && combined.ValueKind == JsonValueKind.Array;
+        var entries = document.RootElement.TryGetProperty("packets", out var packets) && packets.ValueKind == JsonValueKind.Array
+            ? packets
+            : isCombined ? combined : default;
+        if (entries.ValueKind != JsonValueKind.Array) return [];
+        return entries.EnumerateArray()
+            .Where(packet => packet.ValueKind == JsonValueKind.Object)
+            .Where(packet => !isCombined || GetString(packet, "type") == "packet")
+            .Where(packet => GetInt32(packet, "stream_index") == streamIndex)
+            .Select(packet => packet.Clone()).ToList();
     }
 
     private static bool IsCorrupt(JsonElement frame) =>

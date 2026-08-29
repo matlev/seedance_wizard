@@ -26,6 +26,40 @@ public sealed class FfprobeStreamTimingAssessmentServiceTests
     }
 
     [Fact]
+    public async Task OneNativeTickVideoCadenceQuantizationRemainsExact()
+    {
+        var result = await Service(Frames("""{"frames":[{"media_type":"video","stream_index":0,"pts":0,"duration":33},{"media_type":"video","stream_index":0,"pts":33,"duration":33},{"media_type":"video","stream_index":0,"pts":67,"duration":33},{"media_type":"video","stream_index":0,"pts":100,"duration":33}]}"""))
+            .AssessAsync(VideoRequest(0, duration: 133));
+
+        Assert.Equal(TimingReadiness.Exact, result.Assessment.Readiness);
+        Assert.DoesNotContain(TimingIssueClassification.DiscontinuousTimestamps, result.Assessment.IssueClassifications);
+    }
+
+    [Fact]
+    public async Task OneSecondNativeTickDeviationRemainsDiscontinuous()
+    {
+        var request = new StreamTimingAssessmentRequest("x", Identity(), MediaType.Video, new MediaEncodingMetadata
+        {
+            Video = new VideoStreamMetadata { StreamIndex = 0, TimeBaseNumerator = 1, TimeBaseDenominator = 1, DurationPresentationTimestamp = 3 }
+        });
+        var result = await Service(Frames("""{"frames":[{"media_type":"video","stream_index":0,"pts":0,"duration":1},{"media_type":"video","stream_index":0,"pts":2,"duration":1}]}"""))
+            .AssessAsync(request);
+
+        Assert.Equal(TimingReadiness.Estimated, result.Assessment.Readiness);
+        Assert.Contains(TimingIssueClassification.DiscontinuousTimestamps, result.Assessment.IssueClassifications);
+    }
+
+    [Fact]
+    public async Task LargerVideoTimestampGapRemainsEstimated()
+    {
+        var result = await Service(Frames("""{"frames":[{"media_type":"video","stream_index":0,"pts":0,"duration":33},{"media_type":"video","stream_index":0,"pts":300,"duration":33},{"media_type":"video","stream_index":0,"pts":667,"duration":33}]}"""))
+            .AssessAsync(VideoRequest(0, duration: 700));
+
+        Assert.Equal(TimingReadiness.Estimated, result.Assessment.Readiness);
+        Assert.Contains(TimingIssueClassification.DiscontinuousTimestamps, result.Assessment.IssueClassifications);
+    }
+
+    [Fact]
     public async Task LegacyPacketTimestampFieldsRemainSupported()
     {
         var result = await Service(Frames("""{"frames":[{"media_type":"video","stream_index":7,"pkt_pts":100,"pkt_duration":40},{"media_type":"video","stream_index":7,"pkt_pts":140,"pkt_duration":40}]}"""))
@@ -63,6 +97,44 @@ public sealed class FfprobeStreamTimingAssessmentServiceTests
 
         Assert.Equal(TimingReadiness.Estimated, result.Assessment.Readiness);
         Assert.Equal(new ExactTime(140, 1000), result.Assessment.TimelineDuration);
+    }
+
+    [Fact]
+    public async Task CombinedPacketsAndFramesVideoUsesFrameEntriesForDiscontinuousTiming()
+    {
+        var result = await Service(Frames("""{"packets_and_frames":[{"type":"packet","stream_index":9},{"type":"frame","media_type":"video","stream_index":9,"pts":0,"duration":5000},{"type":"packet","stream_index":0},{"type":"frame","media_type":"video","stream_index":0,"pts":0,"duration":40},{"type":"frame","media_type":"video","stream_index":0,"pts":100,"duration":40},{"type":"frame","media_type":"video","stream_index":0,"pts":40,"duration":40}]}"""))
+            .AssessAsync(VideoRequest(0));
+
+        Assert.Equal(TimingReadiness.Estimated, result.Assessment.Readiness);
+        Assert.Equal(new ExactTime(140, 1000), result.Assessment.TimelineDuration);
+        Assert.Contains(TimingIssueClassification.DiscontinuousTimestamps, result.Assessment.IssueClassifications);
+    }
+
+    [Fact]
+    public async Task GeneratedDegradedTimingFixtureTranscriptMatchesItsAcceptanceAssessment()
+    {
+        var transcriptPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "degraded_timing_gap.ffprobe.json");
+        var transcript = await File.ReadAllTextAsync(transcriptPath);
+        var identity = new ContentIdentity
+        {
+            Status = ContentHashStatus.Verified,
+            Sha256 = "F005A77C048912A6964DF6C492A9D66E11FBD473B45ABFC691E536D854339FC7",
+            LengthBytes = 27_343
+        };
+        var runner = Frames(transcript);
+
+        var result = await Service(runner).AssessAsync(VideoRequest(0, duration: 1333, identity: identity));
+
+        Assert.Equal(TimingReadiness.Estimated, result.Assessment.Readiness);
+        Assert.True(result.Assessment.CanPlace);
+        Assert.Equal(new ExactTime(1333, 1000), result.Assessment.TimelineDuration);
+        Assert.Equal(identity.Sha256, result.Assessment.SourceContentHash);
+        Assert.Equal(0, result.Assessment.SelectedStreamIndex);
+        Assert.Equal([TimingIssueClassification.DiscontinuousTimestamps], result.Assessment.IssueClassifications);
+        Assert.Null(result.VideoFullRange);
+        Assert.Contains("-show_frames", runner.Request!.Arguments);
+        Assert.Contains("-show_packets", runner.Request.Arguments);
+        Assert.Contains("packets_and_frames", transcript);
     }
 
     [Fact]
@@ -124,6 +196,16 @@ public sealed class FfprobeStreamTimingAssessmentServiceTests
         Assert.Equal(0, result.AudioFullRange!.Start.SampleFrameOffset);
         Assert.Equal(2048, result.AudioFullRange.End.SampleFrameOffset);
         Assert.Equal(new ExactTime(2048, 48000), result.Assessment.TimelineDuration);
+    }
+
+    [Fact]
+    public async Task CombinedPacketsAndFramesReadsAudioPacketPriming()
+    {
+        var result = await Service(Frames("""{"packets_and_frames":[{"type":"frame","media_type":"audio","stream_index":3,"pts":0,"nb_samples":1024},{"type":"frame","media_type":"audio","stream_index":3,"pts":1024,"nb_samples":1024},{"type":"packet","stream_index":3,"side_data_list":[{"side_data_type":"Skip Samples","skip_samples":120}]}]}"""))
+            .AssessAsync(AudioRequest(3));
+
+        Assert.Equal(TimingReadiness.Estimated, result.Assessment.Readiness);
+        Assert.Contains(TimingIssueClassification.UnresolvedAudioPrimingOrPadding, result.Assessment.IssueClassifications);
     }
 
     [Fact]
