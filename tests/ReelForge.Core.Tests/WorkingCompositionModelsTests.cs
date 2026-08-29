@@ -66,10 +66,10 @@ public sealed class WorkingCompositionModelsTests
 
         Assert.Same(source, state.VideoTracks[0].Items[0].Source);
         Assert.Equal(2, video.SelectedStreamIndex);
-        Assert.Equal(-3, video.SourceRange.Start.PresentationTimestamp);
+        Assert.Equal(-3, video.SourceRange!.Start.PresentationTimestamp);
         Assert.Equal(4, video.SourceRange.End.PresentationTimestamp);
         Assert.Equal(1, audio.SelectedStreamIndex);
-        Assert.Equal(48_000, audio.SourceRange.End.SampleFrameOffset);
+        Assert.Equal(48_000, audio.SourceRange!.End.SampleFrameOffset);
         Assert.Equal(compositionStart, audio.CompositionStart);
         Assert.Equal(link, video.LinkGroupId);
     }
@@ -122,14 +122,17 @@ public sealed class WorkingCompositionModelsTests
     }
 
     [Fact]
-    public void LinkGroupsRejectIncompleteSingleKindAndMisalignedItems()
+    public void LinkGroupsRejectIncompleteSingleKindAndMismatchedSourcesButRetainRelativeSynchronization()
     {
         var link = Guid.NewGuid();
         Assert.Throws<ArgumentException>(() => new WorkingCompositionState([VideoTrack(items: [VideoItem(linkGroupId: link)])], []));
         Assert.Throws<ArgumentException>(() => new WorkingCompositionState([], [AudioTrack(items: [AudioItem(linkGroupId: link)])]));
-        Assert.Throws<ArgumentException>(() => new WorkingCompositionState(
-            [VideoTrack(items: [VideoItem(compositionStart: new ExactTime(0, 1), linkGroupId: link)])],
-            [AudioTrack(items: [AudioItem(compositionStart: new ExactTime(1, 1), linkGroupId: link)])]));
+        var relativeSource = new AssetRevisionReference { AssetId = Guid.NewGuid(), RecipeRevisionId = Guid.NewGuid() };
+        var relativePair = new WorkingCompositionState(
+            [VideoTrack(items: [VideoItem(source: relativeSource, compositionStart: new ExactTime(0, 1), linkGroupId: link)])],
+            [AudioTrack(items: [AudioItem(source: relativeSource, compositionStart: new ExactTime(1, 1), linkGroupId: link)])]);
+        Assert.Equal(new ExactTime(0, 1), relativePair.VideoTracks[0].Items[0].CompositionStart);
+        Assert.Equal(new ExactTime(1, 1), relativePair.AudioTracks[0].Items[0].CompositionStart);
         Assert.Throws<ArgumentException>(() => new WorkingCompositionState(
             [VideoTrack(items: [VideoItem(linkGroupId: link)])],
             [AudioTrack(items: [AudioItem(source: new AssetRevisionReference { AssetId = Guid.NewGuid() }, linkGroupId: link)])]));
@@ -151,14 +154,20 @@ public sealed class WorkingCompositionModelsTests
         Guid? id = null, AssetRevisionReference? source = null, int stream = 0, long start = 0, long end = 1,
         ExactTime? compositionStart = null, Guid? linkGroupId = null)
         => new(id ?? Guid.NewGuid(), source ?? new AssetRevisionReference { AssetId = Guid.NewGuid() }, stream,
-            new VideoSourceRange(Vpt(start), Vpt(end)), compositionStart ?? new ExactTime(0, 1), linkGroupId);
+            new VideoSourceRange(Vpt(start), Vpt(end)), VideoPin(stream, start, end), compositionStart ?? new ExactTime(0, 1), linkGroupId);
 
     private static CompositionAudioItem AudioItem(
         Guid? id = null, AssetRevisionReference? source = null, int stream = 0, long start = 0, long end = 1,
         ExactTime? compositionStart = null, Guid? linkGroupId = null)
         => new(id ?? Guid.NewGuid(), source ?? new AssetRevisionReference { AssetId = Guid.NewGuid() }, stream,
-            new AudioSourceRange(Ast(start), Ast(end)), compositionStart ?? new ExactTime(0, 1), linkGroupId);
+            new AudioSourceRange(Ast(start), Ast(end)), AudioPin(stream, start, end), compositionStart ?? new ExactTime(0, 1), linkGroupId);
 
     private static VideoPresentationTime Vpt(long pts) => new(pts, 1001, 60_000);
     private static AudioSampleTime Ast(long sample) => new(sample, 48_000);
+    private static StreamTimingAssessmentPin VideoPin(int stream, long start, long end) => Pin(
+        MediaType.Video, stream, new VideoSourceRange(Vpt(start), Vpt(end)).Duration);
+    private static StreamTimingAssessmentPin AudioPin(int stream, long start, long end) => Pin(
+        MediaType.Audio, stream, new AudioSourceRange(Ast(start), Ast(end)).Duration);
+    private static StreamTimingAssessmentPin Pin(MediaType type, int stream, ExactTime duration) => new(
+        new StreamTimingAssessment(Guid.NewGuid(), new string('a', 64), type, stream, TimingReadiness.Exact, true, duration, []));
 }

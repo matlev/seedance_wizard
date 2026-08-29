@@ -40,8 +40,8 @@ public sealed class WorkingCompositionState
             var audio = audios[0];
             if (video.Source != audio.Source)
                 throw new ArgumentException("Linked video and audio items must reference the same exact source revision.");
-            if (video.CompositionStart != audio.CompositionStart)
-                throw new ArgumentException("All items in a link group must have the same composition start.");
+            if (!string.Equals(video.TimingAssessment.SourceContentHash, audio.TimingAssessment.SourceContentHash, StringComparison.Ordinal))
+                throw new ArgumentException("Linked video and audio items must pin the same source content hash.");
         }
     }
 }
@@ -80,13 +80,22 @@ public sealed class CompositionAudioTrack
 
 public sealed class CompositionVideoItem : ICompositionItem
 {
-    public CompositionVideoItem(Guid id, AssetRevisionReference source, int selectedStreamIndex, VideoSourceRange sourceRange, ExactTime compositionStart, Guid? linkGroupId = null)
+    public CompositionVideoItem(Guid id, AssetRevisionReference source, int selectedStreamIndex, VideoSourceRange? sourceRange, StreamTimingAssessmentPin timingAssessment, ExactTime compositionStart, Guid? linkGroupId = null)
     {
         WorkingCompositionGuards.RequireId(id, nameof(id));
         Source = source ?? throw new ArgumentNullException(nameof(source));
         WorkingCompositionGuards.RequireSource(Source, nameof(source));
         WorkingCompositionGuards.RequireNonnegative(selectedStreamIndex, nameof(selectedStreamIndex));
-        SourceRange = sourceRange ?? throw new ArgumentNullException(nameof(sourceRange));
+        TimingAssessment = timingAssessment ?? throw new ArgumentNullException(nameof(timingAssessment));
+        if (TimingAssessment.MediaType != MediaType.Video)
+            throw new ArgumentException("A video item requires a video timing assessment pin.", nameof(timingAssessment));
+        if (TimingAssessment.SelectedStreamIndex != selectedStreamIndex)
+            throw new ArgumentException("The timing assessment pin must match the selected video stream.", nameof(timingAssessment));
+        if (TimingAssessment.Readiness == TimingReadiness.Exact && sourceRange is null)
+            throw new ArgumentException("Exact video items require an exact source range.", nameof(sourceRange));
+        if (sourceRange is not null && sourceRange.Duration != TimingAssessment.TimelineDuration)
+            throw new ArgumentException("An exact video source range must match the pinned timeline duration.", nameof(sourceRange));
+        SourceRange = sourceRange;
         CompositionStart = WorkingCompositionGuards.RequireNonnegative(compositionStart, nameof(compositionStart));
         WorkingCompositionGuards.RequireOptionalId(linkGroupId, nameof(linkGroupId));
         Id = id;
@@ -96,20 +105,30 @@ public sealed class CompositionVideoItem : ICompositionItem
     public Guid Id { get; }
     public AssetRevisionReference Source { get; }
     public int SelectedStreamIndex { get; }
-    public VideoSourceRange SourceRange { get; }
+    public VideoSourceRange? SourceRange { get; }
+    public StreamTimingAssessmentPin TimingAssessment { get; }
     public ExactTime CompositionStart { get; }
     public Guid? LinkGroupId { get; }
 }
 
 public sealed class CompositionAudioItem : ICompositionItem
 {
-    public CompositionAudioItem(Guid id, AssetRevisionReference source, int selectedStreamIndex, AudioSourceRange sourceRange, ExactTime compositionStart, Guid? linkGroupId = null)
+    public CompositionAudioItem(Guid id, AssetRevisionReference source, int selectedStreamIndex, AudioSourceRange? sourceRange, StreamTimingAssessmentPin timingAssessment, ExactTime compositionStart, Guid? linkGroupId = null)
     {
         WorkingCompositionGuards.RequireId(id, nameof(id));
         Source = source ?? throw new ArgumentNullException(nameof(source));
         WorkingCompositionGuards.RequireSource(Source, nameof(source));
         WorkingCompositionGuards.RequireNonnegative(selectedStreamIndex, nameof(selectedStreamIndex));
-        SourceRange = sourceRange ?? throw new ArgumentNullException(nameof(sourceRange));
+        TimingAssessment = timingAssessment ?? throw new ArgumentNullException(nameof(timingAssessment));
+        if (TimingAssessment.MediaType != MediaType.Audio)
+            throw new ArgumentException("An audio item requires an audio timing assessment pin.", nameof(timingAssessment));
+        if (TimingAssessment.SelectedStreamIndex != selectedStreamIndex)
+            throw new ArgumentException("The timing assessment pin must match the selected audio stream.", nameof(timingAssessment));
+        if (TimingAssessment.Readiness == TimingReadiness.Exact && sourceRange is null)
+            throw new ArgumentException("Exact audio items require an exact source range.", nameof(sourceRange));
+        if (sourceRange is not null && sourceRange.Duration != TimingAssessment.TimelineDuration)
+            throw new ArgumentException("An exact audio source range must match the pinned timeline duration.", nameof(sourceRange));
+        SourceRange = sourceRange;
         CompositionStart = WorkingCompositionGuards.RequireNonnegative(compositionStart, nameof(compositionStart));
         WorkingCompositionGuards.RequireOptionalId(linkGroupId, nameof(linkGroupId));
         Id = id;
@@ -119,7 +138,8 @@ public sealed class CompositionAudioItem : ICompositionItem
     public Guid Id { get; }
     public AssetRevisionReference Source { get; }
     public int SelectedStreamIndex { get; }
-    public AudioSourceRange SourceRange { get; }
+    public AudioSourceRange? SourceRange { get; }
+    public StreamTimingAssessmentPin TimingAssessment { get; }
     public ExactTime CompositionStart { get; }
     public Guid? LinkGroupId { get; }
 }
@@ -137,6 +157,9 @@ public sealed class VideoSourceRange
     }
     public VideoPresentationTime Start { get; }
     public VideoPresentationTime End { get; }
+    public ExactTime Duration => ExactTime.FromBigInteger(
+        ((System.Numerics.BigInteger)End.PresentationTimestamp - Start.PresentationTimestamp) * Start.TimeBaseNumerator,
+        Start.TimeBaseDenominator);
 }
 
 public sealed class AudioSourceRange
@@ -154,6 +177,9 @@ public sealed class AudioSourceRange
     }
     public AudioSampleTime Start { get; }
     public AudioSampleTime End { get; }
+    public ExactTime Duration => ExactTime.FromBigInteger(
+        (System.Numerics.BigInteger)End.SampleFrameOffset - Start.SampleFrameOffset,
+        Start.SampleRate);
 }
 
 internal interface ICompositionItem

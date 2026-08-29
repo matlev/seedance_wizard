@@ -129,6 +129,8 @@ The following operations remain distinct:
 
 **Pre-DTO decision gate:** the primary agent must document and review the exact persisted audio-time representation, conversion/rounding rules, invariants, and media-engine boundary before track/item DTO implementation begins. This is an architectural decision, not a mapper detail to be invented during implementation.
 
+Timing readiness is separately classified as Exact, Estimated, or Unusable according to [ADR-0007](adr/0007-degraded-timing-placement.md). A durable import may remain timeline-usable with acknowledged Estimated timing only when its versioned assessment pins verified source identity, deterministic stream identity, dependable sequential decode, a finite positive frozen span, and specific unresolved issues. Video and audio are assessed independently. Historical occurrences never silently adopt later analysis; unusable audio requires an explicit video-only choice, and unusable video blocks placement. Repair execution is not part of this contract unit.
+
 ### 4B.3 Track policy and contribution contract
 
 - Locked tracks reject any command that would mutate their items, timing, or track-owned properties.
@@ -180,6 +182,7 @@ It excludes new edge trims, ripple operations, generic replacement, snapping, ma
 - Unlink, Detach, and whole-source Extract semantics are distinct in contracts and tests; existing Detach behavior remains exact and non-doubling.
 - Locked-track commands and affected cross-track operations reject before mutation; visibility/mute contribution policy is deterministic.
 - Video and audio time-domain boundary cases round-trip without floating-point or frame-anchor reinterpretation.
+- Exact, acknowledged Estimated, and Unusable timing assessments produce deterministic independent video/audio placement decisions; Estimated occurrences reopen with identical frozen geometry and warnings.
 - Immutable composition revision identity, cursor movement, and divergent-history behavior are deterministic.
 - History excludes the explicitly out-of-scope project, generation, settings, export, and recovery operations.
 - Obsolete development files are rejected clearly and are not rewritten.
