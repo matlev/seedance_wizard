@@ -70,7 +70,7 @@ public sealed class CompositionTimelineTrackRowTests
             Tracks =
             [
                 new(videoId, CompositionTimelineTrackKind.Video, 0, IsLocked: false, IsVisibleOrMuted: true, ItemCount: 0),
-                new(audioId, CompositionTimelineTrackKind.Audio, 0, IsLocked: true, IsVisibleOrMuted: false, ItemCount: 0)
+                new(audioId, CompositionTimelineTrackKind.Audio, 0, IsLocked: false, IsVisibleOrMuted: false, ItemCount: 0)
             ]
         };
 
@@ -78,8 +78,10 @@ public sealed class CompositionTimelineTrackRowTests
             state, CompositionTimelineDropKind.Video, timelineY: 30)?.TrackId);
         Assert.Null(CompositionTimelineControl.ResolveDropTargetTrack(
             state, CompositionTimelineDropKind.Audio, timelineY: 30));
+        Assert.Equal(audioId, CompositionTimelineControl.ResolveDropTargetTrack(
+            state, CompositionTimelineDropKind.Audio, timelineY: 110)?.TrackId);
         Assert.Null(CompositionTimelineControl.ResolveDropTargetTrack(
-            state, CompositionTimelineDropKind.Audio, timelineY: 100));
+            state, CompositionTimelineDropKind.Video, timelineY: 110));
         Assert.Null(CompositionTimelineControl.ResolveDropTargetTrack(
             state, CompositionTimelineDropKind.Video, timelineY: 10));
     }

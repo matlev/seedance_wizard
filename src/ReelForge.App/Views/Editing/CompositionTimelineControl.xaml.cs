@@ -14,7 +14,8 @@ namespace ReelForge.App.Views.Editing;
 public partial class CompositionTimelineControl : UserControl, IDisposable
 {
     private const double TrackTop = 25;
-    private const double TrackRowHeight = 68;
+    private const double VideoTrackRowHeight = 80;
+    private const double AudioTrackRowHeight = 68;
     private const double TrackHeaderHeight = 18;
     private const double AudioLaneHeight = 34;
 
@@ -88,7 +89,6 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     public event EventHandler<CompositionTimelineTrackEventArgs>? TrackSelected;
     public event EventHandler<CompositionTimelineTrackRenameEventArgs>? TrackRenameRequested;
     public event EventHandler<CompositionTimelineTrackKindEventArgs>? TrackAppendRequested;
-    public event EventHandler<CompositionTimelineTrackEventArgs>? TrackCreateRequested;
     public event EventHandler<CompositionTimelineTrackEventArgs>? TrackDeleteRequested;
     public event EventHandler<CompositionTimelineTrackReorderEventArgs>? TrackMoveUpRequested;
     public event EventHandler<CompositionTimelineTrackReorderEventArgs>? TrackMoveDownRequested;
@@ -306,7 +306,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
 
             TimelineCanvas.Height = Math.Max(
                 124,
-                TrackTop + _state.Tracks.Count * TrackRowHeight + 4);
+                TrackTop + _state.Tracks.Sum(GetTrackRowHeight) + 4);
             DurationText.Text = _layout.Segments.Count == 0
                 ? "No segments"
                 : _layout.HasUnknownDurations
@@ -407,9 +407,22 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
 
     private double GetTrackItemTop(Guid trackId)
     {
-        var index = _state.Tracks.ToList().FindIndex(track => track.TrackId == trackId);
-        return TrackTop + Math.Max(0, index) * TrackRowHeight + TrackHeaderHeight + 2;
+        return GetTrackTop(trackId) + TrackHeaderHeight + 2;
     }
+
+    private double GetTrackTop(Guid trackId)
+    {
+        var top = TrackTop;
+        foreach (var track in _state.Tracks)
+        {
+            if (track.TrackId == trackId) return top;
+            top += GetTrackRowHeight(track);
+        }
+        return top;
+    }
+
+    private static double GetTrackRowHeight(CompositionTimelineTrackRow track) =>
+        track.Kind == CompositionTimelineTrackKind.Video ? VideoTrackRowHeight : AudioTrackRowHeight;
 
     private void DrawTrackHeader(CompositionTimelineTrackRow track)
     {
@@ -436,23 +449,36 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         var panel = (DockPanel)header.Child;
         panel.Children.Add(new TextBlock
         {
-            Text = $"{track.DisplayName}  {track.StatusText}" + (track.IsLocked ? "  Locked" : string.Empty),
+            Text = track.Kind == CompositionTimelineTrackKind.Audio
+                ? $"{track.DisplayName}  {track.StatusText}"
+                : track.DisplayName,
             Foreground = FindResource("MutedTextBrush") as Brush ?? Brushes.LightGray,
             FontSize = 9,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(4, 0, 8, 0)
         });
-        panel.Children.Add(CreateTrackButton(track, track.IsLocked ? "Unlock" : "Lock", () =>
-            TrackLockChanged?.Invoke(this, new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsLocked))));
-        panel.Children.Add(CreateTrackButton(track, track.Kind == CompositionTimelineTrackKind.Video
-            ? (track.IsVisibleOrMuted ? "Hide" : "Show")
-            : (track.IsVisibleOrMuted ? "Unmute" : "Mute"), () =>
+        panel.Children.Add(CreateTrackIconButton(
+            track,
+            CreateLockIcon(track.IsLocked),
+            track.IsLocked ? "Unlock track" : "Lock track",
+            () => TrackLockChanged?.Invoke(this,
+                new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsLocked)),
+            allowWhenLocked: true));
+        if (track.Kind == CompositionTimelineTrackKind.Video)
         {
-            if (track.Kind == CompositionTimelineTrackKind.Video)
-                VideoTrackVisibilityChanged?.Invoke(this, new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsVisibleOrMuted));
-            else
-                AudioTrackMuteChanged?.Invoke(this, new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsVisibleOrMuted));
-        }));
+            panel.Children.Add(CreateTrackIconButton(
+                track,
+                CreateEyeIcon(track.IsVisibleOrMuted),
+                track.IsVisibleOrMuted ? "Hide video track" : "Show video track",
+                () => VideoTrackVisibilityChanged?.Invoke(this,
+                    new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsVisibleOrMuted))));
+        }
+        else
+        {
+            panel.Children.Add(CreateTrackButton(track, track.IsVisibleOrMuted ? "Unmute" : "Mute", () =>
+                AudioTrackMuteChanged?.Invoke(this,
+                    new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsVisibleOrMuted))));
+        }
         panel.Children.Add(CreateTrackButton(track, "Rename", () => TrackRenameRequested?.Invoke(this,
             new CompositionTimelineTrackRenameEventArgs(track.TrackId, track.DisplayName))));
         panel.Children.Add(CreateTrackButton(track, "↑", () => TrackMoveUpRequested?.Invoke(this,
@@ -460,8 +486,6 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         var sameKindCount = _state.Tracks.Count(candidate => candidate.Kind == track.Kind);
         panel.Children.Add(CreateTrackButton(track, "↓", () => TrackMoveDownRequested?.Invoke(this,
             new CompositionTimelineTrackReorderEventArgs(track.TrackId, track.Index + 1)), enabled: track.Index < sameKindCount - 1));
-        panel.Children.Add(CreateTrackButton(track, "+", () => TrackCreateRequested?.Invoke(this,
-            new CompositionTimelineTrackEventArgs(track.TrackId))));
         panel.Children.Add(CreateTrackButton(track, "Delete", () => TrackDeleteRequested?.Invoke(this,
             new CompositionTimelineTrackEventArgs(track.TrackId)), enabled: track.ItemCount == 0));
         header.MouseLeftButtonDown += (_, e) =>
@@ -481,6 +505,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         if (_layout is null) return;
 
         var bodyTop = GetTrackItemTop(track.TrackId);
+        var bodyHeight = GetTrackRowHeight(track) - TrackHeaderHeight - 2;
         var glyph = track.Kind == CompositionTimelineTrackKind.Video ? "▶" : "♪";
         var brush = FindResource("PanelRaisedBrush") as Brush ?? Brushes.DarkSlateGray;
         var text = new FormattedText(
@@ -497,9 +522,9 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             text.BuildGeometry(new Point(34, track.Kind == CompositionTimelineTrackKind.Video ? 14 : 11))))
         {
             TileMode = TileMode.Tile,
-            Viewbox = new Rect(0, 0, 88, TrackRowHeight - TrackHeaderHeight - 2),
+            Viewbox = new Rect(0, 0, 88, bodyHeight),
             ViewboxUnits = BrushMappingMode.Absolute,
-            Viewport = new Rect(0, 0, 88, TrackRowHeight - TrackHeaderHeight - 2),
+            Viewport = new Rect(0, 0, 88, bodyHeight),
             ViewportUnits = BrushMappingMode.Absolute,
             Stretch = Stretch.None,
             Opacity = 0.72
@@ -507,7 +532,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         var texture = new Rectangle
         {
             Width = _layout.ContentWidth,
-            Height = TrackRowHeight - TrackHeaderHeight - 2,
+            Height = bodyHeight,
             Fill = tile,
             IsHitTestVisible = false
         };
@@ -516,18 +541,97 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     }
 
     private static Button CreateTrackButton(CompositionTimelineTrackRow track, string label, Action action, bool enabled = true)
+        => CreateTrackButton(track, label, label, action, enabled);
+
+    private static Button CreateTrackIconButton(
+        CompositionTimelineTrackRow track,
+        FrameworkElement icon,
+        string toolTip,
+        Action action,
+        bool enabled = true,
+        bool allowWhenLocked = false) =>
+        CreateTrackButton(track, icon, toolTip, action, enabled, allowWhenLocked, iconButton: true);
+
+    private static Button CreateTrackButton(
+        CompositionTimelineTrackRow track,
+        object content,
+        string toolTip,
+        Action action,
+        bool enabled,
+        bool allowWhenLocked = false,
+        bool iconButton = false)
     {
         var button = new Button
         {
-            Content = label,
+            Content = content,
             FontSize = 9,
-            Padding = new Thickness(4, 0, 4, 0),
+            Padding = iconButton ? new Thickness(2, 0, 2, 0) : new Thickness(4, 0, 4, 0),
             Margin = new Thickness(0, 1, 3, 1),
-            IsEnabled = enabled && (!track.IsLocked || label == "Unlock"),
-            ToolTip = label
+            MinWidth = iconButton ? 22 : 0,
+            IsEnabled = enabled && (!track.IsLocked || allowWhenLocked),
+            ToolTip = toolTip
         };
         button.Click += (_, e) => { e.Handled = true; action(); };
         return button;
+    }
+
+    private static FrameworkElement CreateLockIcon(bool isLocked)
+    {
+        var canvas = new Canvas { Width = 16, Height = 16, IsHitTestVisible = false };
+        var brush = Brushes.White;
+        canvas.Children.Add(new Rectangle
+        {
+            Width = 10,
+            Height = 7,
+            RadiusX = 1,
+            RadiusY = 1,
+            Fill = brush
+        });
+        Canvas.SetLeft(canvas.Children[^1], 3);
+        Canvas.SetTop(canvas.Children[^1], 8);
+        var shackle = new Path
+        {
+            Data = Geometry.Parse(isLocked
+                ? "M5,8 L5,5 C5,1.8 11,1.8 11,5 L11,8"
+                : "M11,8 L11,5 C11,1.8 5,1.8 5,5"),
+            Stroke = brush,
+            StrokeThickness = 1.7,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round
+        };
+        canvas.Children.Add(shackle);
+        return canvas;
+    }
+
+    private static FrameworkElement CreateEyeIcon(bool isVisible)
+    {
+        var canvas = new Canvas { Width = 16, Height = 16, IsHitTestVisible = false };
+        if (isVisible)
+        {
+            canvas.Children.Add(new Path
+            {
+                Data = Geometry.Parse("M1,8 C4,3.5 12,3.5 15,8 C12,12.5 4,12.5 1,8 Z"),
+                Stroke = Brushes.White,
+                StrokeThickness = 1.4,
+                Fill = Brushes.Transparent
+            });
+            var pupil = new Ellipse { Width = 4, Height = 4, Fill = Brushes.White };
+            Canvas.SetLeft(pupil, 6);
+            Canvas.SetTop(pupil, 6);
+            canvas.Children.Add(pupil);
+        }
+        else
+        {
+            canvas.Children.Add(new Path
+            {
+                Data = Geometry.Parse("M1,6 C5,11 11,11 15,6 M4,9 L3,12 M8,10 L8,13 M12,9 L13,12"),
+                Stroke = Brushes.White,
+                StrokeThickness = 1.4,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round
+            });
+        }
+        return canvas;
     }
 
     private void DrawSegment(CompositionSegmentListItem item, double top)
@@ -1325,7 +1429,15 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             0,
             Math.Max(0, width - DropToken.Width)));
         DropHintText.Text = _dragDescriptor.DisplayName;
-        DropMarker.Height = TrackRowHeight - TrackHeaderHeight - 4;
+        var targetTrack = _dragTargetTrackId is { } trackId
+            ? _state.Tracks.SingleOrDefault(track => track.TrackId == trackId)
+            : null;
+        var markerTrackHeight = targetTrack is not null
+            ? GetTrackRowHeight(targetTrack)
+            : _dragDescriptor.Kind == CompositionTimelineDropKind.Video
+                ? VideoTrackRowHeight
+                : AudioTrackRowHeight;
+        DropMarker.Height = markerTrackHeight - TrackHeaderHeight - 4;
         Canvas.SetTop(DropMarker, origin.Y + targetTop);
         Canvas.SetTop(DropToken, origin.Y + targetTop + 8);
     }
@@ -1346,10 +1458,19 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     {
         if (!double.IsFinite(timelineY) || timelineY < TrackTop)
             return null;
-        var index = (int)Math.Floor((timelineY - TrackTop) / TrackRowHeight);
-        if (index < 0 || index >= state.Tracks.Count)
-            return null;
-        var track = state.Tracks[index];
+        var top = TrackTop;
+        CompositionTimelineTrackRow? track = null;
+        foreach (var candidate in state.Tracks)
+        {
+            var bottom = top + GetTrackRowHeight(candidate);
+            if (timelineY >= top && timelineY < bottom)
+            {
+                track = candidate;
+                break;
+            }
+            top = bottom;
+        }
+        if (track is null) return null;
         var requiredKind = kind == CompositionTimelineDropKind.Video
             ? CompositionTimelineTrackKind.Video
             : CompositionTimelineTrackKind.Audio;

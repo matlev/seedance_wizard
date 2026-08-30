@@ -73,7 +73,6 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
         _timeline.ShiftRightRequested += Timeline_ShiftRightRequested;
         _timeline.DetachAudioRequested += Timeline_DetachAudioRequested;
         _timeline.RemoveRequested += Timeline_RemoveRequested;
-        _timeline.TrackCreateRequested += Timeline_TrackCreateRequested;
         _timeline.TrackRenameRequested += Timeline_TrackRenameRequested;
         _timeline.TrackAppendRequested += Timeline_TrackAppendRequested;
         _timeline.TrackDeleteRequested += Timeline_TrackDeleteRequested;
@@ -387,18 +386,6 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
         await RemoveAsync(e.ItemId);
     }
 
-    private async void Timeline_TrackCreateRequested(object? sender, CompositionTimelineTrackEventArgs e)
-    {
-        var track = Tracks.SingleOrDefault(item => item.TrackId == e.TrackId);
-        if (track is null) return;
-        await MutateAsync($"Creating {track.Kind.ToString().ToLowerInvariant()} track…", async () =>
-        {
-            await new WorkingCompositionService(_workspace).CreateTrackAsync(ToCommandKind(track.Kind), track.Index + 1);
-            Refresh();
-            _host.SetStatus($"Created a {track.Kind.ToString().ToLowerInvariant()} track.");
-        });
-    }
-
     private async void Timeline_TrackRenameRequested(object? sender, CompositionTimelineTrackRenameEventArgs e)
     {
         var track = Tracks.SingleOrDefault(item => item.TrackId == e.TrackId);
@@ -696,7 +683,6 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
         _timeline.ShiftRightRequested -= Timeline_ShiftRightRequested;
         _timeline.DetachAudioRequested -= Timeline_DetachAudioRequested;
         _timeline.RemoveRequested -= Timeline_RemoveRequested;
-        _timeline.TrackCreateRequested -= Timeline_TrackCreateRequested;
         _timeline.TrackRenameRequested -= Timeline_TrackRenameRequested;
         _timeline.TrackAppendRequested -= Timeline_TrackAppendRequested;
         _timeline.TrackDeleteRequested -= Timeline_TrackDeleteRequested;
