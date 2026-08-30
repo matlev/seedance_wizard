@@ -60,8 +60,8 @@ internal sealed class CompositionLifecycleCreator
             var recipe = new CompositionRecipe
             {
                 Composition = new WorkingCompositionState(
-                    [new CompositionVideoTrack(Guid.NewGuid(), isLocked: false, isVisible: true, [])],
-                    [new CompositionAudioTrack(Guid.NewGuid(), isLocked: false, isMuted: false, [])])
+                    [new CompositionVideoTrack(Guid.NewGuid(), isLocked: false, isVisible: true, [], name: "Video 1")],
+                    [new CompositionAudioTrack(Guid.NewGuid(), isLocked: false, isMuted: false, [], name: "Audio 1")])
             };
             var revision = project.CommitRecipe(composition.Id, recipe);
             project.RecipeDrafts.Add(new RecipeDraft

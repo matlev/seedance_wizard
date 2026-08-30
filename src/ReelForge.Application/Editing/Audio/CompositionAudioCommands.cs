@@ -103,7 +103,7 @@ internal sealed class CompositionAudioCommands
                 state.AudioTracks.Select(candidate => candidate.Id != track.Id
                     ? candidate
                     : new CompositionAudioTrack(candidate.Id, candidate.IsLocked, candidate.IsMuted,
-                        candidate.Items.Select(item => item.Id == audioClipId ? transform(item) : item))));
+                        candidate.Items.Select(item => item.Id == audioClipId ? transform(item) : item), candidate.Name)));
         }, cancellationToken);
     }
 

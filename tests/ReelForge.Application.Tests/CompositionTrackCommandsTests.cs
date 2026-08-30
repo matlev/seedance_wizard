@@ -23,6 +23,8 @@ public sealed class CompositionTrackCommandsTests
         Assert.Equal([audio, audioResult.TrackId], state.AudioTracks.Select(track => track.Id));
         Assert.All(state.VideoTracks, track => Assert.True(track.IsVisible));
         Assert.All(state.AudioTracks, track => Assert.False(track.IsMuted));
+        Assert.Equal(["Video", "Video 3", "Video"], state.VideoTracks.Select(track => track.Name));
+        Assert.Equal(["Audio", "Audio 2"], state.AudioTracks.Select(track => track.Name));
         Assert.Equal(originalRevisionCount + 2, workspace.Project.RecipeRevisions.Count);
         Assert.Equal(2, store.SaveCount);
     }
@@ -107,14 +109,56 @@ public sealed class CompositionTrackCommandsTests
             service.ReorderTrackAsync(CompositionTrackKind.Video, video, 0));
         var visibility = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.SetVideoTrackVisibilityAsync(video, false));
+        var rename = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RenameTrackAsync(CompositionTrackKind.Video, video, "Main"));
         Assert.Contains("Unlock", delete.Message);
         Assert.Contains("Unlock", reorder.Message);
         Assert.Contains("Unlock", visibility.Message);
+        Assert.Contains("Unlock", rename.Message);
 
         var unlocked = await service.SetTrackLockAsync(video, false);
         Assert.True(unlocked.Changed);
         Assert.False(service.GetCurrent().Recipe.Composition.VideoTracks.Single().IsLocked);
         Assert.Equal(2, store.SaveCount);
+    }
+
+    [Fact]
+    public async Task RenameNormalizesNameCommitsHistoryAndLeavesNormalizedNoOpUntouched()
+    {
+        var video = Guid.NewGuid();
+        var audio = Guid.NewGuid();
+        var (workspace, store, _) = await OpenAsync([Video(video)], [Audio(audio)]);
+        var service = new WorkingCompositionService(workspace);
+        var original = service.GetCurrent().Revision;
+
+        var renamed = await service.RenameTrackAsync(CompositionTrackKind.Video, video, "  Primary video  ");
+        var noOp = await service.RenameTrackAsync(CompositionTrackKind.Video, video, "Primary video");
+        var audioRenamed = await service.RenameTrackAsync(CompositionTrackKind.Audio, audio, "Dialogue");
+
+        var state = service.GetCurrent().Recipe.Composition;
+        Assert.True(renamed.Changed);
+        Assert.NotEqual(original.Id, renamed.Revision.Id);
+        Assert.False(noOp.Changed);
+        Assert.Equal(renamed.Revision.Id, noOp.Revision.Id);
+        Assert.Equal("Primary video", state.VideoTracks.Single().Name);
+        Assert.Equal("Dialogue", state.AudioTracks.Single().Name);
+        Assert.Equal(2, store.SaveCount);
+    }
+
+    [Fact]
+    public async Task RenameRejectsInvalidAndWrongKindNamesBeforeMutation()
+    {
+        var video = Guid.NewGuid();
+        var audio = Guid.NewGuid();
+        var (workspace, store, _) = await OpenAsync([Video(video)], [Audio(audio)]);
+        var service = new WorkingCompositionService(workspace);
+        var revision = service.GetCurrent().Revision.Id;
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.RenameTrackAsync(CompositionTrackKind.Video, video, " \t "));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.RenameTrackAsync(CompositionTrackKind.Video, audio, "Wrong kind"));
+
+        Assert.Equal(revision, service.GetCurrent().Revision.Id);
+        Assert.Equal(0, store.SaveCount);
     }
 
     [Fact]

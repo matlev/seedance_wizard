@@ -74,6 +74,7 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
         _timeline.DetachAudioRequested += Timeline_DetachAudioRequested;
         _timeline.RemoveRequested += Timeline_RemoveRequested;
         _timeline.TrackCreateRequested += Timeline_TrackCreateRequested;
+        _timeline.TrackRenameRequested += Timeline_TrackRenameRequested;
         _timeline.TrackAppendRequested += Timeline_TrackAppendRequested;
         _timeline.TrackDeleteRequested += Timeline_TrackDeleteRequested;
         _timeline.TrackMoveUpRequested += Timeline_TrackMoveRequested;
@@ -157,13 +158,13 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
         {
             var track = state.VideoTracks[index];
             Tracks.Add(new CompositionTimelineTrackRow(track.Id, CompositionTimelineTrackKind.Video, index,
-                track.IsLocked, track.IsVisible, track.Items.Count));
+                track.IsLocked, track.IsVisible, track.Items.Count, track.Name));
         }
         for (var index = 0; index < state.AudioTracks.Count; index++)
         {
             var track = state.AudioTracks[index];
             Tracks.Add(new CompositionTimelineTrackRow(track.Id, CompositionTimelineTrackKind.Audio, index,
-                track.IsLocked, track.IsMuted, track.Items.Count));
+                track.IsLocked, track.IsMuted, track.Items.Count, track.Name));
         }
         Segments.Clear();
         var videos = state.VideoTracks
@@ -347,10 +348,19 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
         }
     }
 
-    public Task<CompositionPlacementDecision> DecideAsync(
+    public async Task<CompositionPlacementDecision> DecideAsync(
         CompositionPlacementDecisionRequest request,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(_host.DecidePlacement(request));
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_timeline.Dispatcher.CheckAccess())
+            return _host.DecidePlacement(request);
+
+        return await _timeline.Dispatcher.InvokeAsync(
+            () => _host.DecidePlacement(request),
+            System.Windows.Threading.DispatcherPriority.Normal,
+            cancellationToken);
+    }
 
     private async void Timeline_SplitRequested(object? sender, CompositionTimelineItemEventArgs e)
     {
@@ -386,6 +396,21 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
             await new WorkingCompositionService(_workspace).CreateTrackAsync(ToCommandKind(track.Kind), track.Index + 1);
             Refresh();
             _host.SetStatus($"Created a {track.Kind.ToString().ToLowerInvariant()} track.");
+        });
+    }
+
+    private async void Timeline_TrackRenameRequested(object? sender, CompositionTimelineTrackRenameEventArgs e)
+    {
+        var track = Tracks.SingleOrDefault(item => item.TrackId == e.TrackId);
+        if (track is null || track.IsLocked) return;
+        var name = _host.PromptTrackName(e.CurrentName, track.Kind);
+        if (name is null) return;
+        await MutateAsync("Renaming track…", async () =>
+        {
+            var result = await new WorkingCompositionService(_workspace)
+                .RenameTrackAsync(ToCommandKind(track.Kind), track.TrackId, name);
+            Refresh();
+            _host.SetStatus(result.Changed ? $"Renamed track to {name.Trim()}." : "Track name is unchanged.");
         });
     }
 
@@ -672,6 +697,7 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
         _timeline.DetachAudioRequested -= Timeline_DetachAudioRequested;
         _timeline.RemoveRequested -= Timeline_RemoveRequested;
         _timeline.TrackCreateRequested -= Timeline_TrackCreateRequested;
+        _timeline.TrackRenameRequested -= Timeline_TrackRenameRequested;
         _timeline.TrackAppendRequested -= Timeline_TrackAppendRequested;
         _timeline.TrackDeleteRequested -= Timeline_TrackDeleteRequested;
         _timeline.TrackMoveUpRequested -= Timeline_TrackMoveRequested;
@@ -695,6 +721,7 @@ internal interface ICompositionWorkspaceHost
     void PausePreview();
     string? PromptDetachAudioFileName(string displayName);
     Guid? SelectAudioPlacementTrack(IReadOnlyList<CompositionTimelineTrackRow> tracks);
+    string? PromptTrackName(string currentName, CompositionTimelineTrackKind kind);
     CompositionPlacementDecision DecidePlacement(CompositionPlacementDecisionRequest request);
     void ShowPlacementInformation(string title, string message);
     MediaSplitBehavior SplitBehavior { get; }

@@ -58,9 +58,12 @@ public sealed record CompositionTimelineTrackRow(
     int Index,
     bool IsLocked,
     bool IsVisibleOrMuted,
-    int ItemCount)
+    int ItemCount,
+    string? Name = null)
 {
-    public string DisplayName => $"{(Kind == CompositionTimelineTrackKind.Video ? "Video" : "Audio")} {Index + 1}";
+    public string DisplayName => string.IsNullOrWhiteSpace(Name)
+        ? $"{(Kind == CompositionTimelineTrackKind.Video ? "Video" : "Audio")} {Index + 1}"
+        : Name;
     public string StatusText => Kind == CompositionTimelineTrackKind.Video
         ? (IsVisibleOrMuted ? "Visible" : "Hidden")
         : (IsVisibleOrMuted ? "Muted" : "Audible");
@@ -163,6 +166,12 @@ public sealed class CompositionTimelineItemEventArgs(Guid itemId) : EventArgs
 public sealed class CompositionTimelineTrackEventArgs(Guid trackId) : EventArgs
 {
     public Guid TrackId { get; } = trackId;
+}
+
+public sealed class CompositionTimelineTrackRenameEventArgs(Guid trackId, string currentName) : EventArgs
+{
+    public Guid TrackId { get; } = trackId;
+    public string CurrentName { get; } = currentName;
 }
 
 public sealed class CompositionTimelineTrackReorderEventArgs(Guid trackId, int targetIndex) : EventArgs

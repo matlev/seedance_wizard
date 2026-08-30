@@ -19,7 +19,24 @@
         </StackPanel>
         <ComboBox x:Name="TrackPicker" Grid.Row="1" Margin="0,15,0,18" MinHeight="32"
                   Background="{StaticResource PanelRaisedBrush}" Foreground="{StaticResource TextBrush}"
-                  DisplayMemberPath="DisplayName" SelectedIndex="0" />
+                  DisplayMemberPath="DisplayName" SelectedIndex="0">
+            <ComboBox.ItemContainerStyle>
+                <Style TargetType="ComboBoxItem">
+                    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                    <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+                    <Setter Property="Padding" Value="8,5" />
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </ComboBox.ItemContainerStyle>
+        </ComboBox>
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Choose track" MinWidth="110" Padding="12,6" IsDefault="True"
                     Background="{StaticResource AccentBrush}" Foreground="White" Click="Confirm_Click" />

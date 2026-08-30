@@ -22,6 +22,15 @@ public sealed class CompositionTimelineTrackRowTests
     }
 
     [Fact]
+    public void TrackRowsPreferPersistedNamesOverGeneratedFallbacks()
+    {
+        var track = new CompositionTimelineTrackRow(Guid.NewGuid(), CompositionTimelineTrackKind.Audio, 2,
+            IsLocked: false, IsVisibleOrMuted: false, ItemCount: 0, Name: "Dialogue");
+
+        Assert.Equal("Dialogue", track.DisplayName);
+    }
+
+    [Fact]
     public void LockedItemDisablesRemoveButtonAndContextMenuCapability()
     {
         var itemId = Guid.NewGuid();

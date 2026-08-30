@@ -98,6 +98,7 @@ public partial class ProjectMediaPanel : UserControl
     private void ContextMenu_Opened(object sender, RoutedEventArgs e)
     {
         var asset = SelectedItem?.Asset;
+        DeleteItem.IsEnabled = asset is not null;
         if (ProjectMediaContextMenuPolicy.UsesMissingAssetMenu(asset))
         {
             RenameItem.Visibility = Visibility.Collapsed;

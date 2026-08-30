@@ -177,6 +177,19 @@ public sealed class WorkingCompositionModelsTests
     }
 
     [Fact]
+    public void TracksNormalizeNamesAndRejectEmptyOverlongOrControlCharacterNames()
+    {
+        var video = new CompositionVideoTrack(Guid.NewGuid(), false, true, [], "  Main video  ");
+        var audio = new CompositionAudioTrack(Guid.NewGuid(), false, false, [], "Dialogue");
+
+        Assert.Equal("Main video", video.Name);
+        Assert.Equal("Dialogue", audio.Name);
+        Assert.Throws<ArgumentException>(() => new CompositionVideoTrack(Guid.NewGuid(), false, true, [], " \t "));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CompositionAudioTrack(Guid.NewGuid(), false, false, [], new string('a', CompositionTrackName.MaximumUnicodeCharacters + 1)));
+        Assert.Throws<ArgumentException>(() => new CompositionVideoTrack(Guid.NewGuid(), false, true, [], "Video\n2"));
+    }
+
+    [Fact]
     public void LinkGroupsRejectIncompleteSingleKindAndMismatchedSourcesButRetainRelativeSynchronization()
     {
         var link = Guid.NewGuid();

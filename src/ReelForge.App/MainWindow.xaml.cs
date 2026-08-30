@@ -1560,6 +1560,12 @@ public partial class MainWindow : Window, IDisposable
             return dialog.ShowDialog() == true ? dialog.SelectedTrackId : null;
         }
 
+        public string? PromptTrackName(string currentName, CompositionTimelineTrackKind kind)
+        {
+            var dialog = new TrackNameDialog(currentName, kind) { Owner = window };
+            return dialog.ShowDialog() == true ? dialog.TrackName : null;
+        }
+
         public CompositionPlacementDecision DecidePlacement(CompositionPlacementDecisionRequest request)
         {
             var dialog = new TimingPlacementDialog(request) { Owner = window };

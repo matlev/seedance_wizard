@@ -42,6 +42,7 @@ internal sealed class WorkingCompositionStateDto
 internal sealed class CompositionVideoTrackDto
 {
     public Guid Id { get; set; }
+    public string? Name { get; set; }
     public bool IsLocked { get; set; }
     public bool IsVisible { get; set; }
     public List<CompositionVideoItemDto> Items { get; set; } = [];
@@ -50,6 +51,7 @@ internal sealed class CompositionVideoTrackDto
 internal sealed class CompositionAudioTrackDto
 {
     public Guid Id { get; set; }
+    public string? Name { get; set; }
     public bool IsLocked { get; set; }
     public bool IsMuted { get; set; }
     public List<CompositionAudioItemDto> Items { get; set; } = [];

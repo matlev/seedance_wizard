@@ -74,8 +74,8 @@ internal sealed class CompositionSegmentCommands
         if (linkedAudioItem is not null) ids.Add(linkedAudioItem.Id);
         return new WorkingCompositionState(
             state.VideoTracks.Select(track => new CompositionVideoTrack(track.Id, track.IsLocked, track.IsVisible,
-                track.Items.Where(item => !ids.Contains(item.Id)))),
+                track.Items.Where(item => !ids.Contains(item.Id)), track.Name)),
             state.AudioTracks.Select(track => new CompositionAudioTrack(track.Id, track.IsLocked, track.IsMuted,
-                track.Items.Where(item => !ids.Contains(item.Id)))));
+                track.Items.Where(item => !ids.Contains(item.Id)), track.Name)));
     }
 }

@@ -376,17 +376,17 @@ public sealed class PortableProjectStoreTests : IDisposable
                         new VideoSourceRange(new VideoPresentationTime(90_000, 1, 90_000), new VideoPresentationTime(270_000, 1, 90_000)),
                         new StreamTimingAssessmentPin(new StreamTimingAssessment(Guid.NewGuid(), new string('a', 64), MediaType.Video, 0, TimingReadiness.Exact, true, new ExactTime(2, 1), [], new ExactTime(0, 1))),
                         new ExactTime(1, 2), linkGroupId)
-                ]),
-                new CompositionVideoTrack(emptyVideoTrackId, isLocked: false, isVisible: true, [])
+                ], name: "Primary video"),
+                new CompositionVideoTrack(emptyVideoTrackId, isLocked: false, isVisible: true, [], name: "Video B-roll")
             ],
             [
-                new CompositionAudioTrack(emptyAudioTrackId, isLocked: true, isMuted: false, []),
+                new CompositionAudioTrack(emptyAudioTrackId, isLocked: true, isMuted: false, [], name: "Room tone"),
                 new CompositionAudioTrack(audioTrackId, isLocked: false, isMuted: true,
                 [
                     new CompositionAudioItem(audioItemId, sourceReference, 0, null,
                         new StreamTimingAssessmentPin(new StreamTimingAssessment(Guid.NewGuid(), new string('a', 64), MediaType.Audio, 0, TimingReadiness.Estimated, true, new ExactTime(2, 1), [TimingIssueClassification.DiscontinuousTimestamps], new ExactTime(0, 1))),
                         new ExactTime(3, 4), linkGroupId, true, -6, 0.25, new ExactTime(1, 4), new ExactTime(1, 2))
-                ])
+                ], name: "Dialogue")
             ])
         });
         await store.SaveAsync(project, location);
@@ -394,6 +394,8 @@ public sealed class PortableProjectStoreTests : IDisposable
         var state = Assert.IsType<CompositionRecipe>(Assert.Single(reopened.RecipeRevisions).Recipe).Composition;
         Assert.Equal([videoTrackId, emptyVideoTrackId], state.VideoTracks.Select(track => track.Id));
         Assert.Equal([emptyAudioTrackId, audioTrackId], state.AudioTracks.Select(track => track.Id));
+        Assert.Equal(["Primary video", "Video B-roll"], state.VideoTracks.Select(track => track.Name));
+        Assert.Equal(["Room tone", "Dialogue"], state.AudioTracks.Select(track => track.Name));
         Assert.False(state.VideoTracks[0].IsVisible);
         Assert.True(state.VideoTracks[0].IsLocked);
         Assert.True(state.VideoTracks[1].IsVisible);

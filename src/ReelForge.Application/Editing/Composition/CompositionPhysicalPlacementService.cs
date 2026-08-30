@@ -235,12 +235,12 @@ public sealed class CompositionPhysicalPlacementService
         var sourceReference = new AssetRevisionReference { AssetId = source.Id };
         return new WorkingCompositionState(
             state.VideoTracks.Select(track => track.Id != request.TargetTrackId ? track : new CompositionVideoTrack(track.Id, track.IsLocked, track.IsVisible,
-                track.Items.Concat([new CompositionVideoItem(videoId!.Value, sourceReference, video!.SelectedStreamIndex!.Value, videoResult!.VideoFullRange, video.CreatePlacementPin(), StartFor(video), linkGroupId)]))),
+                track.Items.Concat([new CompositionVideoItem(videoId!.Value, sourceReference, video!.SelectedStreamIndex!.Value, videoResult!.VideoFullRange, video.CreatePlacementPin(), StartFor(video), linkGroupId)]), track.Name)),
             state.AudioTracks.Select(track =>
             {
                 var target = source.MediaType == MediaType.Audio ? request.TargetTrackId : request.AudioTargetTrackId;
                 if (track.Id != target) return track;
-                return new CompositionAudioTrack(track.Id, track.IsLocked, track.IsMuted, track.Items.Concat([new CompositionAudioItem(audioId!.Value, sourceReference, audio!.SelectedStreamIndex!.Value, audioResult!.AudioFullRange, audio.CreatePlacementPin(), StartFor(audio), linkGroupId)]));
+                return new CompositionAudioTrack(track.Id, track.IsLocked, track.IsMuted, track.Items.Concat([new CompositionAudioItem(audioId!.Value, sourceReference, audio!.SelectedStreamIndex!.Value, audioResult!.AudioFullRange, audio.CreatePlacementPin(), StartFor(audio), linkGroupId)]), track.Name);
             }));
     }
 

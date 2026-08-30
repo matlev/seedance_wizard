@@ -48,15 +48,17 @@ public sealed class WorkingCompositionState
 
 public sealed class CompositionVideoTrack
 {
-    public CompositionVideoTrack(Guid id, bool isLocked, bool isVisible, IEnumerable<CompositionVideoItem> items)
+    public CompositionVideoTrack(Guid id, bool isLocked, bool isVisible, IEnumerable<CompositionVideoItem> items, string name = "Video")
     {
         WorkingCompositionGuards.RequireId(id, nameof(id));
         Id = id;
+        Name = CompositionTrackName.Normalize(name);
         IsLocked = isLocked;
         IsVisible = isVisible;
         Items = WorkingCompositionCollection.Copy(items);
     }
     public Guid Id { get; }
+    public string Name { get; }
     public bool IsLocked { get; }
     public bool IsVisible { get; }
     public IReadOnlyList<CompositionVideoItem> Items { get; }
@@ -64,15 +66,17 @@ public sealed class CompositionVideoTrack
 
 public sealed class CompositionAudioTrack
 {
-    public CompositionAudioTrack(Guid id, bool isLocked, bool isMuted, IEnumerable<CompositionAudioItem> items)
+    public CompositionAudioTrack(Guid id, bool isLocked, bool isMuted, IEnumerable<CompositionAudioItem> items, string name = "Audio")
     {
         WorkingCompositionGuards.RequireId(id, nameof(id));
         Id = id;
+        Name = CompositionTrackName.Normalize(name);
         IsLocked = isLocked;
         IsMuted = isMuted;
         Items = WorkingCompositionCollection.Copy(items);
     }
     public Guid Id { get; }
+    public string Name { get; }
     public bool IsLocked { get; }
     public bool IsMuted { get; }
     public IReadOnlyList<CompositionAudioItem> Items { get; }
@@ -264,5 +268,24 @@ internal static class WorkingCompositionGuards
         if (value > maximum)
             throw new ArgumentOutOfRangeException(parameterName, "Audio fades cannot exceed the pinned timeline duration.");
         return value;
+    }
+}
+
+/// <summary>Portable user-visible track-name invariant.</summary>
+public static class CompositionTrackName
+{
+    public const int MaximumUnicodeCharacters = 80;
+
+    public static string Normalize(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var normalized = value.Trim();
+        if (normalized.Length == 0)
+            throw new ArgumentException("A composition track name is required.", nameof(value));
+        if (normalized.EnumerateRunes().Count() > MaximumUnicodeCharacters)
+            throw new ArgumentOutOfRangeException(nameof(value), $"A composition track name cannot exceed {MaximumUnicodeCharacters} Unicode characters.");
+        if (normalized.Any(char.IsControl))
+            throw new ArgumentException("A composition track name cannot contain control characters.", nameof(value));
+        return normalized;
     }
 }

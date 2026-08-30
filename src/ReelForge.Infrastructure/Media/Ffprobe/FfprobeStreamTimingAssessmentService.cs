@@ -86,7 +86,7 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
         "-select_streams", streamIndex.ToString(CultureInfo.InvariantCulture),
         "-show_frames",
         "-show_packets",
-        "-show_entries", "frame=media_type,stream_index,pts,pkt_pts,best_effort_timestamp,duration,pkt_duration,nb_samples,decode_error_flags,flags:frame_side_data=side_data_type,skip_samples,discard_padding:packet=stream_index:packet_side_data=side_data_type,skip_samples,discard_padding",
+        "-show_entries", "frame=media_type,stream_index,pts,pkt_pts,best_effort_timestamp,duration,pkt_duration,nb_samples,decode_error_flags,flags:frame_side_data=side_data_type,skip_samples,discard_padding:packet=stream_index,pts,duration:packet_side_data=side_data_type,skip_samples,discard_padding",
         "-of", "json",
         mediaPath
     ];
@@ -183,12 +183,14 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
 
         var issues = new SortedSet<TimingIssueClassification>();
         var samples = frames.Select(frame => GetPositiveInt64(frame, "nb_samples")).ToArray();
+        var frameDurations = frames.Select(frame => GetFirstPositiveInt64(frame, "duration", "pkt_duration")).ToArray();
         var nativePts = frames.Select(frame => GetFirstInt64(frame, "pts", "pkt_pts")).ToArray();
         var pts = nativePts.Select((value, i) => value ?? GetInt64(frames[i], "best_effort_timestamp")).ToArray();
         if (samples.Any(value => value is null)) issues.Add(TimingIssueClassification.UnresolvedAudioSampleBoundary);
         if (nativePts.Any(value => value is null) && pts.Any(value => value is not null)) issues.Add(TimingIssueClassification.NativePresentationTimestampUnavailable);
         if (pts[0] is null) issues.Add(TimingIssueClassification.NativeStartUnavailable);
-        if (frames.Any(HasPrimingOrPadding) || ParsePackets(json, index).Any(HasPrimingOrPadding)) issues.Add(TimingIssueClassification.UnresolvedAudioPrimingOrPadding);
+        var packets = ParsePackets(json, index);
+        var hasPrimingOrPadding = frames.Any(HasPrimingOrPadding) || packets.Any(HasPrimingOrPadding);
 
         var hasCompleteSampleCounts = samples.All(value => value.HasValue);
         long totalSamples = 0;
@@ -209,18 +211,31 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
         var contiguous = pts.All(value => value.HasValue) && hasCompleteSampleCounts &&
                          AreAudioTimestampsContiguous(pts!, samples!, descriptor);
         if (!contiguous && pts.All(value => value.HasValue)) issues.Add(TimingIssueClassification.DiscontinuousTimestamps);
+        var presentationContiguous = pts.All(value => value.HasValue) && frameDurations.All(value => value.HasValue) &&
+                                     ArePresentationDurationsContiguous(pts, frameDurations);
+        var presentedSampleCount = presentationContiguous
+            ? TryAudioPresentationSampleCount(pts, frameDurations, descriptor)
+            : null;
+        if (hasPrimingOrPadding &&
+            (!presentationContiguous || presentedSampleCount is null ||
+             !PrimingOrPaddingIsReconciled(frames, packets, pts, frameDurations, descriptor)))
+            issues.Add(TimingIssueClassification.UnresolvedAudioPrimingOrPadding);
         var observedAudioPts = pts.Where(value => value.HasValue).Select(value => value!.Value).ToArray();
         if (!IsStrictlyIncreasing(observedAudioPts))
             issues.Add(TimingIssueClassification.NonmonotonicTimestamps);
 
-        var duration = !hasCompleteSampleCounts
+        var durationFromFrames = frameDurations.All(value => value.HasValue) && pts.All(value => value.HasValue)
+            ? TryAudioPresentationSpanFromDurations(pts, frameDurations, descriptor)
+            : null;
+        var duration = durationFromFrames ?? (!hasCompleteSampleCounts
             ? TryDurationFromDescriptor(descriptor)
             : !contiguous && pts.All(value => value.HasValue)
             ? TryAudioPresentationSpan(pts!, samples!, descriptor)
-            : TryTimeFromTicks(totalSamples, 1, descriptor.SampleRate.Value);
+            : TryTimeFromTicks(totalSamples, 1, descriptor.SampleRate.Value));
         if (duration is null)
             return Unusable(hash, MediaType.Audio, index, TimingIssueClassification.FiniteSpanUnavailable);
-        if (issues.Count == 0 && contiguous)
+        var exactSampleCount = hasPrimingOrPadding ? presentedSampleCount : totalSamples;
+        if (issues.Count == 0 && contiguous && exactSampleCount is > 0)
         {
             var exactAudioStart = TryTimeFromTicksSigned(
                 pts[0]!.Value,
@@ -228,7 +243,7 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
                 descriptor.TimeBaseDenominator.Value);
             if (exactAudioStart is null)
                 return Unusable(hash, MediaType.Audio, index, TimingIssueClassification.SourcePresentationStartUnrepresentable);
-            var range = new AudioSourceRange(new AudioSampleTime(0, descriptor.SampleRate.Value), new AudioSampleTime(totalSamples, descriptor.SampleRate.Value));
+            var range = new AudioSourceRange(new AudioSampleTime(0, descriptor.SampleRate.Value), new AudioSampleTime(exactSampleCount.Value, descriptor.SampleRate.Value));
             return new StreamTimingAssessmentResult(Assessment(request, hash, MediaType.Audio, index, TimingReadiness.Exact, duration, [], exactAudioStart), audioFullRange: range);
         }
         var sourceStart = pts.All(value => value.HasValue)
@@ -252,6 +267,100 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
             catch (OverflowException) { return false; }
         }
         return true;
+    }
+
+    private static bool PrimingOrPaddingIsReconciled(
+        IReadOnlyList<JsonElement> frames,
+        IReadOnlyList<JsonElement> packets,
+        long?[] pts,
+        long?[] frameDurations,
+        StreamTimingDescriptor descriptor)
+    {
+        if (frames.Any(HasPrimingOrPadding) ||
+            descriptor.DurationPresentationTimestamp is not > 0 ||
+            descriptor.TimeBaseNumerator is not > 0 ||
+            descriptor.TimeBaseDenominator is not > 0 ||
+            descriptor.SampleRate is not > 0 ||
+            pts.Length == 0 || frameDurations.Length == 0 ||
+            pts.Any(value => value is null) || frameDurations.Any(value => value is null))
+            return false;
+
+        var terminal = TryAdd(pts[^1]!.Value, frameDurations[^1]!.Value);
+        if (terminal is null ||
+            (BigInteger)terminal.Value - pts[0]!.Value != descriptor.DurationPresentationTimestamp.Value)
+            return false;
+
+        var foundTrim = false;
+        foreach (var packet in packets)
+        {
+            foreach (var (skipSamples, discardPadding) in ParseTrimSideData(packet))
+            {
+                foundTrim = true;
+                var packetPts = GetInt64(packet, "pts");
+                if (packetPts is null) return false;
+
+                if (skipSamples > 0)
+                {
+                    var presentationOffset = ((BigInteger)pts[0]!.Value - packetPts.Value) *
+                                             descriptor.TimeBaseNumerator.Value * descriptor.SampleRate.Value;
+                    if (presentationOffset != (BigInteger)skipSamples * descriptor.TimeBaseDenominator.Value)
+                        return false;
+                }
+
+                if (discardPadding > 0)
+                {
+                    var packetDuration = GetPositiveInt64(packet, "duration");
+                    if (packetDuration is null) return false;
+                    var packetEndOffset = ((BigInteger)packetPts.Value + packetDuration.Value - terminal.Value) *
+                                          descriptor.TimeBaseNumerator.Value * descriptor.SampleRate.Value;
+                    if (packetEndOffset != (BigInteger)discardPadding * descriptor.TimeBaseDenominator.Value)
+                        return false;
+                }
+            }
+        }
+
+        return foundTrim;
+    }
+
+    private static bool ArePresentationDurationsContiguous(long?[] pts, long?[] durations)
+    {
+        for (var index = 1; index < pts.Length; index++)
+            if (TryAdd(pts[index - 1]!.Value, durations[index - 1]!.Value) != pts[index]!.Value)
+                return false;
+        return true;
+    }
+
+    private static long? TryAudioPresentationSampleCount(
+        long?[] pts,
+        long?[] durations,
+        StreamTimingDescriptor descriptor)
+    {
+        var terminal = TryAdd(pts[^1]!.Value, durations[^1]!.Value);
+        if (terminal is null) return null;
+        var scaledSpan = ((BigInteger)terminal.Value - pts[0]!.Value) *
+                         descriptor.TimeBaseNumerator!.Value * descriptor.SampleRate!.Value;
+        if (scaledSpan <= 0 || scaledSpan % descriptor.TimeBaseDenominator!.Value != 0)
+            return null;
+        var samples = scaledSpan / descriptor.TimeBaseDenominator.Value;
+        return samples <= long.MaxValue ? (long)samples : null;
+    }
+
+    private static ExactTime? TryAudioPresentationSpanFromDurations(
+        long?[] pts,
+        long?[] durations,
+        StreamTimingDescriptor descriptor)
+    {
+        var earliest = pts.Select(value => value!.Value).Min();
+        long? latest = null;
+        foreach (var (timestamp, duration) in pts.Zip(durations))
+        {
+            var end = TryAdd(timestamp!.Value, duration!.Value);
+            if (end is null) return null;
+            latest = latest is null || end > latest ? end : latest;
+        }
+        return latest is { } terminal && TryPositiveDifference(terminal, earliest, out var span)
+            ? TryTimeFromTicks(span, descriptor.TimeBaseNumerator!.Value, descriptor.TimeBaseDenominator!.Value)
+            : null;
     }
 
     private static bool IsCoherent(long?[] pts, long?[] durations, StreamTimingDescriptor descriptor)
@@ -411,6 +520,22 @@ public sealed class FfprobeStreamTimingAssessmentService : IStreamTimingAssessme
             data.ValueKind == JsonValueKind.Object &&
             (GetString(data, "side_data_type")?.Contains("skip", StringComparison.OrdinalIgnoreCase) ?? false) &&
             (GetPositiveInt64(data, "skip_samples") is not null || GetPositiveInt64(data, "discard_padding") is not null));
+    }
+
+    private static IEnumerable<(long SkipSamples, long DiscardPadding)> ParseTrimSideData(JsonElement element)
+    {
+        if (!element.TryGetProperty("side_data_list", out var sideData) || sideData.ValueKind != JsonValueKind.Array)
+            yield break;
+        foreach (var data in sideData.EnumerateArray())
+        {
+            if (data.ValueKind != JsonValueKind.Object ||
+                !(GetString(data, "side_data_type")?.Contains("skip", StringComparison.OrdinalIgnoreCase) ?? false))
+                continue;
+            var skip = GetPositiveInt64(data, "skip_samples") ?? 0;
+            var discard = GetPositiveInt64(data, "discard_padding") ?? 0;
+            if (skip > 0 || discard > 0)
+                yield return (skip, discard);
+        }
     }
 
     private static bool IsStrictlyIncreasing(IEnumerable<long> values)

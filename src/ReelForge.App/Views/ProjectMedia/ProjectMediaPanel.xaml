@@ -102,7 +102,8 @@
                     <MenuItem x:Name="CopyToProjectItem" Header="Copy to Project…" Tag="Copy" Click="Action_Click" />
                     <MenuItem x:Name="MoveToProjectItem" Header="Move to Project…" Tag="Move" Click="Action_Click" />
                     <Separator x:Name="SecondMenuSeparator" />
-                    <MenuItem x:Name="DeleteItem" Header="Delete from project" Tag="Delete" Foreground="#FF9B9B"
+                    <MenuItem x:Name="DeleteItem" Header="Delete from project" Tag="Delete"
+                              Style="{StaticResource DangerMenuItemStyle}"
                               Click="Action_Click" />
                 </ContextMenu>
             </ListBox.ContextMenu>

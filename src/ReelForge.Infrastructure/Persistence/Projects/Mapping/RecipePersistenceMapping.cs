@@ -67,6 +67,7 @@ internal static partial class ProjectPersistenceMapper
                 VideoTracks = composition.Composition.VideoTracks.Select(track => new CompositionVideoTrackDto
                 {
                     Id = track.Id,
+                    Name = track.Name,
                     IsLocked = track.IsLocked,
                     IsVisible = track.IsVisible,
                     Items = track.Items.Select(item => new CompositionVideoItemDto
@@ -83,6 +84,7 @@ internal static partial class ProjectPersistenceMapper
                 AudioTracks = composition.Composition.AudioTracks.Select(track => new CompositionAudioTrackDto
                 {
                     Id = track.Id,
+                    Name = track.Name,
                     IsLocked = track.IsLocked,
                     IsMuted = track.IsMuted,
                     Items = track.Items.Select(item => new CompositionAudioItemDto
@@ -214,7 +216,7 @@ internal static partial class ProjectPersistenceMapper
         try
         {
             return new WorkingCompositionState(
-                (source.VideoTracks ?? throw new InvalidDataException("Composition video tracks are required.")).Select(track => new CompositionVideoTrack(
+                (source.VideoTracks ?? throw new InvalidDataException("Composition video tracks are required.")).Select((track, index) => new CompositionVideoTrack(
                     track.Id,
                     track.IsLocked,
                     track.IsVisible,
@@ -225,8 +227,9 @@ internal static partial class ProjectPersistenceMapper
                         FromDto(item.SourceRange),
                         FromDto(item.TimingAssessment ?? throw new InvalidDataException("A video timing pin is required.")),
                         FromDto(item.CompositionStart) ?? throw new InvalidDataException("A video composition start is required."),
-                        item.LinkGroupId)))),
-                (source.AudioTracks ?? throw new InvalidDataException("Composition audio tracks are required.")).Select(track => new CompositionAudioTrack(
+                        item.LinkGroupId)),
+                    track.Name ?? $"Video {index + 1}")),
+                (source.AudioTracks ?? throw new InvalidDataException("Composition audio tracks are required.")).Select((track, index) => new CompositionAudioTrack(
                     track.Id,
                     track.IsLocked,
                     track.IsMuted,
@@ -242,7 +245,8 @@ internal static partial class ProjectPersistenceMapper
                         item.GainDecibels,
                         item.Pan,
                         FromDto(item.FadeIn) ?? throw new InvalidDataException("An audio fade-in is required."),
-                        FromDto(item.FadeOut) ?? throw new InvalidDataException("An audio fade-out is required."))))));
+                        FromDto(item.FadeOut) ?? throw new InvalidDataException("An audio fade-out is required."))),
+                    track.Name ?? $"Audio {index + 1}")));
         }
         catch (InvalidDataException)
         {

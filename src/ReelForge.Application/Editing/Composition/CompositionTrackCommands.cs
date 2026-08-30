@@ -31,8 +31,9 @@ internal sealed class CompositionTrackCommands
         RequireInsertionIndex(index, count);
 
         var trackId = Guid.NewGuid();
+        var name = DefaultName(kind, count + 1);
         var revision = await _editor.UpdateAsync(
-            state => InsertTrack(state, kind, trackId, index),
+            state => InsertTrack(state, kind, trackId, index, name),
             cancellationToken).ConfigureAwait(false);
         return new CompositionTrackCommandResult(revision, trackId, Changed: true);
     }
@@ -130,15 +131,35 @@ internal sealed class CompositionTrackCommands
         return new CompositionTrackCommandResult(committed, trackId, Changed: true);
     }
 
-    private static WorkingCompositionState InsertTrack(WorkingCompositionState state, CompositionTrackKind kind, Guid trackId, int index) =>
+    public async Task<CompositionTrackCommandResult> RenameAsync(
+        CompositionTrackKind kind,
+        Guid trackId,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        var (_, revision, recipe) = _current.GetCurrent();
+        var track = RequireTrack(recipe.Composition, kind, trackId);
+        if (track.IsLocked)
+            throw new InvalidOperationException($"Unlock the {kind.ToString().ToLowerInvariant()} track before renaming it.");
+        var normalizedName = CompositionTrackName.Normalize(name);
+        if (string.Equals(track.Name, normalizedName, StringComparison.Ordinal))
+            return new CompositionTrackCommandResult(revision, trackId, Changed: false);
+
+        var committed = await _editor.UpdateAsync(
+            state => RenameTrack(state, kind, trackId, normalizedName),
+            cancellationToken).ConfigureAwait(false);
+        return new CompositionTrackCommandResult(committed, trackId, Changed: true);
+    }
+
+    private static WorkingCompositionState InsertTrack(WorkingCompositionState state, CompositionTrackKind kind, Guid trackId, int index, string name) =>
         kind switch
         {
             CompositionTrackKind.Video => new WorkingCompositionState(
-                Insert(state.VideoTracks, new CompositionVideoTrack(trackId, false, true, []), index),
+                Insert(state.VideoTracks, new CompositionVideoTrack(trackId, false, true, [], name), index),
                 state.AudioTracks),
             CompositionTrackKind.Audio => new WorkingCompositionState(
                 state.VideoTracks,
-                Insert(state.AudioTracks, new CompositionAudioTrack(trackId, false, false, []), index)),
+                Insert(state.AudioTracks, new CompositionAudioTrack(trackId, false, false, [], name), index)),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
 
@@ -160,23 +181,39 @@ internal sealed class CompositionTrackCommands
 
     private static WorkingCompositionState SetLock(WorkingCompositionState state, Guid trackId, bool isLocked) => new(
         state.VideoTracks.Select(track => track.Id == trackId
-            ? new CompositionVideoTrack(track.Id, isLocked, track.IsVisible, track.Items)
+            ? new CompositionVideoTrack(track.Id, isLocked, track.IsVisible, track.Items, track.Name)
             : track),
         state.AudioTracks.Select(track => track.Id == trackId
-            ? new CompositionAudioTrack(track.Id, isLocked, track.IsMuted, track.Items)
+            ? new CompositionAudioTrack(track.Id, isLocked, track.IsMuted, track.Items, track.Name)
             : track));
 
     private static WorkingCompositionState SetVideoVisibility(WorkingCompositionState state, Guid trackId, bool isVisible) => new(
         state.VideoTracks.Select(track => track.Id == trackId
-            ? new CompositionVideoTrack(track.Id, track.IsLocked, isVisible, track.Items)
+            ? new CompositionVideoTrack(track.Id, track.IsLocked, isVisible, track.Items, track.Name)
             : track),
         state.AudioTracks);
 
     private static WorkingCompositionState SetAudioMute(WorkingCompositionState state, Guid trackId, bool isMuted) => new(
         state.VideoTracks,
         state.AudioTracks.Select(track => track.Id == trackId
-            ? new CompositionAudioTrack(track.Id, track.IsLocked, isMuted, track.Items)
+            ? new CompositionAudioTrack(track.Id, track.IsLocked, isMuted, track.Items, track.Name)
             : track));
+
+    private static WorkingCompositionState RenameTrack(WorkingCompositionState state, CompositionTrackKind kind, Guid trackId, string name) =>
+        kind switch
+        {
+            CompositionTrackKind.Video => new WorkingCompositionState(
+                state.VideoTracks.Select(track => track.Id == trackId
+                    ? new CompositionVideoTrack(track.Id, track.IsLocked, track.IsVisible, track.Items, name)
+                    : track),
+                state.AudioTracks),
+            CompositionTrackKind.Audio => new WorkingCompositionState(
+                state.VideoTracks,
+                state.AudioTracks.Select(track => track.Id == trackId
+                    ? new CompositionAudioTrack(track.Id, track.IsLocked, track.IsMuted, track.Items, name)
+                    : track)),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
 
     private static List<T> Insert<T>(IReadOnlyList<T> tracks, T track, int index)
     {
@@ -253,6 +290,13 @@ internal sealed class CompositionTrackCommands
             throw new ArgumentOutOfRangeException(nameof(index), "A track reorder index must identify an existing track.");
     }
 
+    private static string DefaultName(CompositionTrackKind kind, int ordinal) => kind switch
+    {
+        CompositionTrackKind.Video => $"Video {ordinal}",
+        CompositionTrackKind.Audio => $"Audio {ordinal}",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
+    };
+
     private sealed class TrackReference
     {
         public TrackReference(CompositionVideoTrack track) => Video = track;
@@ -262,6 +306,7 @@ internal sealed class CompositionTrackCommands
         public CompositionAudioTrack? Audio { get; }
         public Guid Id => Video?.Id ?? Audio!.Id;
         public bool IsLocked => Video?.IsLocked ?? Audio!.IsLocked;
+        public string Name => Video?.Name ?? Audio!.Name;
         public int ItemCount => Video?.Items.Count ?? Audio!.Items.Count;
     }
 }

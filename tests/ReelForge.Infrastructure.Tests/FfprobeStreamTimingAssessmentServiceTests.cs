@@ -209,6 +209,39 @@ public sealed class FfprobeStreamTimingAssessmentServiceTests
     }
 
     [Fact]
+    public async Task ReconciledAudioPrimingMetadataRemainsExact()
+    {
+        var result = await Service(Frames("""{"packets_and_frames":[{"type":"packet","stream_index":3,"pts":-1024,"duration":1024,"side_data_list":[{"side_data_type":"Skip Samples","skip_samples":1024}]},{"type":"frame","media_type":"audio","stream_index":3,"pts":0,"duration":1024,"nb_samples":1024},{"type":"frame","media_type":"audio","stream_index":3,"pts":1024,"duration":416,"nb_samples":1024}]}"""))
+            .AssessAsync(AudioRequest(3, duration: 1440));
+
+        Assert.Equal(TimingReadiness.Exact, result.Assessment.Readiness);
+        Assert.Equal(new ExactTime(1440, 48000), result.Assessment.TimelineDuration);
+        Assert.Equal(1440, result.AudioFullRange!.End.SampleFrameOffset);
+        Assert.DoesNotContain(TimingIssueClassification.UnresolvedAudioPrimingOrPadding, result.Assessment.IssueClassifications);
+    }
+
+    [Fact]
+    public async Task MismatchedAudioPrimingMetadataRemainsEstimated()
+    {
+        var result = await Service(Frames("""{"packets_and_frames":[{"type":"packet","stream_index":3,"pts":-1000,"duration":1024,"side_data_list":[{"side_data_type":"Skip Samples","skip_samples":1024}]},{"type":"frame","media_type":"audio","stream_index":3,"pts":0,"duration":1024,"nb_samples":1024},{"type":"frame","media_type":"audio","stream_index":3,"pts":1024,"duration":416,"nb_samples":1024}]}"""))
+            .AssessAsync(AudioRequest(3, duration: 1440));
+
+        Assert.Equal(TimingReadiness.Estimated, result.Assessment.Readiness);
+        Assert.Contains(TimingIssueClassification.UnresolvedAudioPrimingOrPadding, result.Assessment.IssueClassifications);
+    }
+
+    [Fact]
+    public async Task ReconciledAudioDiscardPaddingUsesPresentedTerminalBoundary()
+    {
+        var result = await Service(Frames("""{"packets_and_frames":[{"type":"frame","media_type":"audio","stream_index":3,"pts":0,"duration":1024,"nb_samples":1024},{"type":"packet","stream_index":3,"pts":1024,"duration":1024,"side_data_list":[{"side_data_type":"Skip Samples","discard_padding":608}]},{"type":"frame","media_type":"audio","stream_index":3,"pts":1024,"duration":416,"nb_samples":1024}]}"""))
+            .AssessAsync(AudioRequest(3, duration: 1440));
+
+        Assert.Equal(TimingReadiness.Exact, result.Assessment.Readiness);
+        Assert.Equal(1440, result.AudioFullRange!.End.SampleFrameOffset);
+        Assert.DoesNotContain(TimingIssueClassification.UnresolvedAudioPrimingOrPadding, result.Assessment.IssueClassifications);
+    }
+
+    [Fact]
     public async Task UnrepresentableAudioSourceStartIsUnusableInsteadOfThrowing()
     {
         var request = new StreamTimingAssessmentRequest("x", Identity(), MediaType.Audio, new MediaEncodingMetadata

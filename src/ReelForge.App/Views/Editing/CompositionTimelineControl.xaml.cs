@@ -86,6 +86,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     public event EventHandler<CompositionTimelineItemEventArgs>? DetachAudioRequested;
     public event EventHandler<CompositionTimelineItemEventArgs>? RemoveRequested;
     public event EventHandler<CompositionTimelineTrackEventArgs>? TrackSelected;
+    public event EventHandler<CompositionTimelineTrackRenameEventArgs>? TrackRenameRequested;
     public event EventHandler<CompositionTimelineTrackKindEventArgs>? TrackAppendRequested;
     public event EventHandler<CompositionTimelineTrackEventArgs>? TrackCreateRequested;
     public event EventHandler<CompositionTimelineTrackEventArgs>? TrackDeleteRequested;
@@ -315,6 +316,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             DrawRuler();
             foreach (var track in _state.Tracks)
             {
+                DrawTrackTexture(track);
                 DrawTrackHeader(track);
                 var top = GetTrackItemTop(track.TrackId);
                 if (track.Kind == CompositionTimelineTrackKind.Video)
@@ -451,6 +453,8 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             else
                 AudioTrackMuteChanged?.Invoke(this, new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsVisibleOrMuted));
         }));
+        panel.Children.Add(CreateTrackButton(track, "Rename", () => TrackRenameRequested?.Invoke(this,
+            new CompositionTimelineTrackRenameEventArgs(track.TrackId, track.DisplayName))));
         panel.Children.Add(CreateTrackButton(track, "↑", () => TrackMoveUpRequested?.Invoke(this,
             new CompositionTimelineTrackReorderEventArgs(track.TrackId, track.Index - 1)), enabled: track.Index > 0));
         var sameKindCount = _state.Tracks.Count(candidate => candidate.Kind == track.Kind);
@@ -470,6 +474,45 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         Canvas.SetTop(header, top);
         Canvas.SetLeft(header, 0);
         TimelineCanvas.Children.Add(header);
+    }
+
+    private void DrawTrackTexture(CompositionTimelineTrackRow track)
+    {
+        if (_layout is null) return;
+
+        var bodyTop = GetTrackItemTop(track.TrackId);
+        var glyph = track.Kind == CompositionTimelineTrackKind.Video ? "▶" : "♪";
+        var brush = FindResource("PanelRaisedBrush") as Brush ?? Brushes.DarkSlateGray;
+        var text = new FormattedText(
+            glyph,
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            new Typeface("Segoe UI Symbol"),
+            track.Kind == CompositionTimelineTrackKind.Video ? 14 : 17,
+            brush,
+            VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        var tile = new DrawingBrush(new GeometryDrawing(
+            brush,
+            null,
+            text.BuildGeometry(new Point(34, track.Kind == CompositionTimelineTrackKind.Video ? 14 : 11))))
+        {
+            TileMode = TileMode.Tile,
+            Viewbox = new Rect(0, 0, 88, TrackRowHeight - TrackHeaderHeight - 2),
+            ViewboxUnits = BrushMappingMode.Absolute,
+            Viewport = new Rect(0, 0, 88, TrackRowHeight - TrackHeaderHeight - 2),
+            ViewportUnits = BrushMappingMode.Absolute,
+            Stretch = Stretch.None,
+            Opacity = 0.72
+        };
+        var texture = new Rectangle
+        {
+            Width = _layout.ContentWidth,
+            Height = TrackRowHeight - TrackHeaderHeight - 2,
+            Fill = tile,
+            IsHitTestVisible = false
+        };
+        Canvas.SetTop(texture, bodyTop);
+        TimelineCanvas.Children.Add(texture);
     }
 
     private static Button CreateTrackButton(CompositionTimelineTrackRow track, string label, Action action, bool enabled = true)

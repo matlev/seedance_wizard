@@ -161,6 +161,13 @@ public sealed class WorkingCompositionService
         CancellationToken cancellationToken = default) =>
         _tracks.SetAudioMuteAsync(trackId, isMuted, cancellationToken);
 
+    public Task<CompositionTrackCommandResult> RenameTrackAsync(
+        CompositionTrackKind kind,
+        Guid trackId,
+        string name,
+        CancellationToken cancellationToken = default) =>
+        _tracks.RenameAsync(kind, trackId, name, cancellationToken);
+
     public (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent() =>
         _current.GetCurrent();
 }
