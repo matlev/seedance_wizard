@@ -149,6 +149,50 @@ public sealed class AtlasCloudSeedance25ProviderTests
         Assert.Equal("https://storage.example/output.mp4", Assert.Single(job.Outputs).DownloadUrl);
     }
 
+    [Fact]
+    public async Task PollTreatsHttpErrorWithTerminalPredictionAsFailedJob()
+    {
+        var handler = new RecordingHandler(
+            HttpStatusCode.BadRequest,
+            """
+            {
+              "code": 400,
+              "message": "The submitted settings are not valid for video editing.",
+              "data": {
+                "id": "prediction-123",
+                "status": "failed",
+                "error": "The submitted settings are not valid for video editing.",
+                "error_code": 1013040,
+                "outputs": null
+              }
+            }
+            """);
+        var provider = CreateProvider(handler);
+
+        var job = await provider.GetJobAsync("prediction-123");
+
+        Assert.Equal(GenerationStatus.Failed, job.Status);
+        Assert.Equal("prediction-123", job.ProviderJobId);
+        Assert.Equal(400, job.Error?.HttpStatus);
+        Assert.Equal("1013040", job.Error?.ProviderCode);
+        Assert.Equal("The submitted settings are not valid for video editing.", job.Error?.Message);
+    }
+
+    [Fact]
+    public async Task PollKeepsTransientHttpFailureRetryable()
+    {
+        var handler = new RecordingHandler(
+            HttpStatusCode.TooManyRequests,
+            """{"code":"RATE_LIMITED","message":"Try again later."}""");
+        var provider = CreateProvider(handler);
+
+        var exception = await Assert.ThrowsAsync<VideoGenerationProviderException>(
+            () => provider.GetJobAsync("prediction-123"));
+
+        Assert.Equal(429, exception.HttpStatus);
+        Assert.Equal("RATE_LIMITED", exception.ProviderCode);
+    }
+
     private static GenerationSubmissionAuthorization TestAuthorization() =>
         GenerationSubmissionAuthorization.ForNetworkIsolatedTest(AtlasCloudSeedance25Provider.ProviderId);
 

@@ -57,6 +57,36 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task CoordinatorStopsPollingAfterProviderReportsFailure()
+    {
+        var provider = new FailedPollProvider();
+        var finalizer = new RecordingFinalizer();
+        var store = new JsonGenerationJobStore(Path.Combine(_temporaryRoot, "failed-jobs.json"));
+        await using var coordinator = new GenerationJobCoordinator(
+            store,
+            _ => provider,
+            finalizer,
+            TimeSpan.FromMilliseconds(5));
+        var generation = CreateAcceptedGeneration(provider);
+
+        await coordinator.TrackAsync(
+            generation,
+            new ProjectLocation(_temporaryRoot, Path.Combine(_temporaryRoot, "failed.rfp")),
+            "Failed generation test",
+            provider.Capabilities.DisplayName);
+        var finalized = await finalizer.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await WaitUntilAsync(() => coordinator.GetSnapshot().SingleOrDefault()?.IsReconciled == true);
+        await Task.Delay(30);
+
+        Assert.Equal(GenerationStatus.Failed, finalized.Status);
+        Assert.Equal("1013040", finalized.Error?.ProviderCode);
+        Assert.Equal(1, provider.StatusCalls);
+        var retained = Assert.Single(coordinator.GetSnapshot());
+        Assert.Equal(GenerationStatus.Failed, retained.Status);
+        Assert.True(retained.IsReconciled);
+    }
+
+    [Fact]
     public async Task RestoreReloadsPersistedJobsBeforePolling()
     {
         var provider = new BlockingPollProvider();
@@ -311,7 +341,7 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
             string providerJobId,
             CancellationToken cancellationToken = default)
         {
-            StatusCalls++;
+            RecordStatusCall();
             return Task.FromResult(new ProviderGenerationJob
             {
                 ProviderJobId = providerJobId,
@@ -319,6 +349,8 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
                 Outputs = [new ProviderGenerationOutput("https://output.example/video.mp4")]
             });
         }
+
+        protected void RecordStatusCall() => StatusCalls++;
     }
 
     private sealed class BlockingPollProvider : PollOnlyProvider
@@ -329,6 +361,26 @@ public sealed class GenerationJobCoordinatorTests : IDisposable
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("Unreachable");
+        }
+    }
+
+    private sealed class FailedPollProvider : PollOnlyProvider
+    {
+        public override Task<ProviderGenerationJob> GetJobAsync(
+            string providerJobId,
+            CancellationToken cancellationToken = default)
+        {
+            RecordStatusCall();
+            return Task.FromResult(new ProviderGenerationJob
+            {
+                ProviderJobId = providerJobId,
+                Status = GenerationStatus.Failed,
+                Error = new GenerationError
+                {
+                    ProviderCode = "1013040",
+                    Message = "The provider rejected the request."
+                }
+            });
         }
     }
 }
