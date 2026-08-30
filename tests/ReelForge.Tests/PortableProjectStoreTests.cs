@@ -22,8 +22,11 @@ public sealed class PortableProjectStoreTests : IDisposable
         project.CurrentGenerationDraft = new GenerationDraft
         {
             ProviderId = "atlascloud",
-            ModelVersion = "bytedance/seedance-2.5/text-to-video",
+            ModelVersion = "bytedance/seedance-2.5",
             Prompt = "Editable prompt",
+            Mode = GenerationMode.VideoEdit,
+            DurationSeconds = -1,
+            AspectRatio = "adaptive",
             ParentGenerationId = parentGenerationId,
             RelationshipType = GenerationRelationshipType.VariantOf
         };
@@ -33,12 +36,12 @@ public sealed class PortableProjectStoreTests : IDisposable
             Status = GenerationStatus.Succeeded,
             RequestSnapshot = new GenerationRequestSnapshot
             {
-                ProviderId = "fake.seedance",
-                ModelVersion = "development-v1",
-                Prompt = "A lantern drifting through fog",
-                Mode = GenerationMode.TextToVideo,
-                DurationSeconds = 15,
-                AspectRatio = "16:9",
+                ProviderId = "atlascloud",
+                ModelVersion = "bytedance/seedance-2.5",
+                Prompt = "Change the lighting while preserving the source geometry",
+                Mode = GenerationMode.VideoEdit,
+                DurationSeconds = -1,
+                AspectRatio = "adaptive",
                 Resolution = "720p"
             }
         });
@@ -50,14 +53,21 @@ public sealed class PortableProjectStoreTests : IDisposable
         Assert.Equal("Portable demo", reopened.Name);
         Assert.Equal("clip one.mp4", Assert.Single(reopened.Assets).FileName);
         Assert.Equal(ContentHashStatus.Verified, reopened.Assets[0].Physical?.ContentIdentity.Status);
-        Assert.Equal("A lantern drifting through fog", Assert.Single(reopened.Generations).RequestSnapshot.Prompt);
+        var reopenedGeneration = Assert.Single(reopened.Generations).RequestSnapshot;
+        Assert.Equal("Change the lighting while preserving the source geometry", reopenedGeneration.Prompt);
+        Assert.Equal(GenerationMode.VideoEdit, reopenedGeneration.Mode);
+        Assert.Equal(-1, reopenedGeneration.DurationSeconds);
+        Assert.Equal("adaptive", reopenedGeneration.AspectRatio);
         Assert.Equal("Editable prompt", reopened.CurrentGenerationDraft?.Prompt);
+        Assert.Equal(GenerationMode.VideoEdit, reopened.CurrentGenerationDraft?.Mode);
+        Assert.Equal(-1, reopened.CurrentGenerationDraft?.DurationSeconds);
+        Assert.Equal("adaptive", reopened.CurrentGenerationDraft?.AspectRatio);
         Assert.Equal(parentGenerationId, reopened.CurrentGenerationDraft?.ParentGenerationId);
         Assert.Equal(GenerationRelationshipType.VariantOf, reopened.CurrentGenerationDraft?.RelationshipType);
         Assert.Equal(Path.GetFullPath(_temporaryRoot), reopenedLocation.RootDirectory);
         Assert.Equal("Portable demo.rfp", Path.GetFileName(reopenedLocation.ProjectFilePath));
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(location.ProjectFilePath));
-        Assert.Equal(4, json.RootElement.GetProperty("formatVersion").GetInt32());
+        Assert.Equal(5, json.RootElement.GetProperty("formatVersion").GetInt32());
         AssertProjectFoldersExist(location.ProjectFilePath);
     }
 
@@ -87,7 +97,7 @@ public sealed class PortableProjectStoreTests : IDisposable
             new PortableProjectStore().OpenAsync(projectPath));
 
         Assert.Contains("unsupported development format 2", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("requires format 4", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("requires format 5", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -100,7 +110,7 @@ public sealed class PortableProjectStoreTests : IDisposable
         await store.WriteAsync(project, location);
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(PortableProjectStore.GetRecoveryFilePath(location)));
-        Assert.Equal(4, json.RootElement.GetProperty("project").GetProperty("formatVersion").GetInt32());
+        Assert.Equal(5, json.RootElement.GetProperty("project").GetProperty("formatVersion").GetInt32());
     }
 
     [Fact]

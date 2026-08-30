@@ -33,7 +33,7 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
         ProviderId: ProviderId,
         DisplayName: "AtlasCloud Seedance 2.5",
         ModelVersion: "bytedance/seedance-2.5",
-        Modes: [GenerationMode.TextToVideo, GenerationMode.ImageToVideo, GenerationMode.ReferenceToVideo],
+        Modes: [GenerationMode.TextToVideo, GenerationMode.ImageToVideo, GenerationMode.ReferenceToVideo, GenerationMode.VideoEdit],
         MinimumDurationSeconds: 4,
         MaximumDurationSeconds: 30,
         AspectRatios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"],
@@ -48,7 +48,20 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
             ["generate_audio"] = ["true", "false"],
             ["watermark"] = ["true", "false"],
             ["return_last_frame"] = ["true", "false"]
-        });
+        })
+    {
+        ModeRequirements = new Dictionary<GenerationMode, GenerationModeRequirements>
+        {
+            [GenerationMode.VideoEdit] = new(
+                FixedDurationSeconds: -1,
+                FixedAspectRatio: "adaptive",
+                RequiredImageReferences: 0,
+                RequiredVideoReferences: 1,
+                RequiredAudioReferences: 0,
+                MinimumVideoReferenceDurationSeconds: 4,
+                MaximumVideoReferenceDurationSeconds: 30)
+        }
+    };
 
     public GenerationProviderCostBehavior CostBehavior => GenerationProviderCostBehavior.PotentiallyBillable;
     public string ApiKeyCredentialKey => CredentialKey;
@@ -148,11 +161,16 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
                 payload["last_image"] = resolvedReferences[lastIndex];
             }
         }
-        else if (request.Mode == GenerationMode.ReferenceToVideo)
+        else if (request.Mode is GenerationMode.ReferenceToVideo or GenerationMode.VideoEdit)
         {
             AddReferenceArray(payload, "reference_images", references, resolvedReferences, MediaType.Image);
             AddReferenceArray(payload, "reference_videos", references, resolvedReferences, MediaType.Video);
             AddReferenceArray(payload, "reference_audios", references, resolvedReferences, MediaType.Audio);
+
+            if (request.Mode == GenerationMode.VideoEdit)
+            {
+                payload["omni_reference_task_type"] = "edit";
+            }
         }
 
         return payload;
@@ -189,6 +207,7 @@ public sealed class AtlasCloudSeedance25Provider : IAsyncVideoGenerationProvider
         GenerationMode.TextToVideo => TextToVideoModel,
         GenerationMode.ImageToVideo => ImageToVideoModel,
         GenerationMode.ReferenceToVideo => ReferenceToVideoModel,
+        GenerationMode.VideoEdit => ReferenceToVideoModel,
         _ => throw new ArgumentOutOfRangeException(nameof(mode))
     };
 

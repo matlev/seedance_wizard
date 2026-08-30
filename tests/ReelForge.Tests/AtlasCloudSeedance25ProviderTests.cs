@@ -71,6 +71,58 @@ public sealed class AtlasCloudSeedance25ProviderTests
     }
 
     [Fact]
+    public void VideoEditMapsExactlyOneVideoToAtlasEditTask()
+    {
+        var provider = CreateProvider(new RecordingHandler(HttpStatusCode.OK, "{}"));
+        var video = CreateAsset(MediaType.Video, "source.mp4", "atlas-asset://source-video");
+        video.DurationSeconds = 12;
+        var request = new GenerationRequest
+        {
+            Prompt = "Replace the sky with a sunrise.",
+            Mode = GenerationMode.VideoEdit,
+            DurationSeconds = -1,
+            AspectRatio = "adaptive",
+            Resolution = "720p",
+            ReferenceAssetIds = [video.Id]
+        };
+
+        var payload = provider.BuildPayload(request, [video]);
+
+        Assert.Equal(AtlasCloudSeedance25Provider.ReferenceToVideoModel, payload["model"]);
+        Assert.Equal(-1, payload["duration"]);
+        Assert.Equal("adaptive", payload["ratio"]);
+        Assert.Equal("edit", payload["omni_reference_task_type"]);
+        Assert.Equal(["atlas-asset://source-video"], Assert.IsType<string[]>(payload["reference_videos"]));
+        Assert.DoesNotContain("reference_images", payload.Keys);
+        Assert.DoesNotContain("reference_audios", payload.Keys);
+    }
+
+    [Fact]
+    public void VideoEditRejectsAnythingOtherThanOneVideoWithFixedSettings()
+    {
+        var provider = CreateProvider(new RecordingHandler(HttpStatusCode.OK, "{}"));
+        var video = CreateAsset(MediaType.Video, "source.mp4", "atlas-asset://source-video");
+        video.DurationSeconds = 31;
+        var image = CreateAsset(MediaType.Image, "reference.png", "atlas-asset://reference-image");
+        var request = new GenerationRequest
+        {
+            Prompt = "Change the lighting.",
+            Mode = GenerationMode.VideoEdit,
+            DurationSeconds = 4,
+            AspectRatio = "16:9",
+            Resolution = "720p",
+            ReferenceAssetIds = [video.Id, image.Id]
+        };
+
+        var exception = Assert.Throws<GenerationValidationException>(() => provider.BuildPayload(request, [video, image]));
+
+        Assert.Contains(exception.Errors, error => error.Contains("-1 seconds", StringComparison.Ordinal));
+        Assert.Contains(exception.Errors, error => error.Contains("'adaptive'", StringComparison.Ordinal));
+        Assert.Contains(exception.Errors, error => error.Contains("exactly 0 image", StringComparison.Ordinal));
+        Assert.Contains(exception.Errors, error => error.Contains("between 4 and 30 seconds", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ImageToVideoRejectsUndocumentedNonAdaptiveRatio()
     {
         var provider = CreateProvider(new RecordingHandler(HttpStatusCode.OK, "{}"));
