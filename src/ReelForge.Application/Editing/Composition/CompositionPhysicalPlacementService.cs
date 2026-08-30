@@ -231,7 +231,17 @@ public sealed class CompositionPhysicalPlacementService
             .Select(assessment => assessment!.SourcePresentationStart ?? Zero)
             .ToArray();
         var earliest = starts.Length == 0 ? Zero : starts.Min()!;
-        ExactTime StartFor(StreamTimingAssessment assessment) => request.CompositionStart + (assessment.SourcePresentationStart is null ? Zero : assessment.SourcePresentationStart - earliest);
+        ExactTime OffsetFor(StreamTimingAssessment assessment) =>
+            (assessment.SourcePresentationStart ?? Zero) - earliest;
+        var anchor = request.Mode == CompositionPhysicalPlacementMode.AppendToVideoTrack &&
+                     source.MediaType == MediaType.Video
+            ? ResolveAppendAnchor(
+                state,
+                request,
+                video!,
+                OffsetFor)
+            : request.CompositionStart;
+        ExactTime StartFor(StreamTimingAssessment assessment) => anchor + OffsetFor(assessment);
         var sourceReference = new AssetRevisionReference { AssetId = source.Id };
         return new WorkingCompositionState(
             state.VideoTracks.Select(track => track.Id != request.TargetTrackId ? track : new CompositionVideoTrack(track.Id, track.IsLocked, track.IsVisible,
@@ -242,6 +252,30 @@ public sealed class CompositionPhysicalPlacementService
                 if (track.Id != target) return track;
                 return new CompositionAudioTrack(track.Id, track.IsLocked, track.IsMuted, track.Items.Concat([new CompositionAudioItem(audioId!.Value, sourceReference, audio!.SelectedStreamIndex!.Value, audioResult!.AudioFullRange, audio.CreatePlacementPin(), StartFor(audio), linkGroupId)]), track.Name);
             }));
+    }
+
+    private static ExactTime ResolveAppendAnchor(
+        WorkingCompositionState state,
+        CompositionPhysicalPlacementRequest request,
+        StreamTimingAssessment video,
+        Func<StreamTimingAssessment, ExactTime> offsetFor)
+    {
+        var videoTrack = state.VideoTracks.Single(track => track.Id == request.TargetTrackId);
+        var anchor = RequiredAnchorAfter(videoTrack.Items, offsetFor(video));
+        return anchor < Zero ? Zero : anchor;
+    }
+
+    private static ExactTime RequiredAnchorAfter(
+        IEnumerable<CompositionVideoItem> items,
+        ExactTime streamOffset) =>
+        RequiredAnchorAfter(
+            items.Select(item => item.CompositionStart + item.TimingAssessment.TimelineDuration),
+            streamOffset);
+
+    private static ExactTime RequiredAnchorAfter(IEnumerable<ExactTime> itemEnds, ExactTime streamOffset)
+    {
+        var end = itemEnds.DefaultIfEmpty(Zero).Max()!;
+        return end - streamOffset;
     }
 
     private static ProjectAsset RequirePhysicalSource(VideoProject project, Guid sourceId)
@@ -257,6 +291,8 @@ public sealed class CompositionPhysicalPlacementService
 
     private static void ValidateInitialTargetTracks(WorkingCompositionState state, ProjectAsset source, CompositionPhysicalPlacementRequest request)
     {
+        if (request.Mode == CompositionPhysicalPlacementMode.AppendToVideoTrack && source.MediaType != MediaType.Video)
+            throw new InvalidOperationException("Append-to-video-track placement applies only to video media.");
         if (source.MediaType == MediaType.Audio && request.AudioTargetTrackId is not null)
             throw new InvalidOperationException("An audio target track applies only when placing video with a usable audio stream.");
         if (source.MediaType == MediaType.Video)

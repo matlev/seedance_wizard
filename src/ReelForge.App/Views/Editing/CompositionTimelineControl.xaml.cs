@@ -1310,15 +1310,18 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         }
 
         var contentX = TimelineScrollViewer.HorizontalOffset + GetViewportX(e);
+        var timelineSeconds = item.Kind == CompositionTimelineDropKind.Video
+            ? GetVideoTrackAppendTime(track.TrackId)
+            : _layout.GetTimeAtX(contentX);
         MediaDropRequested?.Invoke(
             this,
             new CompositionTimelineDropEventArgs(
                 item.AssetId,
                 item.Kind,
                 track.TrackId,
-                _layout.GetTimeAtX(contentX),
+                timelineSeconds,
                 item.Kind == CompositionTimelineDropKind.Video
-                    ? _layout.GetVideoInsertionIndex(contentX)
+                    ? _state.Segments.Count(segment => segment.TrackId == track.TrackId)
                     : -1));
         HideDropFeedback();
         e.Effects = DragDropEffects.Copy;
@@ -1411,14 +1414,14 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         DropHint.UpdateLayout();
         var origin = TimelineCanvas.TranslatePoint(new Point(0, 0), DropHint);
         var width = Math.Max(1, DropHint.ActualWidth);
-        var contentX = TimelineScrollViewer.HorizontalOffset + _dragViewportX;
         var isVideo = _dragDescriptor.Kind == CompositionTimelineDropKind.Video;
+        var contentX = isVideo && _dragTargetTrackId is { } appendTrackId
+            ? _layout.GetPlayheadX(GetVideoTrackAppendTime(appendTrackId))
+            : TimelineScrollViewer.HorizontalOffset + _dragViewportX;
         var targetTop = _dragTargetTrackId is { } targetTrackId
             ? GetTrackItemTop(targetTrackId)
             : TrackTop;
-        var markerX = isVideo
-            ? _layout.GetVideoInsertionX(_layout.GetVideoInsertionIndex(contentX))
-            : contentX;
+        var markerX = contentX;
         const double inset = 3;
         Canvas.SetLeft(DropMarker, Math.Clamp(
             markerX - TimelineScrollViewer.HorizontalOffset,
@@ -1450,6 +1453,13 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         _dragAutoScrollDelta = 0;
         DropHint.Visibility = Visibility.Hidden;
     }
+
+    private double GetVideoTrackAppendTime(Guid trackId) =>
+        _state.Segments
+            .Where(segment => segment.TrackId == trackId)
+            .Select(segment => segment.TimelineStart + segment.DurationSeconds)
+            .DefaultIfEmpty(0)
+            .Max();
 
     internal static CompositionTimelineTrackRow? ResolveDropTargetTrack(
         CompositionTimelineState state,

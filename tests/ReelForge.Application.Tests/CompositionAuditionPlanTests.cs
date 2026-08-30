@@ -79,16 +79,26 @@ public sealed class CompositionAuditionPlanTests
                  new CompositionVideoTrack(Guid.NewGuid(), false, true, [VideoItem(second, 0, 0, 1)])],
                 [])
         };
-        var gap = Recipe(VideoItem(first, 0, 0, 1), VideoItem(second, 2, 0, 1));
-        var overlap = Recipe(VideoItem(first, 0, 0, 2), VideoItem(second, 1, 0, 1));
+        var gapItem = VideoItem(second, 9055, 0, 1, compositionStartDenominator: 1000);
+        var overlapItem = VideoItem(second, 1, 0, 1);
+        var gap = Recipe(VideoItem(first, 0, 0, 1), gapItem);
+        var overlap = Recipe(VideoItem(first, 0, 0, 2), overlapItem);
         var empty = new CompositionRecipe { Composition = new WorkingCompositionState([], []) };
 
         Assert.Contains("exactly one visible video track", Assert.Throws<InvalidDataException>(() =>
             CompositionAuditionPlan.Create(Project(first, second), multipleVisible)).Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("gap", Assert.Throws<InvalidDataException>(() =>
-            CompositionAuditionPlan.Create(Project(first, second), gap)).Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("overlapping", Assert.Throws<InvalidDataException>(() =>
-            CompositionAuditionPlan.Create(Project(first, second), overlap)).Message, StringComparison.OrdinalIgnoreCase);
+        var gapError = Assert.Throws<InvalidDataException>(() =>
+            CompositionAuditionPlan.Create(Project(first, second), gap));
+        var overlapError = Assert.Throws<InvalidDataException>(() =>
+            CompositionAuditionPlan.Create(Project(first, second), overlap));
+        Assert.Contains("gap", gapError.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("second.mp4", gapError.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("00:09.055", gapError.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(gapItem.Id.ToString(), gapError.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("overlapping", overlapError.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("second.mp4", overlapError.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("00:01.000", overlapError.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(overlapItem.Id.ToString(), overlapError.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("exactly one visible video track", Assert.Throws<InvalidDataException>(() =>
             CompositionAuditionPlan.Create(Project(first, second), empty)).Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -161,7 +171,8 @@ public sealed class CompositionAuditionPlanTests
         long compositionStart,
         long sourceStart,
         long duration,
-        TimingReadiness readiness = TimingReadiness.Exact)
+        TimingReadiness readiness = TimingReadiness.Exact,
+        long compositionStartDenominator = 1)
     {
         var start = new VideoPresentationTime(sourceStart, 1, 1);
         var end = new VideoPresentationTime(sourceStart + duration, 1, 1);
@@ -181,6 +192,6 @@ public sealed class CompositionAuditionPlanTests
             0,
             readiness == TimingReadiness.Exact ? new VideoSourceRange(start, end) : null,
             assessment.CreatePlacementPin(),
-            new ExactTime(compositionStart, 1));
+            new ExactTime(compositionStart, compositionStartDenominator));
     }
 }

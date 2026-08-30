@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Globalization;
 using ReelForge.Core;
 
 namespace ReelForge.Application;
@@ -51,15 +52,19 @@ public sealed class CompositionAuditionPlan
         var expectedStart = new ExactTime(0, 1);
         foreach (var item in items)
         {
+            var source = project.Assets.SingleOrDefault(asset => asset.Id == item.Source.AssetId);
             if (item.CompositionStart != expectedStart)
             {
-                var issue = item.CompositionStart < expectedStart ? "overlapping" : "a gap before";
+                var issue = item.CompositionStart < expectedStart
+                    ? "is overlapping the preceding item"
+                    : "has a gap before it";
+                var displayName = source?.EffectiveDisplayName ?? "Missing source";
                 throw new InvalidDataException(
-                    $"Composition audition currently requires one contiguous video track; item '{item.Id}' is {issue} its sequential position.");
+                    $"Composition audition currently requires one contiguous video track; “{displayName}” at {FormatTimelinePosition(item.CompositionStart)} {issue}.");
             }
 
-            var source = project.Assets.SingleOrDefault(asset => asset.Id == item.Source.AssetId)
-                ?? throw new InvalidDataException(
+            if (source is null)
+                throw new InvalidDataException(
                     $"Composition video item '{item.Id}' references missing asset {item.Source.AssetId}.");
             if (source.MediaType != MediaType.Video)
                 throw new InvalidDataException(
@@ -85,6 +90,15 @@ public sealed class CompositionAuditionPlan
         }
 
         return new CompositionAuditionPlan(segments);
+    }
+
+    private static string FormatTimelinePosition(ExactTime time)
+    {
+        var milliseconds = time.RescaleToInteger(1000, ExactTimeRounding.NearestTiesToEven);
+        var value = TimeSpan.FromMilliseconds(milliseconds);
+        return value.TotalHours >= 1
+            ? value.ToString(@"h\:mm\:ss\.fff", CultureInfo.InvariantCulture)
+            : value.ToString(@"mm\:ss\.fff", CultureInfo.InvariantCulture);
     }
 
     public int FindSegmentIndex(double globalSeconds)

@@ -42,12 +42,19 @@ public enum CompositionPhysicalPlacementStatus
     Stale
 }
 
+public enum CompositionPhysicalPlacementMode
+{
+    AtRequestedTime,
+    AppendToVideoTrack
+}
+
 /// <summary>Targeted request for placing an already-imported physical source.</summary>
 public sealed record CompositionPhysicalPlacementRequest(
     Guid SourceAssetId,
     ExactTime CompositionStart,
     Guid TargetTrackId,
-    Guid? AudioTargetTrackId = null)
+    Guid? AudioTargetTrackId = null,
+    CompositionPhysicalPlacementMode Mode = CompositionPhysicalPlacementMode.AtRequestedTime)
 {
     public void Validate()
     {
@@ -60,6 +67,8 @@ public sealed record CompositionPhysicalPlacementRequest(
             throw new ArgumentException("A target composition track identifier is required.", nameof(TargetTrackId));
         if (AudioTargetTrackId == Guid.Empty)
             throw new ArgumentException("An audio target track identifier cannot be empty.", nameof(AudioTargetTrackId));
+        if (!Enum.IsDefined(Mode))
+            throw new ArgumentOutOfRangeException(nameof(Mode), "A supported placement mode is required.");
     }
 }
 

@@ -311,7 +311,10 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
                 source.Id,
                 ExactTimelineTime(e.TimelineSeconds),
                 e.TargetTrackId,
-                audioTargetTrackId));
+                audioTargetTrackId,
+                source.MediaType == MediaType.Video
+                    ? CompositionPhysicalPlacementMode.AppendToVideoTrack
+                    : CompositionPhysicalPlacementMode.AtRequestedTime));
         });
         if (result is null) return;
 

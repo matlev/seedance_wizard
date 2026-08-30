@@ -31,6 +31,61 @@ public sealed class CompositionPhysicalPlacementServiceTests
     }
 
     [Fact]
+    public async Task VideoAppendUsesExactTargetEndsInsteadOfTheRawPointerTime()
+    {
+        var source = VideoSource(withAudio: true);
+        var (workspace, _, videoTrack, audioTrack) = await OpenAsync(source);
+        var service = new CompositionPhysicalPlacementService(workspace,
+            new Timing(ExactVideo(), ExactAudio()), new MatchingHash(), new Decisions());
+
+        await service.PlaceAsync(new(source.Id, new ExactTime(0, 1), videoTrack, audioTrack));
+        var result = await service.PlaceAsync(new(
+            source.Id,
+            new ExactTime(9055, 10000),
+            videoTrack,
+            audioTrack,
+            CompositionPhysicalPlacementMode.AppendToVideoTrack));
+
+        Assert.Equal(CompositionPhysicalPlacementStatus.Placed, result.Status);
+        var state = Current(workspace);
+        Assert.Equal(
+            [new ExactTime(0, 1), new ExactTime(1, 1)],
+            state.VideoTracks.Single().Items.Select(item => item.CompositionStart));
+        Assert.Equal(
+            [new ExactTime(0, 1), new ExactTime(1, 1)],
+            state.AudioTracks.Single().Items.Select(item => item.CompositionStart));
+        _ = CompositionAuditionPlan.Create(workspace.Project!,
+            (CompositionRecipe)workspace.Project!.RecipeRevisions.Single(revision =>
+                revision.Id == workspace.Project.Assets.Single(asset => asset.Id == workspace.Project.WorkingCompositionAssetId)
+                    .Virtual!.CurrentRecipeRevisionId).Recipe);
+    }
+
+    [Fact]
+    public async Task VideoAppendPreservesThePinnedLinkedAudioOffset()
+    {
+        var source = VideoSource(withAudio: true);
+        var (workspace, _, videoTrack, audioTrack) = await OpenAsync(source);
+        var service = new CompositionPhysicalPlacementService(workspace,
+            new Timing(ExactVideo(), ExactAudioAt(48000)), new MatchingHash(), new Decisions());
+
+        await service.PlaceAsync(new(source.Id, new ExactTime(0, 1), videoTrack, audioTrack));
+        await service.PlaceAsync(new(
+            source.Id,
+            new ExactTime(1, 2),
+            videoTrack,
+            audioTrack,
+            CompositionPhysicalPlacementMode.AppendToVideoTrack));
+
+        var state = Current(workspace);
+        Assert.Equal(
+            [new ExactTime(0, 1), new ExactTime(1, 1)],
+            state.VideoTracks.Single().Items.Select(item => item.CompositionStart));
+        Assert.Equal(
+            [new ExactTime(1, 1), new ExactTime(2, 1)],
+            state.AudioTracks.Single().Items.Select(item => item.CompositionStart));
+    }
+
+    [Fact]
     public async Task EstimatedPlacementAcknowledgesOnceAndDoesNotPromptAgainForUnchangedAssessment()
     {
         var source = VideoSource(withAudio: false);
@@ -149,6 +204,24 @@ public sealed class CompositionPhysicalPlacementServiceTests
         var item = Assert.Single(Current(workspace).AudioTracks.Single().Items);
         Assert.Equal(new ExactTime(5, 1), item.CompositionStart);
         Assert.Null(item.LinkGroupId);
+    }
+
+    [Fact]
+    public async Task AudioRejectsVideoAppendPlacementIntentBeforeAssessment()
+    {
+        var source = AudioSource();
+        var (workspace, store, _, audioTrack) = await OpenAsync(source);
+        var timing = new Timing(ExactAudio());
+        var service = new CompositionPhysicalPlacementService(workspace, timing, new MatchingHash(), new Decisions());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PlaceAsync(new(
+            source.Id,
+            new ExactTime(0, 1),
+            audioTrack,
+            Mode: CompositionPhysicalPlacementMode.AppendToVideoTrack)));
+
+        Assert.Equal(0, timing.Calls);
+        Assert.Equal(0, store.SaveCount);
     }
 
     [Fact]
