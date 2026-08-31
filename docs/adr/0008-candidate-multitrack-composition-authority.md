@@ -24,6 +24,8 @@ ADR or architecture-debt decision: ADR required for the persistence and composit
 
 `CompositionRecipe` contains one immutable `WorkingCompositionState`. The existing `RecipeRevision` graph remains the immutable composition-history authority, and the Working Composition virtual asset's current revision remains its persisted cursor. No parallel composition revision, store, segment list, audio-clip list, or command log is added.
 
+`RecipeRevision.Id` is the canonical aggregate identity of an immutable Working Composition. Its `CompositionRecipe` payload transitively contains the tracks, items, links, timing-assessment pins, and source-revision pins that define that revision. Existing cache lookup therefore keys a composition representation by project, virtual asset, and explicit recipe revision; an earlier explicit revision remains distinct from the current/default revision. Render-derived dependency hashes, stale-result rejection, and their cache policy remain Milestone 6 work.
+
 The state persists ordered video and audio tracks. Each track has a stable identifier and lock state; video tracks additionally have visibility, and audio tracks additionally have mute. Empty tracks remain present until an explicit command deletes them. Track position and UI index are not identities, and selection remains transient presentation state.
 
 Every video and audio occurrence has its own stable identity, exact source/revision reference, selected numeric stream identity, composition placement, timing-assessment pin, and applicable exact source range. Estimated occurrences retain their frozen rational span without inventing an exact source range. A link group contains exactly one video and one audio occurrence from the same exact source revision and content identity; their composition starts may differ to preserve source stream offsets.
@@ -43,6 +45,7 @@ The project DTO mirrors the track/item graph and exact portable value objects. I
 - Audio from a video source is independently addressable without manufacturing an extracted Project Media asset.
 - Existing audio mix behavior is preserved while track mute gains an independent meaning.
 - Current rendering remains available only where its adapter can prove the persisted composition shape is representable; richer compositing remains Milestone 6.
+- Cached composition representations are revision-scoped advisory artifacts: an entry for an explicit historical revision never becomes an entry for the current/default revision merely because both belong to the same Working Composition asset.
 - Candidate-format replacement requires coordinated updates across validators, DTO mapping, commands, dependency analysis, materialization adapters, and WPF projection.
 
 ## Alternatives considered

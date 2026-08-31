@@ -187,7 +187,7 @@ It excludes new edge trims, ripple operations, generic replacement, snapping, ma
 - History excludes the explicitly out-of-scope project, generation, settings, export, and recovery operations.
 - Obsolete development files are rejected clearly and are not rewritten.
 - Version boundaries can host future migrations, while no external support marker is declared implicitly.
-- Cache/dependency identities include exact track, item, link, composition revision, and applicable source revision identity.
+- `RecipeRevision.Id` is the canonical aggregate identity of an immutable Working Composition: its `CompositionRecipe` payload transitively freezes exact track, item, link, timing/source-revision pins. Cache lookup for an explicit earlier composition revision remains distinct from current/default revision lookup. Render-derived dependency hashes and stale-result rejection remain Milestone 6 work.
 - Core/Application project truth contains no WPF types, absolute machine paths, FFmpeg component names, or Windows-only concepts.
 - Every Phase 4A recovery/relink acceptance case passes against the new candidate format.
 

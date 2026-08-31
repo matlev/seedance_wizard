@@ -135,12 +135,24 @@ internal sealed class CachedProjectMediaRepresentationIndex : IDisposable
         AnchorMaterializationTarget anchor when project.AnchorRevisions.Any(revision =>
             revision.Id == anchor.AnchorRevisionId && revision.AnchorId == anchor.AnchorId) =>
             $"{project.Id:N}|anchor|{anchor.AnchorId:N}|{anchor.AnchorRevisionId:N}",
-        AssetMaterializationTarget asset when project.Assets.SingleOrDefault(candidate => candidate.Id == asset.AssetId)
-            is { StorageKind: AssetStorageKind.Virtual } virtualAsset &&
-            (asset.RecipeRevisionId ?? virtualAsset.Virtual?.CurrentRecipeRevisionId) is { } recipeRevisionId =>
-            $"{project.Id:N}|asset|{asset.AssetId:N}|{recipeRevisionId:N}",
+        AssetMaterializationTarget asset => TryCreateAssetKey(project, asset),
         _ => null
     };
+
+    private static string? TryCreateAssetKey(VideoProject project, AssetMaterializationTarget target)
+    {
+        if (project.Assets.SingleOrDefault(candidate => candidate.Id == target.AssetId)
+            is not { StorageKind: AssetStorageKind.Virtual, Virtual: { } virtualAsset })
+            return null;
+
+        var recipeRevisionId = target.RecipeRevisionId ?? virtualAsset.CurrentRecipeRevisionId;
+        if (recipeRevisionId is null ||
+            !project.RecipeRevisions.Any(revision =>
+                revision.Id == recipeRevisionId.Value && revision.VirtualAssetId == target.AssetId))
+            return null;
+
+        return $"{project.Id:N}|asset|{target.AssetId:N}|{recipeRevisionId.Value:N}";
+    }
 
     private bool TryGetRelativeCachePath(string path, out string relativePath)
     {

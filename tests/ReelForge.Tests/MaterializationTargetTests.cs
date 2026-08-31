@@ -278,6 +278,125 @@ public sealed class MaterializationTargetTests : IDisposable
         Assert.Equal(2, runner.TrimCount);
     }
 
+    [Fact]
+    public async Task CompositionRevisionIdentityKeepsEarlierCachedRepresentationDistinctFromCurrentRevision()
+    {
+        var project = new VideoProject();
+        var sourceHash = new string('d', 64);
+        var duration = new ExactTime(1, 1);
+        var source = new ProjectAsset
+        {
+            DisplayName = "source.mp4",
+            FileName = "source.mp4",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Physical,
+            Encoding = new MediaEncodingMetadata
+            {
+                Video = new VideoStreamMetadata { StreamIndex = 0, Codec = "h264" },
+                Audio = new AudioStreamMetadata { StreamIndex = 1, Codec = "aac", SampleRate = 48_000, Channels = 2 }
+            },
+            Physical = new PhysicalAssetStorage
+            {
+                RelativePath = Path.Combine("assets", "videos", "source.mp4"),
+                Availability = PhysicalAssetAvailability.Available,
+                ContentIdentity = new ContentIdentity { Sha256 = sourceHash, Status = ContentHashStatus.Verified }
+            },
+            TimingAssessments =
+            [
+                ExactAssessment(sourceHash, MediaType.Video, 0, duration),
+                ExactAssessment(sourceHash, MediaType.Audio, 1, duration)
+            ]
+        };
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(source);
+        project.AddAsset(composition);
+        project.WorkingCompositionAssetId = composition.Id;
+
+        var firstRevision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Composition = ExactLinkedComposition(source.Id, "Primary video", "Primary audio")
+        });
+        var cacheRoot = Path.Combine(_root, "cache", "composition-identity");
+        var cachedRepresentation = Path.Combine(cacheRoot, "first-revision.mp4");
+        Directory.CreateDirectory(cacheRoot);
+        await File.WriteAllBytesAsync(cachedRepresentation, [1]);
+        using var index = new CachedProjectMediaRepresentationIndex(cacheRoot);
+        var firstTarget = new AssetMaterializationTarget(composition.Id, firstRevision.Id);
+        await index.RecordAsync(project, firstTarget, cachedRepresentation, CancellationToken.None);
+
+        var secondRevision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Composition = ExactLinkedComposition(source.Id, "Replacement video", "Replacement audio")
+        });
+
+        Assert.NotEqual(firstRevision.Id, secondRevision.Id);
+        Assert.NotEqual(
+            ((CompositionRecipe)firstRevision.Recipe).Composition.VideoTracks.Single().Id,
+            ((CompositionRecipe)secondRevision.Recipe).Composition.VideoTracks.Single().Id);
+        Assert.Empty(ProjectInvariantValidator.Validate(project));
+        Assert.True(await index.HasCachedRepresentationAsync(project, firstTarget, CancellationToken.None));
+        Assert.Equal(cachedRepresentation, await index.FindCachedRepresentationPathAsync(
+            project, firstTarget, CancellationToken.None));
+        Assert.False(await index.HasCachedRepresentationAsync(
+            project, new AssetMaterializationTarget(composition.Id, secondRevision.Id), CancellationToken.None));
+        Assert.Null(await index.FindCachedRepresentationPathAsync(
+            project, new AssetMaterializationTarget(composition.Id, secondRevision.Id), CancellationToken.None));
+        Assert.False(await index.HasCachedRepresentationAsync(
+            project, new AssetMaterializationTarget(composition.Id), CancellationToken.None));
+        Assert.Null(await index.FindCachedRepresentationPathAsync(
+            project, new AssetMaterializationTarget(composition.Id), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AssetTargetDoesNotAddressRecipeRevisionOwnedByAnotherVirtualAsset()
+    {
+        var project = new VideoProject();
+        var target = new ProjectAsset
+        {
+            DisplayName = "Target",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        var other = new ProjectAsset
+        {
+            DisplayName = "Other",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(target);
+        project.AddAsset(other);
+        project.CommitRecipe(target.Id, new CompositionRecipe
+        {
+            Composition = new WorkingCompositionState([], [])
+        });
+        var otherRevision = project.CommitRecipe(other.Id, new CompositionRecipe
+        {
+            Composition = new WorkingCompositionState([], [])
+        });
+        var cacheRoot = Path.Combine(_root, "cache", "cross-asset-revision");
+        var cachedRepresentation = Path.Combine(cacheRoot, "other-revision.mp4");
+        Directory.CreateDirectory(cacheRoot);
+        await File.WriteAllBytesAsync(cachedRepresentation, [1]);
+        using var index = new CachedProjectMediaRepresentationIndex(cacheRoot);
+        var invalidTarget = new AssetMaterializationTarget(target.Id, otherRevision.Id);
+
+        await index.RecordAsync(project, invalidTarget, cachedRepresentation, CancellationToken.None);
+
+        Assert.False(await index.HasCachedRepresentationAsync(project, invalidTarget, CancellationToken.None));
+        Assert.Null(await index.FindCachedRepresentationPathAsync(project, invalidTarget, CancellationToken.None));
+    }
+
 
 
 
@@ -303,6 +422,44 @@ public sealed class MaterializationTargetTests : IDisposable
         var project = new VideoProject { Assets = [asset] };
         return (project, new ProjectLocation(_root, Path.Combine(_root, "Test.rfp")), asset);
     }
+
+    private static WorkingCompositionState ExactLinkedComposition(Guid sourceAssetId, string videoTrackName, string audioTrackName)
+    {
+        var source = new AssetRevisionReference { AssetId = sourceAssetId };
+        var linkGroupId = Guid.NewGuid();
+        var contentHash = new string('d', 64);
+        var duration = new ExactTime(1, 1);
+        return new WorkingCompositionState(
+        [
+            new CompositionVideoTrack(Guid.NewGuid(), false, true,
+            [
+                new CompositionVideoItem(Guid.NewGuid(), source, 0,
+                    new VideoSourceRange(new VideoPresentationTime(0, 1, 30), new VideoPresentationTime(30, 1, 30)),
+                    ExactPin(contentHash, MediaType.Video, 0, duration), new ExactTime(0, 1), linkGroupId)
+            ], videoTrackName)
+        ],
+        [
+            new CompositionAudioTrack(Guid.NewGuid(), false, false,
+            [
+                new CompositionAudioItem(Guid.NewGuid(), source, 1,
+                    new AudioSourceRange(new AudioSampleTime(0, 48_000), new AudioSampleTime(48_000, 48_000)),
+                    ExactPin(contentHash, MediaType.Audio, 1, duration), new ExactTime(0, 1), linkGroupId)
+            ], audioTrackName)
+        ]);
+    }
+
+    private static StreamTimingAssessmentPin ExactPin(
+        string contentHash,
+        MediaType mediaType,
+        int streamIndex,
+        ExactTime duration) => new(ExactAssessment(contentHash, mediaType, streamIndex, duration));
+
+    private static StreamTimingAssessment ExactAssessment(
+        string contentHash,
+        MediaType mediaType,
+        int streamIndex,
+        ExactTime duration) => new(
+        Guid.NewGuid(), contentHash, mediaType, streamIndex, TimingReadiness.Exact, true, duration, [], new ExactTime(0, 1));
 
     private static MediaEncodingMetadata CompatibleEncoding() => new()
     {
