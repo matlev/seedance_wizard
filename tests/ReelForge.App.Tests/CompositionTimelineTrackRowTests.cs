@@ -61,6 +61,41 @@ public sealed class CompositionTimelineTrackRowTests
     }
 
     [Fact]
+    public void VideoOccurrenceMenuExposesOnlyDetachAndRemoveWithIndependentCapabilities()
+    {
+        var actions = CompositionTimelineContextMenuPolicy.ForVideo(
+            new CompositionTimelineItemCapabilities(CanDetachAudio: true, CanRemove: false));
+
+        Assert.Collection(actions,
+            detach =>
+            {
+                Assert.Equal(CompositionTimelineContextMenuActionKind.DetachAudio, detach.Kind);
+                Assert.Equal("Detach audio…", detach.Header);
+                Assert.True(detach.IsEnabled);
+                Assert.False(detach.IsDangerous);
+            },
+            remove =>
+            {
+                Assert.Equal(CompositionTimelineContextMenuActionKind.RemoveFromComposition, remove.Kind);
+                Assert.Equal("Remove from composition", remove.Header);
+                Assert.False(remove.IsEnabled);
+                Assert.True(remove.IsDangerous);
+            });
+    }
+
+    [Fact]
+    public void AudioOccurrenceMenuRemainsRemoveOnly()
+    {
+        var actions = CompositionTimelineContextMenuPolicy.ForAudio(
+            new CompositionTimelineItemCapabilities(CanDetachAudio: true, CanRemove: true));
+
+        var action = Assert.Single(actions);
+        Assert.Equal(CompositionTimelineContextMenuActionKind.RemoveFromComposition, action.Kind);
+        Assert.Equal("Remove from composition", action.Header);
+        Assert.True(action.IsEnabled);
+    }
+
+    [Fact]
     public void DropTargetRequiresAnUnlockedMatchingTrackRowAndSupportsEmptyTracks()
     {
         var videoId = Guid.NewGuid();

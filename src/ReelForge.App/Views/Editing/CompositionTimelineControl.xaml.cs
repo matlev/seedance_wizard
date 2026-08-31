@@ -81,9 +81,11 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     public event EventHandler<CompositionTimelineReorderEventArgs>? SegmentReorderRequested;
     public event EventHandler<CompositionTimelineAudioMoveEventArgs>? AudioMoveRequested;
     public event EventHandler<CompositionTimelineDropEventArgs>? MediaDropRequested;
+#pragma warning disable CS0067 // M5 editing commands remain intentionally unwired during M4.
     public event EventHandler<CompositionTimelineItemEventArgs>? SplitRequested;
     public event EventHandler<CompositionTimelineItemEventArgs>? ShiftLeftRequested;
     public event EventHandler<CompositionTimelineItemEventArgs>? ShiftRightRequested;
+#pragma warning restore CS0067
     public event EventHandler<CompositionTimelineItemEventArgs>? DetachAudioRequested;
     public event EventHandler<CompositionTimelineItemEventArgs>? RemoveRequested;
     public event EventHandler<CompositionTimelineTrackEventArgs>? TrackSelected;
@@ -712,7 +714,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         remove.IsEnabled = CanRemove(_state, item.SegmentId);
         contents.Children.Add(remove);
         border.Child = contents;
-        border.ContextMenu = CreateRemoveOnlyMenu(item.SegmentId);
+        border.ContextMenu = CreateSegmentMenu(item.SegmentId);
         border.MouseEnter += (_, _) => remove.Visibility = Visibility.Visible;
         border.MouseLeave += (_, _) => remove.Visibility = Visibility.Collapsed;
         border.MouseLeftButtonDown += Segment_MouseLeftButtonDown;
@@ -872,90 +874,85 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         ToolTip = toolTip
     };
 
-    private ContextMenu CreateRemoveOnlyMenu(Guid itemId)
-    {
-        var menu = new ContextMenu();
-        AddMenuItem(menu, "Remove from composition", RemoveRequested, itemId);
-        menu.Opened += (_, _) => UpdateRemoveOnlyMenuCapability(menu, itemId);
-        UpdateRemoveOnlyMenuCapability(menu, itemId);
-        return menu;
-    }
-
-    private void UpdateRemoveOnlyMenuCapability(ContextMenu menu, Guid itemId)
-    {
-        foreach (var item in menu.Items.OfType<MenuItem>())
-        {
-            item.IsEnabled = CanRemove(_state, itemId);
-        }
-    }
-
-    internal static bool CanRemove(CompositionTimelineState state, Guid itemId) =>
-        state.Capabilities.TryGetValue(itemId, out var capabilities) && capabilities.CanRemove;
-
     private ContextMenu CreateSegmentMenu(Guid itemId)
     {
-        var menu = new ContextMenu();
-        AddMenuItem(menu, "Detach audio…", DetachAudioRequested, itemId);
-        AddMenuItem(menu, _state.SplitActionLabel, SplitRequested, itemId);
-        menu.Items.Add(new Separator());
-        AddMenuItem(menu, "Shift Left", ShiftLeftRequested, itemId);
-        AddMenuItem(menu, "Shift Right", ShiftRightRequested, itemId);
-        menu.Items.Add(new Separator());
-        AddMenuItem(menu, "Remove", RemoveRequested, itemId, true);
-        menu.Opened += (_, _) => UpdateMenuCapabilities(menu, itemId);
-        UpdateMenuCapabilities(menu, itemId);
-        return menu;
+        return CreateContextMenu(itemId, CompositionTimelineContextMenuPolicy.ForVideo);
     }
 
-    private ContextMenu CreateAudioMenu(Guid itemId)
+    private ContextMenu CreateRemoveOnlyMenu(Guid itemId)
     {
-        var menu = new ContextMenu();
-        AddMenuItem(menu, "Remove", RemoveRequested, itemId, true);
-        menu.Opened += (_, _) => UpdateMenuCapabilities(menu, itemId);
-        UpdateMenuCapabilities(menu, itemId);
-        return menu;
+        return CreateContextMenu(itemId, CompositionTimelineContextMenuPolicy.ForAudio);
     }
 
-    private void AddMenuItem(
-        ContextMenu menu,
-        string header,
-        EventHandler<CompositionTimelineItemEventArgs>? request,
+    private ContextMenu CreateContextMenu(
         Guid itemId,
-        bool danger = false)
+        Func<CompositionTimelineItemCapabilities, IReadOnlyList<CompositionTimelineContextMenuAction>> actionsFor)
     {
-        if (request is null)
+        var menu = new ContextMenu();
+        foreach (var action in actionsFor(GetCapabilities(itemId)))
         {
-            return;
+            AddContextMenuItem(menu, action, itemId);
         }
+        menu.Opened += (_, _) => UpdateContextMenuCapabilities(menu, itemId, actionsFor);
+        UpdateContextMenuCapabilities(menu, itemId, actionsFor);
+        return menu;
+    }
 
-        var item = new MenuItem { Header = header };
-        if (danger)
+    private void AddContextMenuItem(
+        ContextMenu menu,
+        CompositionTimelineContextMenuAction action,
+        Guid itemId)
+    {
+        var item = new MenuItem
+        {
+            Header = action.Header,
+            Tag = action.Kind,
+            IsEnabled = action.IsEnabled
+        };
+        if (action.IsDangerous)
         {
             item.Foreground = new SolidColorBrush(Color.FromRgb(145, 24, 47));
         }
-        item.Click += (_, _) => request(this, new CompositionTimelineItemEventArgs(itemId));
+        item.Click += (_, _) => RequestContextMenuAction(action.Kind, itemId);
         menu.Items.Add(item);
     }
 
-    private void UpdateMenuCapabilities(ContextMenu menu, Guid itemId)
+    private void RequestContextMenuAction(CompositionTimelineContextMenuActionKind action, Guid itemId)
     {
-        if (!_state.Capabilities.TryGetValue(itemId, out var caps))
+        var args = new CompositionTimelineItemEventArgs(itemId);
+        switch (action)
         {
-            caps = new CompositionTimelineItemCapabilities();
-        }
-
-        foreach (var item in menu.Items.OfType<MenuItem>())
-        {
-            item.IsEnabled = item.Header?.ToString() switch
-            {
-                "Detach audio…" => caps.CanDetachAudio,
-                "Shift Left" => caps.CanShiftLeft,
-                "Shift Right" => caps.CanShiftRight,
-                "Remove" => caps.CanRemove,
-                _ => caps.CanSplit && CanSplitAtCurrentPlayback(itemId)
-            };
+            case CompositionTimelineContextMenuActionKind.DetachAudio:
+                DetachAudioRequested?.Invoke(this, args);
+                break;
+            case CompositionTimelineContextMenuActionKind.RemoveFromComposition:
+                RemoveRequested?.Invoke(this, args);
+                break;
         }
     }
+
+    private void UpdateContextMenuCapabilities(
+        ContextMenu menu,
+        Guid itemId,
+        Func<CompositionTimelineItemCapabilities, IReadOnlyList<CompositionTimelineContextMenuAction>> actionsFor)
+    {
+        var actions = actionsFor(GetCapabilities(itemId));
+        foreach (var item in menu.Items.OfType<MenuItem>())
+        {
+            if (item.Tag is CompositionTimelineContextMenuActionKind kind)
+            {
+                item.IsEnabled = actions.Single(action => action.Kind == kind).IsEnabled;
+            }
+        }
+    }
+
+    private CompositionTimelineItemCapabilities GetCapabilities(Guid itemId) =>
+        _state.Capabilities.TryGetValue(itemId, out var capabilities)
+            ? capabilities
+            : new CompositionTimelineItemCapabilities();
+
+    internal static bool CanRemove(CompositionTimelineState state, Guid itemId) =>
+        state.Capabilities.TryGetValue(itemId, out var capabilities) && capabilities.CanRemove;
 
     private bool CanSplitAtCurrentPlayback(Guid itemId)
     {
@@ -1588,4 +1585,37 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         Unloaded -= Timeline_Unloaded;
         GC.SuppressFinalize(this);
     }
+}
+
+internal enum CompositionTimelineContextMenuActionKind
+{
+    DetachAudio,
+    RemoveFromComposition
+}
+
+/// <summary>
+/// Small, UI-independent policy for the Milestone 4 timeline item menus.
+/// Editing grammar such as split, shift, insertion, and drag remains deferred
+/// to Milestone 5 and must not leak back into this presentation contract.
+/// </summary>
+internal sealed record CompositionTimelineContextMenuAction(
+    CompositionTimelineContextMenuActionKind Kind,
+    string Header,
+    bool IsEnabled,
+    bool IsDangerous = false);
+
+internal static class CompositionTimelineContextMenuPolicy
+{
+    public static IReadOnlyList<CompositionTimelineContextMenuAction> ForVideo(
+        CompositionTimelineItemCapabilities capabilities) =>
+    [
+        new(CompositionTimelineContextMenuActionKind.DetachAudio, "Detach audio…", capabilities.CanDetachAudio),
+        new(CompositionTimelineContextMenuActionKind.RemoveFromComposition, "Remove from composition", capabilities.CanRemove, IsDangerous: true)
+    ];
+
+    public static IReadOnlyList<CompositionTimelineContextMenuAction> ForAudio(
+        CompositionTimelineItemCapabilities capabilities) =>
+    [
+        new(CompositionTimelineContextMenuActionKind.RemoveFromComposition, "Remove from composition", capabilities.CanRemove, IsDangerous: true)
+    ];
 }
