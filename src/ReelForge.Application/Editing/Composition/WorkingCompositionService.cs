@@ -68,13 +68,6 @@ public sealed class WorkingCompositionService
         CancellationToken cancellationToken = default) =>
         await _segments.SetAudioEnabledAsync(segmentId, audioEnabled, cancellationToken);
 
-    public async Task<CompositionAudioDetachmentResult> AddDetachedSegmentAudioAsync(
-        Guid segmentId,
-        Guid audioAssetId,
-        TimeSpan timelineStart,
-        CancellationToken cancellationToken = default) =>
-        await _audio.AddDetachedAsync(segmentId, audioAssetId, timelineStart, cancellationToken);
-
     public async Task<CompositionSegmentSplitResult> SplitSegmentAtFrameAsync(
         Guid segmentId,
         ExactFramePosition position,
@@ -181,7 +174,3 @@ public sealed record CompositionSegmentSplitResult(
     Guid BoundaryAnchorId,
     Guid BoundaryAnchorRevisionId,
     double SourceTimestampSeconds);
-
-public sealed record CompositionAudioDetachmentResult(
-    RecipeRevision Revision,
-    Guid AudioClipId);

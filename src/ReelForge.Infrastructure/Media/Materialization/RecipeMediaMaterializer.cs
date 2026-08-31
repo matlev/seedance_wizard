@@ -3,7 +3,7 @@ using ReelForge.Core;
 
 namespace ReelForge.Infrastructure;
 
-public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSegmentMaterializer, IProjectMediaCacheLeaseSource, IDisposable
+public sealed class RecipeMediaMaterializer : IMediaMaterializer, IProjectMediaCacheLeaseSource, IDisposable
 {
     private readonly PhysicalAssetMaterializer _physicalMaterializer;
     private readonly FrameAnchorMaterializer _frameAnchorMaterializer;
@@ -191,37 +191,6 @@ public sealed class RecipeMediaMaterializer : IMediaMaterializer, ICompositionSe
                 compositionDurationSeconds,
                 ExecuteNodeAsync,
                 cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    public async Task<MaterializedMediaLease> MaterializeSegmentAsync(
-        VideoProject project,
-        ProjectLocation location,
-        Guid compositionAssetId,
-        Guid recipeRevisionId,
-        Guid segmentId,
-        MaterializationPurpose purpose,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(project);
-        ArgumentNullException.ThrowIfNull(location);
-        var outputAsset = project.Assets.SingleOrDefault(asset => asset.Id == compositionAssetId)
-            ?? throw new InvalidOperationException($"Composition asset '{compositionAssetId}' no longer exists.");
-        var plan = RecipeRenderPlanner.Plan(
-            project,
-            new AssetMaterializationTarget(compositionAssetId, recipeRevisionId),
-            purpose,
-            "single-composition-segment");
-        if (plan.Root is not CompositionRenderPlanNode composition)
-            throw new InvalidDataException("Segment materialization requires a composition recipe.");
-        var segment = composition.Segments.SingleOrDefault(candidate => candidate.SegmentId == segmentId)
-            ?? throw new InvalidOperationException("The selected composition segment no longer exists.");
-        var request = new MaterializationRequest(
-            new AssetMaterializationTarget(compositionAssetId, recipeRevisionId),
-            purpose,
-            Profile: "single-composition-segment");
-        return await MaterializeCompositionSegmentAsync(
-                project, location, outputAsset, segment, request, cancellationToken)
             .ConfigureAwait(false);
     }
 

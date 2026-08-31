@@ -1579,8 +1579,8 @@ public partial class MainWindow : Window, IDisposable
         public string? PromptDetachAudioFileName(string displayName)
         {
             var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(displayName));
-            var dialog = new AssetNameDialog($"{stem} detached audio.m4a", "Detach segment audio", "DETACH SEGMENT AUDIO",
-                "Create a permanent audio file from this exact timeline segment, add it at the same timeline position, and mute the segment's embedded audio to prevent doubled sound.", "Detach") { Owner = window };
+            var dialog = new AssetNameDialog($"{stem} detached audio.m4a", "Detach audio", "DETACH AUDIO",
+                "Create a permanent audio file from this exact timeline occurrence and replace its linked source-audio occurrence without changing its timing or mix.", "Detach") { Owner = window };
             return dialog.ShowDialog() == true ? dialog.FileName : null;
         }
     }

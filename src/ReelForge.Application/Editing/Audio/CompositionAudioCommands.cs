@@ -20,17 +20,6 @@ internal sealed class CompositionAudioCommands
         return Task.FromException<RecipeRevision>(CompositionCurrentAccessor.TimingAwarePlacementRequired());
     }
 
-    public Task<CompositionAudioDetachmentResult> AddDetachedAsync(
-        Guid segmentId,
-        Guid audioAssetId,
-        TimeSpan timelineStart,
-        CancellationToken cancellationToken)
-    {
-        _ = _current;
-        return Task.FromException<CompositionAudioDetachmentResult>(
-            CompositionCurrentAccessor.OccurrenceAdapterRequired("Audio detachment"));
-    }
-
     public Task<RecipeRevision> SetTimelineStartAsync(Guid audioClipId, TimeSpan timelineStart, CancellationToken cancellationToken)
     {
         _ = _current;

@@ -201,10 +201,19 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
 
     public void UpdateControls()
     {
+        var detachment = new CompositionSegmentAudioDetachmentService(
+            _workspace,
+            _materializer,
+            _audioExtraction,
+            new Sha256ContentHashService(),
+            _mediaInspector,
+            _timingAssessment);
         var capabilities = Segments.Select((segment, index) => new
         {
             ItemId = segment.SegmentId,
-            Capability = new CompositionTimelineItemCapabilities(CanRemove: !IsTrackLocked(segment.TrackId))
+            Capability = new CompositionTimelineItemCapabilities(
+                CanDetachAudio: detachment.CanDetach(segment.SegmentId),
+                CanRemove: !IsTrackLocked(segment.TrackId))
         }).Concat(AudioClips.Select(clip => new
         {
             ItemId = clip.AudioClipId,
@@ -605,7 +614,7 @@ internal sealed class CompositionWorkspaceCoordinator : IDisposable, ICompositio
         await MutateAsync("Detaching exact segment audio…", async () =>
         {
             var result = await new CompositionSegmentAudioDetachmentService(_workspace, _materializer, _audioExtraction,
-                new Sha256ContentHashService(), _mediaInspector).DetachAsync(id, fileName);
+                new Sha256ContentHashService(), _mediaInspector, _timingAssessment).DetachAsync(id, fileName);
             SetSelection(null, result.AudioClipId);
             _host.RefreshProjectMedia();
             _host.SetStatus($"Detached {item.DisplayName} audio as '{result.AudioAsset.FileName}' at " +
