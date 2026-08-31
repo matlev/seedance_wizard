@@ -54,8 +54,9 @@ internal sealed class CompositionSegmentCommands
         if (videoTrack is null && audioTrack is null)
             throw new InvalidOperationException("The selected composition item no longer exists.");
 
-        var linkGroupId = videoTrack?.Items.Single(item => item.Id == itemId).LinkGroupId
-            ?? audioTrack!.Items.Single(item => item.Id == itemId).LinkGroupId;
+        var linkGroupId = videoTrack is not null
+            ? videoTrack.Items.Single(item => item.Id == itemId).LinkGroupId
+            : audioTrack!.Items.Single(item => item.Id == itemId).LinkGroupId;
         var linkedVideoItem = linkGroupId is null ? null : state.VideoTracks
             .SelectMany(track => track.Items)
             .SingleOrDefault(item => item.LinkGroupId == linkGroupId && item.Id != itemId);

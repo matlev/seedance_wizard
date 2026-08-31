@@ -167,6 +167,30 @@ public sealed class WorkingCompositionServiceBehaviorTests : IDisposable
         Assert.Contains("Unlock every affected track", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RemovingUnlinkedVideoDoesNotRequireAnAudioTrackOrRemoveUnrelatedAudio()
+    {
+        var workspace = await CreateWorkspaceAsync();
+        var project = workspace.Project!;
+        var videoSource = AddVideo(project, "video.mp4");
+        var audioSource = AddAudio(project, "detached-audio.m4a");
+        var composition = await new WorkingCompositionService(workspace).CreateInitialAsync(videoSource.Id);
+        var video = new CompositionVideoItem(Guid.NewGuid(), new AssetRevisionReference { AssetId = videoSource.Id }, 0,
+            new VideoSourceRange(new VideoPresentationTime(0, 1, 25), new VideoPresentationTime(100, 1, 25)),
+            Pin(MediaType.Video, new ExactTime(4, 1)), new ExactTime(0, 1));
+        var audio = AudioItem(audioSource.Id);
+        ReplaceComposition(project, composition, new WorkingCompositionState(
+            [new CompositionVideoTrack(Guid.NewGuid(), false, true, [video])],
+            [new CompositionAudioTrack(Guid.NewGuid(), false, false, [audio])]));
+        var service = new WorkingCompositionService(workspace);
+
+        await service.RemoveItemAsync(video.Id);
+
+        var state = service.GetCurrent().Recipe.Composition;
+        Assert.Empty(state.VideoTracks.Single().Items);
+        Assert.Equal(audio.Id, Assert.Single(state.AudioTracks.Single().Items).Id);
+    }
+
     private async Task<ProjectWorkspace> CreateWorkspaceAsync()
     {
         Directory.CreateDirectory(_root);
