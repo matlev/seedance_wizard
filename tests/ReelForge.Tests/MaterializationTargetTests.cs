@@ -29,6 +29,43 @@ public sealed class MaterializationTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task DeletedPhysicalSourceIsRejectedBeforeHashingAndDoesNotBecomeAvailableWhenBytesReappear()
+    {
+        var (project, location, asset) = await CreateProjectSourceAsync();
+        asset.Physical!.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(
+            Path.Combine(_root, asset.Physical.RelativePath));
+        asset.IsDeleted = true;
+        asset.Physical.Availability = PhysicalAssetAvailability.Missing;
+        var hashService = new CountingHashService();
+        var materializer = new PhysicalAssetMaterializer(hashService);
+
+        var assetException = await Assert.ThrowsAsync<InvalidOperationException>(() => materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(new AssetMaterializationTarget(asset.Id), MaterializationPurpose.Preview)));
+
+        Assert.Equal("'source.mp4' was deleted from the project and cannot be materialized.", assetException.Message);
+        Assert.Equal(0, hashService.CallCount);
+        Assert.Equal(PhysicalAssetAvailability.Missing, asset.Physical.Availability);
+
+        var anchor = new FrameAnchor();
+        project.Anchors.Add(anchor);
+        var revision = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
+            asset.Id, asset.Physical.ContentIdentity.Sha256!, 0, 1, 1, 24, 1));
+
+        var anchorException = await Assert.ThrowsAsync<InvalidOperationException>(() => materializer.MaterializeAsync(
+            project,
+            location,
+            new MaterializationRequest(
+                new AnchorMaterializationTarget(anchor.Id, revision.Id),
+                MaterializationPurpose.FrameExtraction)));
+
+        Assert.Equal(assetException.Message, anchorException.Message);
+        Assert.Equal(0, hashService.CallCount);
+        Assert.Equal(PhysicalAssetAvailability.Missing, asset.Physical.Availability);
+    }
+
+    [Fact]
     public async Task AnchorTargetPinsRevisionAndVerifiesSourceBeforeExtraction()
     {
         var (project, location, asset) = await CreateProjectSourceAsync();
@@ -116,241 +153,25 @@ public sealed class MaterializationTargetTests : IDisposable
         Assert.Equal(1, runner.TrimCount);
         Assert.Equal(1, frames.WindowIndexCount);
         Assert.Contains("3.1", runner.TrimRequest!.Arguments);
-    }
 
-    [Fact]
-    public async Task VirtualExactBoundaryRendersSplitCompositionAndMaterializesItsFrame()
-    {
-        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
-        sourceAsset.DurationSeconds = 4;
-        sourceAsset.Physical!.ContentIdentity = await new Sha256ContentHashService()
-            .ComputeAsync(Path.Combine(_root, sourceAsset.Physical.RelativePath));
-        var clip = new ProjectAsset
-        {
-            DisplayName = "Pinned clip",
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Physical = null,
-            Virtual = new VirtualAssetState
-            {
-                Kind = VirtualAssetKind.SavedClip,
-                ExpectedMediaProperties = CompatibleEncoding()
-            }
-        };
-        project.AddAsset(clip);
-        var clipRevision = project.CommitRecipe(clip.Id, new TrimRecipe
-        {
-            Source = new AssetRevisionReference { AssetId = sourceAsset.Id }
-        });
-        var runner = new TrimRunner();
-        var extractedPath = Path.Combine(_root, "virtual-frame.png");
-        await File.WriteAllBytesAsync(extractedPath, [137, 80, 78, 71]);
-        var frames = new StubExactFrameService([
-            new VideoPresentationFrame(0, 30, 1, 30, 30),
-            new VideoPresentationFrame(0, 31, 1, 30, 31)
-        ], extractedPath);
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe",
-            runner,
-            frames,
-            Path.Combine(_root, "cache"),
-            mediaInspector: new StubMediaInspector(CompatibleEncoding()));
-        await using var realizedClip = await materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(clip.Id, clipRevision.Id),
-                MaterializationPurpose.FrameExtraction));
-        var anchor = new FrameAnchor { IsArchived = true };
-        project.Anchors.Add(anchor);
-        var anchorRevision = project.CommitAnchorRevision(anchor.Id, new ExactFramePosition(
-            clip.Id,
-            realizedClip.ContentIdentity.Sha256!,
-            0,
-            30,
-            1,
-            30,
-            30,
-            clipRevision.Id));
-        var boundary = new RecipeBoundary
-        {
-            Kind = RecipeBoundaryKind.Anchor,
-            Anchor = new AnchorRevisionReference
-            {
-                AnchorId = anchor.Id,
-                AnchorRevisionId = anchorRevision.Id
-            },
-            Edge = AnchorBoundaryEdge.BeforeFrame
-        };
-        var composition = new ProjectAsset
-        {
-            DisplayName = "Split composition",
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Physical = null,
-            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
-        };
-        project.AddAsset(composition);
-        var compositionRevision = project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = clip.Id, RecipeRevisionId = clipRevision.Id },
-                    End = boundary
-                },
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = clip.Id, RecipeRevisionId = clipRevision.Id },
-                    Start = boundary
-                }
-            ]
-        });
+        Assert.True(await materializer.HasCachedRepresentationAsync(project, request.Target));
 
-        await using var compositionMedia = await materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(composition.Id, compositionRevision.Id),
-                MaterializationPurpose.Preview));
-        await using var frameMedia = await materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AnchorMaterializationTarget(anchor.Id, anchorRevision.Id),
-                MaterializationPurpose.ProviderUpload));
-
-        Assert.True(File.Exists(compositionMedia.Path));
-        Assert.Equal(extractedPath, frameMedia.Path);
-        Assert.Equal(1, runner.ConcatCount);
-        Assert.True(runner.TrimCount >= 3);
-        Assert.Empty(ProjectInvariantValidator.Validate(project));
-    }
-
-    [Fact]
-    public async Task InitialWorkingCompositionPreviewsItsPinnedSingleSourceDirectly()
-    {
-        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
-        var composition = new ProjectAsset
-        {
-            DisplayName = "Working Composition",
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Physical = null,
-            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
-        };
-        project.AddAsset(composition);
-        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = sourceAsset.Id },
-                    Start = RecipeBoundary.SourceStart,
-                    End = RecipeBoundary.SourceEnd
-                }
-            ]
-        });
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe", new TrimRunner(), new StubExactFrameService([]), Path.Combine(_root, "cache"));
-
-        await using var preview = await materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(composition.Id, revision.Id),
-                MaterializationPurpose.Preview));
-
-        Assert.True(preview.IsDurableSource);
-        Assert.EndsWith("source.mp4", preview.Path, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task MutedSingleSegmentCompositionProducesVideoOnlyCachedRender()
-    {
-        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
-        var composition = new ProjectAsset
-        {
-            DisplayName = "Working Composition",
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Physical = null,
-            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
-        };
-        project.AddAsset(composition);
-        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = sourceAsset.Id },
-                    Start = RecipeBoundary.SourceStart,
-                    End = RecipeBoundary.SourceEnd,
-                    AudioEnabled = false
-                }
-            ]
-        });
-        var runner = new TrimRunner();
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
-
-        await using var preview = await materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(composition.Id, revision.Id),
-                MaterializationPurpose.Preview));
-
-        Assert.False(preview.IsDurableSource);
+        using var restartedMaterializer = new RecipeMediaMaterializer(
+            "ffmpeg.exe", runner, frames, Path.Combine(_root, "cache"));
+        Assert.True(await restartedMaterializer.HasCachedRepresentationAsync(project, request.Target));
+        await using var cached = await restartedMaterializer.OpenCachedRepresentationAsync(project, request.Target);
+        Assert.NotNull(cached);
+        Assert.Equal(first.Path, cached.Path);
         Assert.Equal(1, runner.TrimCount);
-        Assert.Contains("-an", runner.TrimRequest!.Arguments);
-        Assert.Contains("0:v:0", runner.TrimRequest.Arguments);
-        Assert.Contains("copy", runner.TrimRequest.Arguments);
+
+        File.Delete(first.Path);
+        Assert.False(await restartedMaterializer.HasCachedRepresentationAsync(project, request.Target));
+        Assert.Equal(1, runner.TrimCount);
     }
 
-    [Fact]
-    public async Task PersistencePreferenceCopiesCompositionIntoProjectWithoutAddingCatalogAsset()
-    {
-        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
-        var composition = new ProjectAsset
-        {
-            DisplayName = "Working Composition",
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Physical = null,
-            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
-        };
-        project.AddAsset(composition);
-        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments = [new CompositionSegment { Source = new AssetRevisionReference { AssetId = sourceAsset.Id } }]
-        });
-        var originalAssetCount = project.Assets.Count;
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe",
-            new TrimRunner(),
-            new StubExactFrameService([]),
-            Path.Combine(_root, "cache"),
-            persistModifiedMediaOnDisk: true);
 
-        await using var preview = await materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(composition.Id, revision.Id),
-                MaterializationPurpose.Preview));
 
-        Assert.StartsWith(
-            Path.Combine(location.RootDirectory, "assets", "modified", "compositions"),
-            preview.Path,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.True(File.Exists(preview.Path));
-        Assert.False(preview.IsDurableSource);
-        Assert.Equal(originalAssetCount, project.Assets.Count);
-    }
+
 
     [Fact]
     public async Task PersistencePreferenceCopiesSavedFrameIntoProjectMediaFolder()
@@ -458,23 +279,33 @@ public sealed class MaterializationTargetTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkingCompositionResolvesItsPinnedSavedClipSource()
+    public async Task CompositionRevisionIdentityKeepsEarlierCachedRepresentationDistinctFromCurrentRevision()
     {
-        var (project, location, sourceAsset) = await CreateProjectSourceAsync();
-        sourceAsset.DurationSeconds = 8;
-        sourceAsset.Physical!.ContentIdentity = await new Sha256ContentHashService()
-            .ComputeAsync(Path.Combine(_root, sourceAsset.Physical.RelativePath));
-        var clip = new ProjectAsset
+        var project = new VideoProject();
+        var sourceHash = new string('d', 64);
+        var duration = new ExactTime(1, 1);
+        var source = new ProjectAsset
         {
-            DisplayName = "Pinned clip",
+            DisplayName = "source.mp4",
+            FileName = "source.mp4",
             MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Physical = null,
-            Virtual = new VirtualAssetState
+            StorageKind = AssetStorageKind.Physical,
+            Encoding = new MediaEncodingMetadata
             {
-                Kind = VirtualAssetKind.SavedClip,
-                ExpectedMediaProperties = new MediaEncodingMetadata { DurationSeconds = 3 }
-            }
+                Video = new VideoStreamMetadata { StreamIndex = 0, Codec = "h264" },
+                Audio = new AudioStreamMetadata { StreamIndex = 1, Codec = "aac", SampleRate = 48_000, Channels = 2 }
+            },
+            Physical = new PhysicalAssetStorage
+            {
+                RelativePath = Path.Combine("assets", "videos", "source.mp4"),
+                Availability = PhysicalAssetAvailability.Available,
+                ContentIdentity = new ContentIdentity { Sha256 = sourceHash, Status = ContentHashStatus.Verified }
+            },
+            TimingAssessments =
+            [
+                ExactAssessment(sourceHash, MediaType.Video, 0, duration),
+                ExactAssessment(sourceHash, MediaType.Audio, 1, duration)
+            ]
         };
         var composition = new ProjectAsset
         {
@@ -484,336 +315,91 @@ public sealed class MaterializationTargetTests : IDisposable
             Physical = null,
             Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
         };
-        project.AddAsset(clip);
+        project.AddAsset(source);
         project.AddAsset(composition);
-        var clipRevision = project.CommitRecipe(clip.Id, new TrimRecipe
-        {
-            Source = new AssetRevisionReference { AssetId = sourceAsset.Id },
-            Start = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 2 },
-            End = new RecipeBoundary { Kind = RecipeBoundaryKind.Timestamp, TimestampSeconds = 5 }
-        });
-        var compositionRevision = project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference
-                    {
-                        AssetId = clip.Id,
-                        RecipeRevisionId = clipRevision.Id
-                    },
-                    Start = RecipeBoundary.SourceStart,
-                    End = RecipeBoundary.SourceEnd
-                }
-            ]
-        });
-        var runner = new TrimRunner();
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
+        project.WorkingCompositionAssetId = composition.Id;
 
-        await using var preview = await materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(composition.Id, compositionRevision.Id),
-                MaterializationPurpose.Preview));
+        var firstRevision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Composition = ExactLinkedComposition(source.Id, "Primary video", "Primary audio")
+        });
+        var cacheRoot = Path.Combine(_root, "cache", "composition-identity");
+        var cachedRepresentation = Path.Combine(cacheRoot, "first-revision.mp4");
+        Directory.CreateDirectory(cacheRoot);
+        await File.WriteAllBytesAsync(cachedRepresentation, [1]);
+        using var index = new CachedProjectMediaRepresentationIndex(cacheRoot);
+        var firstTarget = new AssetMaterializationTarget(composition.Id, firstRevision.Id);
+        await index.RecordAsync(project, firstTarget, cachedRepresentation, CancellationToken.None);
 
-        Assert.False(preview.IsDurableSource);
-        Assert.Equal(1, runner.TrimCount);
+        var secondRevision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Composition = ExactLinkedComposition(source.Id, "Replacement video", "Replacement audio")
+        });
+
+        Assert.NotEqual(firstRevision.Id, secondRevision.Id);
+        Assert.NotEqual(
+            ((CompositionRecipe)firstRevision.Recipe).Composition.VideoTracks.Single().Id,
+            ((CompositionRecipe)secondRevision.Recipe).Composition.VideoTracks.Single().Id);
+        Assert.Empty(ProjectInvariantValidator.Validate(project));
+        Assert.True(await index.HasCachedRepresentationAsync(project, firstTarget, CancellationToken.None));
+        Assert.Equal(cachedRepresentation, await index.FindCachedRepresentationPathAsync(
+            project, firstTarget, CancellationToken.None));
+        Assert.False(await index.HasCachedRepresentationAsync(
+            project, new AssetMaterializationTarget(composition.Id, secondRevision.Id), CancellationToken.None));
+        Assert.Null(await index.FindCachedRepresentationPathAsync(
+            project, new AssetMaterializationTarget(composition.Id, secondRevision.Id), CancellationToken.None));
+        Assert.False(await index.HasCachedRepresentationAsync(
+            project, new AssetMaterializationTarget(composition.Id), CancellationToken.None));
+        Assert.Null(await index.FindCachedRepresentationPathAsync(
+            project, new AssetMaterializationTarget(composition.Id), CancellationToken.None));
     }
 
     [Fact]
-    public async Task CompatibleCompositionConcatsPhysicalSegmentsAndReusesCache()
+    public async Task AssetTargetDoesNotAddressRecipeRevisionOwnedByAnotherVirtualAsset()
     {
-        var (project, location, firstSource) = await CreateProjectSourceAsync();
-        var firstPath = Path.Combine(_root, firstSource.Physical!.RelativePath);
-        firstSource.Physical.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(firstPath);
-        firstSource.Encoding = CompatibleEncoding();
-        var secondRelativePath = Path.Combine("assets", "videos", "second.mp4");
-        var secondPath = Path.Combine(_root, secondRelativePath);
-        await File.WriteAllBytesAsync(secondPath, [6, 7, 8, 9]);
-        var secondSource = new ProjectAsset
+        var project = new VideoProject();
+        var target = new ProjectAsset
         {
-            DisplayName = "second.mp4",
-            FileName = "second.mp4",
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Physical,
-            Encoding = CompatibleEncoding(),
-            Physical = new PhysicalAssetStorage
-            {
-                RelativePath = secondRelativePath,
-                ContentIdentity = await new Sha256ContentHashService().ComputeAsync(secondPath)
-            }
-        };
-        var composition = new ProjectAsset
-        {
-            DisplayName = "Working Composition",
+            DisplayName = "Target",
             MediaType = MediaType.Video,
             StorageKind = AssetStorageKind.Virtual,
             Physical = null,
             Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
         };
-        project.AddAsset(secondSource);
-        project.AddAsset(composition);
-        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        var other = new ProjectAsset
         {
-            Segments =
-            [
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = firstSource.Id } },
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = secondSource.Id } }
-            ]
-        });
-        var runner = new TrimRunner();
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
-        var request = new MaterializationRequest(
-            new AssetMaterializationTarget(composition.Id, revision.Id),
-            MaterializationPurpose.Preview);
-
-        await using var first = await materializer.MaterializeAsync(project, location, request);
-        await using var second = await materializer.MaterializeAsync(project, location, request);
-
-        Assert.Equal(first.Path, second.Path);
-        Assert.Equal(1, runner.ConcatCount);
-        Assert.Equal(0, runner.TrimCount);
-        Assert.Contains("-filter_complex", runner.ConcatRequest!.Arguments);
-    }
-
-    [Fact]
-    public async Task CompositionAuditionAudioMixesIndependentClipsWithoutRenderingVideo()
-    {
-        var (project, location, sourceVideo) = await CreateProjectSourceAsync();
-        sourceVideo.DurationSeconds = 10;
-        var audioRelativePath = Path.Combine("assets", "audio", "music.m4a");
-        var audioPath = Path.Combine(_root, audioRelativePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(audioPath)!);
-        await File.WriteAllBytesAsync(audioPath, [9, 8, 7, 6]);
-        var audio = new ProjectAsset
-        {
-            DisplayName = "music.m4a",
-            FileName = "music.m4a",
-            MediaType = MediaType.Audio,
-            StorageKind = AssetStorageKind.Physical,
-            DurationSeconds = 6,
-            Physical = new PhysicalAssetStorage
-            {
-                RelativePath = audioRelativePath,
-                ContentIdentity = new ContentIdentity { Status = ContentHashStatus.Pending }
-            }
-        };
-        var composition = new ProjectAsset
-        {
-            DisplayName = "Working Composition",
+            DisplayName = "Other",
             MediaType = MediaType.Video,
             StorageKind = AssetStorageKind.Virtual,
             Physical = null,
             Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
         };
-        project.AddAsset(audio);
-        project.AddAsset(composition);
-        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
+        project.AddAsset(target);
+        project.AddAsset(other);
+        project.CommitRecipe(target.Id, new CompositionRecipe
         {
-            Segments = [new CompositionSegment { Source = new AssetRevisionReference { AssetId = sourceVideo.Id } }],
-            AudioClips =
-            [
-                new CompositionAudioClip
-                {
-                    Source = new AssetRevisionReference { AssetId = audio.Id },
-                    TimelineStartTicks = TimeSpan.FromSeconds(1.109).Ticks,
-                    GainDecibels = -6,
-                    Pan = 0.25,
-                    FadeInMilliseconds = 500,
-                    FadeOutMilliseconds = 750
-                }
-            ]
+            Composition = new WorkingCompositionState([], [])
         });
-        var runner = new TrimRunner();
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
+        var otherRevision = project.CommitRecipe(other.Id, new CompositionRecipe
+        {
+            Composition = new WorkingCompositionState([], [])
+        });
+        var cacheRoot = Path.Combine(_root, "cache", "cross-asset-revision");
+        var cachedRepresentation = Path.Combine(cacheRoot, "other-revision.mp4");
+        Directory.CreateDirectory(cacheRoot);
+        await File.WriteAllBytesAsync(cachedRepresentation, [1]);
+        using var index = new CachedProjectMediaRepresentationIndex(cacheRoot);
+        var invalidTarget = new AssetMaterializationTarget(target.Id, otherRevision.Id);
 
-        await using var first = await materializer.MaterializeCompositionAuditionAudioAsync(
-            project, location, composition.Id, revision.Id, compositionDurationSeconds: 10);
-        await using var second = await materializer.MaterializeCompositionAuditionAudioAsync(
-            project, location, composition.Id, revision.Id, compositionDurationSeconds: 10);
+        await index.RecordAsync(project, invalidTarget, cachedRepresentation, CancellationToken.None);
 
-        Assert.NotNull(first);
-        Assert.NotNull(second);
-        Assert.Equal(first.Path, second.Path);
-        Assert.EndsWith(".m4a", first.Path, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(1, runner.ConcatCount);
-        Assert.Contains("-vn", runner.ConcatRequest!.Arguments);
-        var graph = runner.ConcatRequest.Arguments[runner.ConcatRequest.Arguments.ToList().IndexOf("-filter_complex") + 1];
-        Assert.Contains("adelay=1109:all=1", graph, StringComparison.Ordinal);
-        Assert.Contains("volume=-6dB", graph, StringComparison.Ordinal);
-        Assert.Contains("pan=stereo|c0=0.75*c0|c1=1*c1", graph, StringComparison.Ordinal);
+        Assert.False(await index.HasCachedRepresentationAsync(project, invalidTarget, CancellationToken.None));
+        Assert.Null(await index.FindCachedRepresentationPathAsync(project, invalidTarget, CancellationToken.None));
     }
 
-    [Fact]
-    public async Task CachedVirtualMediaLeaseCarriesRealizedEncodingFromInspection()
-    {
-        var (project, location, source) = await CreateProjectSourceAsync();
-        source.Physical!.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(
-            Path.Combine(_root, source.Physical.RelativePath));
-        source.Encoding = CompatibleEncoding();
-        var composition = new ProjectAsset
-        {
-            DisplayName = "Working Composition",
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
-        };
-        project.AddAsset(composition);
-        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = source.Id } },
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = source.Id } }
-            ]
-        });
-        var realizedEncoding = CompatibleEncoding();
-        realizedEncoding.ContainerFormat = "mov,mp4,m4a,3gp,3g2,mj2";
-        realizedEncoding.SizeBytes = 987_654;
-        realizedEncoding.BitRate = 2_500_000;
-        var inspector = new StubMediaInspector(realizedEncoding);
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe",
-            new TrimRunner(),
-            new StubExactFrameService([]),
-            Path.Combine(_root, "cache"),
-            mediaInspector: inspector);
 
-        await using var preview = await materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(composition.Id, revision.Id),
-                MaterializationPurpose.Preview));
 
-        Assert.Same(realizedEncoding, preview.Encoding);
-        Assert.Equal(preview.Path, inspector.LastInspectedPath);
-        Assert.Equal(1, inspector.InspectionCount);
-    }
 
-    [Fact]
-    public async Task IncompatibleCompositionNormalizesAndCachesConcat()
-    {
-        var (project, location, firstSource) = await CreateProjectSourceAsync();
-        var firstPath = Path.Combine(_root, firstSource.Physical!.RelativePath);
-        firstSource.Physical.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(firstPath);
-        firstSource.Encoding = CompatibleEncoding();
-        var secondRelativePath = Path.Combine("assets", "videos", "wide.mp4");
-        var secondPath = Path.Combine(_root, secondRelativePath);
-        await File.WriteAllBytesAsync(secondPath, [10, 11, 12]);
-        var incompatibleEncoding = CompatibleEncoding();
-        incompatibleEncoding.Video!.Width = 1920;
-        var secondSource = new ProjectAsset
-        {
-            DisplayName = "wide.mp4",
-            FileName = "wide.mp4",
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Physical,
-            Encoding = incompatibleEncoding,
-            Physical = new PhysicalAssetStorage
-            {
-                RelativePath = secondRelativePath,
-                ContentIdentity = await new Sha256ContentHashService().ComputeAsync(secondPath)
-            }
-        };
-        var composition = new ProjectAsset
-        {
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Physical = null,
-            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
-        };
-        project.AddAsset(secondSource);
-        project.AddAsset(composition);
-        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = firstSource.Id } },
-                new CompositionSegment
-                {
-                    Source = new AssetRevisionReference { AssetId = secondSource.Id },
-                    AudioEnabled = false
-                }
-            ]
-        });
-        var runner = new TrimRunner();
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe", runner, new StubExactFrameService([]), Path.Combine(_root, "cache"));
-
-        await using var preview = await materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(composition.Id, revision.Id),
-                MaterializationPurpose.Preview));
-
-        Assert.Equal(1, runner.ConcatCount);
-        var graph = runner.ConcatRequest!.Arguments[runner.ConcatRequest.Arguments.ToList().IndexOf("-filter_complex") + 1];
-        Assert.Contains("scale=1920:720", graph, StringComparison.Ordinal);
-        Assert.Contains("anullsrc=r=48000:cl=stereo", graph, StringComparison.Ordinal);
-        Assert.True(File.Exists(preview.Path));
-    }
-
-    [Fact]
-    public async Task FailedCompositionConcatRemovesPartialCacheArtifact()
-    {
-        var (project, location, firstSource) = await CreateProjectSourceAsync();
-        var firstPath = Path.Combine(_root, firstSource.Physical!.RelativePath);
-        firstSource.Physical.ContentIdentity = await new Sha256ContentHashService().ComputeAsync(firstPath);
-        firstSource.Encoding = CompatibleEncoding();
-        var secondRelativePath = Path.Combine("assets", "videos", "second-failure.mp4");
-        var secondPath = Path.Combine(_root, secondRelativePath);
-        await File.WriteAllBytesAsync(secondPath, [20, 21, 22]);
-        var secondSource = new ProjectAsset
-        {
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Physical,
-            Encoding = CompatibleEncoding(),
-            Physical = new PhysicalAssetStorage
-            {
-                RelativePath = secondRelativePath,
-                ContentIdentity = await new Sha256ContentHashService().ComputeAsync(secondPath)
-            }
-        };
-        var composition = new ProjectAsset
-        {
-            MediaType = MediaType.Video,
-            StorageKind = AssetStorageKind.Virtual,
-            Physical = null,
-            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
-        };
-        project.AddAsset(secondSource);
-        project.AddAsset(composition);
-        var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
-        {
-            Segments =
-            [
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = firstSource.Id } },
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = secondSource.Id } }
-            ]
-        });
-        var runner = new TrimRunner { FailConcat = true };
-        var cacheRoot = Path.Combine(_root, "cache");
-        using var materializer = new RecipeMediaMaterializer(
-            "ffmpeg.exe", runner, new StubExactFrameService([]), cacheRoot);
-
-        await Assert.ThrowsAsync<ExternalProcessException>(() => materializer.MaterializeAsync(
-            project,
-            location,
-            new MaterializationRequest(
-                new AssetMaterializationTarget(composition.Id, revision.Id),
-                MaterializationPurpose.Preview)));
-
-        var compositionCache = Path.Combine(cacheRoot, "compositions");
-        Assert.False(Directory.Exists(compositionCache) &&
-                     Directory.EnumerateFiles(compositionCache, "*.tmp.mp4").Any());
-    }
 
     private async Task<(VideoProject Project, ProjectLocation Location, ProjectAsset Asset)> CreateProjectSourceAsync()
     {
@@ -836,6 +422,44 @@ public sealed class MaterializationTargetTests : IDisposable
         var project = new VideoProject { Assets = [asset] };
         return (project, new ProjectLocation(_root, Path.Combine(_root, "Test.rfp")), asset);
     }
+
+    private static WorkingCompositionState ExactLinkedComposition(Guid sourceAssetId, string videoTrackName, string audioTrackName)
+    {
+        var source = new AssetRevisionReference { AssetId = sourceAssetId };
+        var linkGroupId = Guid.NewGuid();
+        var contentHash = new string('d', 64);
+        var duration = new ExactTime(1, 1);
+        return new WorkingCompositionState(
+        [
+            new CompositionVideoTrack(Guid.NewGuid(), false, true,
+            [
+                new CompositionVideoItem(Guid.NewGuid(), source, 0,
+                    new VideoSourceRange(new VideoPresentationTime(0, 1, 30), new VideoPresentationTime(30, 1, 30)),
+                    ExactPin(contentHash, MediaType.Video, 0, duration), new ExactTime(0, 1), linkGroupId)
+            ], videoTrackName)
+        ],
+        [
+            new CompositionAudioTrack(Guid.NewGuid(), false, false,
+            [
+                new CompositionAudioItem(Guid.NewGuid(), source, 1,
+                    new AudioSourceRange(new AudioSampleTime(0, 48_000), new AudioSampleTime(48_000, 48_000)),
+                    ExactPin(contentHash, MediaType.Audio, 1, duration), new ExactTime(0, 1), linkGroupId)
+            ], audioTrackName)
+        ]);
+    }
+
+    private static StreamTimingAssessmentPin ExactPin(
+        string contentHash,
+        MediaType mediaType,
+        int streamIndex,
+        ExactTime duration) => new(ExactAssessment(contentHash, mediaType, streamIndex, duration));
+
+    private static StreamTimingAssessment ExactAssessment(
+        string contentHash,
+        MediaType mediaType,
+        int streamIndex,
+        ExactTime duration) => new(
+        Guid.NewGuid(), contentHash, mediaType, streamIndex, TimingReadiness.Exact, true, duration, [], new ExactTime(0, 1));
 
     private static MediaEncodingMetadata CompatibleEncoding() => new()
     {
@@ -901,6 +525,26 @@ public sealed class MaterializationTargetTests : IDisposable
                     },
                     null,
                     isDurableSource: false));
+    }
+
+    private sealed class CountingHashService : IContentHashService
+    {
+        public int CallCount { get; private set; }
+
+        public Task<ContentIdentity> ComputeAsync(string path, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            throw new InvalidOperationException("A deleted source must not be hashed.");
+        }
+
+        public Task<ContentVerificationResult> VerifyAsync(
+            string path,
+            ContentIdentity expected,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            throw new InvalidOperationException("A deleted source must not be verified.");
+        }
     }
 
     private sealed class StubMediaInspector(MediaEncodingMetadata encoding) : IMediaInspectionService

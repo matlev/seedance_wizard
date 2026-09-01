@@ -118,9 +118,72 @@ public sealed class SavedClipRenameServiceTests : IDisposable
         Assert.Equal(originalModifiedAt, project.ModifiedAt);
     }
 
-    private async Task<ProjectWorkspace> CreateWorkspaceWithSavedClipAsync()
+    [Fact]
+    public async Task RenameKeepsCommittedChangeWhenRecoveryRetirementFails()
     {
-        var workspace = new ProjectWorkspace(new PortableProjectStore(), new UnusedImporter());
+        var portable = new PortableProjectStore();
+        var recovery = new FailingDiscardRecoveryStore(portable);
+        var workspace = await CreateWorkspaceWithSavedClipAsync(portable, recovery);
+        var clip = workspace.Project!.Assets.Single(asset => asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
+
+        await new SavedClipService(workspace).RenameAsync(clip.Id, "Committed despite cleanup failure");
+
+        Assert.Equal("Committed despite cleanup failure", clip.DisplayName);
+        Assert.Equal(ProjectWorkspaceState.Saved, workspace.State);
+        Assert.Contains("recovery cleanup failed", workspace.FailureDetail!, StringComparison.OrdinalIgnoreCase);
+        var (reopened, _) = await portable.OpenAsync(workspace.Location!.ProjectFilePath);
+        Assert.Equal("Committed despite cleanup failure", reopened.Assets.Single(asset => asset.Id == clip.Id).DisplayName);
+        Assert.True(File.Exists(PortableProjectStore.GetRecoveryFilePath(workspace.Location)));
+    }
+
+    [Fact]
+    public async Task DeleteRefusesSavedClipReferencedByAnAudioOccurrenceOnAnyCompositionTrack()
+    {
+        var workspace = await CreateWorkspaceWithSavedClipAsync();
+        var project = workspace.Project!;
+        var clip = project.Assets.Single(asset => asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
+        var composition = new ProjectAsset
+        {
+            DisplayName = "Working Composition",
+            MediaType = MediaType.Video,
+            StorageKind = AssetStorageKind.Virtual,
+            Physical = null,
+            Virtual = new VirtualAssetState { Kind = VirtualAssetKind.Composition }
+        };
+        project.AddAsset(composition);
+        project.CommitRecipe(composition.Id, new CompositionRecipe
+        {
+            Composition = new WorkingCompositionState(
+                [],
+                [new CompositionAudioTrack(Guid.NewGuid(), false, false,
+                [
+                    new CompositionAudioItem(
+                        Guid.NewGuid(),
+                        new AssetRevisionReference
+                        {
+                            AssetId = clip.Id,
+                            RecipeRevisionId = clip.Virtual!.CurrentRecipeRevisionId
+                        },
+                        0,
+                        null,
+                        EstimatedAudioPin(),
+                        new ExactTime(0, 1))
+                ])])
+        });
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new SavedClipService(workspace).DeleteAsync(clip.Id));
+
+        Assert.Contains("another media recipe", exception.Message, StringComparison.Ordinal);
+        Assert.False(clip.IsDeleted);
+    }
+
+    private async Task<ProjectWorkspace> CreateWorkspaceWithSavedClipAsync(
+        PortableProjectStore? store = null,
+        IProjectRecoveryStore? recovery = null)
+    {
+        store ??= new PortableProjectStore();
+        var workspace = new ProjectWorkspace(store, new UnusedImporter(), recovery);
         await workspace.CreateAsync(_temporaryRoot, "Saved Clip Rename");
         var source = CreatePhysicalVideo();
         source.DurationSeconds = 12;
@@ -163,6 +226,18 @@ public sealed class SavedClipRenameServiceTests : IDisposable
         Provenance = new AssetProvenance { Operation = "saved-clip", SourceAssetIds = [sourceAssetId] }
     };
 
+    private static StreamTimingAssessmentPin EstimatedAudioPin() => new(
+        new StreamTimingAssessment(
+            Guid.NewGuid(),
+            new string('a', 64),
+            MediaType.Audio,
+            0,
+            TimingReadiness.Estimated,
+            true,
+            new ExactTime(1, 1),
+            [TimingIssueClassification.NativeDurationUnavailable],
+            null));
+
     public void Dispose()
     {
         if (Directory.Exists(_temporaryRoot)) Directory.Delete(_temporaryRoot, recursive: true);
@@ -201,5 +276,18 @@ public sealed class SavedClipRenameServiceTests : IDisposable
             SaveCount++;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FailingDiscardRecoveryStore(PortableProjectStore inner) : IProjectRecoveryStore
+    {
+        public Task<ProjectRecoveryProbe> ProbeAsync(ProjectLocation location,
+            CancellationToken cancellationToken = default) => inner.ProbeAsync(location, cancellationToken);
+
+        public Task WriteAsync(VideoProject project, ProjectLocation location,
+            CancellationToken cancellationToken = default) => inner.WriteAsync(project, location, cancellationToken);
+
+        public Task DiscardAsync(ProjectLocation location,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException(new IOException("Simulated recovery retirement failure."));
     }
 }

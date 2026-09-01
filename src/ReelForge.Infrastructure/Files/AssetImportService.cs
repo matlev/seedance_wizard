@@ -33,10 +33,24 @@ public sealed class AssetImportService : IAssetImportService
         ProjectLocation location,
         IEnumerable<string> sourcePaths,
         CancellationToken cancellationToken = default)
+        => await ImportAsync(location, sourcePaths, Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<ProjectAsset>> ImportAsync(
+        ProjectLocation location,
+        IEnumerable<string> sourcePaths,
+        IReadOnlyCollection<string> reservedRelativePaths,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(location);
         ArgumentNullException.ThrowIfNull(sourcePaths);
+        ArgumentNullException.ThrowIfNull(reservedRelativePaths);
 
+        var reservedDestinationPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var relativePath in reservedRelativePaths)
+        {
+            if (ProjectPathPolicy.TryResolveContainedPath(location, relativePath, out var destinationPath))
+                reservedDestinationPaths.Add(Path.GetFullPath(destinationPath));
+        }
         var imported = new List<ProjectAsset>();
         foreach (var sourcePath in sourcePaths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -60,7 +74,9 @@ public sealed class AssetImportService : IAssetImportService
             Directory.CreateDirectory(targetDirectory);
             var destinationPath = CollisionFreeDestinationPolicy.GetAvailablePath(
                 targetDirectory,
-                Path.GetFileName(fullSourcePath));
+                Path.GetFileName(fullSourcePath),
+                reservedPaths: reservedDestinationPaths);
+            reservedDestinationPaths.Add(Path.GetFullPath(destinationPath));
 
             using var fileCommit = AtomicFileCommit.Create(
                 destinationPath,

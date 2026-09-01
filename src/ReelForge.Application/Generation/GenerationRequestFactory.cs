@@ -35,29 +35,37 @@ internal static class GenerationRequestFactory
 
     public static GenerationRequest CreateProviderRequest(
         GenerationRequestSnapshot snapshot,
-        IReadOnlyCollection<ProjectAsset> assets) => new()
+        IReadOnlyCollection<ProjectAsset> assets)
     {
-        Prompt = snapshot.Prompt,
-        Mode = snapshot.Mode,
-        DurationSeconds = snapshot.DurationSeconds,
-        AspectRatio = snapshot.AspectRatio,
-        Resolution = snapshot.Resolution,
-        ReferenceAssetIds = snapshot.References
-            .Where(reference => reference.ObjectKind == GenerationReferenceObjectKind.Asset)
-            .Select(reference => reference.LogicalObjectId)
-            .ToList(),
-        PreparedReferences = snapshot.References.Select(reference => new PreparedGenerationReference(
-            reference.ReferenceId,
-            reference.ObjectKind,
-            reference.LogicalObjectId,
-            reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor
-                ? MediaType.Image
-                : assets.Single(asset => asset.Id == reference.LogicalObjectId).MediaType,
-            reference.Role,
-            reference.Order ?? 0,
-            string.Empty)).ToList(),
-        ProviderParameters = new Dictionary<string, string>(snapshot.ProviderParameters, StringComparer.Ordinal)
-    };
+        foreach (var reference in snapshot.References)
+        {
+            EnsureUsableReferenceSource(reference, assets);
+        }
+
+        return new GenerationRequest
+        {
+            Prompt = snapshot.Prompt,
+            Mode = snapshot.Mode,
+            DurationSeconds = snapshot.DurationSeconds,
+            AspectRatio = snapshot.AspectRatio,
+            Resolution = snapshot.Resolution,
+            ReferenceAssetIds = snapshot.References
+                .Where(reference => reference.ObjectKind == GenerationReferenceObjectKind.Asset)
+                .Select(reference => reference.LogicalObjectId)
+                .ToList(),
+            PreparedReferences = snapshot.References.Select(reference => new PreparedGenerationReference(
+                reference.ReferenceId,
+                reference.ObjectKind,
+                reference.LogicalObjectId,
+                reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor
+                    ? MediaType.Image
+                    : EnsureUsableReferenceAsset(reference.LogicalObjectId, assets).MediaType,
+                reference.Role,
+                reference.Order ?? 0,
+                string.Empty)).ToList(),
+            ProviderParameters = new Dictionary<string, string>(snapshot.ProviderParameters, StringComparer.Ordinal)
+        };
+    }
 
     public static GenerationDraft CreateDerivedDraft(
         GenerationRecord source,
@@ -102,6 +110,9 @@ internal static class GenerationRequestFactory
             var revision = project.AnchorRevisions.SingleOrDefault(candidate =>
                     candidate.Id == revisionId && candidate.AnchorId == anchor.Id)
                 ?? throw new InvalidOperationException($"Frame anchor revision '{revisionId}' no longer exists.");
+            var source = project.Assets.SingleOrDefault(candidate => candidate.Id == revision.SourceAssetId)
+                ?? throw new InvalidOperationException($"Anchor source asset '{revision.SourceAssetId}' no longer exists.");
+            EnsureNotDeleted(source);
             return new GenerationReferenceSnapshot
             {
                 ReferenceId = reference.ReferenceId,
@@ -129,6 +140,7 @@ internal static class GenerationRequestFactory
 
         var asset = project.Assets.SingleOrDefault(candidate => candidate.Id == reference.LogicalObjectId)
             ?? throw new InvalidOperationException($"Reference asset '{reference.LogicalObjectId}' no longer exists.");
+        EnsureNotDeleted(asset);
         if (asset.StorageKind == AssetStorageKind.Physical &&
             (asset.Physical?.ContentIdentity.Status != ContentHashStatus.Verified ||
              string.IsNullOrWhiteSpace(asset.Physical.ContentIdentity.Sha256)))
@@ -149,5 +161,34 @@ internal static class GenerationRequestFactory
             Label = reference.Label,
             Notes = reference.Notes
         };
+    }
+
+    private static ProjectAsset EnsureUsableReferenceAsset(Guid assetId, IReadOnlyCollection<ProjectAsset> assets)
+    {
+        var asset = assets.SingleOrDefault(candidate => candidate.Id == assetId)
+            ?? throw new InvalidOperationException($"Reference asset '{assetId}' no longer exists.");
+        EnsureNotDeleted(asset);
+        return asset;
+    }
+
+    private static void EnsureUsableReferenceSource(
+        GenerationReferenceSnapshot reference,
+        IReadOnlyCollection<ProjectAsset> assets)
+    {
+        if (reference.ObjectKind == GenerationReferenceObjectKind.Asset)
+        {
+            EnsureUsableReferenceAsset(reference.LogicalObjectId, assets);
+            return;
+        }
+
+        if (reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor && reference.Anchor is { } anchor)
+            EnsureUsableReferenceAsset(anchor.SourceAssetId, assets);
+    }
+
+    private static void EnsureNotDeleted(ProjectAsset asset)
+    {
+        if (asset.IsDeleted)
+            throw new InvalidOperationException(
+                $"'{asset.EffectiveDisplayName}' was deleted from the project and cannot be submitted as a generation reference.");
     }
 }

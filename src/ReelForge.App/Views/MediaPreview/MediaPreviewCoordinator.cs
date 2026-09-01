@@ -276,6 +276,13 @@ internal sealed class MediaPreviewCoordinator : IDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!isStillCurrent()) return;
                 Clear();
+                if (IsEmptyComposition(revision))
+                {
+                    _preview.ShowPlaceholder("Composition is empty\nAdd a video to begin editing.");
+                    _host.SetStatus("Composition is empty. Add a video to begin editing.");
+                    _host.PreviewStateChanged();
+                    return;
+                }
                 var requestedPosition = _pendingTimelineSeekSeconds ?? 0;
                 _pendingTimelineSeekSeconds = null;
                 var result = await _audition.OpenAsync(
@@ -304,6 +311,11 @@ internal sealed class MediaPreviewCoordinator : IDisposable
             }
         });
     }
+
+    internal static bool IsEmptyComposition(RecipeRevision revision) =>
+        revision.Recipe is CompositionRecipe composition &&
+        composition.Composition.VideoTracks.All(track => track.Items.Count == 0) &&
+        composition.Composition.AudioTracks.All(track => track.Items.Count == 0);
 
     private bool IsRestoreCurrent(
         long requestGeneration,

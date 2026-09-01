@@ -10,26 +10,30 @@ public sealed class Sha256ContentHashService : IContentHashService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var fullPath = Path.GetFullPath(path);
-        var info = new FileInfo(fullPath);
-        if (!info.Exists) throw new FileNotFoundException("Media file was not found.", fullPath);
-
-        await using var stream = new FileStream(
-            fullPath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            1024 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
-        info.Refresh();
-        return new ContentIdentity
+        try
         {
-            Algorithm = ContentIdentity.Sha256Algorithm,
-            Sha256 = Convert.ToHexString(hash).ToLowerInvariant(),
-            Status = ContentHashStatus.Verified,
-            LengthBytes = info.Length,
-            ObservedLastWriteTimeUtc = info.LastWriteTimeUtc
-        };
+            await using var stream = new FileStream(
+                fullPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                1024 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
+            var info = new FileInfo(fullPath);
+            return new ContentIdentity
+            {
+                Algorithm = ContentIdentity.Sha256Algorithm,
+                Sha256 = Convert.ToHexString(hash).ToLowerInvariant(),
+                Status = ContentHashStatus.Verified,
+                LengthBytes = stream.Length,
+                ObservedLastWriteTimeUtc = info.LastWriteTimeUtc
+            };
+        }
+        catch (DirectoryNotFoundException exception)
+        {
+            throw new FileNotFoundException("Media file was not found.", fullPath, exception);
+        }
     }
 
     public async Task<ContentVerificationResult> VerifyAsync(

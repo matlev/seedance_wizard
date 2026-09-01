@@ -34,7 +34,7 @@
                        Margin="0,12,0,4" />
             <DockPanel>
                 <TextBlock x:Name="DurationText" Foreground="{DynamicResource TextBrush}"
-                           FontWeight="SemiBold" DockPanel.Dock="Right" Width="40"
+                           FontWeight="SemiBold" DockPanel.Dock="Right" Width="78"
                            TextAlignment="Right" VerticalAlignment="Center" />
                 <Slider x:Name="DurationSlider" IsSnapToTickEnabled="True" TickFrequency="1"
                         ValueChanged="DurationSlider_ValueChanged" />

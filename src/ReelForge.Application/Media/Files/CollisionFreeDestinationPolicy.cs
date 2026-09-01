@@ -11,7 +11,8 @@ public static class CollisionFreeDestinationPolicy
     public static string GetAvailablePath(
         string directory,
         string fileName,
-        FileNameCollisionStyle collisionStyle = FileNameCollisionStyle.Parenthesized)
+        FileNameCollisionStyle collisionStyle = FileNameCollisionStyle.Parenthesized,
+        IReadOnlySet<string>? reservedPaths = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         var safeFileName = MediaFileNamePolicy.ValidateLeafFileName(fileName, nameof(fileName));
@@ -20,7 +21,8 @@ public static class CollisionFreeDestinationPolicy
         var extension = Path.GetExtension(safeFileName);
         var suffix = 2;
 
-        while (File.Exists(candidate))
+        while (File.Exists(candidate) ||
+               (reservedPaths is not null && reservedPaths.Contains(Path.GetFullPath(candidate))))
         {
             var nextName = collisionStyle switch
             {

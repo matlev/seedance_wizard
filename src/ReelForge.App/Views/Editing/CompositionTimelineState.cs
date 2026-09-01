@@ -5,6 +5,7 @@ namespace ReelForge.App.Views.Editing;
 /// presentation projection; the shell remains the owner of project mutations.
 /// </summary>
 public sealed record CompositionTimelineState(
+    IReadOnlyList<CompositionTimelineTrackRow> Tracks,
     IReadOnlyList<CompositionSegmentListItem> Segments,
     IReadOnlyList<CompositionAudioClipListItem> AudioClips,
     Guid? SelectedSegmentId,
@@ -19,7 +20,16 @@ public sealed record CompositionTimelineState(
     IReadOnlyDictionary<Guid, CompositionTimelineItemCapabilities> Capabilities,
     IReadOnlyList<CompositionTimelineDropDescriptor> EligibleDropItems)
 {
+    /// <summary>Count of occurrence pins with estimated (not exact) timing, derived from immutable items.</summary>
+    public int DegradedOccurrenceCount => Segments.Count(item => item.IsTimingDegraded) +
+                                          AudioClips.Count(item => item.IsTimingDegraded);
+
+    public string? TimingWarningSummary => DegradedOccurrenceCount == 0
+        ? null
+        : $"{DegradedOccurrenceCount} occurrence{(DegradedOccurrenceCount == 1 ? string.Empty : "s")} use estimated timing. Precise editing may require repair or replacement.";
+
     public static CompositionTimelineState Empty { get; } = new(
+        [],
         [],
         [],
         null,
@@ -33,6 +43,30 @@ public sealed record CompositionTimelineState(
         false,
         new Dictionary<Guid, CompositionTimelineItemCapabilities>(),
         []);
+}
+
+public enum CompositionTimelineTrackKind
+{
+    Video,
+    Audio
+}
+
+/// <summary>Presentation state for one persisted, ordered track, including empty tracks.</summary>
+public sealed record CompositionTimelineTrackRow(
+    Guid TrackId,
+    CompositionTimelineTrackKind Kind,
+    int Index,
+    bool IsLocked,
+    bool IsVisibleOrMuted,
+    int ItemCount,
+    string? Name = null)
+{
+    public string DisplayName => string.IsNullOrWhiteSpace(Name)
+        ? $"{(Kind == CompositionTimelineTrackKind.Video ? "Video" : "Audio")} {Index + 1}"
+        : Name;
+    public string StatusText => Kind == CompositionTimelineTrackKind.Video
+        ? (IsVisibleOrMuted ? "Visible" : "Hidden")
+        : (IsVisibleOrMuted ? "Muted" : "Audible");
 }
 
 public sealed record CompositionTimelineItemCapabilities(
@@ -113,11 +147,13 @@ public sealed class CompositionTimelineAudioMoveEventArgs(
 public sealed class CompositionTimelineDropEventArgs(
     Guid assetId,
     CompositionTimelineDropKind kind,
+    Guid targetTrackId,
     double timelineSeconds,
     int insertionIndex) : EventArgs
 {
     public Guid AssetId { get; } = assetId;
     public CompositionTimelineDropKind Kind { get; } = kind;
+    public Guid TargetTrackId { get; } = targetTrackId;
     public double TimelineSeconds { get; } = timelineSeconds;
     public int InsertionIndex { get; } = insertionIndex;
 }
@@ -125,4 +161,32 @@ public sealed class CompositionTimelineDropEventArgs(
 public sealed class CompositionTimelineItemEventArgs(Guid itemId) : EventArgs
 {
     public Guid ItemId { get; } = itemId;
+}
+
+public sealed class CompositionTimelineTrackEventArgs(Guid trackId) : EventArgs
+{
+    public Guid TrackId { get; } = trackId;
+}
+
+public sealed class CompositionTimelineTrackRenameEventArgs(Guid trackId, string currentName) : EventArgs
+{
+    public Guid TrackId { get; } = trackId;
+    public string CurrentName { get; } = currentName;
+}
+
+public sealed class CompositionTimelineTrackReorderEventArgs(Guid trackId, int targetIndex) : EventArgs
+{
+    public Guid TrackId { get; } = trackId;
+    public int TargetIndex { get; } = targetIndex;
+}
+
+public sealed class CompositionTimelineTrackBooleanEventArgs(Guid trackId, bool value) : EventArgs
+{
+    public Guid TrackId { get; } = trackId;
+    public bool Value { get; } = value;
+}
+
+public sealed class CompositionTimelineTrackKindEventArgs(CompositionTimelineTrackKind kind) : EventArgs
+{
+    public CompositionTimelineTrackKind Kind { get; } = kind;
 }

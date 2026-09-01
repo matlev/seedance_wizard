@@ -36,6 +36,9 @@ public partial class GenerationPanel : UserControl
 {
     private ObservableCollection<GenerationReferenceChoice>? _references;
     private GenerationProviderCapabilities? _capabilities;
+    private GenerationMode? _presentedMode;
+    private int _flexibleDurationSeconds = 15;
+    private string _flexibleAspectRatio = "16:9";
     private bool _suppressEvents;
 
     public GenerationPanel() => InitializeComponent();
@@ -126,16 +129,15 @@ public partial class GenerationPanel : UserControl
             ModeComboBox.SelectedItem = capabilities.Modes.Contains(GenerationMode.ReferenceToVideo)
                 ? GenerationMode.ReferenceToVideo
                 : capabilities.Modes[0];
-            DurationSlider.Minimum = capabilities.MinimumDurationSeconds;
-            DurationSlider.Maximum = capabilities.MaximumDurationSeconds;
-            DurationSlider.Value = Math.Clamp(
+            _presentedMode = null;
+            _flexibleDurationSeconds = Math.Clamp(
                 15,
                 capabilities.MinimumDurationSeconds,
                 capabilities.MaximumDurationSeconds);
-            AspectRatioComboBox.ItemsSource = capabilities.AspectRatios;
-            AspectRatioComboBox.SelectedItem = capabilities.AspectRatios.Contains("16:9")
-                ? "16:9"
+            _flexibleAspectRatio = capabilities.AspectRatios.Contains("16:9", StringComparer.OrdinalIgnoreCase)
+                ? capabilities.AspectRatios.First(value => value.Equals("16:9", StringComparison.OrdinalIgnoreCase))
                 : capabilities.AspectRatios[0];
+            AspectRatioComboBox.ItemsSource = capabilities.AspectRatios;
             ResolutionComboBox.ItemsSource = capabilities.Resolutions;
             ResolutionComboBox.SelectedItem = capabilities.Resolutions.Contains("720p")
                 ? "720p"
@@ -160,13 +162,25 @@ public partial class GenerationPanel : UserControl
         WithSuppressedEvents(() =>
         {
             PromptTextBox.Text = state.Prompt;
-            ModeComboBox.SelectedItem = state.Mode;
-            DurationSlider.Value = Math.Clamp(
-                state.DurationSeconds,
-                _capabilities.MinimumDurationSeconds,
-                _capabilities.MaximumDurationSeconds);
-            if (_capabilities.AspectRatios.Contains(state.AspectRatio))
-                AspectRatioComboBox.SelectedItem = state.AspectRatio;
+            var loadedMode = _capabilities.Modes.Contains(state.Mode)
+                ? state.Mode
+                : _capabilities.Modes[0];
+            ModeComboBox.SelectedItem = loadedMode;
+            var requirements = _capabilities.GetModeRequirements(loadedMode);
+            if (requirements?.FixedDurationSeconds is null)
+            {
+                _flexibleDurationSeconds = Math.Clamp(
+                    state.DurationSeconds,
+                    _capabilities.MinimumDurationSeconds,
+                    _capabilities.MaximumDurationSeconds);
+            }
+            if (requirements?.FixedAspectRatio is null &&
+                _capabilities.AspectRatios.Contains(state.AspectRatio, StringComparer.OrdinalIgnoreCase))
+            {
+                _flexibleAspectRatio = _capabilities.AspectRatios.First(value =>
+                    value.Equals(state.AspectRatio, StringComparison.OrdinalIgnoreCase));
+            }
+            _presentedMode = null;
             if (_capabilities.Resolutions.Contains(state.Resolution))
                 ResolutionComboBox.SelectedItem = state.Resolution;
             GenerateAudioCheckBox.IsChecked = state.GenerateAudio;
@@ -203,7 +217,7 @@ public partial class GenerationPanel : UserControl
     private void ModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressEvents) return;
-        UpdateModePresentation();
+        WithSuppressedEvents(UpdateModePresentation);
         OnDraftChanged();
     }
 
@@ -212,30 +226,67 @@ public partial class GenerationPanel : UserControl
         var selectedMode = ModeComboBox.SelectedItem is GenerationMode mode
             ? mode
             : GenerationMode.TextToVideo;
-        ReferenceAssetsGrid.IsEnabled = selectedMode is not GenerationMode.TextToVideo;
-        ReferenceAssetsHelpText.Text = selectedMode is GenerationMode.TextToVideo
-            ? "Text-to-video does not use reference assets. Choose ImageToVideo or ReferenceToVideo to select and describe references."
-            : "Select project assets to use as references. Role, order, label, and notes are frozen into history.";
         if (_capabilities is null) return;
-        if (selectedMode is GenerationMode.ImageToVideo && _capabilities.AspectRatios.Contains("adaptive"))
+
+        if (_presentedMode is { } previousMode)
         {
-            AspectRatioComboBox.SelectedItem = "adaptive";
+            var previousRequirements = _capabilities.GetModeRequirements(previousMode);
+            if (previousRequirements?.FixedDurationSeconds is null)
+                _flexibleDurationSeconds = (int)DurationSlider.Value;
+            if (previousRequirements?.FixedAspectRatio is null &&
+                AspectRatioComboBox.SelectedItem is string previousRatio)
+                _flexibleAspectRatio = previousRatio;
         }
-        else if (selectedMode is GenerationMode.TextToVideo &&
-                 string.Equals(AspectRatioComboBox.SelectedItem as string, "adaptive", StringComparison.OrdinalIgnoreCase))
+
+        var policy = GenerationModePresentationPolicy.Create(
+            _capabilities,
+            selectedMode,
+            _flexibleDurationSeconds,
+            _flexibleAspectRatio);
+        ReferenceAssetsGrid.IsEnabled = policy.ReferencesEnabled;
+        ReferenceAssetsHelpText.Text = policy.ReferenceHelpText;
+
+        if (policy.DurationIsLocked)
         {
-            AspectRatioComboBox.SelectedItem = _capabilities.AspectRatios.Contains("16:9")
-                ? "16:9"
-                : _capabilities.AspectRatios.FirstOrDefault(ratio =>
-                    !string.Equals(ratio, "adaptive", StringComparison.OrdinalIgnoreCase));
+            DurationSlider.Minimum = policy.DurationSeconds;
+            DurationSlider.Maximum = policy.DurationSeconds;
         }
+        else
+        {
+            // Raise Maximum before Minimum when leaving the -1 source-duration sentinel.
+            DurationSlider.Maximum = _capabilities.MaximumDurationSeconds;
+            DurationSlider.Minimum = _capabilities.MinimumDurationSeconds;
+        }
+        DurationSlider.Value = policy.DurationSeconds;
+        DurationSlider.IsEnabled = !policy.DurationIsLocked;
+        DurationText.Text = policy.DurationIsLocked ? "Source (-1)" : $"{policy.DurationSeconds}s";
+
+        AspectRatioComboBox.SelectedItem = policy.AspectRatio;
+        AspectRatioComboBox.IsEnabled = !policy.AspectRatioIsLocked;
+        _presentedMode = selectedMode;
     }
 
-    private void DraftControl_Changed(object sender, EventArgs e) => OnDraftChanged();
+    private void DraftControl_Changed(object sender, EventArgs e)
+    {
+        if (_capabilities is not null && _presentedMode is { } mode)
+        {
+            var requirements = _capabilities.GetModeRequirements(mode);
+            if (requirements?.FixedAspectRatio is null && AspectRatioComboBox.SelectedItem is string ratio)
+                _flexibleAspectRatio = ratio;
+        }
+
+        OnDraftChanged();
+    }
 
     private void DurationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (DurationText is not null) DurationText.Text = $"{(int)e.NewValue}s";
+        if (DurationText is not null)
+        {
+            var isLocked = _capabilities is not null &&
+                           _presentedMode is { } mode &&
+                           _capabilities.GetModeRequirements(mode)?.FixedDurationSeconds is not null;
+            DurationText.Text = isLocked ? "Source (-1)" : $"{(int)e.NewValue}s";
+        }
         OnDraftChanged();
     }
 
@@ -257,6 +308,11 @@ public partial class GenerationPanel : UserControl
         if (ReferenceAssetsGrid.SelectedItem is not GenerationReferenceChoice selected)
         {
             Status = "Select a reference row to add another occurrence.";
+            return;
+        }
+        if (!selected.CanCreateAdditionalOccurrence)
+        {
+            Status = "A deleted project asset can remain in this draft, but cannot be added again.";
             return;
         }
         var duplicate = selected.Duplicate(_references.Count);

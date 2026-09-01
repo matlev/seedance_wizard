@@ -1,0 +1,27 @@
+<Window x:Class="ReelForge.App.Views.Dialogs.TrackNameDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rename track" Width="460" SizeToContent="Height"
+        ResizeMode="NoResize" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBrush}" Foreground="{StaticResource TextBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="HeadingText" Style="{StaticResource ApplicationTextBlockStyle}" FontSize="16" />
+        <TextBlock Grid.Row="1" Text="Change the label shown in the timeline. Track identity and contents stay unchanged."
+                   TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,12" />
+        <TextBox x:Name="TrackNameTextBox" Grid.Row="2" />
+        <TextBlock x:Name="ValidationText" Grid.Row="3" Foreground="{StaticResource DangerBrush}" Margin="0,8,0,0"
+                   Visibility="Collapsed" />
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Cancel" IsCancel="True" />
+            <Button Content="Rename" IsDefault="True" Background="{StaticResource AccentBrush}" Foreground="White"
+                    Click="Rename_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

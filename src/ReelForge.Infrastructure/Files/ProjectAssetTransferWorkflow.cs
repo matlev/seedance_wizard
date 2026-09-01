@@ -66,7 +66,7 @@ public sealed class ProjectAssetTransferWorkflow
         }
 
         // A failure here deliberately does not roll back the durable target copy.
-        await _physicalAssetRemovalService.RemoveAsync(_workspace, source.Asset.Id, cancellationToken)
+        await _physicalAssetRemovalService.RemoveAsync(_workspace, source.Asset.Id, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         return new ProjectAssetMoveResult(copyResult, sourceRemoved: true, dependencyReport);
     }

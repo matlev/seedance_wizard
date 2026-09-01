@@ -9,6 +9,18 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"ReelForge-promotion-{Guid.NewGuid():N}");
 
     [Fact]
+    public async Task CompositionPromotionRefusesUntilMilestone6TrackAwareRendererExists()
+    {
+        var (workspace, composition, revision, _) = await CreateCompositionAsync();
+        var service = new RenderedAssetPromotionService(workspace, new ThrowingMaterializer(), new Sha256ContentHashService(), new StubInspector());
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            service.SaveAsAssetAsync(composition.Id, revision.Id, "finished.mp4"));
+
+        Assert.Contains("track-aware renderer planned for Milestone 6", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SaveAsAssetCopiesRenderedRevisionAndPersistsProvenance()
     {
         var (workspace, composition, revision, renderedPath) = await CreateCompositionAsync();
@@ -97,6 +109,77 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportUsesExactMaterializationBeforeConsideringCachedRepresentation()
+    {
+        var (workspace, composition, revision, renderedPath) = await CreateCompositionAsync();
+        var materializer = new FailingOrCachedMaterializer(renderedPath, failExactMaterialization: false);
+        var service = new RenderedAssetPromotionService(
+            workspace,
+            materializer,
+            new Sha256ContentHashService(),
+            new StubInspector());
+        var destination = Path.Combine(_root, "delivery", "exact.mp4");
+
+        await service.ExportAsync(composition.Id, revision.Id, destination);
+
+        Assert.Equal(1, materializer.MaterializeCallCount);
+        Assert.Equal(0, materializer.OpenCachedCallCount);
+        Assert.Equal(await File.ReadAllBytesAsync(renderedPath), await File.ReadAllBytesAsync(destination));
+    }
+
+    [Fact]
+    public async Task DegradedExportCopiesIndexedCachedRepresentationWithoutMutatingProjectOrCache()
+    {
+        var (workspace, composition, revision, _) = await CreateCompositionAsync();
+        var source = workspace.Project!.Assets.Single(asset => asset.StorageKind == AssetStorageKind.Physical);
+        source.IsDeleted = true;
+        source.Physical!.Availability = PhysicalAssetAvailability.Missing;
+        var cachePath = Path.Combine(_root, "cache", "rescued.mp4");
+        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+        await File.WriteAllBytesAsync(cachePath, [7, 8, 9]);
+        var originalTimestamp = File.GetLastWriteTimeUtc(cachePath);
+        var originalAssetCount = workspace.Project.Assets.Count;
+        var materializer = new FailingOrCachedMaterializer(cachePath, failExactMaterialization: true);
+        var service = new RenderedAssetPromotionService(
+            workspace,
+            materializer,
+            new Sha256ContentHashService(),
+            new StubInspector());
+        var destination = Path.Combine(_root, "delivery", "rescued.mp4");
+
+        await service.ExportAsync(composition.Id, revision.Id, destination);
+
+        Assert.Equal([7, 8, 9], await File.ReadAllBytesAsync(destination));
+        Assert.Equal(1, materializer.MaterializeCallCount);
+        Assert.Equal(1, materializer.OpenCachedCallCount);
+        Assert.Equal(originalAssetCount, workspace.Project.Assets.Count);
+        Assert.Equal(originalTimestamp, File.GetLastWriteTimeUtc(cachePath));
+    }
+
+    [Fact]
+    public async Task DegradedExportPreservesExactFailureWhenCachedRepresentationIsStale()
+    {
+        var (workspace, composition, revision, _) = await CreateCompositionAsync();
+        var source = workspace.Project!.Assets.Single(asset => asset.StorageKind == AssetStorageKind.Physical);
+        source.IsDeleted = true;
+        source.Physical!.Availability = PhysicalAssetAvailability.Missing;
+        var materializer = new FailingOrCachedMaterializer(null, failExactMaterialization: true);
+        var service = new RenderedAssetPromotionService(
+            workspace,
+            materializer,
+            new Sha256ContentHashService(),
+            new StubInspector());
+        var destination = Path.Combine(_root, "delivery", "stale.mp4");
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ExportAsync(composition.Id, revision.Id, destination));
+
+        Assert.Equal("Exact materialization failed.", failure.Message);
+        Assert.Equal(1, materializer.OpenCachedCallCount);
+        Assert.False(File.Exists(destination));
+    }
+
+    [Fact]
     public async Task ExportCancellationReachesMaterializerAndLeavesNoDestination()
     {
         var (workspace, composition, revision, _) = await CreateCompositionAsync();
@@ -172,7 +255,8 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
                     Sha256 = new string('a', 64),
                     Status = ContentHashStatus.Verified
                 }
-            }
+            },
+            Encoding = new MediaEncodingMetadata { Video = new VideoStreamMetadata { StreamIndex = 0 } }
         };
         var composition = new ProjectAsset
         {
@@ -186,7 +270,27 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
         workspace.Project.AddAsset(composition);
         var revision = workspace.Project.CommitRecipe(composition.Id, new CompositionRecipe
         {
-            Segments = [new CompositionSegment { Source = new AssetRevisionReference { AssetId = source.Id } }]
+            Composition = new WorkingCompositionState(
+                [new CompositionVideoTrack(Guid.NewGuid(), false, true,
+                [
+                    new CompositionVideoItem(
+                        Guid.NewGuid(),
+                        new AssetRevisionReference { AssetId = source.Id },
+                        0,
+                        new VideoSourceRange(new VideoPresentationTime(0, 1, 30), new VideoPresentationTime(30, 1, 30)),
+                        new StreamTimingAssessment(
+                            Guid.NewGuid(),
+                            source.Physical.ContentIdentity.Sha256!,
+                            MediaType.Video,
+                            0,
+                            TimingReadiness.Exact,
+                            true,
+                            new ExactTime(1, 1),
+                            [],
+                            new ExactTime(0, 1)).CreatePlacementPin(),
+                        new ExactTime(0, 1))
+                ])],
+                [new CompositionAudioTrack(Guid.NewGuid(), false, false, [])])
         });
         workspace.Project.WorkingCompositionAssetId = composition.Id;
         await workspace.SaveAsync();
@@ -198,6 +302,17 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+    }
+
+    private sealed class ThrowingMaterializer : IMediaMaterializer
+    {
+        public Task<MaterializedMediaLease> MaterializeAsync(
+            VideoProject project,
+            ProjectLocation location,
+            MaterializationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<MaterializedMediaLease>(
+                new InvalidDataException("Composition requires track-aware renderer planned for Milestone 6."));
     }
 
     private sealed class StubMaterializer(string path) : IMediaMaterializer
@@ -232,6 +347,49 @@ public sealed class RenderedAssetPromotionServiceTests : IDisposable
             Started.TrySetResult();
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("The blocking materializer should only finish through cancellation.");
+        }
+    }
+
+    private sealed class FailingOrCachedMaterializer(string? cachedPath, bool failExactMaterialization)
+        : IMediaMaterializer, IProjectMediaCacheLeaseSource
+    {
+        public int MaterializeCallCount { get; private set; }
+        public int OpenCachedCallCount { get; private set; }
+
+        public Task<MaterializedMediaLease> MaterializeAsync(
+            VideoProject project,
+            ProjectLocation location,
+            MaterializationRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            MaterializeCallCount++;
+            if (failExactMaterialization) throw new InvalidOperationException("Exact materialization failed.");
+            return Task.FromResult(new MaterializedMediaLease(
+                cachedPath!,
+                new ContentIdentity { Sha256 = new string('b', 64), Status = ContentHashStatus.Verified },
+                null,
+                isDurableSource: false));
+        }
+
+        public Task<bool> HasCachedRepresentationAsync(
+            VideoProject project,
+            MaterializationTarget target,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(cachedPath is not null && File.Exists(cachedPath));
+
+        public Task<MaterializedMediaLease?> OpenCachedRepresentationAsync(
+            VideoProject project,
+            MaterializationTarget target,
+            CancellationToken cancellationToken = default)
+        {
+            OpenCachedCallCount++;
+            if (cachedPath is null || !File.Exists(cachedPath))
+                return Task.FromResult<MaterializedMediaLease?>(null);
+            return Task.FromResult<MaterializedMediaLease?>(new MaterializedMediaLease(
+                cachedPath,
+                new ContentIdentity { Sha256 = new string('b', 64), Status = ContentHashStatus.Verified },
+                null,
+                isDurableSource: false));
         }
     }
 

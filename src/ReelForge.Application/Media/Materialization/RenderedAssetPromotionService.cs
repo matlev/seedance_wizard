@@ -8,17 +8,20 @@ public sealed class RenderedAssetPromotionService
     private readonly IMediaMaterializer _materializer;
     private readonly IContentHashService _contentHashService;
     private readonly IMediaInspectionService _mediaInspector;
+    private readonly ProjectDegradationAnalyzer _degradationAnalyzer;
 
     public RenderedAssetPromotionService(
         ProjectWorkspace workspace,
         IMediaMaterializer materializer,
         IContentHashService contentHashService,
-        IMediaInspectionService mediaInspector)
+        IMediaInspectionService mediaInspector,
+        ProjectDegradationAnalyzer? degradationAnalyzer = null)
     {
         _workspace = workspace;
         _materializer = materializer;
         _contentHashService = contentHashService;
         _mediaInspector = mediaInspector;
+        _degradationAnalyzer = degradationAnalyzer ?? new ProjectDegradationAnalyzer();
     }
 
     public async Task<ProjectAsset> SaveAsAssetAsync(
@@ -155,19 +158,46 @@ public sealed class RenderedAssetPromotionService
             fullDestinationPath,
             "export",
             requiredExtension);
-        await using (var rendered = await _materializer.MaterializeAsync(
-                         project,
-                         location,
-                         new MaterializationRequest(
-                             target,
-                             MaterializationPurpose.FinalExport,
-                             MaterializationRetentionPreference.NormalCache),
-                         cancellationToken).ConfigureAwait(false))
+        MaterializedMediaLease rendered;
+        try
+        {
+            rendered = await _materializer.MaterializeAsync(
+                    project,
+                    location,
+                    new MaterializationRequest(
+                        target,
+                        MaterializationPurpose.FinalExport,
+                        MaterializationRetentionPreference.NormalCache),
+                    cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException &&
+                                          IsDegradedTarget(project, target) &&
+                                          _materializer is IProjectMediaCacheLeaseSource)
+        {
+            var cached = await ((IProjectMediaCacheLeaseSource)_materializer)
+                .OpenCachedRepresentationAsync(project, target, cancellationToken)
+                .ConfigureAwait(false);
+            if (cached is null) throw;
+            rendered = cached;
+        }
+
+        await using (rendered)
         {
             await CopyAsync(rendered.Path, fileCommit.TemporaryPath, cancellationToken).ConfigureAwait(false);
         }
         fileCommit.Commit(overwrite: true);
         return fullDestinationPath;
+    }
+
+    private bool IsDegradedTarget(VideoProject project, MaterializationTarget target)
+    {
+        var report = _degradationAnalyzer.Analyze(project);
+        return target switch
+        {
+            AssetMaterializationTarget asset => report.IsDegradedAsset(asset.AssetId),
+            AnchorMaterializationTarget anchor => report.IsDegradedAnchor(anchor.AnchorId),
+            _ => false
+        };
     }
 
     public async Task<ProjectAsset> SaveFrameAsAssetAsync(

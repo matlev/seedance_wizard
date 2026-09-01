@@ -95,6 +95,10 @@ public sealed class PhysicalAssetMaterializer : IMediaMaterializer
         string? expectedHash,
         CancellationToken cancellationToken)
     {
+        if (asset.IsDeleted)
+            throw new InvalidOperationException(
+                $"'{asset.EffectiveDisplayName}' was deleted from the project and cannot be materialized.");
+
         if (asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null)
             throw new InvalidOperationException("Materialization requires a durable physical source asset.");
 
@@ -114,7 +118,9 @@ public sealed class PhysicalAssetMaterializer : IMediaMaterializer
                 .ConfigureAwait(false);
             if (!verification.MatchesExpected)
             {
-                asset.Physical.ContentIdentity.Status = ContentHashStatus.Mismatch;
+                // Keep the recorded verified identity intact. The observed mismatching bytes
+                // are not a replacement identity and may only be imported as new media.
+                asset.Physical.Availability = PhysicalAssetAvailability.Mismatched;
                 throw new InvalidDataException(
                     $"'{asset.EffectiveDisplayName}' has changed since ingestion. Re-import or explicitly replace it before generation.");
             }

@@ -1,0 +1,46 @@
+<Window x:Class="ReelForge.App.Views.Dialogs.AudioPlacementTrackDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Choose audio track" Width="430" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource WindowBrush}" Foreground="{StaticResource TextBrush}">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="Choose an audio track" FontSize="18" FontWeight="Bold"
+                       Foreground="{StaticResource TextBrush}" />
+            <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
+                       Foreground="{StaticResource MutedTextBrush}"
+                       Text="This video has a selected audio stream. Choose the track that should receive its linked audio occurrence." />
+        </StackPanel>
+        <ComboBox x:Name="TrackPicker" Grid.Row="1" Margin="0,15,0,18" MinHeight="32"
+                  Background="{StaticResource PanelRaisedBrush}" Foreground="{StaticResource TextBrush}"
+                  DisplayMemberPath="DisplayName" SelectedIndex="0">
+            <ComboBox.ItemContainerStyle>
+                <Style TargetType="ComboBoxItem">
+                    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                    <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+                    <Setter Property="Padding" Value="8,5" />
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </ComboBox.ItemContainerStyle>
+        </ComboBox>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Choose track" MinWidth="110" Padding="12,6" IsDefault="True"
+                    Background="{StaticResource AccentBrush}" Foreground="White" Click="Confirm_Click" />
+            <Button Content="Cancel" MinWidth="90" Padding="12,6" Margin="8,0,0,0" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

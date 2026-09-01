@@ -242,6 +242,14 @@ public sealed class AudioExtractionServiceTests : IDisposable
             CallCount++;
             await File.WriteAllBytesAsync(outputPath, [4, 5, 6, 7], cancellationToken);
         }
+
+        public Task ExtractExactRangeToM4aAsync(
+            string inputPath,
+            string outputPath,
+            int audioStreamIndex,
+            AudioSourceRange sourceRange,
+            CancellationToken cancellationToken = default) =>
+            ExtractToM4aAsync(inputPath, outputPath, cancellationToken);
     }
 
     private sealed class OutputInspector : IMediaInspectionService

@@ -19,6 +19,7 @@ using ReelForge.App.Views.ProjectMedia;
 using ReelForge.App.Views.Projects;
 using ReelForge.App.Views.Settings;
 using ReelForge.Application;
+using ReelForge.Application.Editing.Composition;
 using ReelForge.Core;
 using ReelForge.Infrastructure;
 
@@ -38,6 +39,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly PhysicalAssetSelectionPreparationService _physicalAssetSelectionPreparationService;
     private readonly ExactVideoFrameService _exactFrameService;
     private readonly RecipeMediaMaterializer _mediaMaterializer;
+    private readonly IProjectMediaCacheProbe _projectMediaCacheProbe;
     private readonly FfmpegAudioExtractionEngine _audioExtractionEngine;
     private readonly ISecretStore _secretStore;
     private readonly FileApplicationDiagnosticLog _diagnosticLog;
@@ -45,6 +47,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly IApplicationSettingsStore _applicationSettingsStore;
     private readonly ProjectLifecycleDialogs _projectDialogs;
     private readonly ProjectLifecycleCoordinator _projectLifecycleCoordinator;
+    private readonly ProjectCloneCoordinator _projectCloneCoordinator;
     private readonly ITemporaryAssetHost _temporaryAssetHost;
     private ApplicationSettings _applicationSettings;
     private MediaToolAvailability _mediaTools;
@@ -74,21 +77,34 @@ public partial class MainWindow : Window, IDisposable
         _mediaInspector = _runtime.MediaInspector;
         _exactFrameService = _runtime.ExactFrameService;
         _mediaMaterializer = _runtime.MediaMaterializer;
+        _projectMediaCacheProbe = _runtime.MediaMaterializer;
         _audioExtractionEngine = _runtime.AudioExtractionEngine;
         _projectStore = _runtime.ProjectStore;
         _workspace = _runtime.Workspace;
+        _physicalAssetSelectionPreparationService = new PhysicalAssetSelectionPreparationService(_workspace, _mediaInspector);
         _projectLifecycleCoordinator = new ProjectLifecycleCoordinator(
             _workspace,
             _runtime.RecentProjectTracker,
             _projectDialogs,
             _applicationSettingsStore,
             () => _applicationSettings,
+            _physicalAssetSelectionPreparationService,
             new ProjectLifecyclePresentation(this));
+        _projectCloneCoordinator = new ProjectCloneCoordinator(
+            this,
+            _workspace,
+            _runtime.ProjectCloneService,
+            _runtime.RecentProjectTracker,
+            () => _applicationSettings,
+            _runtime.Paths,
+            status => StatusText.Text = status);
         _projectMediaOperationsCoordinator = new ProjectMediaOperationsCoordinator(
             _workspace,
             _runtime.RenderedAssetPromotionService,
             _runtime.AudioExtractionService,
             _runtime.ProjectAssetDependencyAnalyzer,
+            _runtime.PhysicalAssetRelinkService,
+            _runtime.DeletedPhysicalAssetRestorationService,
             _runtime.PhysicalAssetRemovalService,
             _runtime.ProjectAssetTransferWorkflow,
             _runtime.MaterializedProjectMediaTransferService);
@@ -98,7 +114,6 @@ public partial class MainWindow : Window, IDisposable
         _mediaImportCoordinator = new MediaImportCoordinator(
             _projectMediaOperationsCoordinator,
             new MediaImportPresentation(this));
-        _physicalAssetSelectionPreparationService = new PhysicalAssetSelectionPreparationService(_workspace, _mediaInspector);
         _mediaPreviewCoordinator = new MediaPreviewCoordinator(
             _workspace, _mediaMaterializer, _exactFrameService, MediaPreviewPanelControl,
             CompositionTimelineControl, new MediaPreviewCoordinatorHost(this));
@@ -124,7 +139,9 @@ public partial class MainWindow : Window, IDisposable
             _mediaMaterializer,
             _exactFrameService,
             _audioExtractionEngine,
-            _mediaInspector);
+            _mediaInspector,
+            _runtime.StreamTimingAssessmentService,
+            _runtime.ContentHashService);
         _compositionRenderCoordinator = new CompositionRenderCoordinator(
             _workspace,
             _mediaMaterializer,
@@ -148,7 +165,7 @@ public partial class MainWindow : Window, IDisposable
             _referenceChoices);
         _generationWorkspace.ReferenceSelectionRequested += GenerationWorkspace_ReferenceSelectionRequested;
         _generationContinuation = new GenerationContinuationCoordinator(
-            _workspace, _projectStore, _exactFrameService, _mediaMaterializer,
+            _workspace, _exactFrameService, _mediaMaterializer,
             new GenerationContinuationPresentation(this),
             draft => _generationWorkspace.LoadDraft(draft),
             () => _generationWorkspace.ProviderChoices,
@@ -177,6 +194,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _projectCloneCoordinator.CancelActiveClone();
         CancelProjectMediaSelectionWork();
         _generationSubmission.Dispose();
         _generationWorkspace.ReferenceSelectionRequested -= GenerationWorkspace_ReferenceSelectionRequested;
@@ -225,6 +243,7 @@ public partial class MainWindow : Window, IDisposable
         {
             await JobsPanelControl.HideJobsAsync();
             JobsChromeControl.SetJobsOpen(false);
+            JobsMenuItem.IsChecked = false;
         }
         _activeWorkspace = EditWorkspaceButton.IsChecked == true
             ? ProjectWorkspaceKind.Edit
@@ -238,6 +257,8 @@ public partial class MainWindow : Window, IDisposable
     {
         if (GenerateLowerWorkspace is null) return;
         var isGenerate = _activeWorkspace == ProjectWorkspaceKind.Generate;
+        GenerateWorkspaceMenuItem.IsChecked = isGenerate;
+        EditWorkspaceMenuItem.IsChecked = !isGenerate;
         GenerateLowerWorkspace.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
         EditLowerWorkspace.Visibility = isGenerate ? Visibility.Collapsed : Visibility.Visible;
         GenerationHistoryPanelControl.Visibility = isGenerate ? Visibility.Visible : Visibility.Collapsed;
@@ -260,22 +281,6 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void JobsChromeControl_OpenRequested(object? sender, EventArgs e)
-    {
-        if (JobsPanelControl.IsOpen)
-        {
-            await JobsPanelControl.HideJobsAsync();
-            JobsChromeControl.SetJobsOpen(false);
-            return;
-        }
-
-        JobsPanelControl.ShowJobs();
-        JobsChromeControl.SetJobsOpen(true);
-    }
-
-    private void JobsPanelControl_Closed(object? sender, EventArgs e) =>
-        JobsChromeControl.SetJobsOpen(false);
-
     private void JobsPanelControl_ErrorOccurred(object? sender, GenerationJobsPanelErrorEventArgs e) =>
         StatusText.Text = e.Message;
 
@@ -288,7 +293,16 @@ public partial class MainWindow : Window, IDisposable
             _secretStore,
             _mediaToolDiscovery,
             _temporaryAssetHost,
-            _diagnosticLog)
+            _diagnosticLog,
+            new ProjectSettingsActions(
+                new ProjectSettingsActionsHost(this),
+                _workspace,
+                _runtime.ProjectRelocationService,
+                _runtime.ProjectCleanupService,
+                _physicalAssetSelectionPreparationService,
+                _runtime.RecentProjectTracker,
+                () => _applicationSettings,
+                _jobCoordinator.GetSnapshot))
         {
             Owner = this
         };
@@ -304,7 +318,8 @@ public partial class MainWindow : Window, IDisposable
         {
             _generationWorkspace.LoadDraft(activeDraft);
         }
-        StatusText.Text = "Application settings and provider availability applied.";
+        if (!window.ProjectActionExecuted)
+            StatusText.Text = "Application settings and provider availability applied.";
     }
 
     private void GenerationWorkspace_ReferenceSelectionRequested(
@@ -325,6 +340,11 @@ public partial class MainWindow : Window, IDisposable
     private async void OpenProject_Click(object sender, RoutedEventArgs e)
     {
         await _projectLifecycleCoordinator.OpenProjectFromDialogAsync();
+    }
+
+    private async void CloneProject_Click(object sender, RoutedEventArgs e)
+    {
+        await _projectCloneCoordinator.CloneFromDialogAsync();
     }
 
     private async void ImportAssets_Click(object sender, RoutedEventArgs e)
@@ -476,12 +496,26 @@ public partial class MainWindow : Window, IDisposable
                     !selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem))
                     return;
 
-                if (resolution.Kind == PhysicalAssetSelectionPreparationKind.Missing)
+                RefreshProjectMediaDegradationIndicators();
+
+                if (resolution.Kind is PhysicalAssetSelectionPreparationKind.Missing or
+                    PhysicalAssetSelectionPreparationKind.Inaccessible or
+                    PhysicalAssetSelectionPreparationKind.Mismatched)
                 {
                     InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
                     ShowAssetPreview(asset);
-                    MediaPreparationPanelControl.SetWorkspaceStatus("Source media is missing");
-                    StatusText.Text = $"{asset.FileName} is missing from its recorded project location.";
+                    var (workspaceStatus, status) = resolution.Kind switch
+                    {
+                        PhysicalAssetSelectionPreparationKind.Missing =>
+                            ("Source media is missing", $"{asset.FileName} is missing from its recorded project location."),
+                        PhysicalAssetSelectionPreparationKind.Inaccessible =>
+                            ("Source media is inaccessible", $"{asset.FileName} cannot be accessed at its recorded project location."),
+                        PhysicalAssetSelectionPreparationKind.Mismatched =>
+                            ("Source media does not match", $"{asset.FileName} no longer matches its recorded SHA-256 identity."),
+                        _ => throw new InvalidOperationException("Unknown physical asset selection result.")
+                    };
+                    MediaPreparationPanelControl.SetWorkspaceStatus(workspaceStatus);
+                    StatusText.Text = status;
                     return;
                 }
 
@@ -498,12 +532,12 @@ public partial class MainWindow : Window, IDisposable
         {
             StorageKind: AssetStorageKind.Physical,
             MediaType: MediaType.Video,
-            Physical.Availability: not PhysicalAssetAvailability.Missing
+            Physical.Availability: PhysicalAssetAvailability.Available
         };
         MediaPreparationPanelControl.ConfigureSelection(asset.EffectiveDisplayName, canPrepare);
         StartEditButton.IsEnabled = _workspace.Project?.WorkingCompositionAssetId is null &&
                                     asset.MediaType == MediaType.Video &&
-                                    (asset.StorageKind == AssetStorageKind.Physical ||
+                                    (asset is { StorageKind: AssetStorageKind.Physical, Physical.Availability: PhysicalAssetAvailability.Available } ||
                                      asset.Virtual?.Kind == VirtualAssetKind.SavedClip);
         UpdateCompositionActionState();
     }
@@ -538,10 +572,13 @@ public partial class MainWindow : Window, IDisposable
             candidate.Id == composition.Virtual!.CurrentRecipeRevisionId);
         _mediaPreviewCoordinator.ClearStaleCompositionPreviewIfNeeded(composition, revision);
         var recipe = (CompositionRecipe)revision.Recipe;
+        var videoItemCount = recipe.Composition.VideoTracks.Sum(track => track.Items.Count);
+        var audioItemCount = recipe.Composition.AudioTracks.Sum(track => track.Items.Count);
         WorkingCompositionSummaryText.Text =
-            $"{recipe.Segments.Count} video segment{(recipe.Segments.Count == 1 ? string.Empty : "s")} • " +
-            $"{recipe.AudioClips.Count} audio clip{(recipe.AudioClips.Count == 1 ? string.Empty : "s")} • " +
-            $"exact, revision-pinned sources • recipe revision {revision.RevisionNumber}";
+            $"{recipe.Composition.VideoTracks.Count} video track{(recipe.Composition.VideoTracks.Count == 1 ? string.Empty : "s")} • " +
+            $"{videoItemCount} video item{(videoItemCount == 1 ? string.Empty : "s")} • " +
+            $"{audioItemCount} audio item{(audioItemCount == 1 ? string.Empty : "s")} • " +
+            $"revision-pinned sources • recipe revision {revision.RevisionNumber}";
         _compositionWorkspace.Refresh();
         UpdateCompositionActionState();
         if (_mediaPreviewCoordinator.AuditionRecipeRevisionId is { } draftRevisionId && draftRevisionId != revision.Id &&
@@ -663,6 +700,16 @@ public partial class MainWindow : Window, IDisposable
         await _projectMediaCommandCoordinator.HandleAsync(e.Action, ProjectMediaPanelControl.SelectedItem);
     }
 
+    private async void MediaPreviewPanel_MissingMediaRelinkRequested(object? sender, EventArgs e)
+    {
+        await _projectMediaCommandCoordinator.HandleAsync(ProjectMediaAction.Relink, ProjectMediaPanelControl.SelectedItem);
+    }
+
+    private async void MediaPreviewPanel_MissingMediaDeleteRequested(object? sender, EventArgs e)
+    {
+        await _projectMediaCommandCoordinator.HandleAsync(ProjectMediaAction.Delete, ProjectMediaPanelControl.SelectedItem);
+    }
+
     private void ProjectMediaPanel_DragCompleted(object? sender, EventArgs e) =>
         CompositionTimelineControl.CancelExternalDrag();
 
@@ -672,6 +719,25 @@ public partial class MainWindow : Window, IDisposable
         if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
         var item = selection.Item;
         if (item.Anchor is not { } anchor || item.AnchorRevision is not { } revision) return;
+        var hasCachedRepresentation = item.IsDegradedDerivedAsset && await TryProbeCachedRepresentationAsync(
+            selection.Project,
+            new AnchorMaterializationTarget(anchor.Id, revision.Id),
+            selection.CancellationToken).ConfigureAwait(true);
+        if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
+        if (item.IsDegradedDerivedAsset)
+        {
+            const string detail = "The source media required by this Saved Frame is unavailable.";
+            _mediaPreviewCoordinator.Clear();
+            MediaPreviewPanelControl.ShowPlaceholder(BuildUnavailablePreviewMessage(
+                "Saved Frame",
+                new InvalidOperationException(detail),
+                isDegraded: true,
+                hasCachedRepresentation));
+            InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
+                new SavedFrameListItem(anchor, revision, thumbnail: null, detail));
+            StatusText.Text = $"Could not display {item.DisplayName}.";
+            return;
+        }
 
         await RunProjectMediaSelectionActionAsync(selection, $"Loading {item.DisplayName}…", async cancellationToken =>
         {
@@ -707,7 +773,11 @@ public partial class MainWindow : Window, IDisposable
             {
                 if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
                 _mediaPreviewCoordinator.Clear();
-                MediaPreviewPanelControl.ShowPlaceholder($"Saved Frame preview unavailable\n\n{exception.Message}");
+                MediaPreviewPanelControl.ShowPlaceholder(BuildUnavailablePreviewMessage(
+                    "Saved Frame",
+                    exception,
+                    item.IsDegradedDerivedAsset,
+                    hasCachedRepresentation));
                 InspectorPanelControl.Text = InspectorTextFormatter.FormatSavedFrame(
                     new SavedFrameListItem(anchor, revision, thumbnail: null, exception.Message));
                 StatusText.Text = $"Could not display {item.DisplayName}.";
@@ -735,10 +805,11 @@ public partial class MainWindow : Window, IDisposable
 
     private void SetProjectActionsEnabled(bool isEnabled)
     {
-        NewProjectButton.IsEnabled = isEnabled;
-        OpenProjectButton.IsEnabled = isEnabled;
-        ImportAssetsButton.IsEnabled = isEnabled;
-        SettingsButton.IsEnabled = isEnabled;
+        NewProjectMenuItem.IsEnabled = isEnabled;
+        OpenProjectMenuItem.IsEnabled = isEnabled;
+        CloneProjectMenuItem.IsEnabled = isEnabled;
+        ImportAssetsMenuItem.IsEnabled = isEnabled;
+        SettingsMenuItem.IsEnabled = isEnabled;
         GenerationPanelControl.IsProviderEnabled = isEnabled;
     }
 
@@ -797,8 +868,7 @@ public partial class MainWindow : Window, IDisposable
         var absolutePath = _workspace.GetAbsoluteAssetPath(asset);
         if (!File.Exists(absolutePath))
         {
-            MediaPreviewPanelControl.ShowPlaceholder(
-                $"Missing media file\n{asset.FileName}\n\nMoving a file in Explorer does not add it to another project's .rfp file.");
+            MediaPreviewPanelControl.ShowMissingMedia(asset.FileName);
             return;
         }
         if (asset.MediaType == MediaType.Image)
@@ -822,7 +892,7 @@ public partial class MainWindow : Window, IDisposable
     {
         if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
         var selectedItem = selection.Item;
-        if (asset.Virtual?.Kind == VirtualAssetKind.Composition)
+        if (asset.Virtual?.Kind == VirtualAssetKind.Composition && !selectedItem.IsDegradedDerivedAsset)
         {
             InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
             var revision = selection.Project.RecipeRevisions.Single(candidate => candidate.Id == asset.Virtual.CurrentRecipeRevisionId);
@@ -844,6 +914,24 @@ public partial class MainWindow : Window, IDisposable
         var kindName = asset.Virtual?.Kind == VirtualAssetKind.Composition
             ? "Working Composition"
             : "Saved Clip";
+        var hasCachedRepresentation = selectedItem.IsDegradedDerivedAsset && await TryProbeCachedRepresentationAsync(
+            selection.Project,
+            new AssetMaterializationTarget(asset.Id, asset.Virtual?.CurrentRecipeRevisionId),
+            selection.CancellationToken).ConfigureAwait(true);
+        if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
+        if (selectedItem.IsDegradedDerivedAsset)
+        {
+            const string detail = "The source media required by this item is unavailable.";
+            InspectorPanelControl.Text = InspectorTextFormatter.FormatAsset(asset);
+            _mediaPreviewCoordinator.Clear();
+            MediaPreviewPanelControl.ShowPlaceholder(BuildUnavailablePreviewMessage(
+                kindName,
+                new InvalidOperationException(detail),
+                isDegraded: true,
+                hasCachedRepresentation));
+            StatusText.Text = $"Could not prepare {asset.EffectiveDisplayName}.";
+            return;
+        }
         await RunProjectMediaSelectionActionAsync(selection, $"Preparing {asset.EffectiveDisplayName}…", async cancellationToken =>
         {
             MaterializedMediaLease? lease = null;
@@ -879,7 +967,11 @@ public partial class MainWindow : Window, IDisposable
             {
                 if (!selection.IsCurrent(_workspace, ProjectMediaPanelControl.SelectedItem)) return;
                 _mediaPreviewCoordinator.Clear();
-                MediaPreviewPanelControl.ShowPlaceholder($"{kindName} preview unavailable\n\n{exception.Message}");
+                MediaPreviewPanelControl.ShowPlaceholder(BuildUnavailablePreviewMessage(
+                    kindName,
+                    exception,
+                    selectedItem.IsDegradedDerivedAsset,
+                    hasCachedRepresentation));
                 StatusText.Text = $"Could not prepare {asset.EffectiveDisplayName}.";
             }
             finally
@@ -887,6 +979,41 @@ public partial class MainWindow : Window, IDisposable
                 if (lease is not null) await lease.DisposeAsync();
             }
         });
+    }
+
+    private static string BuildUnavailablePreviewMessage(
+        string kindName,
+        Exception exception,
+        bool isDegraded,
+        bool hasCachedRepresentation)
+    {
+        var message = $"{kindName} preview unavailable\n\n{exception.Message}";
+        if (!isDegraded) return message;
+
+        if (hasCachedRepresentation)
+            message += "\n\nThis media can be exported as a permanent asset if you wish to save it.";
+        return message + "\n\nThis media will be deleted by a Cleanup Project action.";
+    }
+
+    private async Task<bool> TryProbeCachedRepresentationAsync(
+        VideoProject project,
+        MaterializationTarget target,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _projectMediaCacheProbe.HasCachedRepresentationAsync(project, target, cancellationToken)
+                .ConfigureAwait(true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch
+        {
+            // Cache is advisory. A probe failure must never hide the primary degraded-media guidance.
+            return false;
+        }
     }
 
     private void ResetFrameWorkspace()
@@ -1080,7 +1207,8 @@ public partial class MainWindow : Window, IDisposable
             _workspace.Project,
             _workspace.GetAbsoluteAssetPath,
             LoadBitmap,
-            _referenceChoices);
+            _referenceChoices,
+            _runtime.ProjectDegradationAnalyzer.Analyze(_workspace.Project));
         _assets.Clear();
         _referenceChoices.Clear();
 
@@ -1171,6 +1299,34 @@ public partial class MainWindow : Window, IDisposable
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
+    private void RefreshProjectMediaDegradationIndicators()
+    {
+        if (_workspace.Project is null) return;
+        var degradation = _runtime.ProjectDegradationAnalyzer.Analyze(_workspace.Project);
+        foreach (var item in _assets)
+        {
+            item.UpdateDegradedState(item.Anchor is { } anchor
+                ? degradation.IsDegradedAnchor(anchor.Id)
+                : item.Asset is { } asset && degradation.IsDegradedAsset(asset.Id));
+        }
+        ProjectMediaPanelControl.RefreshItems();
+    }
+
+    private sealed class ProjectSettingsActionsHost(MainWindow window) : IProjectSettingsActionsHost
+    {
+        public void SetProjectActionsEnabled(bool isEnabled) => window.SetProjectActionsEnabled(isEnabled);
+
+        public void RefreshProjectUi() => window.RefreshProjectUi();
+
+        public void ClearProjectMediaSelectionAndPreview() => window.ClearProjectMediaSelectionAndPreview();
+
+        public void ResetFrameWorkspace() => window.ResetFrameWorkspace();
+
+        public void RefreshProjectCollections() => window.RefreshProjectCollections();
+
+        public void SetStatus(string status) => window.StatusText.Text = status;
+    }
+
     private sealed class ProjectLifecyclePresentation(MainWindow window) : IProjectLifecycleCoordinatorHost
     {
         public ProjectWorkspaceKind ActiveWorkspace => window._activeWorkspace;
@@ -1211,6 +1367,30 @@ public partial class MainWindow : Window, IDisposable
         {
             var dialog = new AssetNameDialog(fileName) { Owner = window };
             return dialog.ShowDialog() == true ? dialog.FileName : null;
+        }
+
+        public string? PromptRelinkCandidate(ProjectAsset asset)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = $"Relink source for {asset.FileName}",
+                Filter = "Media files|*.mp4;*.mov;*.mkv;*.avi;*.webm;*.m4a;*.mp3;*.wav;*.aac;*.flac|All files|*.*",
+                CheckFileExists = true,
+                CheckPathExists = true,
+                Multiselect = false,
+                FileName = asset.FileName
+            };
+            return dialog.ShowDialog(window) == true ? dialog.FileName : null;
+        }
+
+        public DeletedSourceRestoreChoice PromptDeletedSourceRestore(
+            string candidateName,
+            IReadOnlyList<DeletedPhysicalAssetRestoreMatch> matches,
+            bool allowImportAsNew)
+        {
+            var dialog = new DeletedSourceRestoreDialog(candidateName, matches, allowImportAsNew) { Owner = window };
+            _ = dialog.ShowDialog();
+            return dialog.Choice;
         }
 
         public string? PromptSavedClipDisplayName(string displayName)
@@ -1292,6 +1472,24 @@ public partial class MainWindow : Window, IDisposable
         public void SetProjectActionsEnabled(bool enabled) => window.SetProjectActionsEnabled(enabled);
         public void RefreshProjectMedia() => window.RefreshProjectCollections();
         public void SetStatus(string status) => window.StatusText.Text = status;
+        public DeletedSourceRestoreChoice PromptDeletedSourceRestore(
+            string candidateName,
+            IReadOnlyList<DeletedPhysicalAssetRestoreMatch> matches,
+            bool allowImportAsNew)
+        {
+            var dialog = new DeletedSourceRestoreDialog(candidateName, matches, allowImportAsNew) { Owner = window };
+            _ = dialog.ShowDialog();
+            return dialog.Choice;
+        }
+
+        public MissingSourceRelinkChoice PromptMissingSourceRelink(
+            string candidateName,
+            IReadOnlyList<MissingPhysicalAssetRelinkMatch> matches)
+        {
+            var dialog = new MissingSourceRelinkDialog(candidateName, matches) { Owner = window };
+            _ = dialog.ShowDialog();
+            return dialog.Choice;
+        }
     }
 
     private sealed class GenerationSubmissionPresentation(MainWindow window) : IGenerationSubmissionPresentation
@@ -1353,11 +1551,36 @@ public partial class MainWindow : Window, IDisposable
             window.RefreshProjectCollections(selectedAssetId ?? window._workspace.Project?.WorkingCompositionAssetId);
         public void PausePreview() => window._mediaPreviewCoordinator.Pause();
         public MediaSplitBehavior SplitBehavior => window._applicationSettings.MediaTools.SplitBehavior;
+        public Guid? SelectAudioPlacementTrack(IReadOnlyList<CompositionTimelineTrackRow> tracks)
+        {
+            if (tracks.Count == 0)
+                return null;
+
+            var dialog = new AudioPlacementTrackDialog(tracks) { Owner = window };
+            return dialog.ShowDialog() == true ? dialog.SelectedTrackId : null;
+        }
+
+        public string? PromptTrackName(string currentName, CompositionTimelineTrackKind kind)
+        {
+            var dialog = new TrackNameDialog(currentName, kind) { Owner = window };
+            return dialog.ShowDialog() == true ? dialog.TrackName : null;
+        }
+
+        public CompositionPlacementDecision DecidePlacement(CompositionPlacementDecisionRequest request)
+        {
+            var dialog = new TimingPlacementDialog(request) { Owner = window };
+            _ = dialog.ShowDialog();
+            return dialog.Decision;
+        }
+
+        public void ShowPlacementInformation(string title, string message) =>
+            MessageBox.Show(window, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+
         public string? PromptDetachAudioFileName(string displayName)
         {
             var stem = MakeSafeFileName(Path.GetFileNameWithoutExtension(displayName));
-            var dialog = new AssetNameDialog($"{stem} detached audio.m4a", "Detach segment audio", "DETACH SEGMENT AUDIO",
-                "Create a permanent audio file from this exact timeline segment, add it at the same timeline position, and mute the segment's embedded audio to prevent doubled sound.", "Detach") { Owner = window };
+            var dialog = new AssetNameDialog($"{stem} detached audio.m4a", "Detach audio", "DETACH AUDIO",
+                "Create a permanent audio file from this exact timeline occurrence and replace its linked source-audio occurrence without changing its timing or mix.", "Detach") { Owner = window };
             return dialog.ShowDialog() == true ? dialog.FileName : null;
         }
     }

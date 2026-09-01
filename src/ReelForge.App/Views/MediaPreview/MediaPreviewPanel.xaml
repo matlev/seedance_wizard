@@ -5,9 +5,18 @@
         <Border Margin="16" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                 CornerRadius="5" Background="#050609">
             <Grid>
-                <TextBlock x:Name="PreviewPlaceholder" Text="Select a video or image asset to preview"
-                           Foreground="{StaticResource MutedTextBrush}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <StackPanel x:Name="PlaceholderPanel" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock x:Name="PreviewPlaceholder" Text="Select a video or image asset to preview"
+                               Foreground="{StaticResource MutedTextBrush}" TextAlignment="Center"
+                               HorizontalAlignment="Center" />
+                    <StackPanel x:Name="MissingMediaActions" Orientation="Horizontal"
+                                HorizontalAlignment="Center" Margin="0,18,0,0" Visibility="Collapsed">
+                        <Button Content="Relink" Click="RelinkMissingMediaButton_Click"
+                                Background="{StaticResource AccentBrush}" Foreground="White" BorderBrush="{StaticResource AccentBrush}" />
+                        <Button Content="Delete" Style="{StaticResource DangerButtonStyle}"
+                                Click="DeleteMissingMediaButton_Click" />
+                    </StackPanel>
+                </StackPanel>
                 <MediaElement x:Name="VideoPreview" Visibility="Collapsed"
                               LoadedBehavior="Manual" UnloadedBehavior="Stop"
                               ScrubbingEnabled="True" Volume="1" Stretch="Uniform"

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using ReelForge.Core;
 
 namespace ReelForge.Infrastructure;
 
@@ -84,6 +85,34 @@ public static class FfmpegCommandBuilder
             "-i", inputPath,
             "-map", "0:a:0",
             "-vn",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-movflags", "+faststart",
+            outputPath
+        ];
+    }
+
+    public static IReadOnlyList<string> BuildExtractExactAudioRangeArguments(
+        string inputPath,
+        string outputPath,
+        int audioStreamIndex,
+        AudioSourceRange sourceRange)
+    {
+        ValidateMediaPath(inputPath, nameof(inputPath));
+        ValidateMediaPath(outputPath, nameof(outputPath));
+        ArgumentOutOfRangeException.ThrowIfNegative(audioStreamIndex);
+        ArgumentNullException.ThrowIfNull(sourceRange);
+        if (!Path.GetExtension(outputPath).Equals(".m4a", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Detached audio output must use the .m4a file type.", nameof(outputPath));
+
+        return
+        [
+            "-hide_banner", "-y",
+            "-i", inputPath,
+            "-map", $"0:{audioStreamIndex}",
+            "-af", $"atrim=start_sample={sourceRange.Start.SampleFrameOffset.ToString(CultureInfo.InvariantCulture)}:end_sample={sourceRange.End.SampleFrameOffset.ToString(CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS",
+            "-vn",
+            "-ar", sourceRange.Start.SampleRate.ToString(CultureInfo.InvariantCulture),
             "-c:a", "aac",
             "-b:a", "192k",
             "-movflags", "+faststart",

@@ -65,6 +65,17 @@
                     </StackPanel>
                 </Border>
 
+                <Border x:Name="VideoTimingWarningPanel" Visibility="Collapsed"
+                        Background="#302A12" BorderBrush="{StaticResource WarningBrush}"
+                        BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                    <StackPanel>
+                        <TextBlock Text="⚠ TIMING WARNING" Foreground="{StaticResource WarningBrush}"
+                                   FontFamily="Segoe UI Symbol" FontSize="11" FontWeight="SemiBold" />
+                        <TextBlock x:Name="VideoTimingWarningText" TextWrapping="Wrap"
+                                   Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
+                    </StackPanel>
+                </Border>
+
                 <Border Background="#10131A" BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
                     <StackPanel>
@@ -94,6 +105,17 @@
                         <TextBlock Text="No transform is applied. Transform controls arrive in a later editing slice."
                                    TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
                                    Foreground="{StaticResource MutedTextBrush}" />
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="AudioTimingWarningPanel" Visibility="Collapsed"
+                        Background="#302A12" BorderBrush="{StaticResource WarningBrush}"
+                        BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,9">
+                    <StackPanel>
+                        <TextBlock Text="⚠ TIMING WARNING" Foreground="{StaticResource WarningBrush}"
+                                   FontFamily="Segoe UI Symbol" FontSize="11" FontWeight="SemiBold" />
+                        <TextBlock x:Name="AudioTimingWarningText" TextWrapping="Wrap"
+                                   Margin="0,5,0,0" Foreground="{StaticResource TextBrush}" />
                     </StackPanel>
                 </Border>
 

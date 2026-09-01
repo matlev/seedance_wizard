@@ -123,6 +123,19 @@ internal sealed class AtlasCloudVideoApiClient
                 providerCode,
                 null,
                 responseBody).ConfigureAwait(false);
+
+            // AtlasCloud returns HTTP 400 for some predictions that have already reached the
+            // provider's terminal failed state. Preserve that job result instead of treating the
+            // response as a transient polling failure and retrying forever.
+            if (IsTerminalPredictionResponse(responseBody))
+            {
+                return ParseJob(
+                    responseBody,
+                    providerJobId,
+                    (int)response.StatusCode,
+                    technicalDetails);
+            }
+
             throw new VideoGenerationProviderException(
                 providerMessage ?? $"AtlasCloud prediction polling failed with HTTP {(int)response.StatusCode}.",
                 (int)response.StatusCode,
@@ -199,7 +212,11 @@ internal sealed class AtlasCloudVideoApiClient
         }
     }
 
-    private static ProviderGenerationJob ParseJob(string responseBody, string expectedJobId)
+    private static ProviderGenerationJob ParseJob(
+        string responseBody,
+        string expectedJobId,
+        int? httpStatus = null,
+        string? technicalDetails = null)
     {
         try
         {
@@ -214,7 +231,8 @@ internal sealed class AtlasCloudVideoApiClient
             var status = providerStatus.ToLowerInvariant() switch
             {
                 "completed" or "succeeded" => GenerationStatus.Succeeded,
-                "failed" or "timeout" => GenerationStatus.Failed,
+                "failed" or "failure" or "timeout" => GenerationStatus.Failed,
+                "cancelled" or "canceled" => GenerationStatus.Cancelled,
                 "processing" or "running" => GenerationStatus.Running,
                 "queued" or "pending" or "starting" => GenerationStatus.Queued,
                 _ => GenerationStatus.Running
@@ -246,7 +264,12 @@ internal sealed class AtlasCloudVideoApiClient
                 if (ReadScalar(data, name) is { } value) metadata[name] = value;
             }
 
-            var errorMessage = ReadScalar(data, "error");
+            var errorMessage = ReadScalar(data, "error")
+                ?? ReadScalar(data, "message")
+                ?? ReadScalar(root, "message");
+            var errorCode = ReadScalar(data, "error_code")
+                ?? ReadScalar(root, "code")
+                ?? "provider_generation_failed";
             return new ProviderGenerationJob
             {
                 ProviderJobId = id,
@@ -255,8 +278,10 @@ internal sealed class AtlasCloudVideoApiClient
                 Error = status == GenerationStatus.Failed
                     ? new GenerationError
                     {
-                        ProviderCode = "provider_generation_failed",
-                        Message = errorMessage ?? "AtlasCloud reported that generation failed."
+                        HttpStatus = httpStatus,
+                        ProviderCode = errorCode,
+                        Message = errorMessage ?? "AtlasCloud reported that generation failed.",
+                        TechnicalDetails = technicalDetails
                     }
                     : null,
                 ResponseMetadata = metadata
@@ -295,6 +320,24 @@ internal sealed class AtlasCloudVideoApiClient
         catch (JsonException)
         {
             return (null, null);
+        }
+    }
+
+    private static bool IsTerminalPredictionResponse(string responseBody)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(responseBody);
+            var root = document.RootElement;
+            var data = root.TryGetProperty("data", out var wrappedData) && wrappedData.ValueKind == JsonValueKind.Object
+                ? wrappedData
+                : root;
+            return ReadScalar(data, "status")?.ToLowerInvariant() is
+                "failed" or "failure" or "timeout" or "cancelled" or "canceled";
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 

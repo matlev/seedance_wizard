@@ -5,6 +5,7 @@ namespace ReelForge.Infrastructure;
 internal sealed class ProjectAssetDto
 {
     public Guid Id { get; set; }
+    public bool IsDeleted { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public MediaType MediaType { get; set; }
@@ -15,6 +16,7 @@ internal sealed class ProjectAssetDto
     public int? Width { get; set; }
     public int? Height { get; set; }
     public MediaEncodingMetadata? Encoding { get; set; }
+    public List<StreamTimingAssessmentDto> TimingAssessments { get; set; } = [];
     public AssetProvenanceDto? Provenance { get; set; }
     public PhysicalAssetStorageDto? Physical { get; set; }
     public VirtualAssetStateDto? Virtual { get; set; }
@@ -25,6 +27,7 @@ internal sealed class PhysicalAssetStorageDto
 {
     public string RelativePath { get; set; } = string.Empty;
     public PhysicalAssetDurability Durability { get; set; }
+    public PhysicalAssetAvailability Availability { get; set; } = PhysicalAssetAvailability.Unknown;
     public ContentIdentityDto ContentIdentity { get; set; } = new();
 }
 

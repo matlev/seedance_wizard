@@ -1,4 +1,6 @@
 using System.IO;
+using ReelForge.Application;
+using ReelForge.App.Views.Dialogs;
 using ReelForge.Core;
 
 namespace ReelForge.App.Views.ProjectMedia;
@@ -24,6 +26,8 @@ public sealed class ProjectMediaCommandCoordinator
         action switch
         {
             ProjectMediaAction.Rename => RenameAsync(selectedItem),
+            ProjectMediaAction.Relink => RelinkAsync(selectedItem),
+            ProjectMediaAction.RestoreDeletedSource => RestoreDeletedSourceAsync(selectedItem),
             ProjectMediaAction.Export => ExportAsync(selectedItem),
             ProjectMediaAction.ExtractAudio => ExtractAudioAsync(selectedItem),
             ProjectMediaAction.Copy => CopyAsync(selectedItem),
@@ -56,6 +60,107 @@ public sealed class ProjectMediaCommandCoordinator
                     ? $"Renamed stored media file to {asset.FileName}."
                     : $"Renamed Saved Clip to {asset.EffectiveDisplayName}.");
             });
+    }
+
+    private async Task RelinkAsync(ProjectMediaListItem? selectedItem)
+    {
+        if (!_host.HasOpenProject ||
+            selectedItem?.Asset is not { } asset ||
+            !ProjectMediaContextMenuPolicy.CanRelink(asset)) return;
+
+        var candidatePath = _host.PromptRelinkCandidate(asset);
+        if (candidatePath is null) return;
+
+        await _host.RunUiActionAsync($"Verifying replacement for {asset.FileName}…", async () =>
+        {
+            var result = await _operations.RelinkPhysicalAssetAsync(asset, candidatePath);
+            switch (result.Status)
+            {
+                case PhysicalAssetRelinkStatus.Verified:
+                    _host.RefreshProjectMedia(asset.Id);
+                    _host.UpdateAssetInspector(asset);
+                    _host.SetStatus($"Relinked {asset.FileName}; its SHA-256 identity was verified.");
+                    return;
+                case PhysicalAssetRelinkStatus.Missing:
+                    ShowRelinkInformation(
+                        "The selected relink file is no longer available. Choose an accessible copy of the original media.",
+                        "Relink source",
+                        result);
+                    return;
+                case PhysicalAssetRelinkStatus.Inaccessible:
+                    ShowRelinkInformation(
+                        "ReelForge could not read the selected relink file. Check its location and permissions, then try again.",
+                        "Relink source",
+                        result);
+                    return;
+                case PhysicalAssetRelinkStatus.Mismatched:
+                    ShowRelinkInformation(
+                        "The selected file does not match this asset's recorded SHA-256 identity. It was not relinked. " +
+                        "If you want to use these different bytes, import them as new media using Import.",
+                        "Relink refused",
+                        result);
+                    return;
+                case PhysicalAssetRelinkStatus.Cancelled:
+                    _host.SetStatus($"Relinking {asset.FileName} was cancelled; the project was unchanged.");
+                    return;
+                case PhysicalAssetRelinkStatus.Stale:
+                    ShowRelinkInformation(
+                        "The project changed while relinking, so the verified copy was not adopted. Try again from the current project state.",
+                        "Relink source",
+                        result);
+                    return;
+                case PhysicalAssetRelinkStatus.Failed:
+                    ShowRelinkInformation(
+                        "ReelForge could not safely complete the relink. The existing project reference was retained.",
+                        "Relink source",
+                        result);
+                    return;
+                default:
+                    throw new InvalidOperationException($"Unknown relink status '{result.Status}'.");
+            }
+        });
+    }
+
+    private async Task RestoreDeletedSourceAsync(ProjectMediaListItem? selectedItem)
+    {
+        if (!_host.HasOpenProject || selectedItem?.Asset is not { } donor || !selectedItem.CanRestoreDeletedSource)
+            return;
+
+        var matches = _operations.FindDeletedRestoreMatches(donor);
+        if (matches.Count == 0) return;
+        var choice = _host.PromptDeletedSourceRestore(donor.FileName, matches, allowImportAsNew: false);
+        if (choice.Kind != DeletedSourceRestoreChoiceKind.Restore || choice.DeletedAssetId is not { } deletedAssetId)
+            return;
+        if (!matches.Any(match => match.AssetId == deletedAssetId))
+            throw new InvalidOperationException("The selected deleted source is no longer available for restoration.");
+
+        await _host.RunUiActionAsync($"Restoring deleted source links for {donor.FileName}…", async () =>
+        {
+            var result = await _operations.RestoreDeletedFromDonorAsync(deletedAssetId, donor.Id);
+            if (result.Relink.Status == PhysicalAssetRelinkStatus.Verified)
+            {
+                _host.RefreshProjectMedia(result.RestoredAssetId);
+                _host.SetStatus(result.DonorWasFolded
+                    ? $"Restored deleted source links for {donor.FileName}; the unused duplicate was folded into the original source."
+                    : $"Restored deleted source links for {donor.FileName}; the current asset was retained.");
+                return;
+            }
+
+            ShowRelinkInformation(
+                "ReelForge could not safely restore the deleted source links. The project was unchanged.",
+                "Restore deleted source",
+                result.Relink);
+        });
+    }
+
+    private void ShowRelinkInformation(string message, string title, PhysicalAssetRelinkResult result)
+    {
+        var detail = string.IsNullOrWhiteSpace(result.Detail) ? string.Empty : $"\n\nDetails: {result.Detail}";
+        var dependencies = result.DependencyReport.IsInUse
+            ? $"\n\nExisting project references retained:\n• {string.Join("\n• ", result.DependencyReport.DisplayDescriptions)}"
+            : string.Empty;
+        _host.ShowInformation(message + detail + dependencies, title);
+        _host.SetStatus(message);
     }
 
     private async Task ExportAsync(ProjectMediaListItem? item)
@@ -146,22 +251,18 @@ public sealed class ProjectMediaCommandCoordinator
         }
 
         var usage = _operations.AnalyzeDependencies(asset);
-        if (usage.IsInUse)
-        {
-            _host.ShowInformation(
-                $"'{asset.EffectiveDisplayName}' cannot be deleted because it is still used by:\n\n• {string.Join("\n• ", usage.DisplayDescriptions)}",
-                "Asset is in use");
-            return;
-        }
-        if (!_host.Confirm(
-                $"Delete '{asset.EffectiveDisplayName}' from this project and remove its stored media file?\n\nThis cannot be undone.",
-                "Delete asset")) return;
+        var confirmation = usage.IsInUse
+            ? "Removing this file from the project may corrupt derived Saved Frames, Clips, Audio, and Compositions that rely on it.\n\nReally delete?"
+            : $"Delete '{asset.EffectiveDisplayName}' from this project and remove its stored media file?\n\nThis cannot be undone.";
+        if (!_host.Confirm(confirmation, "Delete asset")) return;
         await _host.RunUiActionAsync($"Deleting {asset.EffectiveDisplayName}…", async () =>
         {
-            await _operations.DeletePhysicalAssetAsync(asset.Id);
+            await _operations.DeletePhysicalAssetAsync(asset.Id, usage.IsInUse);
             _host.ClearSelectionAndPreview();
             _host.RefreshProjectMedia();
-            _host.SetStatus($"Deleted {asset.EffectiveDisplayName}.");
+            _host.SetStatus(usage.IsInUse
+                ? $"Deleted {asset.EffectiveDisplayName}; its historical project references were retained."
+                : $"Deleted {asset.EffectiveDisplayName}.");
         });
     }
 
@@ -244,6 +345,11 @@ public interface IProjectMediaCommandHost
     bool HasOpenProject { get; }
     Task RunUiActionAsync(string status, Func<Task> action);
     string? PromptPhysicalFileName(string fileName);
+    string? PromptRelinkCandidate(ProjectAsset asset);
+    DeletedSourceRestoreChoice PromptDeletedSourceRestore(
+        string candidateName,
+        IReadOnlyList<DeletedPhysicalAssetRestoreMatch> matches,
+        bool allowImportAsNew);
     string? PromptSavedClipDisplayName(string displayName);
     string? PromptExportPath(ProjectMediaExportRequest request);
     string? PromptAudioExtractionFileName(string suggestedFileName);

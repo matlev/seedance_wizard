@@ -1,4 +1,5 @@
 using ReelForge.Application;
+using ReelForge.Core;
 
 namespace ReelForge.Infrastructure;
 
@@ -31,5 +32,27 @@ public sealed class FfmpegAudioExtractionEngine : IAudioExtractionEngine
         if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
         if (!File.Exists(outputPath) || new FileInfo(outputPath).Length <= 0)
             throw new InvalidDataException("FFmpeg completed without producing extracted audio.");
+    }
+
+    public async Task ExtractExactRangeToM4aAsync(
+        string inputPath,
+        string outputPath,
+        int audioStreamIndex,
+        AudioSourceRange sourceRange,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sourceRange);
+        var ffmpegPath = _ffmpegPath ?? throw new MediaToolUnavailableException(
+            "FFmpeg is not configured. Configure it in Settings > Media Tools to detach audio.");
+        var result = await _runner.RunAsync(
+                new ExternalProcessRequest(
+                    ffmpegPath,
+                    FfmpegCommandBuilder.BuildExtractExactAudioRangeArguments(
+                        inputPath, outputPath, audioStreamIndex, sourceRange)),
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.Succeeded) throw new ExternalProcessException(ffmpegPath, result);
+        if (!File.Exists(outputPath) || new FileInfo(outputPath).Length <= 0)
+            throw new InvalidDataException("FFmpeg completed without producing detached audio.");
     }
 }

@@ -73,7 +73,7 @@ public sealed class GenerationJobFinalizer : IGenerationJobFinalizer
         if (job.Status is GenerationStatus.Failed or GenerationStatus.Cancelled)
         {
             generation.CompletedAt = DateTimeOffset.UtcNow;
-            await _projectStore.SaveAsync(project, location, CancellationToken.None).ConfigureAwait(false);
+            await SaveProjectAsync(project, location, generation.Id).ConfigureAwait(false);
         }
         else if (job.Status == GenerationStatus.Succeeded &&
                  generation.IngestionStatus != OutputIngestionStatus.Succeeded)
@@ -98,20 +98,13 @@ public sealed class GenerationJobFinalizer : IGenerationJobFinalizer
     {
         generation.CompletedAt = DateTimeOffset.UtcNow;
         generation.IngestionStatus = OutputIngestionStatus.Running;
-        await _projectStore.SaveAsync(project, location, CancellationToken.None).ConfigureAwait(false);
+        await SaveProjectAsync(project, location, generation.Id).ConfigureAwait(false);
+        IReadOnlyList<ProjectAsset> assets;
         try
         {
-            var assets = await _outputIngestion
+            assets = await _outputIngestion
                 .IngestAsync(location, generation.Id, job.Outputs, cancellationToken)
                 .ConfigureAwait(false);
-            foreach (var asset in assets)
-            {
-                project.AddAsset(asset);
-                generation.OutputAssetIds.Add(asset.Id);
-            }
-            generation.IngestionStatus = OutputIngestionStatus.Succeeded;
-            generation.Error = null;
-            await _projectStore.SaveAsync(project, location, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -122,8 +115,55 @@ public sealed class GenerationJobFinalizer : IGenerationJobFinalizer
                 Message = exception.Message,
                 TechnicalDetails = exception.ToString()
             };
-            await _projectStore.SaveAsync(project, location, CancellationToken.None).ConfigureAwait(false);
+            await SaveProjectAsync(project, location, generation.Id).ConfigureAwait(false);
             throw;
+        }
+
+        foreach (var asset in assets)
+        {
+            project.AddAsset(asset);
+            generation.OutputAssetIds.Add(asset.Id);
+        }
+        generation.IngestionStatus = OutputIngestionStatus.Succeeded;
+        generation.Error = null;
+        await SaveProjectAsync(project, location, generation.Id).ConfigureAwait(false);
+    }
+
+    private async Task SaveProjectAsync(VideoProject project, ProjectLocation location, Guid generationId)
+    {
+        if (ReferenceEquals(_activeWorkspace.Project, project) &&
+            ReferenceEquals(_activeWorkspace.Location, location) &&
+            await _activeWorkspace
+                .SaveIfCurrentAsync(project, location, CancellationToken.None)
+                .ConfigureAwait(false))
+        {
+            return;
+        }
+
+        await _activeWorkspace
+            .UpdateDetachedAsync(
+                location.ProjectFilePath,
+                (latestProject, _) => MergeGenerationFinalization(latestProject, project, generationId),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+    }
+
+    private static void MergeGenerationFinalization(
+        VideoProject latestProject,
+        VideoProject finalizedProject,
+        Guid generationId)
+    {
+        var finalizedGeneration = finalizedProject.Generations.Single(candidate => candidate.Id == generationId);
+        var index = latestProject.Generations.FindIndex(candidate => candidate.Id == generationId);
+        if (index < 0)
+            throw new InvalidOperationException("The generation record no longer exists in its project.");
+        latestProject.Generations[index] = finalizedGeneration;
+
+        var outputIds = finalizedGeneration.OutputAssetIds.ToHashSet();
+        foreach (var output in finalizedProject.Assets.Where(asset => outputIds.Contains(asset.Id)))
+        {
+            if (latestProject.Assets.All(asset => asset.Id != output.Id))
+                latestProject.AddAsset(output);
         }
     }
 

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media.Imaging;
 using ReelForge.App.Views.Generation;
+using ReelForge.Application;
 using ReelForge.Core;
 
 namespace ReelForge.App.Views.ProjectMedia;
@@ -15,7 +16,8 @@ public static class ProjectMediaProjectionBuilder
         VideoProject project,
         Func<ProjectAsset, string> resolvePhysicalAssetPath,
         Func<string, BitmapSource> loadBitmap,
-        IEnumerable<GenerationReferenceChoice> existingChoices)
+        IEnumerable<GenerationReferenceChoice> existingChoices,
+        ProjectDegradationReport? degradation = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(resolvePhysicalAssetPath);
@@ -28,7 +30,15 @@ public static class ProjectMediaProjectionBuilder
 
         foreach (var asset in project.Assets)
         {
-            var mediaItem = new ProjectMediaListItem(asset);
+            if (asset.IsDeleted)
+            {
+                PreserveDeletedDraftReferences(asset, project.CurrentGenerationDraft, choices, projectedChoices);
+                continue;
+            }
+            var mediaItem = new ProjectMediaListItem(
+                asset,
+                CanRestoreDeletedSource(project, asset),
+                degradation?.IsDegradedAsset(asset.Id) == true);
             if (asset is { StorageKind: AssetStorageKind.Physical, MediaType: MediaType.Image })
             {
                 var path = resolvePhysicalAssetPath(asset);
@@ -69,7 +79,13 @@ public static class ProjectMediaProjectionBuilder
             if (revision is null) continue;
 
             var source = project.Assets.SingleOrDefault(asset => asset.Id == revision.SourceAssetId);
-            mediaItems.Add(new ProjectMediaListItem(anchor, revision));
+            mediaItems.Add(new ProjectMediaListItem(anchor, revision, degradation?.IsDegradedAnchor(anchor.Id) == true));
+            if (source?.IsDeleted == true)
+            {
+                PreserveDeletedAnchorDraftReferences(anchor, revision, source, project.CurrentGenerationDraft, choices,
+                    projectedChoices);
+                continue;
+            }
             var matching = choices.Where(choice =>
                 choice.ObjectKind == GenerationReferenceObjectKind.FrameAnchor && choice.LogicalObjectId == anchor.Id).ToArray();
             if (matching.Length > 0)
@@ -97,6 +113,99 @@ public static class ProjectMediaProjectionBuilder
                 .ToArray(),
             projectedChoices,
             project.Generations.OrderByDescending(item => item.RequestedAt).ToArray());
+    }
+
+    private static bool CanRestoreDeletedSource(VideoProject project, ProjectAsset asset)
+    {
+        if (asset.IsDeleted || asset.StorageKind != AssetStorageKind.Physical || asset.Physical is null ||
+            asset.Physical.ContentIdentity is not { Status: ContentHashStatus.Verified, Sha256: { Length: 64 } hash } ||
+            !hash.All(Uri.IsHexDigit))
+            return false;
+
+        return project.Assets.Any(candidate =>
+            candidate.IsDeleted && candidate.StorageKind == AssetStorageKind.Physical &&
+            candidate.Physical is not null && candidate.MediaType == asset.MediaType &&
+            candidate.Physical.ContentIdentity.Status == ContentHashStatus.Verified &&
+            string.Equals(candidate.Physical.ContentIdentity.Sha256, hash, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void PreserveDeletedDraftReferences(
+        ProjectAsset asset,
+        GenerationDraft? draft,
+        IReadOnlyList<GenerationReferenceChoice> existingChoices,
+        ICollection<GenerationReferenceChoice> projectedChoices)
+    {
+        if (draft is null) return;
+
+        var references = draft.References
+            .Where(reference => reference.ObjectKind == GenerationReferenceObjectKind.Asset &&
+                                reference.LogicalObjectId == asset.Id)
+            .OrderBy(reference => reference.Order ?? int.MaxValue)
+            .ToArray();
+        foreach (var reference in references)
+        {
+            var existing = existingChoices.FirstOrDefault(choice => choice.ReferenceId == reference.ReferenceId);
+            if (existing is not null)
+            {
+                existing.UpdateAsset(asset);
+                projectedChoices.Add(existing);
+                continue;
+            }
+
+            var preserved = new GenerationReferenceChoice(asset, projectedChoices.Count)
+            {
+                ReferenceId = reference.ReferenceId,
+                AnchorRevisionId = reference.AnchorRevisionId,
+                Role = reference.Role,
+                Order = reference.Order ?? projectedChoices.Count,
+                Label = reference.Label,
+                Notes = reference.Notes
+            };
+            projectedChoices.Add(preserved);
+        }
+    }
+
+    private static void PreserveDeletedAnchorDraftReferences(
+        FrameAnchor anchor,
+        FrameAnchorRevision revision,
+        ProjectAsset source,
+        GenerationDraft? draft,
+        IReadOnlyList<GenerationReferenceChoice> existingChoices,
+        ICollection<GenerationReferenceChoice> projectedChoices)
+    {
+        if (draft is null) return;
+
+        var references = draft.References
+            .Where(reference => reference.ObjectKind == GenerationReferenceObjectKind.FrameAnchor &&
+                                reference.LogicalObjectId == anchor.Id)
+            .OrderBy(reference => reference.Order ?? int.MaxValue)
+            .ToArray();
+        foreach (var reference in references)
+        {
+            var existing = existingChoices.FirstOrDefault(choice => choice.ReferenceId == reference.ReferenceId);
+            if (existing is not null)
+            {
+                existing.UpdateAnchor(anchor, revision, source.EffectiveDisplayName, sourceIsDeleted: true);
+                projectedChoices.Add(existing);
+                continue;
+            }
+
+            var preserved = new GenerationReferenceChoice(
+                anchor,
+                revision,
+                source.EffectiveDisplayName,
+                projectedChoices.Count)
+            {
+                ReferenceId = reference.ReferenceId,
+                AnchorRevisionId = reference.AnchorRevisionId,
+                Role = reference.Role,
+                Order = reference.Order ?? projectedChoices.Count,
+                Label = reference.Label,
+                Notes = reference.Notes
+            };
+            preserved.UpdateAnchor(anchor, revision, source.EffectiveDisplayName, sourceIsDeleted: true);
+            projectedChoices.Add(preserved);
+        }
     }
 }
 

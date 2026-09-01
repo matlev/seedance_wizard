@@ -35,6 +35,7 @@ internal sealed class ApplicationRuntime : IDisposable
             Settings.MediaTools.LogFfmpegCommands,
             Settings.MediaTools.LogFfprobeCommands);
         MediaInspector = new FfprobeMediaInspectionService(MediaTools.FfprobePath, ProcessRunner);
+        StreamTimingAssessmentService = new FfprobeStreamTimingAssessmentService(MediaTools.FfprobePath, ProcessRunner);
         ExactFrameService = new ExactVideoFrameService(
             MediaTools.FfmpegPath,
             MediaTools.FfprobePath,
@@ -51,9 +52,21 @@ internal sealed class ApplicationRuntime : IDisposable
         AudioExtractionEngine = new FfmpegAudioExtractionEngine(MediaTools.FfmpegPath, ProcessRunner);
 
         ProjectStore = new PortableProjectStore();
+        ProjectSaveCoordinator = new ProjectSaveCoordinator();
+        ProjectCloneService = new ProjectCloneService(
+            ProjectStore,
+            new PortableProjectCloneFileSystem(),
+            ProjectSaveCoordinator);
         AssetImporter = new AssetImportService(MediaInspector);
-        Workspace = new ProjectWorkspace(ProjectStore, AssetImporter);
-        AssetTransferService = new ProjectAssetTransferService(ProjectStore, AssetImporter);
+        Workspace = new ProjectWorkspace(ProjectStore, AssetImporter, ProjectStore, ProjectSaveCoordinator);
+        ProjectRelocationService = new ProjectRelocationService(
+            Workspace,
+            ProjectStore,
+            new PortableProjectRelocationFileSystem(),
+            ProjectSaveCoordinator);
+        ProjectDegradationAnalyzer = new ProjectDegradationAnalyzer();
+        ProjectCleanupService = new ProjectCleanupService(ProjectDegradationAnalyzer);
+        AssetTransferService = new ProjectAssetTransferService(ProjectStore, AssetImporter, Workspace);
         ContentHashService = new Sha256ContentHashService();
         RenderedAssetPromotionService = new RenderedAssetPromotionService(
             Workspace,
@@ -67,6 +80,18 @@ internal sealed class ApplicationRuntime : IDisposable
             ContentHashService,
             MediaInspector);
         ProjectAssetDependencyAnalyzer = new ProjectAssetDependencyAnalyzer();
+        PhysicalAssetRelinkStager = new PhysicalAssetRelinkStager();
+        PhysicalAssetRelinkService = new PhysicalAssetRelinkService(
+            Workspace,
+            ContentHashService,
+            PhysicalAssetRelinkStager,
+            ProjectAssetDependencyAnalyzer);
+        DeletedPhysicalAssetRestorationService = new DeletedPhysicalAssetRestorationService(
+            Workspace,
+            ContentHashService,
+            PhysicalAssetRelinkService,
+            PhysicalAssetRelinkStager,
+            ProjectAssetDependencyAnalyzer);
         PhysicalAssetRemovalService = new PhysicalAssetRemovalService();
         ProjectAssetTransferWorkflow = new ProjectAssetTransferWorkflow(
             Workspace,
@@ -103,6 +128,11 @@ internal sealed class ApplicationRuntime : IDisposable
     public ApplicationSettings Settings { get; private set; }
     public MediaToolAvailability MediaTools { get; private set; }
     public PortableProjectStore ProjectStore { get; }
+    public ProjectSaveCoordinator ProjectSaveCoordinator { get; }
+    public ProjectCloneService ProjectCloneService { get; }
+    public ProjectRelocationService ProjectRelocationService { get; }
+    public ProjectDegradationAnalyzer ProjectDegradationAnalyzer { get; }
+    public ProjectCleanupService ProjectCleanupService { get; }
     public AssetImportService AssetImporter { get; }
     public ProjectWorkspace Workspace { get; }
     public ProjectAssetTransferService AssetTransferService { get; }
@@ -110,10 +140,14 @@ internal sealed class ApplicationRuntime : IDisposable
     public RenderedAssetPromotionService RenderedAssetPromotionService { get; }
     public AudioExtractionService AudioExtractionService { get; }
     public ProjectAssetDependencyAnalyzer ProjectAssetDependencyAnalyzer { get; }
+    public PhysicalAssetRelinkStager PhysicalAssetRelinkStager { get; }
+    public PhysicalAssetRelinkService PhysicalAssetRelinkService { get; }
+    public DeletedPhysicalAssetRestorationService DeletedPhysicalAssetRestorationService { get; }
     public PhysicalAssetRemovalService PhysicalAssetRemovalService { get; }
     public ProjectAssetTransferWorkflow ProjectAssetTransferWorkflow { get; }
     public MaterializedProjectMediaTransferService MaterializedProjectMediaTransferService { get; }
     public FfprobeMediaInspectionService MediaInspector { get; }
+    public FfprobeStreamTimingAssessmentService StreamTimingAssessmentService { get; }
     public ExactVideoFrameService ExactFrameService { get; }
     public RecipeMediaMaterializer MediaMaterializer { get; }
     public FfmpegAudioExtractionEngine AudioExtractionEngine { get; }
@@ -131,6 +165,7 @@ internal sealed class ApplicationRuntime : IDisposable
         ApplicationSettingsPlatformDefaults.Apply(Settings, Paths);
         MediaTools = MediaToolDiscovery.Discover(Settings.MediaTools.FfmpegPath, Settings.MediaTools.FfprobePath);
         MediaInspector.UpdateExecutablePath(MediaTools.FfprobePath);
+        StreamTimingAssessmentService.UpdateExecutablePath(MediaTools.FfprobePath);
         ExactFrameService.UpdateExecutablePaths(MediaTools.FfmpegPath, MediaTools.FfprobePath);
         MediaMaterializer.UpdateExecutablePath(MediaTools.FfmpegPath);
         AudioExtractionEngine.UpdateExecutablePath(MediaTools.FfmpegPath);
@@ -218,7 +253,7 @@ internal sealed class ApplicationRuntime : IDisposable
         new(workspace, MediaMaterializer, OutputIngestion, preparationService);
 
     public ProjectWorkspace CreateProjectWorkspace() =>
-        new(ProjectStore, AssetImporter);
+        new(ProjectStore, AssetImporter, ProjectStore, ProjectSaveCoordinator);
 
     private ApplicationSettings LoadSettings()
     {

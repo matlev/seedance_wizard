@@ -26,6 +26,7 @@ public partial class SettingsWindow : Window
     private bool _rendering;
     private bool _allowClose;
     private bool _closeCommitScheduled;
+    private readonly IProjectSettingsActions? _projectActions;
 
     public SettingsWindow(
         IApplicationSettingsStore settingsStore,
@@ -33,7 +34,8 @@ public partial class SettingsWindow : Window
         ISecretStore secretStore,
         IMediaToolDiscovery mediaToolDiscovery,
         ITemporaryAssetHost temporaryAssetHost,
-        FileApplicationDiagnosticLog diagnosticLog)
+        FileApplicationDiagnosticLog diagnosticLog,
+        IProjectSettingsActions? projectActions = null)
     {
         InitializeComponent();
         _editor = new ApplicationSettingsEditor(settingsStore, settings);
@@ -42,6 +44,7 @@ public partial class SettingsWindow : Window
         _mediaToolDiscovery = mediaToolDiscovery;
         _temporaryAssetHost = temporaryAssetHost;
         _diagnosticLog = diagnosticLog;
+        _projectActions = projectActions;
         _secretStore = secretStore;
         _fieldFactory = new SettingsFieldFactory(
             _editor,
@@ -57,10 +60,14 @@ public partial class SettingsWindow : Window
             UpdateSecret_Click,
             RemoveSecret_Click);
         GeneralCategory.IsSelected = true;
+        ProjectCategory.IsEnabled = _projectActions?.HasActiveProject == true;
+        if (!ProjectCategory.IsEnabled)
+            ProjectCategory.ToolTip = "Open a project to change project settings.";
         StateChanged += SettingsWindow_StateChanged;
     }
 
     public ApplicationSettings Settings => _editor.Settings;
+    public bool ProjectActionExecuted { get; private set; }
 
     protected override void OnClosing(CancelEventArgs e)
     {
@@ -134,6 +141,12 @@ public partial class SettingsWindow : Window
             };
             SettingsPanel.Children.Add(statusText);
 
+            if (section == "Project")
+            {
+                RenderProjectSection(statusText);
+                return;
+            }
+
             foreach (var requirement in ApplicationConfigurationCatalog.Requirements.Where(item =>
                          item.Section.Equals(section, StringComparison.Ordinal)))
             {
@@ -167,6 +180,152 @@ public partial class SettingsWindow : Window
         finally
         {
             _rendering = false;
+        }
+    }
+
+    private void RenderProjectSection(TextBlock statusText)
+    {
+        if (_projectActions is not { HasActiveProject: true, CurrentProjectRootDirectory: { } rootDirectory })
+        {
+            statusText.Text = "Open a project to manage its location or clean up degraded project media.";
+            return;
+        }
+
+        statusText.Text = "These actions apply only to the currently open project. They are not application settings.";
+        SettingsPanel.Children.Add(new TextBlock
+        {
+            Text = "Project location",
+            Style = (Style)FindResource("ApplicationTextBlockStyle"),
+            FontSize = 15,
+            Margin = new Thickness(0, 8, 0, 5)
+        });
+        SettingsPanel.Children.Add(new TextBlock
+        {
+            Text = "Move this project's entire folder to an exact new folder location.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (System.Windows.Media.Brush)FindResource("MutedTextBrush"),
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+        var locationEditor = new TextBox
+        {
+            Text = rootDirectory,
+            MinWidth = 420,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
+        var locationPanel = new Grid { Margin = new Thickness(0, 0, 0, 24) };
+        locationPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        locationPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        locationPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        locationPanel.Children.Add(locationEditor);
+        var browseButton = new Button { Content = "Browse…", Margin = new Thickness(8, 3, 3, 3) };
+        browseButton.Click += (_, _) => BrowseProjectLocation(locationEditor);
+        Grid.SetColumn(browseButton, 1);
+        locationPanel.Children.Add(browseButton);
+        var moveButton = new Button { Content = "Move Project", Margin = new Thickness(3) };
+        moveButton.Click += async (_, _) => await MoveProjectAsync(locationEditor, moveButton, browseButton).ConfigureAwait(true);
+        Grid.SetColumn(moveButton, 2);
+        locationPanel.Children.Add(moveButton);
+        SettingsPanel.Children.Add(locationPanel);
+
+        SettingsPanel.Children.Add(new Separator { Margin = new Thickness(0, 0, 0, 20) });
+        SettingsPanel.Children.Add(new TextBlock
+        {
+            Text = "Cleanup Project",
+            Style = (Style)FindResource("ApplicationTextBlockStyle"),
+            FontSize = 15,
+            Margin = new Thickness(0, 0, 0, 5)
+        });
+        SettingsPanel.Children.Add(new TextBlock
+        {
+            Text = "This will PERMANENTLY DELETE all orphaned Frames, Audio clips, Saved clips, and Compositions tied to the project. This is irreversible, and should only be done if you know what you’re doing.",
+            TextWrapping = TextWrapping.Wrap,
+            FontWeight = FontWeights.Bold,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextBrush"),
+            Margin = new Thickness(0, 0, 0, 10)
+        });
+        var cleanupButton = new Button
+        {
+            Content = "Cleanup Project",
+            Style = (Style)FindResource("DangerButtonStyle"),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        cleanupButton.Click += async (_, _) => await CleanupProjectAsync(cleanupButton).ConfigureAwait(true);
+        SettingsPanel.Children.Add(cleanupButton);
+    }
+
+    private void BrowseProjectLocation(TextBox locationEditor)
+    {
+        var currentName = Path.GetFileName(Path.TrimEndingDirectorySeparator(locationEditor.Text.Trim()));
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select the parent folder for the moved project",
+            Multiselect = false,
+            InitialDirectory = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(locationEditor.Text.Trim()))
+        };
+        if (dialog.ShowDialog(this) == true)
+            locationEditor.Text = Path.Combine(dialog.FolderName, currentName);
+    }
+
+    private async Task MoveProjectAsync(TextBox locationEditor, Button moveButton, Button browseButton)
+    {
+        if (_projectActions is not { HasActiveProject: true }) return;
+        var destination = locationEditor.Text.Trim();
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            PersistenceStatusText.Text = "Choose the exact new project folder location.";
+            return;
+        }
+
+        moveButton.IsEnabled = false;
+        browseButton.IsEnabled = false;
+        try
+        {
+            PersistenceStatusText.Text = "Moving project…";
+            var result = await _projectActions.MoveProjectAsync(destination).ConfigureAwait(true);
+            PersistenceStatusText.Text = result.Message;
+            ProjectActionExecuted |= result.Succeeded;
+            if (result.Succeeded && _projectActions.CurrentProjectRootDirectory is { } rootDirectory)
+                locationEditor.Text = rootDirectory;
+        }
+        catch (Exception exception)
+        {
+            PersistenceStatusText.Text = $"Project move failed: {exception.Message}";
+            MessageBox.Show(this, exception.Message, "Project move failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            moveButton.IsEnabled = true;
+            browseButton.IsEnabled = true;
+        }
+    }
+
+    private async Task CleanupProjectAsync(Button cleanupButton)
+    {
+        if (_projectActions is not { HasActiveProject: true }) return;
+        var confirmation = MessageBox.Show(
+            this,
+            "Cleanup permanently deletes degraded project media. Missing source files could otherwise be relinked, restoring the media that depends on them.\n\nDo you want to permanently delete the orphaned project media now?",
+            "Cleanup Project",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirmation != MessageBoxResult.Yes) return;
+
+        cleanupButton.IsEnabled = false;
+        try
+        {
+            PersistenceStatusText.Text = "Cleaning up degraded project media…";
+            var result = await _projectActions.CleanupProjectAsync().ConfigureAwait(true);
+            PersistenceStatusText.Text = result.Message;
+            ProjectActionExecuted |= result.Succeeded;
+        }
+        catch (Exception exception)
+        {
+            PersistenceStatusText.Text = $"Project cleanup failed: {exception.Message}";
+            MessageBox.Show(this, exception.Message, "Project cleanup failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            cleanupButton.IsEnabled = true;
         }
     }
 

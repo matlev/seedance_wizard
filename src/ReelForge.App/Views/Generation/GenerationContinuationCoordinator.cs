@@ -9,7 +9,6 @@ namespace ReelForge.App.Views.Generation;
 internal sealed class GenerationContinuationCoordinator
 {
     private readonly ProjectWorkspace _workspace;
-    private readonly IProjectStore _projectStore;
     private readonly ExactVideoFrameService _exactFrameService;
     private readonly IMediaMaterializer _mediaMaterializer;
     private readonly IGenerationContinuationPresentation _presentation;
@@ -19,7 +18,6 @@ internal sealed class GenerationContinuationCoordinator
 
     public GenerationContinuationCoordinator(
         ProjectWorkspace workspace,
-        IProjectStore projectStore,
         ExactVideoFrameService exactFrameService,
         IMediaMaterializer mediaMaterializer,
         IGenerationContinuationPresentation presentation,
@@ -28,7 +26,6 @@ internal sealed class GenerationContinuationCoordinator
         Func<IVideoGenerationProvider> currentProvider)
     {
         _workspace = workspace;
-        _projectStore = projectStore;
         _exactFrameService = exactFrameService;
         _mediaMaterializer = mediaMaterializer;
         _presentation = presentation;
@@ -44,7 +41,7 @@ internal sealed class GenerationContinuationCoordinator
         var origin = new ContinuationOrigin(project, location, project.Id);
         var outputs = project.Assets
             .Where(asset => sourceGeneration.OutputAssetIds.Contains(asset.Id))
-            .Where(asset => asset.MediaType == MediaType.Video && asset.StorageKind == AssetStorageKind.Physical)
+            .Where(CanContinueFrom)
             .ToArray();
         if (outputs.Length == 0)
         {
@@ -183,8 +180,9 @@ internal sealed class GenerationContinuationCoordinator
     private async Task SaveOriginAsync(ContinuationOrigin origin, CancellationToken cancellationToken)
     {
         if (!IsOriginCurrent(origin)) return;
-        origin.Project.Touch();
-        await _projectStore.SaveAsync(origin.Project, origin.Location, cancellationToken);
+        _ = await _workspace
+            .SaveIfCurrentAsync(origin.Project, origin.Location, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private bool IsOriginCurrent(ContinuationOrigin origin) =>
@@ -227,6 +225,11 @@ internal sealed class GenerationContinuationCoordinator
         throw new InvalidOperationException(
             $"{provider.Capabilities.DisplayName} does not support a continuation-compatible image reference mode.");
     }
+
+    internal static bool CanContinueFrom(ProjectAsset asset) =>
+        !asset.IsDeleted &&
+        asset.MediaType == MediaType.Video &&
+        asset.StorageKind == AssetStorageKind.Physical;
 
     private readonly record struct ContinuationOrigin(VideoProject Project, ProjectLocation Location, Guid ProjectId);
     private readonly record struct IndexedSource(IReadOnlyList<VideoPresentationFrame> Frames, string ContentHash);

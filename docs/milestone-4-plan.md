@@ -68,6 +68,15 @@ Diagnostics identify affected assets and dependent recipes, anchors, generation 
 - A content mismatch cannot replace the existing identity. The user may deliberately import those bytes as new media through the ordinary import workflow.
 - Partial copies, failed saves, or cancellation roll back without claiming a successful relink.
 
+### 4A.5 Explicit project relocation and derived-media cleanup
+
+- The active project folder can be moved without changing project identity, portable meaning, or project-relative references. The move preserves the complete folder; it is distinct from Clone Project, which creates a new identity and omits cache/recovery artifacts.
+- Relocation is allowed only from a stable clean, saved, or degraded workspace and while no active or unreconciled generation job targets the old path. Unsafe lifecycle states must be resolved explicitly.
+- Same-volume relocation uses a directory rename. Cross-volume relocation stages and validates a complete copy before publication, rebinds the exact active workspace, updates recent/last-project paths, and retires the source after the destination is authoritative.
+- On stable project open and immediately before cleanup, active physical-media availability is reconciled transactionally before Project Media derives a red degraded state for Saved Frames, Saved Clips, and compositions whose pinned dependencies reach deleted or unavailable physical media; missing physical media retains its distinct yellow state.
+- **Cleanup Project** is an explicit irreversible action. It removes degraded items from active Project Media in one recovery-aware save while retaining only the hidden tombstone/archive records required for exact history and invariant validity. Unsafe lifecycle states and active or unreconciled project jobs must be resolved first.
+- Cache availability is advisory and machine-local. A surviving indexed representation may be exported before cleanup, but cleanup never treats cache as project truth, prunes cache, renders media, or authorizes provider activity.
+
 ### Phase 4A acceptance
 
 - A killed process leaves either the last committed project or one valid, clearly offered recovery candidate.
@@ -76,6 +85,8 @@ Diagnostics identify affected assets and dependent recipes, anchors, generation 
 - Clean shutdown and successful explicit save retire obsolete recovery data deterministically.
 - Missing, inaccessible, mismatched, and verified media states produce distinct actionable results.
 - Relink accepts only matching SHA-256 bytes and preserves all logical identities and dependencies.
+- Relocation preserves the complete project and stable identity, rejects unsafe paths/lifecycle/job state, and reopens from the new location.
+- Degraded derived media is visibly distinct from missing physical media; cleanup is explicit, transactional, history-safe, and cache-independent.
 - Recovery and relink preserve immutable recipes, anchors, generation snapshots, provenance, and cache independence.
 - Fault-injection coverage exercises interrupted serialization, interrupted replacement, invalid recovery bytes, relink copy failure, save failure, cancellation, and restart.
 - Startup, recovery, autosave, and tests cannot reach provider submission authorization.
@@ -117,6 +128,8 @@ The following operations remain distinct:
 - Preserve source time, composition time, and selected-stream identity distinctly.
 
 **Pre-DTO decision gate:** the primary agent must document and review the exact persisted audio-time representation, conversion/rounding rules, invariants, and media-engine boundary before track/item DTO implementation begins. This is an architectural decision, not a mapper detail to be invented during implementation.
+
+Timing readiness is separately classified as Exact, Estimated, or Unusable according to [ADR-0007](adr/0007-degraded-timing-placement.md). A durable import may remain timeline-usable with acknowledged Estimated timing only when its versioned assessment pins verified source identity, deterministic stream identity, dependable sequential decode, a finite positive frozen span, and specific unresolved issues. Video and audio are assessed independently. Historical occurrences never silently adopt later analysis; unusable audio requires an explicit video-only choice, and unusable video blocks placement. Repair execution is not part of this contract unit.
 
 ### 4B.3 Track policy and contribution contract
 
@@ -169,11 +182,12 @@ It excludes new edge trims, ripple operations, generic replacement, snapping, ma
 - Unlink, Detach, and whole-source Extract semantics are distinct in contracts and tests; existing Detach behavior remains exact and non-doubling.
 - Locked-track commands and affected cross-track operations reject before mutation; visibility/mute contribution policy is deterministic.
 - Video and audio time-domain boundary cases round-trip without floating-point or frame-anchor reinterpretation.
+- Exact, acknowledged Estimated, and Unusable timing assessments produce deterministic independent video/audio placement decisions; Estimated occurrences reopen with identical frozen geometry and warnings.
 - Immutable composition revision identity, cursor movement, and divergent-history behavior are deterministic.
 - History excludes the explicitly out-of-scope project, generation, settings, export, and recovery operations.
 - Obsolete development files are rejected clearly and are not rewritten.
 - Version boundaries can host future migrations, while no external support marker is declared implicitly.
-- Cache/dependency identities include exact track, item, link, composition revision, and applicable source revision identity.
+- `RecipeRevision.Id` is the canonical aggregate identity of an immutable Working Composition: its `CompositionRecipe` payload transitively freezes exact track, item, link, timing/source-revision pins. Cache lookup for an explicit earlier composition revision remains distinct from current/default revision lookup. Render-derived dependency hashes and stale-result rejection remain Milestone 6 work.
 - Core/Application project truth contains no WPF types, absolute machine paths, FFmpeg component names, or Windows-only concepts.
 - Every Phase 4A recovery/relink acceptance case passes against the new candidate format.
 

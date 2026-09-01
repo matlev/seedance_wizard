@@ -38,7 +38,7 @@ internal static class RecipeInvariantValidator
                     $"Recipe revision '{revision.Id}'",
                     errors);
 
-            ValidateSemantics(revision, context.AnchorRevisions, errors);
+            ValidateSemantics(revision, context, errors);
         }
 
         foreach (var duplicate in project.RecipeRevisions
@@ -98,57 +98,54 @@ internal static class RecipeInvariantValidator
 
     private static void ValidateSemantics(
         RecipeRevision revision,
-        Dictionary<Guid, FrameAnchorRevision> anchorRevisions,
+        ProjectValidationContext context,
         List<string> errors)
     {
         switch (revision.Recipe)
         {
             case TrimRecipe trim:
-                ValidateBoundary(trim.Start, trim.Source, revision.Id, anchorRevisions, errors);
-                ValidateBoundary(trim.End, trim.Source, revision.Id, anchorRevisions, errors);
-                var startSeconds = ResolveBoundarySeconds(trim.Start, anchorRevisions);
-                var endSeconds = ResolveBoundarySeconds(trim.End, anchorRevisions);
+                ValidateBoundary(trim.Start, trim.Source, revision.Id, context.AnchorRevisions, errors);
+                ValidateBoundary(trim.End, trim.Source, revision.Id, context.AnchorRevisions, errors);
+                var startSeconds = ResolveBoundarySeconds(trim.Start, context.AnchorRevisions);
+                var endSeconds = ResolveBoundarySeconds(trim.End, context.AnchorRevisions);
                 if (startSeconds is { } start && endSeconds is { } end && end <= start)
                     errors.Add($"Recipe revision '{revision.Id}' trim end must follow its start.");
                 break;
             case ExtractFrameRecipe frame when
-                anchorRevisions.TryGetValue(frame.Anchor.AnchorRevisionId, out var anchorRevision) &&
+                context.AnchorRevisions.TryGetValue(frame.Anchor.AnchorRevisionId, out var anchorRevision) &&
                 anchorRevision.SourceAssetId != frame.Source.AssetId:
                 errors.Add($"Recipe revision '{revision.Id}' frame anchor must belong to its source asset.");
                 break;
             case CompositionRecipe composition:
-                if (composition.Segments.Count == 0)
-                    errors.Add($"Recipe revision '{revision.Id}' composition must contain at least one segment.");
-                foreach (var segment in composition.Segments)
-                {
-                    ValidateBoundary(segment.Start, segment.Source, revision.Id, anchorRevisions, errors);
-                    ValidateBoundary(segment.End, segment.Source, revision.Id, anchorRevisions, errors);
-                    var segmentStart = ResolveBoundarySeconds(segment.Start, anchorRevisions);
-                    var segmentEnd = ResolveBoundarySeconds(segment.End, anchorRevisions);
-                    if (segmentStart is { } compositionStart &&
-                        segmentEnd is { } compositionEnd &&
-                        compositionEnd <= compositionStart)
-                        errors.Add(
-                            $"Recipe revision '{revision.Id}' composition segment '{segment.Id}' end must follow its start.");
-                }
-                foreach (var audioClip in composition.AudioClips)
-                {
-                    if (audioClip.TimelineStartTicks < 0)
-                        errors.Add(
-                            $"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' has a negative timeline start.");
-                    if (!double.IsFinite(audioClip.GainDecibels) ||
-                        audioClip.GainDecibels is < -60 or > 12)
-                        errors.Add(
-                            $"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' gain must be between -60 dB and +12 dB.");
-                    if (!double.IsFinite(audioClip.Pan) || audioClip.Pan is < -1 or > 1)
-                        errors.Add(
-                            $"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' pan must be between -1 and +1.");
-                    if (audioClip.FadeInMilliseconds < 0 || audioClip.FadeOutMilliseconds < 0)
-                        errors.Add(
-                            $"Recipe revision '{revision.Id}' audio clip '{audioClip.Id}' fades cannot be negative.");
-                }
+                foreach (var item in composition.Composition.VideoTracks.SelectMany(track => track.Items))
+                    ValidatePhysicalOccurrenceSource(item.Source, item.TimingAssessment, MediaType.Video, revision.Id, context.Assets, errors);
+                foreach (var item in composition.Composition.AudioTracks.SelectMany(track => track.Items))
+                    ValidatePhysicalOccurrenceSource(item.Source, item.TimingAssessment, MediaType.Audio, revision.Id, context.Assets, errors);
                 break;
         }
+    }
+
+    private static void ValidatePhysicalOccurrenceSource(
+        AssetRevisionReference reference,
+        StreamTimingAssessmentPin timing,
+        MediaType occurrenceType,
+        Guid revisionId,
+        Dictionary<Guid, ProjectAsset> assets,
+        List<string> errors)
+    {
+        if (!assets.TryGetValue(reference.AssetId, out var source) || source.StorageKind != AssetStorageKind.Physical)
+            return;
+
+        var owner = $"Recipe revision '{revisionId}' {occurrenceType.ToString().ToLowerInvariant()} occurrence '{reference.AssetId}'";
+        if (source.Physical?.ContentIdentity is not { Status: ContentHashStatus.Verified, Sha256: { } sourceHash } ||
+            !sourceHash.Equals(timing.SourceContentHash, StringComparison.OrdinalIgnoreCase))
+            errors.Add($"{owner} must pin the physical source's verified content identity.");
+
+        var expectedStream = occurrenceType == MediaType.Video
+            ? source.Encoding?.Video?.StreamIndex
+            : source.Encoding?.Audio?.StreamIndex;
+        if (occurrenceType == MediaType.Video && source.MediaType != MediaType.Video || expectedStream != timing.SelectedStreamIndex)
+            errors.Add($"{owner} must pin its selected {occurrenceType.ToString().ToLowerInvariant()} stream identity.");
     }
 
     private static void ValidateBoundary(
@@ -230,8 +227,9 @@ internal static class RecipeInvariantValidator
     {
         TrimRecipe trim => [trim.Source],
         ExtractFrameRecipe frame => [frame.Source],
-        CompositionRecipe composition => composition.Segments.Select(segment => segment.Source)
-            .Concat(composition.AudioClips.Select(clip => clip.Source)),
+        CompositionRecipe composition => composition.Composition.VideoTracks
+            .SelectMany(track => track.Items.Select(item => item.Source))
+            .Concat(composition.Composition.AudioTracks.SelectMany(track => track.Items.Select(item => item.Source))),
         _ => throw new NotSupportedException($"Recipe type '{recipe.GetType().Name}' is not supported.")
     };
 
@@ -240,9 +238,7 @@ internal static class RecipeInvariantValidator
         TrimRecipe trim => new[] { trim.Start.Anchor, trim.End.Anchor }.OfType<AnchorRevisionReference>(),
         ExtractFrameRecipe frame when
             frame.Anchor.AnchorId != Guid.Empty && frame.Anchor.AnchorRevisionId != Guid.Empty => [frame.Anchor],
-        CompositionRecipe composition => composition.Segments
-            .SelectMany(segment => new[] { segment.Start.Anchor, segment.End.Anchor })
-            .OfType<AnchorRevisionReference>(),
+        CompositionRecipe => [],
         _ => []
     };
 }

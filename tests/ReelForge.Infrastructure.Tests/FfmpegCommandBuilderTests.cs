@@ -1,5 +1,7 @@
 ﻿using ReelForge.Infrastructure;
 
+using ReelForge.Core;
+
 namespace ReelForge.Tests;
 
 public sealed class FfmpegCommandBuilderTests
@@ -59,6 +61,21 @@ public sealed class FfmpegCommandBuilderTests
     {
         Assert.Throws<ArgumentException>(() =>
             FfmpegCommandBuilder.BuildExtractAudioArguments("source.mp4", "audio.mp3"));
+    }
+
+    [Fact]
+    public void ExactAudioExtractionSelectsThePinnedStreamAndUsesAHalfOpenSampleRange()
+    {
+        var arguments = FfmpegCommandBuilder.BuildExtractExactAudioRangeArguments(
+            "source.mp4", "detached.m4a", 3,
+            new AudioSourceRange(new AudioSampleTime(96_000, 48_000), new AudioSampleTime(144_000, 48_000)));
+
+        Assert.Contains("0:3", arguments);
+        var filter = arguments[arguments.ToList().IndexOf("-af") + 1];
+        Assert.Equal("atrim=start_sample=96000:end_sample=144000,asetpts=PTS-STARTPTS", filter);
+        Assert.Contains("-vn", arguments);
+        Assert.Equal("48000", arguments[arguments.ToList().IndexOf("-ar") + 1]);
+        Assert.Equal("detached.m4a", arguments[^1]);
     }
 
     [Fact]

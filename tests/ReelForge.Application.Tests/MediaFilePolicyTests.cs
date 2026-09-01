@@ -48,6 +48,20 @@ public sealed class MediaFilePolicyTests : IDisposable
         Assert.Equal(expected, Path.GetFileName(path));
     }
 
+    [Fact]
+    public void AllocatesAroundReservedPathsCaseInsensitively()
+    {
+        Directory.CreateDirectory(_root);
+        var reserved = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            Path.Combine(_root, "CLIP.MP4")
+        };
+
+        var path = CollisionFreeDestinationPolicy.GetAvailablePath(_root, "clip.mp4", reservedPaths: reserved);
+
+        Assert.Equal("clip (2).mp4", Path.GetFileName(path));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);

@@ -14,9 +14,13 @@ internal sealed class CompositionCurrentAccessor
     public VideoProject Project =>
         _workspace.Project ?? throw new InvalidOperationException("Open a project first.");
 
-    public (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent()
+    public (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent() =>
+        GetCurrent(Project);
+
+    public static (ProjectAsset Asset, RecipeRevision Revision, CompositionRecipe Recipe) GetCurrent(
+        VideoProject project)
     {
-        var project = Project;
+        ArgumentNullException.ThrowIfNull(project);
         var compositionId = project.WorkingCompositionAssetId
             ?? throw new InvalidOperationException("Start a Working Composition first.");
         var asset = project.Assets.SingleOrDefault(candidate => candidate.Id == compositionId)
@@ -39,6 +43,8 @@ internal sealed class CompositionCurrentAccessor
 
         if (source.Id == project.WorkingCompositionAssetId)
             throw new InvalidOperationException("A Working Composition cannot contain itself.");
+        if (source.IsDeleted)
+            throw new InvalidOperationException("A removed project media file cannot be added to the Working Composition.");
         if (source.MediaType != MediaType.Video ||
             (source.StorageKind == AssetStorageKind.Virtual && source.Virtual?.Kind != VirtualAssetKind.SavedClip))
             throw new InvalidOperationException("Add a physical video or Saved Clip to the Working Composition.");
@@ -51,23 +57,17 @@ internal sealed class CompositionCurrentAccessor
         var source = Project.Assets.SingleOrDefault(asset => asset.Id == sourceAssetId)
             ?? throw new InvalidOperationException("The selected audio source no longer exists.");
 
+        if (source.IsDeleted)
+            throw new InvalidOperationException("A removed project media file cannot be added to the Working Composition.");
         if (source.StorageKind != AssetStorageKind.Physical || source.MediaType != MediaType.Audio)
             throw new InvalidOperationException("Add a physical audio file to the Working Composition.");
 
         return source;
     }
 
-    public static CompositionSegment CreateSegment(ProjectAsset source) => new()
-    {
-        Source = new AssetRevisionReference
-        {
-            AssetId = source.Id,
-            RecipeRevisionId = source.StorageKind == AssetStorageKind.Virtual
-                ? source.Virtual?.CurrentRecipeRevisionId
-                    ?? throw new InvalidOperationException("The selected Saved Clip has no committed recipe revision.")
-                : null
-        },
-        Start = RecipeBoundary.SourceStart,
-        End = RecipeBoundary.SourceEnd
-    };
+    public static InvalidOperationException TimingAwarePlacementRequired() => new(
+        "Timeline placement requires persisted timing-assessment evidence and an occurrence adapter.");
+
+    public static InvalidOperationException OccurrenceAdapterRequired(string operation) => new(
+        $"{operation} is unsupported until the timeline occurrence adapter is available.");
 }

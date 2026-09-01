@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using ReelForge.Core;
 using ReelForge.App.Views.MediaPreparation;
+using ReelForge.App.Views.Editing;
 
 namespace ReelForge.App.Views.Inspector;
 
@@ -49,6 +50,8 @@ internal static class InspectorTextFormatter
             builder.AppendLine($"Duration: {asset.DurationSeconds:0.###} seconds");
         }
 
+        AppendTimingAssessments(builder, asset.TimingAssessments);
+
         var encoding = realizedEncoding ?? asset.Encoding;
         if (encoding is null)
         {
@@ -86,6 +89,16 @@ internal static class InspectorTextFormatter
         }
 
         return builder.ToString();
+    }
+
+    private static void AppendTimingAssessments(StringBuilder builder, IEnumerable<StreamTimingAssessment> assessments)
+    {
+        foreach (var assessment in assessments.OrderBy(item => item.MediaType))
+        {
+            builder.AppendLine();
+            builder.AppendLine(assessment.MediaType == MediaType.Video ? "VIDEO TIMING" : "AUDIO TIMING");
+            builder.AppendLine(TimingWarningPresentation.FormatAssessmentDetail(assessment));
+        }
     }
 
     public static string FormatGeneration(GenerationRecord generation)

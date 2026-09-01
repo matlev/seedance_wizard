@@ -13,9 +13,11 @@ namespace ReelForge.App.Views.Editing;
 
 public partial class CompositionTimelineControl : UserControl, IDisposable
 {
-    private const double AudioLaneTop = 86;
+    private const double TrackTop = 25;
+    private const double VideoTrackRowHeight = 80;
+    private const double AudioTrackRowHeight = 68;
+    private const double TrackHeaderHeight = 18;
     private const double AudioLaneHeight = 34;
-    private const double AudioLaneGap = 4;
 
     private sealed record StickyContent(
         FrameworkElement Element,
@@ -44,11 +46,11 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     private bool _mutationPending;
     private bool _disposed;
     private bool _scrubbing;
+    private Guid? _selectedTrackId;
     private bool _resumePlayback;
     private Guid? _pendingSegmentDragId;
     private Guid? _activeSegmentDragId;
     private Point _segmentDragStart;
-    private double _segmentDragPointerOffset;
     private double _segmentDragPointerX;
     private int _segmentDragOriginalIndex = -1;
     private int _segmentDragTargetIndex = -1;
@@ -61,6 +63,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     private double _itemDragViewportX;
     private double _itemDragAutoScrollDelta;
     private CompositionTimelineDropDescriptor? _dragDescriptor;
+    private Guid? _dragTargetTrackId;
     private double _dragViewportX;
     private double _dragAutoScrollDelta;
 
@@ -78,13 +81,31 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     public event EventHandler<CompositionTimelineReorderEventArgs>? SegmentReorderRequested;
     public event EventHandler<CompositionTimelineAudioMoveEventArgs>? AudioMoveRequested;
     public event EventHandler<CompositionTimelineDropEventArgs>? MediaDropRequested;
+#pragma warning disable CS0067 // M5 editing commands remain intentionally unwired during M4.
     public event EventHandler<CompositionTimelineItemEventArgs>? SplitRequested;
     public event EventHandler<CompositionTimelineItemEventArgs>? ShiftLeftRequested;
     public event EventHandler<CompositionTimelineItemEventArgs>? ShiftRightRequested;
+#pragma warning restore CS0067
     public event EventHandler<CompositionTimelineItemEventArgs>? DetachAudioRequested;
     public event EventHandler<CompositionTimelineItemEventArgs>? RemoveRequested;
+    public event EventHandler<CompositionTimelineTrackEventArgs>? TrackSelected;
+    public event EventHandler<CompositionTimelineTrackRenameEventArgs>? TrackRenameRequested;
+    public event EventHandler<CompositionTimelineTrackKindEventArgs>? TrackAppendRequested;
+    public event EventHandler<CompositionTimelineTrackEventArgs>? TrackDeleteRequested;
+    public event EventHandler<CompositionTimelineTrackReorderEventArgs>? TrackMoveUpRequested;
+    public event EventHandler<CompositionTimelineTrackReorderEventArgs>? TrackMoveDownRequested;
+    public event EventHandler<CompositionTimelineTrackBooleanEventArgs>? TrackLockChanged;
+    public event EventHandler<CompositionTimelineTrackBooleanEventArgs>? VideoTrackVisibilityChanged;
+    public event EventHandler<CompositionTimelineTrackBooleanEventArgs>? AudioTrackMuteChanged;
 
     public double ProjectedDurationSeconds => _layout?.ProjectedDurationSeconds ?? 0;
+    public Guid? SelectedTrackId => _selectedTrackId;
+
+    private void AddVideoTrack_Click(object sender, RoutedEventArgs e) =>
+        TrackAppendRequested?.Invoke(this, new CompositionTimelineTrackKindEventArgs(CompositionTimelineTrackKind.Video));
+
+    private void AddAudioTrack_Click(object sender, RoutedEventArgs e) =>
+        TrackAppendRequested?.Invoke(this, new CompositionTimelineTrackKindEventArgs(CompositionTimelineTrackKind.Audio));
 
     public bool TryGetSegmentSpan(Guid segmentId, out CompositionTimelineSegmentSpan span)
     {
@@ -106,6 +127,8 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     {
         ArgumentNullException.ThrowIfNull(state);
         _state = state;
+        TimingWarningText.Visibility = state.DegradedOccurrenceCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        TimingWarningText.ToolTip = state.TimingWarningSummary;
         _layout = CalculateLayoutProjection();
         if (!_mutationPending)
         {
@@ -141,6 +164,8 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         TimelineCanvas.Children.Clear();
         TimelineCanvas.Width = 1;
         DurationText.Text = "No segments";
+        TimingWarningText.Visibility = Visibility.Collapsed;
+        TimingWarningText.ToolTip = null;
         HideDropFeedback();
     }
 
@@ -275,29 +300,15 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         _rendering = true;
         try
         {
-            var items = _state.Segments.ToList();
-            if (_activeSegmentDragId is Guid draggedId && _segmentDragTargetIndex >= 0)
-            {
-                var dragged = items.Single(item => item.SegmentId == draggedId);
-                items.Remove(dragged);
-                items.Insert(Math.Clamp(_segmentDragTargetIndex, 0, items.Count), dragged);
-            }
-
+            var items = _state.Segments;
             _layout = CalculateLayoutProjection(items);
             TimelineCanvas.Children.Clear();
             _stickyContent.Clear();
             TimelineCanvas.Width = _layout.ContentWidth;
 
-            var lanes = CompositionTimelineLayout.CalculateAudioLanes(
-                _state.AudioClips.Select(item => new CompositionTimelineAudioInput(
-                    item.AudioClipId,
-                    item.AudioClipId == _activeAudioDragId
-                        ? _audioDraftStartSeconds
-                        : item.TimelineStart.TotalSeconds,
-                    Math.Max(0.25, item.DurationSeconds ?? 1))).ToArray());
             TimelineCanvas.Height = Math.Max(
                 124,
-                AudioLaneTop + lanes.LaneCount * (AudioLaneHeight + AudioLaneGap));
+                TrackTop + _state.Tracks.Sum(GetTrackRowHeight) + 4);
             DurationText.Text = _layout.Segments.Count == 0
                 ? "No segments"
                 : _layout.HasUnknownDurations
@@ -305,14 +316,21 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
                     : $"{FormatTime(_layout.KnownDurationSeconds)} total";
 
             DrawRuler();
-            for (var index = 0; index < items.Count; index++)
+            foreach (var track in _state.Tracks)
             {
-                DrawSegment(items[index], index);
-            }
-
-            foreach (var item in _state.AudioClips)
-            {
-                DrawAudio(item, lanes.LaneByAudioClipId[item.AudioClipId]);
+                DrawTrackTexture(track);
+                DrawTrackHeader(track);
+                var top = GetTrackItemTop(track.TrackId);
+                if (track.Kind == CompositionTimelineTrackKind.Video)
+                {
+                    foreach (var item in items.Where(item => item.TrackId == track.TrackId))
+                        DrawSegment(item, top);
+                }
+                else
+                {
+                    foreach (var item in _state.AudioClips.Where(item => item.TrackId == track.TrackId))
+                        DrawAudio(item, top);
+                }
             }
 
             _playhead = new Line
@@ -344,7 +362,8 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         return CompositionTimelineLayout.Calculate(
             source.Select(item => new CompositionTimelineSegmentInput(
                 item.SegmentId,
-                item.DurationSeconds)).ToArray(),
+                item.DurationSeconds,
+                item.TimelineStart)).ToArray(),
             GetViewportWidth(),
             zoomFactor: _zoom);
     }
@@ -388,7 +407,236 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         }
     }
 
-    private void DrawSegment(CompositionSegmentListItem item, int index)
+    private double GetTrackItemTop(Guid trackId)
+    {
+        return GetTrackTop(trackId) + TrackHeaderHeight + 2;
+    }
+
+    private double GetTrackTop(Guid trackId)
+    {
+        var top = TrackTop;
+        foreach (var track in _state.Tracks)
+        {
+            if (track.TrackId == trackId) return top;
+            top += GetTrackRowHeight(track);
+        }
+        return top;
+    }
+
+    private static double GetTrackRowHeight(CompositionTimelineTrackRow track) =>
+        track.Kind == CompositionTimelineTrackKind.Video ? VideoTrackRowHeight : AudioTrackRowHeight;
+
+    private void DrawTrackHeader(CompositionTimelineTrackRow track)
+    {
+        var top = GetTrackItemTop(track.TrackId) - TrackHeaderHeight - 1;
+        var background = new Rectangle
+        {
+            Width = _layout?.ContentWidth ?? 1,
+            Height = TrackHeaderHeight,
+            Fill = new SolidColorBrush(track.TrackId == _selectedTrackId
+                ? Color.FromRgb(49, 43, 82)
+                : Color.FromRgb(20, 24, 34)),
+            IsHitTestVisible = false
+        };
+        Canvas.SetTop(background, top);
+        TimelineCanvas.Children.Add(background);
+        var header = new Border
+        {
+            Height = TrackHeaderHeight,
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Arrow,
+            ToolTip = $"{track.DisplayName} • {track.ItemCount} item{(track.ItemCount == 1 ? string.Empty : "s")}",
+            Child = new DockPanel { LastChildFill = false }
+        };
+        var panel = (DockPanel)header.Child;
+        panel.Children.Add(new TextBlock
+        {
+            Text = track.Kind == CompositionTimelineTrackKind.Audio
+                ? $"{track.DisplayName}  {track.StatusText}"
+                : track.DisplayName,
+            Foreground = FindResource("MutedTextBrush") as Brush ?? Brushes.LightGray,
+            FontSize = 9,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 8, 0)
+        });
+        panel.Children.Add(CreateTrackIconButton(
+            track,
+            CreateLockIcon(track.IsLocked),
+            track.IsLocked ? "Unlock track" : "Lock track",
+            () => TrackLockChanged?.Invoke(this,
+                new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsLocked)),
+            allowWhenLocked: true));
+        if (track.Kind == CompositionTimelineTrackKind.Video)
+        {
+            panel.Children.Add(CreateTrackIconButton(
+                track,
+                CreateEyeIcon(track.IsVisibleOrMuted),
+                track.IsVisibleOrMuted ? "Hide video track" : "Show video track",
+                () => VideoTrackVisibilityChanged?.Invoke(this,
+                    new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsVisibleOrMuted))));
+        }
+        else
+        {
+            panel.Children.Add(CreateTrackButton(track, track.IsVisibleOrMuted ? "Unmute" : "Mute", () =>
+                AudioTrackMuteChanged?.Invoke(this,
+                    new CompositionTimelineTrackBooleanEventArgs(track.TrackId, !track.IsVisibleOrMuted))));
+        }
+        panel.Children.Add(CreateTrackButton(track, "Rename", () => TrackRenameRequested?.Invoke(this,
+            new CompositionTimelineTrackRenameEventArgs(track.TrackId, track.DisplayName))));
+        panel.Children.Add(CreateTrackButton(track, "↑", () => TrackMoveUpRequested?.Invoke(this,
+            new CompositionTimelineTrackReorderEventArgs(track.TrackId, track.Index - 1)), enabled: track.Index > 0));
+        var sameKindCount = _state.Tracks.Count(candidate => candidate.Kind == track.Kind);
+        panel.Children.Add(CreateTrackButton(track, "↓", () => TrackMoveDownRequested?.Invoke(this,
+            new CompositionTimelineTrackReorderEventArgs(track.TrackId, track.Index + 1)), enabled: track.Index < sameKindCount - 1));
+        panel.Children.Add(CreateTrackButton(track, "Delete", () => TrackDeleteRequested?.Invoke(this,
+            new CompositionTimelineTrackEventArgs(track.TrackId)), enabled: track.ItemCount == 0));
+        header.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            _selectedTrackId = track.TrackId;
+            Render();
+            TrackSelected?.Invoke(this, new CompositionTimelineTrackEventArgs(track.TrackId));
+        };
+        Canvas.SetTop(header, top);
+        Canvas.SetLeft(header, 0);
+        TimelineCanvas.Children.Add(header);
+    }
+
+    private void DrawTrackTexture(CompositionTimelineTrackRow track)
+    {
+        if (_layout is null) return;
+
+        var bodyTop = GetTrackItemTop(track.TrackId);
+        var bodyHeight = GetTrackRowHeight(track) - TrackHeaderHeight - 2;
+        var glyph = track.Kind == CompositionTimelineTrackKind.Video ? "▶" : "♪";
+        var brush = FindResource("PanelRaisedBrush") as Brush ?? Brushes.DarkSlateGray;
+        var text = new FormattedText(
+            glyph,
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            new Typeface("Segoe UI Symbol"),
+            track.Kind == CompositionTimelineTrackKind.Video ? 14 : 17,
+            brush,
+            VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        var tile = new DrawingBrush(new GeometryDrawing(
+            brush,
+            null,
+            text.BuildGeometry(new Point(34, track.Kind == CompositionTimelineTrackKind.Video ? 14 : 11))))
+        {
+            TileMode = TileMode.Tile,
+            Viewbox = new Rect(0, 0, 88, bodyHeight),
+            ViewboxUnits = BrushMappingMode.Absolute,
+            Viewport = new Rect(0, 0, 88, bodyHeight),
+            ViewportUnits = BrushMappingMode.Absolute,
+            Stretch = Stretch.None,
+            Opacity = 0.72
+        };
+        var texture = new Rectangle
+        {
+            Width = _layout.ContentWidth,
+            Height = bodyHeight,
+            Fill = tile,
+            IsHitTestVisible = false
+        };
+        Canvas.SetTop(texture, bodyTop);
+        TimelineCanvas.Children.Add(texture);
+    }
+
+    private static Button CreateTrackButton(CompositionTimelineTrackRow track, string label, Action action, bool enabled = true)
+        => CreateTrackButton(track, label, label, action, enabled);
+
+    private static Button CreateTrackIconButton(
+        CompositionTimelineTrackRow track,
+        FrameworkElement icon,
+        string toolTip,
+        Action action,
+        bool enabled = true,
+        bool allowWhenLocked = false) =>
+        CreateTrackButton(track, icon, toolTip, action, enabled, allowWhenLocked, iconButton: true);
+
+    private static Button CreateTrackButton(
+        CompositionTimelineTrackRow track,
+        object content,
+        string toolTip,
+        Action action,
+        bool enabled,
+        bool allowWhenLocked = false,
+        bool iconButton = false)
+    {
+        var button = new Button
+        {
+            Content = content,
+            FontSize = 9,
+            Padding = iconButton ? new Thickness(2, 0, 2, 0) : new Thickness(4, 0, 4, 0),
+            Margin = new Thickness(0, 1, 3, 1),
+            MinWidth = iconButton ? 22 : 0,
+            IsEnabled = enabled && (!track.IsLocked || allowWhenLocked),
+            ToolTip = toolTip
+        };
+        button.Click += (_, e) => { e.Handled = true; action(); };
+        return button;
+    }
+
+    private static FrameworkElement CreateLockIcon(bool isLocked)
+    {
+        var canvas = new Canvas { Width = 16, Height = 16, IsHitTestVisible = false };
+        var brush = Brushes.White;
+        canvas.Children.Add(new Rectangle
+        {
+            Width = 10,
+            Height = 7,
+            RadiusX = 1,
+            RadiusY = 1,
+            Fill = brush
+        });
+        Canvas.SetLeft(canvas.Children[^1], 3);
+        Canvas.SetTop(canvas.Children[^1], 8);
+        var shackle = new Path
+        {
+            Data = Geometry.Parse(isLocked
+                ? "M5,8 L5,5 C5,1.8 11,1.8 11,5 L11,8"
+                : "M11,8 L11,5 C11,1.8 5,1.8 5,5"),
+            Stroke = brush,
+            StrokeThickness = 1.7,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round
+        };
+        canvas.Children.Add(shackle);
+        return canvas;
+    }
+
+    private static FrameworkElement CreateEyeIcon(bool isVisible)
+    {
+        var canvas = new Canvas { Width = 16, Height = 16, IsHitTestVisible = false };
+        if (isVisible)
+        {
+            canvas.Children.Add(new Path
+            {
+                Data = Geometry.Parse("M1,8 C4,3.5 12,3.5 15,8 C12,12.5 4,12.5 1,8 Z"),
+                Stroke = Brushes.White,
+                StrokeThickness = 1.4,
+                Fill = Brushes.Transparent
+            });
+            var pupil = new Ellipse { Width = 4, Height = 4, Fill = Brushes.White };
+            Canvas.SetLeft(pupil, 6);
+            Canvas.SetTop(pupil, 6);
+            canvas.Children.Add(pupil);
+        }
+        else
+        {
+            canvas.Children.Add(new Path
+            {
+                Data = Geometry.Parse("M1,6 C5,11 11,11 15,6 M4,9 L3,12 M8,10 L8,13 M12,9 L13,12"),
+                Stroke = Brushes.White,
+                StrokeThickness = 1.4,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round
+            });
+        }
+        return canvas;
+    }
+
+    private void DrawSegment(CompositionSegmentListItem item, double top)
     {
         if (_layout is null)
         {
@@ -414,11 +662,11 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             Padding = new Thickness(8, 5, 7, 4),
             ClipToBounds = true,
             Opacity = isDragging ? 0.84 : 1,
-            Cursor = Cursors.SizeAll,
-            ToolTip = $"{index + 1}. {item.DisplayName}\n" +
+            Cursor = Cursors.Arrow,
+            ToolTip = $"{item.DisplayName}\n" +
                       $"Starts at {FormatTime(span.StartSeconds)}\n" +
                       $"{item.DurationText} • {item.AudioText}\n" +
-                      "Click to select or drag to reorder"
+                      "Click to select"
         };
         if (isDragging)
         {
@@ -434,7 +682,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         var text = new StackPanel();
         text.Children.Add(new TextBlock
         {
-            Text = $"{index + 1}. {item.DisplayName}",
+            Text = item.DisplayName,
             Foreground = FindResource("TextBrush") as Brush ?? Brushes.White,
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis
@@ -458,22 +706,21 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         };
         var contents = new Grid();
         contents.Children.Add(identity);
+        if (item.IsTimingDegraded)
+        {
+            contents.Children.Add(CreateTimingWarningGlyph(item.TimingWarningToolTip));
+        }
         var remove = CreateRemoveButton(item.SegmentId);
-        remove.IsEnabled = _state.Segments.Count > 1;
+        remove.IsEnabled = CanRemove(_state, item.SegmentId);
         contents.Children.Add(remove);
         border.Child = contents;
         border.ContextMenu = CreateSegmentMenu(item.SegmentId);
         border.MouseEnter += (_, _) => remove.Visibility = Visibility.Visible;
         border.MouseLeave += (_, _) => remove.Visibility = Visibility.Collapsed;
         border.MouseLeftButtonDown += Segment_MouseLeftButtonDown;
-        var left = isDragging
-            ? Math.Clamp(
-                _segmentDragPointerX - _segmentDragPointerOffset,
-                0,
-                Math.Max(0, _layout.ContentWidth - span.Width))
-            : span.Left + 1;
+        var left = span.Left + 1;
         Canvas.SetLeft(border, left);
-        Canvas.SetTop(border, 25);
+        Canvas.SetTop(border, top);
         if (isDragging)
         {
             Panel.SetZIndex(border, 20);
@@ -483,7 +730,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         _stickyContent.Add(new StickyContent(identity, left, border.Width, 64));
     }
 
-    private void DrawAudio(CompositionAudioClipListItem item, int lane)
+    private void DrawAudio(CompositionAudioClipListItem item, double top)
     {
         if (_layout is null)
         {
@@ -498,7 +745,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         var left = _layout.GetPlayheadX(start);
         var right = _layout.GetPlayheadX(Math.Min(
             _layout.ProjectedDurationSeconds,
-            start + Math.Max(0.25, item.DurationSeconds ?? 1)));
+            start + Math.Max(0.25, item.DurationSeconds)));
         var width = Math.Max(56, right - left);
         if (left + width > _layout.ContentWidth)
         {
@@ -522,11 +769,11 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             Padding = new Thickness(7, 3, 6, 3),
             ClipToBounds = true,
             Opacity = isDragging ? 0.86 : 1,
-            Cursor = Cursors.SizeWE,
+            Cursor = Cursors.Arrow,
             ToolTip = $"Audio: {item.DisplayName}\n" +
                       $"Starts at {FormatTimePrecise(start)}\n" +
                       $"{item.DurationText} • {item.MixText}\n" +
-                      "Click to select or drag to move"
+                      "Click to select"
         };
         if (isDragging)
         {
@@ -566,17 +813,20 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         };
         var contents = new Grid();
         contents.Children.Add(identity);
+        if (item.IsTimingDegraded)
+        {
+            contents.Children.Add(CreateTimingWarningGlyph(item.TimingWarningToolTip));
+        }
         var remove = CreateRemoveButton(item.AudioClipId);
-        remove.IsEnabled = _state.Capabilities.TryGetValue(item.AudioClipId, out var caps) &&
-                           caps.CanRemove;
+        remove.IsEnabled = CanRemove(_state, item.AudioClipId);
         contents.Children.Add(remove);
         border.Child = contents;
-        border.ContextMenu = CreateAudioMenu(item.AudioClipId);
+        border.ContextMenu = CreateRemoveOnlyMenu(item.AudioClipId);
         border.MouseEnter += (_, _) => remove.Visibility = Visibility.Visible;
         border.MouseLeave += (_, _) => remove.Visibility = Visibility.Collapsed;
         border.MouseLeftButtonDown += Audio_MouseLeftButtonDown;
         Canvas.SetLeft(border, left + 1);
-        Canvas.SetTop(border, AudioLaneTop + lane * (AudioLaneHeight + AudioLaneGap));
+        Canvas.SetTop(border, top);
         TimelineCanvas.Children.Add(border);
         _stickyContent.Add(new StickyContent(identity, left + 1, width, 48));
     }
@@ -611,70 +861,98 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         return button;
     }
 
+    private static TextBlock CreateTimingWarningGlyph(string? toolTip) => new()
+    {
+        Text = "⚠",
+        FontFamily = new FontFamily("Segoe UI Symbol"),
+        FontSize = 15,
+        FontWeight = FontWeights.SemiBold,
+        Foreground = new SolidColorBrush(Color.FromRgb(255, 204, 70)),
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Top,
+        Margin = new Thickness(0, 0, 31, 0),
+        ToolTip = toolTip
+    };
+
     private ContextMenu CreateSegmentMenu(Guid itemId)
     {
-        var menu = new ContextMenu();
-        AddMenuItem(menu, "Detach audio…", DetachAudioRequested, itemId);
-        AddMenuItem(menu, _state.SplitActionLabel, SplitRequested, itemId);
-        menu.Items.Add(new Separator());
-        AddMenuItem(menu, "Shift Left", ShiftLeftRequested, itemId);
-        AddMenuItem(menu, "Shift Right", ShiftRightRequested, itemId);
-        menu.Items.Add(new Separator());
-        AddMenuItem(menu, "Remove", RemoveRequested, itemId, true);
-        menu.Opened += (_, _) => UpdateMenuCapabilities(menu, itemId);
-        UpdateMenuCapabilities(menu, itemId);
-        return menu;
+        return CreateContextMenu(itemId, CompositionTimelineContextMenuPolicy.ForVideo);
     }
 
-    private ContextMenu CreateAudioMenu(Guid itemId)
+    private ContextMenu CreateRemoveOnlyMenu(Guid itemId)
     {
-        var menu = new ContextMenu();
-        AddMenuItem(menu, "Remove", RemoveRequested, itemId, true);
-        menu.Opened += (_, _) => UpdateMenuCapabilities(menu, itemId);
-        UpdateMenuCapabilities(menu, itemId);
-        return menu;
+        return CreateContextMenu(itemId, CompositionTimelineContextMenuPolicy.ForAudio);
     }
 
-    private void AddMenuItem(
-        ContextMenu menu,
-        string header,
-        EventHandler<CompositionTimelineItemEventArgs>? request,
+    private ContextMenu CreateContextMenu(
         Guid itemId,
-        bool danger = false)
+        Func<CompositionTimelineItemCapabilities, IReadOnlyList<CompositionTimelineContextMenuAction>> actionsFor)
     {
-        if (request is null)
+        var menu = new ContextMenu();
+        foreach (var action in actionsFor(GetCapabilities(itemId)))
         {
-            return;
+            AddContextMenuItem(menu, action, itemId);
         }
+        menu.Opened += (_, _) => UpdateContextMenuCapabilities(menu, itemId, actionsFor);
+        UpdateContextMenuCapabilities(menu, itemId, actionsFor);
+        return menu;
+    }
 
-        var item = new MenuItem { Header = header };
-        if (danger)
+    private void AddContextMenuItem(
+        ContextMenu menu,
+        CompositionTimelineContextMenuAction action,
+        Guid itemId)
+    {
+        var item = new MenuItem
+        {
+            Header = action.Header,
+            Tag = action.Kind,
+            IsEnabled = action.IsEnabled
+        };
+        if (action.IsDangerous)
         {
             item.Foreground = new SolidColorBrush(Color.FromRgb(145, 24, 47));
         }
-        item.Click += (_, _) => request(this, new CompositionTimelineItemEventArgs(itemId));
+        item.Click += (_, _) => RequestContextMenuAction(action.Kind, itemId);
         menu.Items.Add(item);
     }
 
-    private void UpdateMenuCapabilities(ContextMenu menu, Guid itemId)
+    private void RequestContextMenuAction(CompositionTimelineContextMenuActionKind action, Guid itemId)
     {
-        if (!_state.Capabilities.TryGetValue(itemId, out var caps))
+        var args = new CompositionTimelineItemEventArgs(itemId);
+        switch (action)
         {
-            caps = new CompositionTimelineItemCapabilities();
-        }
-
-        foreach (var item in menu.Items.OfType<MenuItem>())
-        {
-            item.IsEnabled = item.Header?.ToString() switch
-            {
-                "Detach audio…" => caps.CanDetachAudio,
-                "Shift Left" => caps.CanShiftLeft,
-                "Shift Right" => caps.CanShiftRight,
-                "Remove" => caps.CanRemove,
-                _ => caps.CanSplit && CanSplitAtCurrentPlayback(itemId)
-            };
+            case CompositionTimelineContextMenuActionKind.DetachAudio:
+                DetachAudioRequested?.Invoke(this, args);
+                break;
+            case CompositionTimelineContextMenuActionKind.RemoveFromComposition:
+                RemoveRequested?.Invoke(this, args);
+                break;
         }
     }
+
+    private void UpdateContextMenuCapabilities(
+        ContextMenu menu,
+        Guid itemId,
+        Func<CompositionTimelineItemCapabilities, IReadOnlyList<CompositionTimelineContextMenuAction>> actionsFor)
+    {
+        var actions = actionsFor(GetCapabilities(itemId));
+        foreach (var item in menu.Items.OfType<MenuItem>())
+        {
+            if (item.Tag is CompositionTimelineContextMenuActionKind kind)
+            {
+                item.IsEnabled = actions.Single(action => action.Kind == kind).IsEnabled;
+            }
+        }
+    }
+
+    private CompositionTimelineItemCapabilities GetCapabilities(Guid itemId) =>
+        _state.Capabilities.TryGetValue(itemId, out var capabilities)
+            ? capabilities
+            : new CompositionTimelineItemCapabilities();
+
+    internal static bool CanRemove(CompositionTimelineState state, Guid itemId) =>
+        state.Capabilities.TryGetValue(itemId, out var capabilities) && capabilities.CanRemove;
 
     private bool CanSplitAtCurrentPlayback(Guid itemId)
     {
@@ -694,29 +972,17 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
 
     private void Segment_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Border { Tag: Guid id } || _layout is null)
+        if (sender is not Border { Tag: Guid id })
         {
             return;
         }
-
-        var point = e.GetPosition(TimelineCanvas);
-        var span = _layout.Segments.Single(item => item.SegmentId == id);
-        _pendingSegmentDragId = id;
-        _activeSegmentDragId = null;
-        _segmentDragStart = point;
-        _segmentDragPointerX = point.X;
-        _segmentDragPointerOffset = Math.Clamp(point.X - span.Left, 0, span.Width);
-        _segmentDragOriginalIndex = _state.Segments.ToList().FindIndex(item => item.SegmentId == id);
-        _segmentDragTargetIndex = _segmentDragOriginalIndex;
         SelectionChanged?.Invoke(this, new CompositionTimelineSelectionChangedEventArgs(id, null));
-        TimelineCanvas.CaptureMouse();
-        Render();
         e.Handled = true;
     }
 
     private void Audio_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Border { Tag: Guid id } || _layout is null)
+        if (sender is not Border { Tag: Guid id })
         {
             return;
         }
@@ -727,18 +993,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             return;
         }
 
-        var point = e.GetPosition(TimelineCanvas);
-        _pendingAudioDragId = id;
-        _activeAudioDragId = null;
-        _audioDragStart = point;
-        _audioDragPointerOffset = Math.Max(
-            0,
-            point.X - _layout.GetPlayheadX(audio.TimelineStart.TotalSeconds));
-        _audioDraftStartSeconds = audio.TimelineStart.TotalSeconds;
-        _audioOriginalStartTicks = audio.TimelineStart.Ticks;
         SelectionChanged?.Invoke(this, new CompositionTimelineSelectionChangedEventArgs(null, id));
-        TimelineCanvas.CaptureMouse();
-        Render();
         e.Handled = true;
     }
 
@@ -917,7 +1172,6 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         _pendingAudioDragId = null;
         _activeAudioDragId = null;
         _segmentDragStart = default;
-        _segmentDragPointerOffset = 0;
         _segmentDragPointerX = 0;
         _segmentDragOriginalIndex = -1;
         _segmentDragTargetIndex = -1;
@@ -944,7 +1198,8 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         return CompositionTimelineLayout.CalculateReorder(
             _state.Segments.Select(item => new CompositionTimelineSegmentInput(
                 item.SegmentId,
-                item.DurationSeconds)).ToArray(),
+                item.DurationSeconds,
+                item.TimelineStart)).ToArray(),
             segmentId,
             contentX,
             GetViewportWidth(),
@@ -1042,7 +1297,8 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     private void Timeline_PreviewDrop(object sender, DragEventArgs e)
     {
         var item = ResolveDrop(e.Data);
-        if (item is null || _layout is null || _layout.Segments.Count == 0)
+        var track = item is null ? null : ResolveDropTargetTrack(_state, item.Kind, e.GetPosition(TimelineCanvas).Y);
+        if (item is null || track is null || _layout is null)
         {
             e.Effects = DragDropEffects.None;
             HideDropFeedback();
@@ -1051,14 +1307,18 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         }
 
         var contentX = TimelineScrollViewer.HorizontalOffset + GetViewportX(e);
+        var timelineSeconds = item.Kind == CompositionTimelineDropKind.Video
+            ? GetVideoTrackAppendTime(track.TrackId)
+            : _layout.GetTimeAtX(contentX);
         MediaDropRequested?.Invoke(
             this,
             new CompositionTimelineDropEventArgs(
                 item.AssetId,
                 item.Kind,
-                _layout.GetTimeAtX(contentX),
+                track.TrackId,
+                timelineSeconds,
                 item.Kind == CompositionTimelineDropKind.Video
-                    ? _layout.GetVideoInsertionIndex(contentX)
+                    ? _state.Segments.Count(segment => segment.TrackId == track.TrackId)
                     : -1));
         HideDropFeedback();
         e.Effects = DragDropEffects.Copy;
@@ -1080,7 +1340,8 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
     private void UpdateDropFeedback(DragEventArgs e)
     {
         var item = ResolveDrop(e.Data);
-        if (item is null || _layout is null || _layout.Segments.Count == 0)
+        var track = item is null ? null : ResolveDropTargetTrack(_state, item.Kind, e.GetPosition(TimelineCanvas).Y);
+        if (item is null || track is null || _layout is null)
         {
             e.Effects = DragDropEffects.None;
             HideDropFeedback();
@@ -1089,6 +1350,7 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         }
 
         _dragDescriptor = item;
+        _dragTargetTrackId = track.TrackId;
         _dragViewportX = GetViewportX(e);
         _dragAutoScrollDelta = CompositionTimelineLayout.GetEdgeAutoScrollDelta(
             _dragViewportX,
@@ -1149,11 +1411,14 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         DropHint.UpdateLayout();
         var origin = TimelineCanvas.TranslatePoint(new Point(0, 0), DropHint);
         var width = Math.Max(1, DropHint.ActualWidth);
-        var contentX = TimelineScrollViewer.HorizontalOffset + _dragViewportX;
         var isVideo = _dragDescriptor.Kind == CompositionTimelineDropKind.Video;
-        var markerX = isVideo
-            ? _layout.GetVideoInsertionX(_layout.GetVideoInsertionIndex(contentX))
-            : contentX;
+        var contentX = isVideo && _dragTargetTrackId is { } appendTrackId
+            ? _layout.GetPlayheadX(GetVideoTrackAppendTime(appendTrackId))
+            : TimelineScrollViewer.HorizontalOffset + _dragViewportX;
+        var targetTop = _dragTargetTrackId is { } targetTrackId
+            ? GetTrackItemTop(targetTrackId)
+            : TrackTop;
+        var markerX = contentX;
         const double inset = 3;
         Canvas.SetLeft(DropMarker, Math.Clamp(
             markerX - TimelineScrollViewer.HorizontalOffset,
@@ -1164,17 +1429,59 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
             0,
             Math.Max(0, width - DropToken.Width)));
         DropHintText.Text = _dragDescriptor.DisplayName;
-        DropMarker.Height = isVideo ? 67 : 42;
-        Canvas.SetTop(DropMarker, origin.Y + (isVideo ? 20 : 82));
-        Canvas.SetTop(DropToken, origin.Y + (isVideo ? 35 : 85));
+        var targetTrack = _dragTargetTrackId is { } trackId
+            ? _state.Tracks.SingleOrDefault(track => track.TrackId == trackId)
+            : null;
+        var markerTrackHeight = targetTrack is not null
+            ? GetTrackRowHeight(targetTrack)
+            : _dragDescriptor.Kind == CompositionTimelineDropKind.Video
+                ? VideoTrackRowHeight
+                : AudioTrackRowHeight;
+        DropMarker.Height = markerTrackHeight - TrackHeaderHeight - 4;
+        Canvas.SetTop(DropMarker, origin.Y + targetTop);
+        Canvas.SetTop(DropToken, origin.Y + targetTop + 8);
     }
 
     private void HideDropFeedback()
     {
         _externalDragAutoScrollTimer.Stop();
         _dragDescriptor = null;
+        _dragTargetTrackId = null;
         _dragAutoScrollDelta = 0;
         DropHint.Visibility = Visibility.Hidden;
+    }
+
+    private double GetVideoTrackAppendTime(Guid trackId) =>
+        _state.Segments
+            .Where(segment => segment.TrackId == trackId)
+            .Select(segment => segment.TimelineStart + segment.DurationSeconds)
+            .DefaultIfEmpty(0)
+            .Max();
+
+    internal static CompositionTimelineTrackRow? ResolveDropTargetTrack(
+        CompositionTimelineState state,
+        CompositionTimelineDropKind kind,
+        double timelineY)
+    {
+        if (!double.IsFinite(timelineY) || timelineY < TrackTop)
+            return null;
+        var top = TrackTop;
+        CompositionTimelineTrackRow? track = null;
+        foreach (var candidate in state.Tracks)
+        {
+            var bottom = top + GetTrackRowHeight(candidate);
+            if (timelineY >= top && timelineY < bottom)
+            {
+                track = candidate;
+                break;
+            }
+            top = bottom;
+        }
+        if (track is null) return null;
+        var requiredKind = kind == CompositionTimelineDropKind.Video
+            ? CompositionTimelineTrackKind.Video
+            : CompositionTimelineTrackKind.Audio;
+        return track.Kind == requiredKind && !track.IsLocked ? track : null;
     }
 
     private void UpdateStickyContent()
@@ -1278,4 +1585,37 @@ public partial class CompositionTimelineControl : UserControl, IDisposable
         Unloaded -= Timeline_Unloaded;
         GC.SuppressFinalize(this);
     }
+}
+
+internal enum CompositionTimelineContextMenuActionKind
+{
+    DetachAudio,
+    RemoveFromComposition
+}
+
+/// <summary>
+/// Small, UI-independent policy for the Milestone 4 timeline item menus.
+/// Editing grammar such as split, shift, insertion, and drag remains deferred
+/// to Milestone 5 and must not leak back into this presentation contract.
+/// </summary>
+internal sealed record CompositionTimelineContextMenuAction(
+    CompositionTimelineContextMenuActionKind Kind,
+    string Header,
+    bool IsEnabled,
+    bool IsDangerous = false);
+
+internal static class CompositionTimelineContextMenuPolicy
+{
+    public static IReadOnlyList<CompositionTimelineContextMenuAction> ForVideo(
+        CompositionTimelineItemCapabilities capabilities) =>
+    [
+        new(CompositionTimelineContextMenuActionKind.DetachAudio, "Detach audio…", capabilities.CanDetachAudio),
+        new(CompositionTimelineContextMenuActionKind.RemoveFromComposition, "Remove from composition", capabilities.CanRemove, IsDangerous: true)
+    ];
+
+    public static IReadOnlyList<CompositionTimelineContextMenuAction> ForAudio(
+        CompositionTimelineItemCapabilities capabilities) =>
+    [
+        new(CompositionTimelineContextMenuActionKind.RemoveFromComposition, "Remove from composition", capabilities.CanRemove, IsDangerous: true)
+    ];
 }

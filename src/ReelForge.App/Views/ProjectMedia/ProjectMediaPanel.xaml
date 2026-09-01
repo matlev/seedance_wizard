@@ -93,14 +93,17 @@
             <ListBox.ContextMenu>
                 <ContextMenu Opened="ContextMenu_Opened">
                     <MenuItem x:Name="RenameItem" Header="Change filename…" Tag="Rename" Click="Action_Click" />
-                    <MenuItem Header="Export…" Tag="Export" Click="Action_Click" />
+                    <MenuItem x:Name="RelinkSourceItem" Header="Relink source…" Tag="Relink" Click="Action_Click" />
+                    <MenuItem x:Name="RestoreDeletedSourceItem" Header="Restore deleted source links…" Tag="RestoreDeletedSource" Click="Action_Click" />
+                    <MenuItem x:Name="ExportItem" Header="Export…" Tag="Export" Click="Action_Click" />
                     <MenuItem x:Name="ExtractAudioItem" Header="Extract audio…" Tag="ExtractAudio"
                               Click="Action_Click" />
-                    <Separator />
+                    <Separator x:Name="FirstMenuSeparator" />
                     <MenuItem x:Name="CopyToProjectItem" Header="Copy to Project…" Tag="Copy" Click="Action_Click" />
                     <MenuItem x:Name="MoveToProjectItem" Header="Move to Project…" Tag="Move" Click="Action_Click" />
-                    <Separator />
-                    <MenuItem Header="Delete from Project…" Tag="Delete" Foreground="#FF9B9B"
+                    <Separator x:Name="SecondMenuSeparator" />
+                    <MenuItem x:Name="DeleteItem" Header="Delete from project" Tag="Delete"
+                              Style="{StaticResource DangerMenuItemStyle}"
                               Click="Action_Click" />
                 </ContextMenu>
             </ListBox.ContextMenu>
@@ -116,10 +119,50 @@
                                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                                     CornerRadius="2" VerticalAlignment="Center">
                                 <Grid>
-                                    <TextBlock Text="{Binding Glyph}" Foreground="{DynamicResource MutedTextBrush}"
-                                               FontSize="15" HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                    <TextBlock Text="{Binding Glyph}" ToolTip="{Binding GlyphToolTip}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                                                <Setter Property="FontSize" Value="15" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsTimingDegraded}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                                        <Setter Property="FontFamily" Value="Segoe UI Symbol" />
+                                                        <Setter Property="FontSize" Value="22" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsMissingPhysicalAsset}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                                        <Setter Property="FontFamily" Value="Segoe UI Symbol" />
+                                                        <Setter Property="FontSize" Value="22" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsDegradedDerivedAsset}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                                        <Setter Property="FontFamily" Value="Segoe UI Symbol" />
+                                                        <Setter Property="FontSize" Value="22" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMissingPhysicalAsset}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsDegradedDerivedAsset}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsTimingDegraded}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
                                 </Grid>
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="7,0,0,0">

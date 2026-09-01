@@ -7,6 +7,7 @@ internal static partial class ProjectPersistenceMapper
     private static ProjectAssetDto ToDto(ProjectAsset source) => new()
     {
         Id = source.Id,
+        IsDeleted = source.IsDeleted,
         DisplayName = source.DisplayName,
         FileName = source.FileName,
         MediaType = source.MediaType,
@@ -17,6 +18,7 @@ internal static partial class ProjectPersistenceMapper
         Width = source.Width,
         Height = source.Height,
         Encoding = source.Encoding,
+        TimingAssessments = source.TimingAssessments.Select(ToDto).ToList(),
         Provenance = ToDto(source.Provenance),
         Physical = ToDto(source.Physical),
         Virtual = source.Virtual is null ? null : new VirtualAssetStateDto
@@ -31,6 +33,7 @@ internal static partial class ProjectPersistenceMapper
     private static ProjectAsset FromDto(ProjectAssetDto source) => new()
     {
         Id = source.Id,
+        IsDeleted = source.IsDeleted,
         DisplayName = source.DisplayName,
         FileName = source.FileName,
         MediaType = source.MediaType,
@@ -41,6 +44,7 @@ internal static partial class ProjectPersistenceMapper
         Width = source.Width,
         Height = source.Height,
         Encoding = source.Encoding,
+        TimingAssessments = (source.TimingAssessments ?? throw new InvalidDataException("Asset timing assessments are required.")).Select(FromDto).ToList(),
         Provenance = FromDto(source.Provenance),
         Physical = FromDto(source.Physical),
         Virtual = source.Virtual is null ? null : new VirtualAssetState
@@ -56,6 +60,7 @@ internal static partial class ProjectPersistenceMapper
     {
         RelativePath = source.RelativePath,
         Durability = source.Durability,
+        Availability = source.Availability,
         ContentIdentity = new ContentIdentityDto
         {
             Algorithm = source.ContentIdentity.Algorithm,
@@ -70,6 +75,7 @@ internal static partial class ProjectPersistenceMapper
     {
         RelativePath = source.RelativePath,
         Durability = source.Durability,
+        Availability = source.Availability,
         ContentIdentity = new ContentIdentity
         {
             Algorithm = source.ContentIdentity.Algorithm,

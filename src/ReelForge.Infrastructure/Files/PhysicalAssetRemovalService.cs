@@ -14,6 +14,7 @@ public sealed class PhysicalAssetRemovalService
     public async Task RemoveAsync(
         ProjectWorkspace workspace,
         Guid assetId,
+        bool preserveLogicalRecord = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(workspace);
@@ -30,14 +31,27 @@ public sealed class PhysicalAssetRemovalService
 
         var absolutePath = workspace.GetAbsoluteAssetPath(asset);
         var priorModifiedAt = project.ModifiedAt;
-        project.Assets.RemoveAt(assetIndex);
+        var priorAvailability = asset.Physical.Availability;
+        if (preserveLogicalRecord)
+        {
+            asset.IsDeleted = true;
+            asset.Physical.Availability = PhysicalAssetAvailability.Missing;
+        }
+        else
+            project.Assets.RemoveAt(assetIndex);
         try
         {
             await workspace.SaveAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
         {
-            project.Assets.Insert(assetIndex, asset);
+            if (preserveLogicalRecord)
+            {
+                asset.IsDeleted = false;
+                asset.Physical.Availability = priorAvailability;
+            }
+            else
+                project.Assets.Insert(assetIndex, asset);
             project.ModifiedAt = priorModifiedAt;
             throw;
         }

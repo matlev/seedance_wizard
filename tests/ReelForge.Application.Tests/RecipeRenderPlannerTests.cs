@@ -138,78 +138,49 @@ public sealed class RecipeRenderPlannerTests
     }
 
     [Fact]
-    public void CompositionPlanCarriesCompatibilityDecisionWithoutRendering()
+    public void CandidateMultitrackCompositionMaterializationIsRejectedUntilTrackAwareRenderingExists()
     {
         var first = PhysicalVideo();
-        first.Encoding = Encoding(1280);
-        var second = PhysicalVideo();
-        second.Encoding = Encoding(1920);
         var composition = VirtualVideo("Composition");
         composition.Virtual!.Kind = VirtualAssetKind.Composition;
-        var project = new VideoProject { Assets = [first, second, composition] };
+        var project = new VideoProject { Assets = [first, composition] };
         var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
         {
-            Segments =
-            [
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = first.Id } },
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = second.Id } }
-            ]
+            Composition = new WorkingCompositionState([], [])
         });
 
-        var plan = RecipeRenderPlanner.Plan(
+        var exception = Assert.Throws<InvalidDataException>(() => RecipeRenderPlanner.Plan(
             project,
             new AssetMaterializationTarget(composition.Id, revision.Id),
-            MaterializationPurpose.Preview);
+            MaterializationPurpose.Preview));
 
-        var node = Assert.IsType<CompositionRenderPlanNode>(plan.Root);
-        Assert.Equal(CompositionCompatibilityDecision.RequiresNormalization, node.Compatibility.Decision);
-        Assert.Contains(node.Compatibility.Issues, issue => issue.Property.Contains("width", StringComparison.Ordinal));
+        Assert.Contains("track-aware renderer", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Milestone 6", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void CompositionPlanPinsTimedAudioClipsIntoItsHash()
+    public void CandidateMultitrackCompositionIsNotFlattenedIntoLegacySegmentsOrAudioClips()
     {
         var video = PhysicalVideo();
-        var audio = PhysicalAudio();
         var composition = VirtualVideo("Composition");
         composition.Virtual!.Kind = VirtualAssetKind.Composition;
-        var project = new VideoProject { Assets = [video, audio, composition] };
+        var project = new VideoProject { Assets = [video, composition] };
         var revision = project.CommitRecipe(composition.Id, new CompositionRecipe
         {
-            Segments =
-            [
-                new CompositionSegment { Source = new AssetRevisionReference { AssetId = video.Id } }
-            ],
-            AudioClips =
-            [
-                new CompositionAudioClip
-                {
-                    Source = new AssetRevisionReference { AssetId = audio.Id },
-                    TimelineStartTicks = TimeSpan.FromSeconds(3).Ticks,
-                    IsMuted = true,
-                    GainDecibels = -7,
-                    Pan = -0.4,
-                    FadeInMilliseconds = 1250,
-                    FadeOutMilliseconds = 2000
-                }
-            ]
+            Composition = new WorkingCompositionState(
+                [new CompositionVideoTrack(Guid.NewGuid(), false, true,
+                [
+                    VideoItem(video, 0, 2)
+                ])],
+                [])
         });
 
-        var plan = RecipeRenderPlanner.Plan(
+        var exception = Assert.Throws<InvalidDataException>(() => RecipeRenderPlanner.Plan(
             project,
             new AssetMaterializationTarget(composition.Id, revision.Id),
-            MaterializationPurpose.Preview);
-        var node = Assert.IsType<CompositionRenderPlanNode>(plan.Root);
+            MaterializationPurpose.Preview));
 
-        var clip = Assert.Single(node.AudioClips);
-        Assert.Equal(audio.Id, clip.Source.AssetId);
-        Assert.Equal(TimeSpan.FromSeconds(3).Ticks, clip.TimelineStartTicks);
-        Assert.True(clip.IsMuted);
-        Assert.Equal(-7, clip.GainDecibels);
-        Assert.Equal(-0.4, clip.Pan);
-        Assert.Equal(1250, clip.FadeInMilliseconds);
-        Assert.Equal(2000, clip.FadeOutMilliseconds);
-        Assert.NotEqual(node.Segments[0].SegmentHash, clip.ClipHash);
+        Assert.Contains("cannot be materialized", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static ProjectAsset PhysicalVideo() => new()
@@ -238,22 +209,21 @@ public sealed class RecipeRenderPlannerTests
         Virtual = new VirtualAssetState { Kind = VirtualAssetKind.SavedClip }
     };
 
-    private static ProjectAsset PhysicalAudio() => new()
+    private static CompositionVideoItem VideoItem(ProjectAsset source, long compositionStart, long duration)
     {
-        DisplayName = "Music",
-        FileName = "music.wav",
-        MediaType = MediaType.Audio,
-        StorageKind = AssetStorageKind.Physical,
-        Physical = new PhysicalAssetStorage
-        {
-            RelativePath = Path.Combine("assets", "audio", "music.wav"),
-            ContentIdentity = new ContentIdentity
-            {
-                Status = ContentHashStatus.Verified,
-                Sha256 = new string('c', 64)
-            }
-        }
-    };
+        var assessment = new StreamTimingAssessment(
+            Guid.NewGuid(), new string('a', 64), MediaType.Video, 0, TimingReadiness.Exact,
+            true, new ExactTime(duration, 1), [], new ExactTime(0, 1));
+        return new CompositionVideoItem(
+            Guid.NewGuid(),
+            new AssetRevisionReference { AssetId = source.Id },
+            0,
+            new VideoSourceRange(
+                new VideoPresentationTime(0, 1, 1),
+                new VideoPresentationTime(duration, 1, 1)),
+            assessment.CreatePlacementPin(),
+            new ExactTime(compositionStart, 1));
+    }
 
     private static RecipeBoundary Timestamp(double seconds) => new()
     {
@@ -261,22 +231,4 @@ public sealed class RecipeRenderPlannerTests
         TimestampSeconds = seconds
     };
 
-    private static MediaEncodingMetadata Encoding(int width) => new()
-    {
-        Video = new VideoStreamMetadata
-        {
-            Codec = "h264",
-            Width = width,
-            Height = 720,
-            PixelFormat = "yuv420p",
-            FrameRate = "30/1"
-        },
-        Audio = new AudioStreamMetadata
-        {
-            Codec = "aac",
-            SampleRate = 48000,
-            Channels = 2,
-            ChannelLayout = "stereo"
-        }
-    };
 }

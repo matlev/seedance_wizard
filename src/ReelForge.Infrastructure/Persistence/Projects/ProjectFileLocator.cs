@@ -1,5 +1,7 @@
 namespace ReelForge.Infrastructure;
 
+using ReelForge.Application;
+
 public static class ProjectFileLocator
 {
     public static IReadOnlyList<string> FindInFolderAndChildren(string selectedFolder)
@@ -11,14 +13,16 @@ public static class ProjectFileLocator
 
         var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         AddProjectFiles(root, candidates);
-        foreach (var childDirectory in Directory.EnumerateDirectories(root))
+        foreach (var childDirectory in Directory.EnumerateDirectories(root).Where(directory =>
+                     !ProjectCloneArtifactPolicy.IsStagingDirectoryName(Path.GetFileName(directory))))
             AddProjectFiles(childDirectory, candidates);
 
         return candidates.Order(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    public static bool IsSupportedProjectFile(string path)
-        => Path.GetExtension(path).Equals(PortableProjectStore.ProjectFileExtension, StringComparison.OrdinalIgnoreCase);
+    public static bool IsSupportedProjectFile(string path) =>
+        Path.GetExtension(path).Equals(PortableProjectStore.ProjectFileExtension, StringComparison.OrdinalIgnoreCase) &&
+        !ProjectCloneArtifactPolicy.IsStagingProjectFile(path);
 
     private static void AddProjectFiles(string directory, HashSet<string> candidates)
     {

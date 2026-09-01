@@ -12,6 +12,8 @@ namespace ReelForge.App.Views.ProjectMedia;
 public enum ProjectMediaAction
 {
     Rename,
+    Relink,
+    RestoreDeletedSource,
     Export,
     ExtractAudio,
     Copy,
@@ -96,6 +98,26 @@ public partial class ProjectMediaPanel : UserControl
     private void ContextMenu_Opened(object sender, RoutedEventArgs e)
     {
         var asset = SelectedItem?.Asset;
+        DeleteItem.IsEnabled = asset is not null;
+        if (ProjectMediaContextMenuPolicy.UsesMissingAssetMenu(asset))
+        {
+            RenameItem.Visibility = Visibility.Collapsed;
+            RelinkSourceItem.Visibility = Visibility.Visible;
+            RestoreDeletedSourceItem.Visibility = Visibility.Collapsed;
+            ExportItem.Visibility = Visibility.Collapsed;
+            ExtractAudioItem.Visibility = Visibility.Collapsed;
+            FirstMenuSeparator.Visibility = Visibility.Collapsed;
+            CopyToProjectItem.Visibility = Visibility.Collapsed;
+            MoveToProjectItem.Visibility = Visibility.Collapsed;
+            SecondMenuSeparator.Visibility = Visibility.Collapsed;
+            DeleteItem.Visibility = Visibility.Visible;
+            return;
+        }
+
+        DeleteItem.Visibility = Visibility.Visible;
+        ExportItem.Visibility = Visibility.Visible;
+        FirstMenuSeparator.Visibility = Visibility.Visible;
+        SecondMenuSeparator.Visibility = Visibility.Visible;
         var savedFrame = SelectedItem is { Anchor: not null, AnchorRevision: not null };
         var copyableVirtualVideo = asset is
         {
@@ -105,6 +127,12 @@ public partial class ProjectMediaPanel : UserControl
             Virtual.CurrentRecipeRevisionId: not null
         };
         var physicalAsset = asset is { StorageKind: AssetStorageKind.Physical, Physical: not null };
+        RelinkSourceItem.Visibility = ProjectMediaContextMenuPolicy.CanRelink(asset)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        RestoreDeletedSourceItem.Visibility = SelectedItem?.CanRestoreDeletedSource == true
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         CopyToProjectItem.Visibility = savedFrame || copyableVirtualVideo || physicalAsset
             ? Visibility.Visible
             : Visibility.Collapsed;

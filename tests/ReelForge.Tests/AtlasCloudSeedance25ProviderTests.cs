@@ -71,6 +71,58 @@ public sealed class AtlasCloudSeedance25ProviderTests
     }
 
     [Fact]
+    public void VideoEditMapsExactlyOneVideoToAtlasEditTask()
+    {
+        var provider = CreateProvider(new RecordingHandler(HttpStatusCode.OK, "{}"));
+        var video = CreateAsset(MediaType.Video, "source.mp4", "atlas-asset://source-video");
+        video.DurationSeconds = 12;
+        var request = new GenerationRequest
+        {
+            Prompt = "Replace the sky with a sunrise.",
+            Mode = GenerationMode.VideoEdit,
+            DurationSeconds = -1,
+            AspectRatio = "adaptive",
+            Resolution = "720p",
+            ReferenceAssetIds = [video.Id]
+        };
+
+        var payload = provider.BuildPayload(request, [video]);
+
+        Assert.Equal(AtlasCloudSeedance25Provider.ReferenceToVideoModel, payload["model"]);
+        Assert.Equal(-1, payload["duration"]);
+        Assert.Equal("adaptive", payload["ratio"]);
+        Assert.Equal("edit", payload["omni_reference_task_type"]);
+        Assert.Equal(["atlas-asset://source-video"], Assert.IsType<string[]>(payload["reference_videos"]));
+        Assert.DoesNotContain("reference_images", payload.Keys);
+        Assert.DoesNotContain("reference_audios", payload.Keys);
+    }
+
+    [Fact]
+    public void VideoEditRejectsAnythingOtherThanOneVideoWithFixedSettings()
+    {
+        var provider = CreateProvider(new RecordingHandler(HttpStatusCode.OK, "{}"));
+        var video = CreateAsset(MediaType.Video, "source.mp4", "atlas-asset://source-video");
+        video.DurationSeconds = 31;
+        var image = CreateAsset(MediaType.Image, "reference.png", "atlas-asset://reference-image");
+        var request = new GenerationRequest
+        {
+            Prompt = "Change the lighting.",
+            Mode = GenerationMode.VideoEdit,
+            DurationSeconds = 4,
+            AspectRatio = "16:9",
+            Resolution = "720p",
+            ReferenceAssetIds = [video.Id, image.Id]
+        };
+
+        var exception = Assert.Throws<GenerationValidationException>(() => provider.BuildPayload(request, [video, image]));
+
+        Assert.Contains(exception.Errors, error => error.Contains("-1 seconds", StringComparison.Ordinal));
+        Assert.Contains(exception.Errors, error => error.Contains("'adaptive'", StringComparison.Ordinal));
+        Assert.Contains(exception.Errors, error => error.Contains("exactly 0 image", StringComparison.Ordinal));
+        Assert.Contains(exception.Errors, error => error.Contains("between 4 and 30 seconds", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ImageToVideoRejectsUndocumentedNonAdaptiveRatio()
     {
         var provider = CreateProvider(new RecordingHandler(HttpStatusCode.OK, "{}"));
@@ -147,6 +199,50 @@ public sealed class AtlasCloudSeedance25ProviderTests
         Assert.Equal("https://api.atlascloud.ai/api/v1/model/prediction/prediction-123", handler.RequestUri?.AbsoluteUri);
         Assert.Equal(GenerationStatus.Succeeded, job.Status);
         Assert.Equal("https://storage.example/output.mp4", Assert.Single(job.Outputs).DownloadUrl);
+    }
+
+    [Fact]
+    public async Task PollTreatsHttpErrorWithTerminalPredictionAsFailedJob()
+    {
+        var handler = new RecordingHandler(
+            HttpStatusCode.BadRequest,
+            """
+            {
+              "code": 400,
+              "message": "The submitted settings are not valid for video editing.",
+              "data": {
+                "id": "prediction-123",
+                "status": "failed",
+                "error": "The submitted settings are not valid for video editing.",
+                "error_code": 1013040,
+                "outputs": null
+              }
+            }
+            """);
+        var provider = CreateProvider(handler);
+
+        var job = await provider.GetJobAsync("prediction-123");
+
+        Assert.Equal(GenerationStatus.Failed, job.Status);
+        Assert.Equal("prediction-123", job.ProviderJobId);
+        Assert.Equal(400, job.Error?.HttpStatus);
+        Assert.Equal("1013040", job.Error?.ProviderCode);
+        Assert.Equal("The submitted settings are not valid for video editing.", job.Error?.Message);
+    }
+
+    [Fact]
+    public async Task PollKeepsTransientHttpFailureRetryable()
+    {
+        var handler = new RecordingHandler(
+            HttpStatusCode.TooManyRequests,
+            """{"code":"RATE_LIMITED","message":"Try again later."}""");
+        var provider = CreateProvider(handler);
+
+        var exception = await Assert.ThrowsAsync<VideoGenerationProviderException>(
+            () => provider.GetJobAsync("prediction-123"));
+
+        Assert.Equal(429, exception.HttpStatus);
+        Assert.Equal("RATE_LIMITED", exception.ProviderCode);
     }
 
     private static GenerationSubmissionAuthorization TestAuthorization() =>

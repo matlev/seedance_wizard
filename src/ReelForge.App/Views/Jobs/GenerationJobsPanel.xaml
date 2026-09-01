@@ -12,7 +12,7 @@
             <StackPanel>
                 <TextBlock Text="GENERATION JOBS" FontWeight="SemiBold"
                            Foreground="{DynamicResource MutedTextBrush}" />
-                <TextBlock Text="Completed jobs clear from this pane after you view them and leave Jobs."
+                <TextBlock Text="Cancel Job is available during Undo Send. Once submitted, current providers do not support remote cancellation. Completed jobs clear after you view them and leave Jobs."
                            TextWrapping="Wrap" FontSize="11"
                            Foreground="{DynamicResource MutedTextBrush}" Margin="0,4,0,0" />
             </StackPanel>
